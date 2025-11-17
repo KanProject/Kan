@@ -804,7 +804,7 @@ static inline enum parse_status_t continue_into_potential_pragma (bool allow_fil
      }
 
      "pragma" separator_no_nl+ "kan_reflection_visibility_condition_value" separator_no_nl+
-     @value_begin (. \ [\(\)])+ @value_end separators_till_nl
+     @value_begin (. \ [()])+ @value_end separators_till_nl
      {
          struct visibility_condition_value_node_t *node =
              kan_allocate_batched (global.meta_allocation_group, sizeof (struct visibility_condition_value_node_t));
@@ -1014,7 +1014,7 @@ static enum parse_status_t parse_main (void)
              continue;
          }
 
-         "typedef" ((. \ [;\{\}]) | separator)+ ";"
+         "typedef" ((. \ [;{}]) | separator)+ ";"
          {
              // Simple typedef without braces. Add it to declarations if we're parsing target object file.
              if (!meta_storage_is_empty (&parser.current_meta_storage))

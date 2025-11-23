@@ -194,7 +194,7 @@ KAN_C_HEADER_BEGIN
 
 #define KAN_UM_ACCESS_ESCAPE(TARGET, NAME)                                                                             \
     TARGET = NAME##_access;                                                                                            \
-    *(typeof_unqual (NAME) *) &NAME = NULL;
+    *(typeof_unqual (NAME) *) &NAME = NULL
 
 #if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
 #    define KAN_UM_ACCESS_DELETE(NAME)                                                                                 \

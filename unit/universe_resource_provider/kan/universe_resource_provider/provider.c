@@ -1750,7 +1750,7 @@ UNIVERSE_RESOURCE_PROVIDER_API KAN_UM_MUTATOR_EXECUTE_SIGNATURE (mutator_templat
     state->execution_shared_state.concurrency_lock = kan_atomic_int_init (0);
 
     state->execution_shared_state.private = private;
-    KAN_UM_ACCESS_ESCAPE (state->execution_shared_state.private_access, private)
+    KAN_UM_ACCESS_ESCAPE (state->execution_shared_state.private_access, private);
 
     state->execution_shared_state.operation_cursor = kan_repository_indexed_interval_write_query_execute_descending (
         &state->write_interval__resource_provider_operation__priority, NULL, NULL);

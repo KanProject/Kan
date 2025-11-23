@@ -436,7 +436,7 @@ struct kan_resource_third_party_blob_failed_t
         if (resource_container_##NAME)                                                                                 \
         {                                                                                                              \
             NAME = KAN_RESOURCE_PROVIDER_CONTAINER_GET (RESOURCE_TYPE, resource_container_##NAME);                     \
-            KAN_UM_ACCESS_ESCAPE (container_access_if_escaped_##NAME, resource_container_##NAME)                       \
+            KAN_UM_ACCESS_ESCAPE (container_access_if_escaped_##NAME, resource_container_##NAME);                      \
         }                                                                                                              \
     }
 

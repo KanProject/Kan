@@ -1000,6 +1000,12 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
     bool after_loading_reshape = false;
     KAN_UML_EVENT_FETCH (loaded_event, font_libraries_loaded_event_t) { after_loading_reshape = true; }
 
+    // Right now, shaping mutator implementation is intentionally not multithreaded:
+    // We do not expect to get that many shaping requests per frame in order to make multithreading justified.
+    // Nothing in implementation blocks multithreading and shaping can be safely done from batched tasks.
+    // However, no sense to migrate it to batched tasks for now if we are rarely going to reshape more than 10 small
+    // unstable units per frame.
+
     if (after_loading_reshape)
     {
         KAN_CPU_SCOPED_STATIC_SECTION (after_loading_reshape)

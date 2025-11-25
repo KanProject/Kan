@@ -1,0 +1,87 @@
+#pragma once
+
+#include <resource_render_foundation_api.h>
+
+#include <kan/api_common/core_types.h>
+#include <kan/container/dynamic_array.h>
+#include <kan/container/interned_string.h>
+#include <kan/error/critical.h>
+#include <kan/reflection/markup.h>
+
+// TODO: Docs.
+
+KAN_C_HEADER_BEGIN
+
+enum kan_resource_atlas_image_type_t
+{
+    KAN_RESOURCE_ATLAS_IMAGE_TYPE_REGULAR = 0u,
+    KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH,
+};
+
+struct kan_resource_atlas_image_nine_patch_t
+{
+    kan_instance_size_t left;
+    kan_instance_size_t right;
+    kan_instance_size_t top;
+    kan_instance_size_t bottom;
+};
+
+struct kan_resource_atlas_image_t
+{
+    kan_instance_size_t page;
+    kan_instance_size_t x;
+    kan_instance_size_t y;
+    kan_instance_size_t width;
+    kan_instance_size_t height;
+
+    enum kan_resource_atlas_image_type_t type;
+    union
+    {
+        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
+        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH)
+        struct kan_resource_atlas_image_nine_patch_t nine_patch;
+    };
+
+    /// \brief If 0 or higher, then image color data should be multiplied by color table entry with that index.
+    /// \details Global color tables are used for color blindness color remapping. For example, ui buff and debuff icons
+    ///          can be grayscale and then multiplied by color at appropriate index: green for normal vision and blue
+    ///          in colorblind mode. Also, tables make it easy to support custom color configurations for color
+    ///          blindness, which is supported in some other games and applications.
+    kan_instance_offset_t color_table_multiplicator_index;
+};
+
+struct kan_resource_atlas_primary_entry_t
+{
+    kan_interned_string_t name;
+    struct kan_resource_atlas_image_t image;
+};
+
+struct kan_resource_atlas_replacement_entry_t
+{
+    kan_interned_string_t name;
+    kan_interned_string_t for_locale;
+    struct kan_resource_atlas_image_t image;
+};
+
+struct kan_resource_atlas_t
+{
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_atlas_primary_entry_t)
+    struct kan_dynamic_array_t entries;
+
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_atlas_replacement_entry_t)
+    struct kan_dynamic_array_t replacements;
+
+    kan_instance_size_t page_count;
+    kan_instance_size_t page_width;
+    kan_instance_size_t page_height;
+
+    /// \brief 32-bit RGBA data in SRGB colorspace, page after page.
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (uint8_t)
+    struct kan_dynamic_array_t data;
+};
+
+RESOURCE_RENDER_FOUNDATION_API void kan_resource_atlas_init (struct kan_resource_atlas_t *instance);
+
+RESOURCE_RENDER_FOUNDATION_API void kan_resource_atlas_shutdown (struct kan_resource_atlas_t *instance);
+
+KAN_C_HEADER_END

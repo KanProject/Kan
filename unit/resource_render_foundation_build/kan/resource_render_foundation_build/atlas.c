@@ -38,12 +38,23 @@ RESOURCE_RENDER_FOUNDATION_BUILD_API struct kan_resource_type_meta_t kan_resourc
     .reset = NULL,
 };
 
+void kan_resource_atlas_image_header_init (struct kan_resource_atlas_image_header_t *instance)
+{
+    instance->source = NULL;
+    instance->type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_REGULAR;
+    instance->color_table_multiplier_index = KAN_INT_MAX (kan_instance_size_t);
+}
+
+void kan_resource_atlas_entry_replacement_header_init (struct kan_resource_atlas_entry_replacement_header_t *instance)
+{
+    instance->for_locale = NULL;
+    kan_resource_atlas_image_header_init (&instance->image);
+}
+
 void kan_resource_atlas_entry_header_init (struct kan_resource_atlas_entry_header_t *instance)
 {
     instance->name = NULL;
-    instance->image.source = NULL;
-    instance->image.type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_REGULAR;
-    instance->image.color_table_multiplicator_index = -1;
+    kan_resource_atlas_image_header_init (&instance->image);
 
     kan_dynamic_array_init (&instance->replacements, 0u, sizeof (struct kan_resource_atlas_entry_replacement_header_t),
                             alignof (struct kan_resource_atlas_entry_replacement_header_t),
@@ -310,6 +321,7 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
         build_context.pages_needed = 1u;
         struct atlas_allocation_pin_t *first_pin =
             kan_allocate_batched (build_context.main_allocation_group, sizeof (struct atlas_allocation_pin_t));
+        const kan_instance_size_t cut_out_size = KAN_MAX (KAN_RESOURCE_RF_ATLAS_CUT_OUT_SIZE, input->border_size);
 
         first_pin->page = 0u;
         first_pin->x = input->border_size;
@@ -356,7 +368,7 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
             image_node->allocated_x = suitable_pin->x;
             image_node->allocated_y = suitable_pin->y;
 
-            if (suitable_pin->height - image_node->raw_data.height > input->border_size)
+            if (suitable_pin->height - image_node->raw_data.height > cut_out_size)
             {
                 // Can allocate under this allocation in the future. Create new pin for that.
                 struct atlas_allocation_pin_t *bottom_pin =
@@ -377,7 +389,7 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
             // It should never happen due to sorting, but we still set height to keep proper values in data.
             suitable_pin->height = image_node->raw_data.height;
 
-            if (suitable_pin->width > input->border_size)
+            if (suitable_pin->width > cut_out_size)
             {
                 // Add border between allocations.
                 suitable_pin->x += input->border_size;
@@ -436,8 +448,6 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
     }
 
     kan_dynamic_array_set_capacity (&output->entries, input->entries.size);
-    kan_dynamic_array_set_capacity (&output->replacements, input->entries.size);
-
     for (kan_loop_size_t entry_index = 0u; entry_index < input->entries.size; ++entry_index)
     {
         const struct kan_resource_atlas_entry_header_t *entry_source =
@@ -448,9 +458,12 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
         // We must've processed all images.
         KAN_ASSERT (image_node)
 
-        struct kan_resource_atlas_primary_entry_t *entry_target = kan_dynamic_array_add_last (&output->entries);
+        struct kan_resource_atlas_entry_t *entry_target = kan_dynamic_array_add_last (&output->entries);
         KAN_ASSERT (entry_target)
+        ++output->total_entries;
+
         entry_target->name = entry_source->name;
+        kan_dynamic_array_set_capacity (&entry_target->replacements, entry_source->replacements.size);
 
 #define COPY_IMAGE(TARGET, SOURCE, NODE)                                                                               \
     (TARGET).page = (NODE)->allocated_page;                                                                            \
@@ -470,7 +483,7 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
         break;                                                                                                         \
     }                                                                                                                  \
                                                                                                                        \
-    (TARGET).color_table_multiplicator_index = (SOURCE).color_table_multiplicator_index
+    (TARGET).color_table_multiplier_index = (SOURCE).color_table_multiplier_index
 
         COPY_IMAGE (entry_target->image, entry_source->image, image_node);
         for (kan_loop_size_t replacement_index = 0u; replacement_index < entry_source->replacements.size;
@@ -484,17 +497,10 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
             // We must've processed all images.
             KAN_ASSERT (image_node)
 
-            struct kan_resource_atlas_replacement_entry_t *replacement_target =
-                kan_dynamic_array_add_last (&output->replacements);
+            struct kan_resource_atlas_entry_replacement_t *replacement_target =
+                kan_dynamic_array_add_last (&entry_target->replacements);
+            ++output->total_entries;
 
-            if (!replacement_target)
-            {
-                kan_dynamic_array_set_capacity (&output->replacements, output->replacements.size * 2u);
-                replacement_target = kan_dynamic_array_add_last (&output->replacements);
-                KAN_ASSERT (replacement_target)
-            }
-
-            replacement_target->name = entry_source->name;
             replacement_target->for_locale = replacement_source->for_locale;
             COPY_IMAGE (replacement_target->image, replacement_source->image, image_node);
         }
@@ -502,6 +508,5 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
 #undef COPY_IMAGE
     }
 
-    kan_dynamic_array_set_capacity (&output->replacements, output->replacements.size);
     return KAN_RESOURCE_BUILD_RULE_SUCCESS;
 }

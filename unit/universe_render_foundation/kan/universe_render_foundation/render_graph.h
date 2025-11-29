@@ -5,6 +5,7 @@
 #include <kan/api_common/c_header.h>
 #include <kan/api_common/core_types.h>
 #include <kan/container/hash_storage.h>
+#include <kan/inline_math/inline_math.h>
 #include <kan/universe/universe.h>
 #include <kan/universe_render_foundation/program.h>
 
@@ -67,9 +68,31 @@ struct kan_render_context_singleton_t
     bool frame_scheduled;
 
     struct kan_render_supported_device_info_t *selected_device_info;
+
+    /// \brief Buffer with color table for color blindness fixup.
+    /// \details Always a storage buffer in order to allow arbitrary size for indexing.
+    kan_render_buffer_t color_table_buffer;
+
+    /// \brief If true, then `color_table_buffer` is updated from `color_table_values`.
+    bool color_table_values_dirty;
+
+    /// \brief Values for color blindness fixup that are supplied into `color_table_buffer`.
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_color_linear_t)
+    struct kan_dynamic_array_t color_table_values;
 };
 
 UNIVERSE_RENDER_FOUNDATION_API void kan_render_context_singleton_init (struct kan_render_context_singleton_t *instance);
+
+UNIVERSE_RENDER_FOUNDATION_API void kan_render_context_singleton_shutdown (
+    struct kan_render_context_singleton_t *instance);
+
+/// \brief Event that is sent when `kan_render_context_singleton_t::color_table_buffer` value is changed.
+/// \warning Is not sent when buffer is not reallocated, which means that handle wasn't changed and bindings are not
+///          affected, therefore event would be meaningless.
+struct kan_render_color_table_buffer_updated_t
+{
+    kan_instance_size_t stub;
+};
 
 /// \brief Singleton that is used to store data for render graph resource management logic.
 /// \details Providing singleton with functions seems much more convenient for the high level usage than providing

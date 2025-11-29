@@ -231,6 +231,32 @@ static void schedule_frame (struct render_foundation_frame_schedule_state_t *sta
 
     render_context->render_context = kan_render_backend_system_get_render_context (state->render_backend_system);
     render_context->frame_scheduled = kan_render_backend_system_next_frame (state->render_backend_system);
+
+    if (render_context->frame_scheduled && render_context->color_table_values_dirty)
+    {
+        render_context->color_table_values_dirty = false;
+        const kan_instance_size_t data_size =
+            render_context->color_table_values.size * sizeof (struct kan_color_linear_t);
+
+        if (!KAN_HANDLE_IS_VALID (render_context->color_table_buffer) ||
+            kan_render_buffer_get_full_size (render_context->color_table_buffer) < data_size)
+        {
+            if (KAN_HANDLE_IS_VALID (render_context->color_table_buffer))
+            {
+                kan_render_buffer_destroy (render_context->color_table_buffer);
+            }
+
+            render_context->color_table_buffer = kan_render_buffer_create (
+                render_context->render_context, KAN_RENDER_BUFFER_TYPE_STORAGE, data_size,
+                render_context->color_table_values.data, KAN_STATIC_INTERNED_ID_GET (color_table));
+            KAN_UMO_EVENT_INSERT (updated_event, kan_render_color_table_buffer_updated_t) { updated_event->stub = 0u; }
+        }
+        else
+        {
+            void *data = kan_render_buffer_patch (render_context->color_table_buffer, 0u, data_size);
+            memcpy (data, render_context->color_table_values.data, data_size);
+        }
+    }
 }
 
 static void free_unused_resources_from_graph (struct render_foundation_frame_schedule_state_t *state)
@@ -305,6 +331,40 @@ void kan_render_context_singleton_init (struct kan_render_context_singleton_t *i
     instance->render_context = KAN_HANDLE_SET_INVALID (kan_render_context_t);
     instance->selected_device_info = NULL;
     instance->frame_scheduled = false;
+    instance->color_table_buffer = KAN_HANDLE_SET_INVALID (kan_render_buffer_t);
+    instance->color_table_values_dirty = true;
+
+    kan_dynamic_array_init (&instance->color_table_values, 3u, sizeof (struct kan_color_linear_t),
+                            alignof (struct kan_color_linear_t), kan_allocation_group_stack_get ());
+
+    // Add basic colors as a temporary filler just in case.
+    struct kan_color_linear_t *red = kan_dynamic_array_add_last (&instance->color_table_values);
+    red->r = 1.0f;
+    red->g = 0.0f;
+    red->b = 0.0f;
+    red->a = 1.0f;
+
+    struct kan_color_linear_t *green = kan_dynamic_array_add_last (&instance->color_table_values);
+    green->r = 0.0f;
+    green->g = 1.0f;
+    green->b = 0.0f;
+    green->a = 1.0f;
+
+    struct kan_color_linear_t *blue = kan_dynamic_array_add_last (&instance->color_table_values);
+    blue->r = 0.0f;
+    blue->g = 0.0f;
+    blue->b = 1.0f;
+    blue->a = 1.0f;
+}
+
+void kan_render_context_singleton_shutdown (struct kan_render_context_singleton_t *instance)
+{
+    if (KAN_HANDLE_IS_VALID (instance->color_table_buffer))
+    {
+        kan_render_buffer_destroy (instance->color_table_buffer);
+    }
+
+    kan_dynamic_array_shutdown (&instance->color_table_values);
 }
 
 void kan_render_graph_resource_management_singleton_init (

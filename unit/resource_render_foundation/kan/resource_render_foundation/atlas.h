@@ -42,34 +42,42 @@ struct kan_resource_atlas_image_t
         struct kan_resource_atlas_image_nine_patch_t nine_patch;
     };
 
-    /// \brief If 0 or higher, then image color data should be multiplied by color table entry with that index.
+    /// \brief If not max value of kan_instance_size_t, then image color data should be multiplied by color table entry
+    ///        with that index.
     /// \details Global color tables are used for color blindness color remapping. For example, ui buff and debuff icons
     ///          can be grayscale and then multiplied by color at appropriate index: green for normal vision and blue
     ///          in colorblind mode. Also, tables make it easy to support custom color configurations for color
     ///          blindness, which is supported in some other games and applications.
-    kan_instance_offset_t color_table_multiplicator_index;
+    kan_instance_size_t color_table_multiplier_index;
 };
 
-struct kan_resource_atlas_primary_entry_t
+struct kan_resource_atlas_entry_replacement_t
 {
-    kan_interned_string_t name;
-    struct kan_resource_atlas_image_t image;
-};
-
-struct kan_resource_atlas_replacement_entry_t
-{
-    kan_interned_string_t name;
     kan_interned_string_t for_locale;
     struct kan_resource_atlas_image_t image;
 };
 
+struct kan_resource_atlas_entry_t
+{
+    kan_interned_string_t name;
+    struct kan_resource_atlas_image_t image;
+
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_atlas_entry_replacement_t)
+    struct kan_dynamic_array_t replacements;
+};
+
+RESOURCE_RENDER_FOUNDATION_API void kan_resource_atlas_entry_init (struct kan_resource_atlas_entry_t *instance);
+
+RESOURCE_RENDER_FOUNDATION_API void kan_resource_atlas_entry_shutdown (struct kan_resource_atlas_entry_t *instance);
+
 struct kan_resource_atlas_t
 {
-    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_atlas_primary_entry_t)
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_atlas_entry_t)
     struct kan_dynamic_array_t entries;
 
-    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_atlas_replacement_entry_t)
-    struct kan_dynamic_array_t replacements;
+    /// \brief Total count of entries plus their replacements.
+    /// \details Mostly needed for convenience during loading.
+    kan_instance_size_t total_entries;
 
     kan_instance_size_t page_count;
     kan_instance_size_t page_width;

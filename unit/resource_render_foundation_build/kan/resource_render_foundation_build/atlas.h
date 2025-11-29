@@ -26,14 +26,20 @@ struct kan_resource_atlas_image_header_t
         struct kan_resource_atlas_image_nine_patch_t nine_patch;
     };
 
-    kan_instance_offset_t color_table_multiplicator_index;
+    kan_instance_size_t color_table_multiplier_index;
 };
+
+RESOURCE_RENDER_FOUNDATION_BUILD_API void kan_resource_atlas_image_header_init (
+    struct kan_resource_atlas_image_header_t *instance);
 
 struct kan_resource_atlas_entry_replacement_header_t
 {
     kan_interned_string_t for_locale;
     struct kan_resource_atlas_image_header_t image;
 };
+
+RESOURCE_RENDER_FOUNDATION_BUILD_API void kan_resource_atlas_entry_replacement_header_init (
+    struct kan_resource_atlas_entry_replacement_header_t *instance);
 
 struct kan_resource_atlas_entry_header_t
 {

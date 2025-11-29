@@ -605,4 +605,44 @@ static inline bool kan_are_colors_different (uint32_t first, uint32_t second, ui
     return tolerance < (uint32_t) difference;
 }
 
+/// \brief Helper structure for unpacked linear RGB colors.
+struct kan_color_linear_t
+{
+    float r;
+    float g;
+    float b;
+    float a;
+};
+
+/// \brief Helper structure for unpacked SRGB color space colors.
+struct kan_color_srgb_t
+{
+    float r;
+    float g;
+    float b;
+    float a;
+};
+
+/// \brief Helper to convert linear color to srgb color.
+static inline struct kan_color_srgb_t kan_color_linear_to_srgb (const struct kan_color_linear_t value)
+{
+    return (struct kan_color_srgb_t) {
+        .r = kan_color_transfer_rgb_to_srgb (value.r),
+        .g = kan_color_transfer_rgb_to_srgb (value.g),
+        .b = kan_color_transfer_rgb_to_srgb (value.b),
+        .a = value.a,
+    };
+}
+
+/// \brief Helper to convert srgb color to linear color.
+static inline struct kan_color_linear_t kan_color_srgb_to_linear (const struct kan_color_srgb_t value)
+{
+    return (struct kan_color_linear_t) {
+        .r = kan_color_transfer_srgb_to_rgb (value.r),
+        .g = kan_color_transfer_srgb_to_rgb (value.g),
+        .b = kan_color_transfer_srgb_to_rgb (value.b),
+        .a = value.a,
+    };
+}
+
 KAN_C_HEADER_END

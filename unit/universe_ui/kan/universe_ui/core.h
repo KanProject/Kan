@@ -5,8 +5,10 @@
 #include <kan/api_common/c_header.h>
 #include <kan/api_common/core_types.h>
 #include <kan/inline_math/inline_math.h>
+#include <kan/resource_ui/bundle.h>
 #include <kan/threading/atomic.h>
 #include <kan/universe/universe.h>
+#include <kan/universe_text/text.h>
 
 // TODO: Docs.
 
@@ -20,6 +22,12 @@ KAN_C_HEADER_BEGIN
 
 /// \brief Checkpoint, that is hit after all ui layout calculation mutators have finished execution.
 #define KAN_UI_LAYOUT_END_CHECKPOINT "ui_layout_end"
+
+/// \brief Checkpoint, after which ui bundle management mutators are executed.
+#define KAN_UI_BUNDLE_MANAGEMENT_BEGIN_CHECKPOINT "ui_bundle_management_begin"
+
+/// \brief Checkpoint, that is hit after all ui bundle management mutators have finished execution.
+#define KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT "ui_bundle_management_end"
 
 // TODO: We might need some checkpoint for UI render graph allocation, so all viewports can execute render code in
 //       parallel with ui render. Also, it might be good idea to separate core into layout and render.
@@ -37,7 +45,7 @@ struct kan_ui_singleton_t
 {
     /// \brief Atomic counter for assigning ui node ids. Safe to be modified from different threads.
     struct kan_atomic_int_t node_id_counter;
-    
+
     float scale;
     kan_instance_offset_t viewport_x;
     kan_instance_offset_t viewport_y;
@@ -54,6 +62,36 @@ static inline kan_ui_node_id_t kan_next_ui_node_id (const struct kan_ui_singleto
     return KAN_TYPED_ID_32_SET (kan_ui_node_id_t,
                                 (kan_id_32_t) kan_atomic_int_add ((struct kan_atomic_int_t *) &ui->node_id_counter, 1));
 }
+
+/// \brief Name for ui configuration object in universe world.
+#define KAN_UI_CONFIGURATION "ui"
+
+/// \brief Structure that contains configuration for the ui in this world.
+struct kan_ui_configuration_t
+{
+    kan_interned_string_t default_bundle_name;
+};
+
+/// \details Singleton that contains loaded ui bundle data for this leaf world.
+struct kan_ui_bundle_singleton_t
+{
+    /// \brief Bundle name to be selected and loaded for this world.
+    /// \details Default value is supplied through `kan_resource_provider_configuration_t` if this field is NULL.
+    kan_interned_string_t bundle_name;
+
+    /// \brief If user manually changes `bundle_name`, user should make this field `true`.
+    bool selection_dirty;
+
+    /// \brief True if bundle data is loaded and also resources bundle depends on are also loaded.
+    bool available;
+
+    /// \brief Loaded bundle data copy if `available`.
+    struct kan_resource_ui_bundle_t available_bundle;
+};
+
+UNIVERSE_UI_API void kan_ui_bundle_singleton_init (struct kan_ui_bundle_singleton_t *instance);
+
+UNIVERSE_UI_API void kan_ui_bundle_singleton_shutdown (struct kan_ui_bundle_singleton_t *instance);
 
 enum kan_ui_coordinate_type_t
 {
@@ -204,23 +242,94 @@ struct kan_ui_clip_rect_t
     kan_instance_offset_t height;
 };
 
+enum kan_ui_draw_command_t
+{
+    /// \brief For disabled commands.
+    KAN_UI_DRAW_COMMAND_NONE = 0u,
+
+    /// \brief Image from UI atlas. Receives rect coordinates from instanced data.
+    KAN_UI_DRAW_COMMAND_IMAGE,
+
+    /// \brief Shaped text from universe_text unit.
+    KAN_UI_DRAW_COMMAND_TEXT,
+
+    /// \brief Element rect will be drawn with given material instance and object parameter set.
+    KAN_UI_DRAW_COMMAND_CUSTOM,
+};
+
+struct kan_ui_draw_command_image_t
+{
+    kan_instance_size_t image_record_index;
+
+    /// \brief Additional 32-bit mark that will be passed through instanced data and can be used for custom effects if
+    ///        user overrides default UI material.
+    kan_instance_size_t ui_mark;
+};
+
+struct kan_ui_draw_command_text_t
+{
+    kan_text_shaping_unit_id_t shaping_unit;
+
+    /// \brief Additional 32-bit mark, that will be passed through push constants for the text as a whole.
+    kan_instance_size_t ui_mark;
+
+    // TODO: Would surely require a little bit more fields later for correct spacing.
+};
+
+struct kan_ui_draw_command_custom_t
+{
+    /// \details Material instance usage should be managed by the logic, that passed this command to ui.
+    kan_interned_string_t material_instance_name;
+
+    /// \details Not owned, must be managed by user that provides it.
+    kan_render_pipeline_parameter_set_t object_set;
+
+    /// \details Not owned, must be managed by user that provides it.
+    kan_render_pipeline_parameter_set_t shared_set;
+
+    /// \brief Additional 32-bit mark, that will be passed through push constants for this element.
+    kan_instance_size_t ui_mark;
+};
+
+struct kan_ui_draw_command_data_t
+{
+    enum kan_ui_draw_command_t type;
+    union
+    {
+        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
+        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_UI_DRAW_COMMAND_IMAGE)
+        struct kan_ui_draw_command_image_t image;
+
+        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
+        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_UI_DRAW_COMMAND_TEXT)
+        struct kan_ui_draw_command_text_t text;
+
+        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
+        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_UI_DRAW_COMMAND_CUSTOM)
+        struct kan_ui_draw_command_custom_t custom;
+    };
+};
+
 struct kan_ui_node_laid_out_t
 {
     kan_ui_node_id_t id;
     kan_instance_size_t draw_index;
-    
+
     bool fully_clipped_out;
     struct kan_ui_clip_rect_t clip_rect;
-    
-    // TODO: Add draw-related data here, we want it to be near the beginning for cache coherency.
-    
+
+    struct kan_ui_draw_command_data_t main_draw_command;
+
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_ui_draw_command_data_t)
+    struct kan_dynamic_array_t additional_draw_commands;
+
     kan_instance_offset_t local_x;
     kan_instance_offset_t local_y;
     kan_instance_offset_t width;
     kan_instance_offset_t height;
     kan_instance_offset_t global_x;
     kan_instance_offset_t global_y;
-    
+
     kan_instance_offset_t cached_grow_width;
     kan_instance_offset_t cached_grow_height;
 
@@ -232,5 +341,7 @@ struct kan_ui_node_laid_out_t
 };
 
 UNIVERSE_UI_API void kan_ui_node_laid_out_init (struct kan_ui_node_laid_out_t *instance);
+
+UNIVERSE_UI_API void kan_ui_node_laid_out_shutdown (struct kan_ui_node_laid_out_t *instance);
 
 KAN_C_HEADER_END

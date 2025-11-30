@@ -254,7 +254,7 @@ struct atlas_entry_gpu_data_t
 
 static void load_atlas (struct render_foundation_atlas_management_state_t *state,
                         const struct kan_resource_atlas_t *resource,
-                        struct kan_atlas_loaded_t *loaded)
+                        struct kan_render_atlas_loaded_t *loaded)
 {
     KAN_CPU_SCOPED_STATIC_SECTION (load_atlas)
     KAN_UMI_SINGLETON_READ (render_context, kan_render_context_singleton_t)
@@ -397,15 +397,15 @@ static void load_atlas (struct render_foundation_atlas_management_state_t *state
         struct atlas_entry_gpu_data_t *output = &entry_data[data_index];
         FILL_ENTRY_GPU_DATA
 
-        struct kan_atlas_loaded_entry_mapping_t *mapping = kan_dynamic_array_add_last (&loaded->mapping);
+        struct kan_render_atlas_loaded_entry_mapping_t *mapping = kan_dynamic_array_add_last (&loaded->mapping);
         mapping->entry_name = entry->name;
         mapping->match_start = data_index_start;
 #undef FILL_ENTRY_GPU_DATA
     }
 
     {
-        struct kan_atlas_loaded_entry_mapping_t temporary;
-#define AT_INDEX(INDEX) (((struct kan_atlas_loaded_entry_mapping_t *) loaded->mapping.data)[INDEX])
+        struct kan_render_atlas_loaded_entry_mapping_t temporary;
+#define AT_INDEX(INDEX) (((struct kan_render_atlas_loaded_entry_mapping_t *) loaded->mapping.data)[INDEX])
 #define LESS(first_index, second_index)                                                                                \
     __CUSHION_PRESERVE__ AT_INDEX (first_index).entry_name < AT_INDEX (second_index).entry_name
 #define SWAP(first_index, second_index)                                                                                \
@@ -439,7 +439,7 @@ static void advance_from_waiting_state (struct render_foundation_atlas_managemen
     }
 
     atlas->state = RENDER_FOUNDATION_ATLAS_STATE_READY;
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_loaded, kan_atlas_loaded_t, name, &atlas->name)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_loaded, kan_render_atlas_loaded_t, name, &atlas->name)
 
     if (existing_loaded)
     {
@@ -447,7 +447,7 @@ static void advance_from_waiting_state (struct render_foundation_atlas_managemen
     }
     else
     {
-        KAN_UMO_INDEXED_INSERT (new_loaded, kan_atlas_loaded_t)
+        KAN_UMO_INDEXED_INSERT (new_loaded, kan_render_atlas_loaded_t)
         {
             new_loaded->name = atlas->name;
             load_atlas (state, resource, new_loaded);
@@ -522,23 +522,24 @@ void kan_render_atlas_singleton_init (struct kan_render_atlas_singleton_t *insta
     instance->loading_counter = 0u;
 }
 
-void kan_atlas_loaded_init (struct kan_atlas_loaded_t *instance)
+void kan_render_atlas_loaded_init (struct kan_render_atlas_loaded_t *instance)
 {
     instance->name = NULL;
     instance->image = KAN_HANDLE_SET_INVALID (kan_render_image_t);
     instance->entry_buffer = KAN_HANDLE_SET_INVALID (kan_render_buffer_t);
 
-    kan_dynamic_array_init (&instance->mapping, 0u, sizeof (struct kan_atlas_loaded_entry_mapping_t),
-                            alignof (struct kan_atlas_loaded_entry_mapping_t), kan_allocation_group_stack_get ());
+    kan_dynamic_array_init (&instance->mapping, 0u, sizeof (struct kan_render_atlas_loaded_entry_mapping_t),
+                            alignof (struct kan_render_atlas_loaded_entry_mapping_t),
+                            kan_allocation_group_stack_get ());
 }
 
-kan_instance_size_t kan_atlas_loaded_query (struct kan_atlas_loaded_t *instance,
-                                            kan_interned_string_t entry_name,
-                                            kan_interned_string_t locale_name)
+kan_instance_size_t kan_render_atlas_loaded_query (struct kan_render_atlas_loaded_t *instance,
+                                                   kan_interned_string_t entry_name,
+                                                   kan_interned_string_t locale_name)
 {
     kan_loop_size_t left = 0u;
     kan_loop_size_t right = instance->mapping.size;
-    const struct kan_atlas_loaded_entry_mapping_t *mappings = instance->mapping.data;
+    const struct kan_render_atlas_loaded_entry_mapping_t *mappings = instance->mapping.data;
     const kan_interned_string_t *locale_requirements = instance->locale_requirements.data;
 
     while (left < right)
@@ -577,7 +578,7 @@ kan_instance_size_t kan_atlas_loaded_query (struct kan_atlas_loaded_t *instance,
     return KAN_INT_MAX (kan_instance_size_t);
 }
 
-void kan_atlas_loaded_shutdown (struct kan_atlas_loaded_t *instance)
+void kan_render_atlas_loaded_shutdown (struct kan_render_atlas_loaded_t *instance)
 {
     if (KAN_HANDLE_IS_VALID (instance->image))
     {

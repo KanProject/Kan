@@ -46,11 +46,21 @@ KAN_C_HEADER_BEGIN
 
 KAN_TYPED_ID_32_DEFINE (kan_text_shaping_unit_id_t);
 
-/// \brief Contains counter for shaping unit ids.
+/// \brief Contains font library selection and counter for shaping unit ids.
+/// \details As well as shaping units, should only be used in leaf worlds to avoid confusion.
 struct kan_text_shaping_singleton_t
 {
     /// \brief Atomic counter for assigning shaping unit ids. Safe to be modified from different threads.
     struct kan_atomic_int_t unit_id_counter;
+
+    /// \brief Usage class of font library if application expects several font libraries.
+    /// \details Used for all shaping units in this world and worlds that are children of this world.
+    ///          Should be left at default NULL value in most cases.
+    kan_interned_string_t library_usage_class;
+
+    /// \brief Non-owned handle to used font library atlas.
+    /// \details Should only be accessed after `KAN_TEXT_SHAPING_END_CHECKPOINT` as it is updated by shaping.
+    kan_render_image_t font_library_sdf_atlas;
 };
 
 UNIVERSE_TEXT_API void kan_text_shaping_singleton_init (struct kan_text_shaping_singleton_t *instance);
@@ -97,10 +107,6 @@ struct kan_text_shaping_unit_t
 {
     kan_text_shaping_unit_id_t id;
 
-    /// \brief Usage class of font library if application expects several font libraries.
-    /// \details Should be left at default NULL value in most cases.
-    kan_interned_string_t library_usage_class;
-
     /// \brief Shaping request. Text inside is owner by the shaping unit.
     /// \warning `reading_direction` field is automatically reset to the appropriate value from locale when shaping is
     ///          started, therefore it doesn't matter which value user sets there.
@@ -117,11 +123,6 @@ struct kan_text_shaping_unit_t
 
     /// \brief If `shaped`, tells whether it was `stable` when it was last shaped.
     bool shaped_as_stable;
-
-    /// \brief If shaped, library that was used for shaping. Needed for things like getting atlas.
-    /// \warning Not owned, therefore might be already destroyed during hot reload.
-    ///          Only access this field after text shaping as text shaping takes care of reshaping after hot reload!
-    kan_font_library_t shaped_with_library;
 
     struct kan_int32_vector_2_t shaped_min;
     struct kan_int32_vector_2_t shaped_max;

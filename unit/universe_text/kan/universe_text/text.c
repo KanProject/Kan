@@ -832,12 +832,12 @@ static void shaping_unit_on_failed (struct kan_text_shaping_unit_t *unit)
     shaping_unit_clean_shaped_data (unit);
     unit->shaped = false;
     unit->shaped_as_stable = false;
-    unit->shaped_with_library = KAN_HANDLE_SET_INVALID (kan_font_library_t);
 }
 
 static void shape_unit (struct text_shaping_state_t *state,
                         struct kan_text_shaping_unit_t *unit,
                         const struct kan_locale_t *locale,
+                        kan_font_library_t font_library,
                         kan_render_context_t render_context)
 {
     unit->dirty = false;
@@ -856,24 +856,6 @@ static void shape_unit (struct text_shaping_state_t *state,
         }
     }
 
-    unit->shaped_with_library = KAN_HANDLE_SET_INVALID (kan_font_library_t);
-    KAN_UML_SEQUENCE_READ (font_library, font_library_t)
-    {
-        if (font_library->usage_class == unit->library_usage_class)
-        {
-            unit->shaped_with_library = font_library->library;
-            break;
-        }
-    }
-
-    if (!KAN_HANDLE_IS_VALID (unit->shaped_with_library))
-    {
-        KAN_LOG (text_shaping, KAN_LOG_ERROR,
-                 "Failed to execute text shaping as font library with usage class \"%s\" is not found.",
-                 unit->library_usage_class)
-        return;
-    }
-
     switch (locale->resource.preferred_direction)
     {
     case KAN_LOCALE_PREFERRED_TEXT_DIRECTION_LEFT_TO_RIGHT:
@@ -888,11 +870,10 @@ static void shape_unit (struct text_shaping_state_t *state,
     struct kan_text_shaped_data_t shaped_data;
     kan_text_shaped_data_init (&shaped_data);
 
-    if (!kan_font_library_shape (unit->shaped_with_library, &unit->request, &shaped_data))
+    if (!kan_font_library_shape (font_library, &unit->request, &shaped_data))
     {
         kan_text_shaped_data_shutdown (&shaped_data);
-        KAN_LOG (text_shaping, KAN_LOG_ERROR, "Failed to execute text shaping due to errors in backend.",
-                 unit->library_usage_class)
+        KAN_LOG (text_shaping, KAN_LOG_ERROR, "Failed to execute text shaping due to errors in backend.")
         return;
     }
 
@@ -978,6 +959,7 @@ static void shape_unit (struct text_shaping_state_t *state,
 
 UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
 {
+    KAN_UMI_SINGLETON_WRITE (public, kan_text_shaping_singleton_t)
     KAN_UMI_SINGLETON_READ (private, text_management_singleton_t)
     KAN_UMI_SINGLETON_READ (locale_singleton, kan_locale_singleton_t)
 
@@ -991,6 +973,26 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
     if (!locale)
     {
         // Can't shape while locale is not available.
+        return;
+    }
+
+    public->font_library_sdf_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
+    kan_font_library_t selected_font_library = KAN_HANDLE_SET_INVALID (kan_font_library_t);
+
+    KAN_UML_SEQUENCE_READ (font_library, font_library_t)
+    {
+        if (font_library->usage_class == public->library_usage_class)
+        {
+            selected_font_library = font_library->library;
+            break;
+        }
+    }
+
+    if (!KAN_HANDLE_IS_VALID (selected_font_library))
+    {
+        KAN_LOG (text_shaping, KAN_LOG_ERROR,
+                 "Failed to execute text shaping as font library with usage class \"%s\" is not found.",
+                 selected_font_library)
         return;
     }
 
@@ -1017,7 +1019,7 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
                 continue;
             }
 
-            shape_unit (state, unit, locale, render_context->render_context);
+            shape_unit (state, unit, locale, selected_font_library, render_context->render_context);
         }
     }
 
@@ -1025,7 +1027,7 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
         KAN_CPU_SCOPED_STATIC_SECTION (shape_unstable)
         KAN_UML_SIGNAL_UPDATE (unit, kan_text_shaping_unit_t, stable, false)
         {
-            shape_unit (state, unit, locale, render_context->render_context);
+            shape_unit (state, unit, locale, selected_font_library, render_context->render_context);
         }
     }
 
@@ -1040,21 +1042,23 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
                 continue;
             }
 
-            shape_unit (state, unit, locale, render_context->render_context);
+            shape_unit (state, unit, locale, selected_font_library, render_context->render_context);
         }
     }
+
+    public->font_library_sdf_atlas = kan_font_library_get_sdf_atlas (selected_font_library);
 }
 
 void kan_text_shaping_singleton_init (struct kan_text_shaping_singleton_t *instance)
 {
     instance->unit_id_counter = kan_atomic_int_init (1);
+    instance->library_usage_class = NULL;
+    instance->font_library_sdf_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
 }
 
 void kan_text_shaping_unit_init (struct kan_text_shaping_unit_t *instance)
 {
     instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_text_shaping_unit_id_t);
-    instance->library_usage_class = NULL;
-
     instance->request.font_size = 24u;
     instance->request.render_format = KAN_FONT_GLYPH_RENDER_FORMAT_SDF;
     instance->request.orientation = KAN_TEXT_ORIENTATION_HORIZONTAL;
@@ -1068,7 +1072,6 @@ void kan_text_shaping_unit_init (struct kan_text_shaping_unit_t *instance)
     instance->shaped = false;
     instance->shaped_as_stable = true;
 
-    instance->shaped_with_library = KAN_HANDLE_SET_INVALID (kan_font_library_t);
     instance->shaped_min.x = 0;
     instance->shaped_min.y = 0;
     instance->shaped_max.x = 0;

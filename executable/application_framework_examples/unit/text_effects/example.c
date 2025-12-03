@@ -968,8 +968,38 @@ static void try_render_frame (struct text_effects_render_state_t *state,
 
     if ((everything_rendered &= kan_render_pass_instance_graphics_pipeline (pass_instance, pipeline_data->pipeline)))
     {
-        bool bound_shared = false;
-        kan_font_library_t last_seen_font_library = KAN_HANDLE_INITIALIZE_INVALID;
+        KAN_UMI_SINGLETON_READ (shaping_singleton, kan_text_shaping_singleton_t)
+        if (KAN_HANDLE_IS_VALID (shaping_singleton->font_library_sdf_atlas))
+        {
+            kan_instance_size_t atlas_layers;
+            kan_render_image_get_sizes (shaping_singleton->font_library_sdf_atlas, NULL, NULL, NULL, &atlas_layers);
+
+            if (!KAN_HANDLE_IS_EQUAL (singleton->text_last_bound_atlas, shaping_singleton->font_library_sdf_atlas))
+            {
+                struct kan_rpl_meta_sampler_t *atlas_binding =
+                    &((struct kan_rpl_meta_sampler_t *) text_material->set_shared_bindings.images.data)[0u];
+
+                struct kan_render_parameter_update_description_t bindings[] = {
+                    {
+                        .binding = atlas_binding->binding,
+                        .image_binding =
+                            {
+                                .image = shaping_singleton->font_library_sdf_atlas,
+                                .array_index = 0u,
+                                .layer_offset = 0u,
+                                .layer_count = atlas_layers,
+                            },
+                    },
+                };
+
+                kan_render_pipeline_parameter_set_update (singleton->text_shared_parameter_set,
+                                                          sizeof (bindings) / sizeof (bindings[0u]), bindings);
+                singleton->text_last_bound_atlas = shaping_singleton->font_library_sdf_atlas;
+            }
+        }
+
+        kan_render_pass_instance_pipeline_parameter_sets (pass_instance, KAN_RPL_SET_SHARED, 1u,
+                                                          &singleton->text_shared_parameter_set);
 
         kan_render_pass_instance_pipeline_parameter_sets (pass_instance, KAN_RPL_SET_MATERIAL, 1u,
                                                           &text_material_instance->parameter_set);
@@ -984,50 +1014,6 @@ static void try_render_frame (struct text_effects_render_state_t *state,
             {
                 everything_rendered = false;
                 break;
-            }
-
-            if (KAN_HANDLE_IS_VALID (last_seen_font_library) &&
-                !KAN_HANDLE_IS_EQUAL (last_seen_font_library, unit->shaped_with_library))
-            {
-                KAN_LOG (application_framework_example_text_effects, KAN_LOG_ERROR,
-                         "Several font libraries are used, but it is not expected in this example.")
-                everything_rendered = false;
-                break;
-            }
-
-            last_seen_font_library = unit->shaped_with_library;
-            if (!bound_shared)
-            {
-                kan_render_image_t font_atlas = kan_font_library_get_sdf_atlas (last_seen_font_library);
-                kan_instance_size_t atlas_layers;
-                kan_render_image_get_sizes (font_atlas, NULL, NULL, NULL, &atlas_layers);
-
-                if (!KAN_HANDLE_IS_EQUAL (singleton->text_last_bound_atlas, font_atlas))
-                {
-                    struct kan_rpl_meta_sampler_t *atlas_binding =
-                        &((struct kan_rpl_meta_sampler_t *) text_material->set_shared_bindings.images.data)[0u];
-
-                    struct kan_render_parameter_update_description_t bindings[] = {
-                        {
-                            .binding = atlas_binding->binding,
-                            .image_binding =
-                                {
-                                    .image = font_atlas,
-                                    .array_index = 0u,
-                                    .layer_offset = 0u,
-                                    .layer_count = atlas_layers,
-                                },
-                        },
-                    };
-
-                    kan_render_pipeline_parameter_set_update (singleton->text_shared_parameter_set,
-                                                              sizeof (bindings) / sizeof (bindings[0u]), bindings);
-                    singleton->text_last_bound_atlas = font_atlas;
-                }
-
-                kan_render_pass_instance_pipeline_parameter_sets (pass_instance, KAN_RPL_SET_SHARED, 1u,
-                                                                  &singleton->text_shared_parameter_set);
-                bound_shared = true;
             }
 
             push.offset_and_time.x = requests[index].anchor_x;

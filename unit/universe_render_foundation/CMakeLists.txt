@@ -11,7 +11,9 @@ concrete_require (
         SCOPE PRIVATE
         ABSTRACT context_hot_reload_coordination_system cpu_profiler log
         CONCRETE_INTERFACE universe_resource_provider)
+
 setup_reflected_preprocessing ()
+register_application_resource_directory ("${CMAKE_CURRENT_SOURCE_DIR}/resources")
 
 set (KAN_UNIVERSE_RENDER_FOUNDATION_GIC_BUCKETS "17" CACHE STRING
         "Initial count of buckets for render foundation graph resource management image cache.")

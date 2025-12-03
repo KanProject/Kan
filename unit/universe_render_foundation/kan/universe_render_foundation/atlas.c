@@ -232,6 +232,7 @@ enum atlas_entry_gpu_flags_t
     ATLAS_ENTRY_GPU_FLAG_COLOR_MULTIPLIER = 1u << 1u,
 };
 
+/// \details Must be in sync with `atlas_entry` in `atlas_entry.rpl`.
 KAN_REFLECTION_IGNORE
 struct atlas_entry_gpu_data_t
 {

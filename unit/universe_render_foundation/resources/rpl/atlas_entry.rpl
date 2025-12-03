@@ -1,0 +1,16 @@
+constant atlas_entry_flag_nine_patch = 1u << 0u;
+constant atlas_entry_flag_color_multiplier = 1u << 1u;
+
+struct atlas_entry
+{
+    u1 flags;
+    u1 page;
+    f2 uv_min;
+    f2 uv_max;
+    f2 pixel_size;
+    f1 nine_patch_left;
+    f1 nine_patch_right;
+    f1 nine_patch_top;
+    f1 nine_patch_bottom;
+    u1 color_table_multiplier_index;
+};

@@ -9,6 +9,12 @@ RESOURCE_UI_API struct kan_resource_type_meta_t kan_resource_ui_bundle_resource_
     .reset = NULL,
 };
 
+KAN_REFLECTION_STRUCT_FIELD_META (kan_resource_ui_bundle_t, pass)
+RESOURCE_UI_API struct kan_resource_reference_meta_t kan_resource_ui_bundle_reference_pass = {
+    .type_name = "kan_resource_render_pass_t",
+    .flags = 0u,
+};
+
 KAN_REFLECTION_STRUCT_FIELD_META (kan_resource_ui_bundle_t, image_material_instance)
 RESOURCE_UI_API struct kan_resource_reference_meta_t kan_resource_ui_bundle_reference_image_material_instance = {
     .type_name = "kan_resource_material_instance_t",
@@ -35,6 +41,7 @@ RESOURCE_UI_API struct kan_resource_reference_meta_t kan_resource_ui_bundle_refe
 
 void kan_resource_ui_bundle_init (struct kan_resource_ui_bundle_t *instance)
 {
+    instance->pass = NULL;
     instance->image_material_instance = NULL;
     instance->image_atlas = NULL;
     instance->text_sdf_material_instance = NULL;

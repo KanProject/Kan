@@ -29,8 +29,12 @@ KAN_C_HEADER_BEGIN
 /// \brief Checkpoint, that is hit after all ui bundle management mutators have finished execution.
 #define KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT "ui_bundle_management_end"
 
-// TODO: We might need some checkpoint for UI render graph allocation, so all viewports can execute render code in
-//       parallel with ui render. Also, it might be good idea to separate core into layout and render.
+/// \brief Checkpoint, after which ui is allowed to do render graph allocations for itself.
+/// \details Anything that affects allocations, like viewport size, must be edited prior to this checkpoint.
+#define KAN_UI_RENDER_GRAPH_BEGIN_CHECKPOINT "ui_render_graph_begin"
+
+/// \brief Checkpoint, after which ui render graph allocations for this frame are done.
+#define KAN_UI_RENDER_GRAPH_END_CHECKPOINT "ui_render_graph_end"
 
 /// \brief Checkpoint, after which ui render mutators are executed.
 #define KAN_UI_RENDER_BEGIN_CHECKPOINT "ui_render_begin"
@@ -47,8 +51,6 @@ struct kan_ui_singleton_t
     struct kan_atomic_int_t node_id_counter;
 
     float scale;
-    kan_instance_offset_t viewport_x;
-    kan_instance_offset_t viewport_y;
     kan_instance_offset_t viewport_width;
     kan_instance_offset_t viewport_height;
 };
@@ -92,6 +94,12 @@ struct kan_ui_bundle_singleton_t
 UNIVERSE_UI_API void kan_ui_bundle_singleton_init (struct kan_ui_bundle_singleton_t *instance);
 
 UNIVERSE_UI_API void kan_ui_bundle_singleton_shutdown (struct kan_ui_bundle_singleton_t *instance);
+
+/// \brief Event that is being sent when `kan_ui_bundle_singleton_t` available data is updated.
+struct kan_ui_bundle_updated_event_t
+{
+    kan_instance_size_t stub;
+};
 
 enum kan_ui_coordinate_type_t
 {
@@ -343,5 +351,21 @@ struct kan_ui_node_laid_out_t
 UNIVERSE_UI_API void kan_ui_node_laid_out_init (struct kan_ui_node_laid_out_t *instance);
 
 UNIVERSE_UI_API void kan_ui_node_laid_out_shutdown (struct kan_ui_node_laid_out_t *instance);
+
+/// \brief Contains ui render graph data, which is only valid for the outside user after
+///        `KAN_UI_RENDER_GRAPH_END_CHECKPOINT`.
+struct kan_ui_render_graph_singleton_t
+{
+    /// \brief Allocation with all ui render graph resources.
+    const struct kan_render_graph_resource_response_t *allocation;
+
+    /// \brief Pass instance results of which can be presented unto the surface.
+    kan_render_pass_instance_t final_pass_instance;
+
+    /// \brief Render image which can be presented on surface after `final_pass_instance`.
+    kan_render_image_t final_image;
+};
+
+UNIVERSE_UI_API void kan_ui_render_graph_singleton_init (struct kan_ui_render_graph_singleton_t *instance);
 
 KAN_C_HEADER_END

@@ -22,6 +22,9 @@ struct kan_resource_ui_button_style_t
 
 struct kan_resource_ui_bundle_t
 {
+    /// \brief Pass name for UI render.
+    kan_interned_string_t pass;
+
     /// \brief Material instance used for rendering UI images.
     kan_interned_string_t image_material_instance;
 

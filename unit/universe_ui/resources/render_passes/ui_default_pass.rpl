@@ -1,0 +1,28 @@
+// Common parameters for ui pass pipelines.
+
+set_pass uniform_buffer pass_view_data
+{
+    f4x4 projection_view;
+};
+
+set_pass sampler image_sampler;
+set_pass image_color_2d_array image_atlas;
+
+set_pass read_only_storage_buffer image_entries
+{
+    atlas_entry... data;
+};
+
+set_pass sampler glyph_sampler;
+set_pass image_color_2d_array glyph_sdf_atlas;
+
+set_pass read_only_storage_buffer color_table
+{
+    f4... data;
+};
+
+// Define common color output for all pipelines.
+color_output_container color_output
+{
+    f4 color;
+};

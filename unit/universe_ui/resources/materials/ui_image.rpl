@@ -1,0 +1,87 @@
+vertex_attribute_container vertex
+{
+    f2 position;
+};
+
+instanced_attribute_container instanced
+{
+    f4 min_max;
+    alias (min, min_max.xy)
+    alias (max, min_max.zw)
+    u2 meta;
+    alias (index, meta.x)
+    alias (mark, meta.y)
+};
+
+state_container state
+{
+    u2 meta;
+    alias (index, meta.x)
+    alias (mark, meta.y)
+    f2 uv;
+    f2 size;
+    f2 pixel;
+};
+
+void image_vertex_main (void)
+{
+    state.meta = instanced.meta;
+    state.uv = vertex.position;
+    state.size = instanced.max - instanced.min;
+    state.pixel = vertex.position * (instanced.max - instanced.min);
+    f2 position = instanced.min + vertex.position * (instanced.max - instanced.min);
+    vertex_stage_output_position (pass_view_data.projection_view * f4 {position, 0.5, 1.0});
+}
+
+void image_fragment_main (void)
+{
+    alias (entry, image_entries[state.index])
+    f2 base_uv = state.uv;
+    
+    if ((entry.flags & atlas_entry_flag_nine_patch) != 0u)
+    {
+        f2 entry_space = f2 {0.0};
+        
+        if (state.pixel.x < entry.nine_patch_left)
+        {
+            entry_space.x = state.pixel.x;
+        }
+        else if (state.size.x - state.pixel.x < entry.nine_patch_right)
+        {
+            entry_space.x = entry.pixel_size.x - (state.size.x - state.pixel.x);
+        }
+        else
+        {
+            f1 borders = entry.nine_patch_left + entry.nine_patch_right;
+            f1 stretch_element = (state.pixel.x - entry.nine_patch_left) / (state.size.x - borders);
+            entry_space.x = entry.nine_patch_left + stretch_element * (entry.pixel_size.x - borders);
+        }
+        
+        if (state.pixel.y < entry.nine_patch_top)
+        {
+            entry_space.y = state.pixel.y;
+        }
+        else if (state.size.y - state.pixel.y < entry.nine_patch_bottom)
+        {
+            entry_space.y = entry.pixel_size.y - (state.size.y - state.pixel.y);
+        }
+        else
+        {
+            f1 borders = entry.nine_patch_top + entry.nine_patch_bottom;
+            f1 stretch_element = (state.pixel.y - entry.nine_patch_top) / (state.size.y - borders);
+            entry_space.y = entry.nine_patch_top + stretch_element * (entry.pixel_size.y - borders);
+        }
+        
+        base_uv = entry_space / entry.pixel_size;
+    }
+    
+    f2 atlas_uv = entry.uv_min + base_uv * (entry.uv_min - entry.uv_max);
+    f4 color = sample (image_sampler, image_atlas, entry.page, atlas_uv);
+    
+    if ((entry.flags & atlas_entry_flag_color_multiplier) != 0u)
+    {
+        color = color * color_table.values[entry.color_table_multiplier_index];
+    }
+    
+    color_output.color = color;
+}

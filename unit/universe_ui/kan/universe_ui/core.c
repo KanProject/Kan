@@ -10,16 +10,21 @@
 #include <kan/universe_render_foundation/program.h>
 #include <kan/universe_render_foundation/render_graph.h>
 #include <kan/universe_resource_provider/provider.h>
+#include <kan/universe_text/text.h>
 #include <kan/universe_ui/core.h>
 
 KAN_LOG_DEFINE_CATEGORY (ui_layout);
 KAN_LOG_DEFINE_CATEGORY (ui_bundle_management);
+KAN_LOG_DEFINE_CATEGORY (ui_render_graph);
+KAN_LOG_DEFINE_CATEGORY (ui_render);
 
 KAN_USE_STATIC_INTERNED_IDS
 KAN_USE_STATIC_CPU_SECTIONS
 
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_layout)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_bundle_management)
+KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_render_graph)
+KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_render)
 UNIVERSE_UI_API KAN_UM_MUTATOR_GROUP_META (text_management, KAN_UI_CORE_MUTATOR_GROUP);
 
 struct kan_ui_singleton_viewport_on_change_event_t
@@ -773,11 +778,8 @@ static void layout_position_pass (struct ui_layout_state_t *state,
     if (!KAN_TYPED_ID_32_IS_VALID (node->parent_id))
     {
         // Child of root frame, align accordingly.
-        laid_out->local_x = state->transient.ui->viewport_x +
-                            calculate_ui_coordinate (state->transient.ui, node->element.frame_offset_x);
-
-        laid_out->local_y = state->transient.ui->viewport_y +
-                            calculate_ui_coordinate (state->transient.ui, node->element.frame_offset_y);
+        laid_out->local_x = calculate_ui_coordinate (state->transient.ui, node->element.frame_offset_x);
+        laid_out->local_y = calculate_ui_coordinate (state->transient.ui, node->element.frame_offset_y);
 
         switch (node->element.horizontal_alignment)
         {
@@ -1007,8 +1009,8 @@ static void recalculate_layout_finalize (struct ui_layout_state_t *state, kan_ui
     if (!KAN_TYPED_ID_32_IS_VALID (node->parent_id))
     {
         laid_out->clip_rect = (struct kan_ui_clip_rect_t) {
-            .x = state->transient.ui->viewport_x,
-            .y = state->transient.ui->viewport_y,
+            .x = 0,
+            .y = 0,
             .width = state->transient.ui->viewport_width,
             .height = state->transient.ui->viewport_height,
         };
@@ -1236,6 +1238,28 @@ struct ui_bundle_management_state_t
     kan_interned_string_t default_bundle;
 };
 
+KAN_UM_MUTATOR_DEPLOY (ui_bundle_management)
+{
+    kan_static_interned_ids_ensure_initialized ();
+    kan_cpu_static_sections_ensure_initialized ();
+
+    state->default_bundle = NULL;
+    const struct kan_ui_configuration_t *configuration =
+        kan_universe_world_query_configuration (world, kan_string_intern (KAN_UI_CONFIGURATION));
+
+    if (configuration)
+    {
+        state->default_bundle = configuration->default_bundle_name;
+    }
+
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_RESOURCE_PROVIDER_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_ATLAS_MANAGEMENT_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_FRAME_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_PROGRAM_MANAGEMENT_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_BEGIN_CHECKPOINT);
+    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT);
+}
+
 static void advance_bundle_from_initial_state (struct ui_bundle_management_state_t *state,
                                                const struct kan_resource_provider_singleton_t *provider,
                                                struct kan_ui_bundle_singleton_t *public,
@@ -1396,6 +1420,12 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
         return;
     }
 
+    KAN_UMI_VALUE_READ_OPTIONAL (pass, kan_render_foundation_pass_loaded_t, name, &resource->pass)
+    if (!pass)
+    {
+        return;
+    }
+
     KAN_UMI_VALUE_READ_OPTIONAL (image_atlas, kan_render_atlas_loaded_t, name, &resource->image_atlas)
     if (!image_material_instance)
     {
@@ -1421,6 +1451,7 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
     // Everything is loaded, so we can finalize the loading now.
 
     public->available = true;
+    public->available_bundle.pass = resource->pass;
     public->available_bundle.image_material_instance = resource->image_material_instance;
     public->available_bundle.image_atlas = resource->image_atlas;
     public->available_bundle.text_sdf_material_instance = resource->text_sdf_material_instance;
@@ -1481,29 +1512,8 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
     KAN_UM_ACCESS_DELETE (main_usage);
     private->main_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
 
+    KAN_UMO_EVENT_INSERT (updated_event, kan_ui_bundle_updated_event_t) { updated_event->stub = 0u; }
     KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG, "Advanced bundle \"%s\" state to ready.", public->bundle_name)
-}
-
-KAN_UM_MUTATOR_DEPLOY (ui_bundle_management)
-{
-    kan_static_interned_ids_ensure_initialized ();
-    kan_cpu_static_sections_ensure_initialized ();
-
-    state->default_bundle = NULL;
-    const struct kan_ui_configuration_t *configuration =
-        kan_universe_world_query_configuration (world, kan_string_intern (KAN_UI_CONFIGURATION));
-
-    if (configuration)
-    {
-        state->default_bundle = configuration->default_bundle_name;
-    }
-
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_RESOURCE_PROVIDER_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_ATLAS_MANAGEMENT_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_FRAME_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_PROGRAM_MANAGEMENT_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_BEGIN_CHECKPOINT);
-    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT);
 }
 
 KAN_UM_MUTATOR_EXECUTE (ui_bundle_management)
@@ -1562,6 +1572,17 @@ KAN_UM_MUTATOR_EXECUTE (ui_bundle_management)
         }
     }
 
+    KAN_UML_EVENT_FETCH (pass_updated_event, kan_render_foundation_pass_updated_event_t)
+    {
+        if (private->state_frame_id != resource_provider->logic_deduplication_frame_id &&
+            // Bundle coherence is not broken by separate pass reloading,
+            // therefore we just check if we need to advance just in case.
+            private->state == UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES)
+        {
+            advance_bundle_from_waiting_resources_state (state, resource_provider, public, private);
+        }
+    }
+
     KAN_UML_EVENT_FETCH (material_instance_updated_event, kan_render_material_instance_updated_event_t)
     {
         if (private->state_frame_id != resource_provider->logic_deduplication_frame_id &&
@@ -1585,12 +1606,560 @@ KAN_UM_MUTATOR_EXECUTE (ui_bundle_management)
     }
 }
 
+struct ui_render_graph_state_t
+{
+    KAN_UM_GENERATE_STATE_QUERIES (ui_render_graph)
+    KAN_UM_BIND_STATE (ui_render_graph, state)
+};
+
+KAN_UM_MUTATOR_DEPLOY (ui_render_graph)
+{
+    kan_static_interned_ids_ensure_initialized ();
+    kan_cpu_static_sections_ensure_initialized ();
+
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_FRAME_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_RENDER_GRAPH_BEGIN_CHECKPOINT);
+    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_RENDER_GRAPH_END_CHECKPOINT);
+}
+
+KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
+{
+    KAN_UMI_SINGLETON_WRITE (public, kan_ui_render_graph_singleton_t)
+    // Clear out previous frame data.
+    kan_ui_render_graph_singleton_init (public);
+
+    KAN_UMI_SINGLETON_READ (render_context, kan_render_context_singleton_t)
+    if (!render_context->frame_scheduled)
+    {
+        return;
+    }
+
+    KAN_UMI_SINGLETON_READ (bundle, kan_ui_bundle_singleton_t)
+    if (!bundle->available)
+    {
+        return;
+    }
+
+    KAN_UMI_SINGLETON_READ (ui_singleton, kan_ui_singleton_t)
+    KAN_UMI_SINGLETON_READ (render_graph, kan_render_graph_resource_management_singleton_t)
+    KAN_UMI_VALUE_READ_REQUIRED (pass, kan_render_foundation_pass_loaded_t, name, &bundle->available_bundle.pass)
+
+    if (pass->attachments.size != 1u)
+    {
+        KAN_LOG (ui_render_graph, KAN_LOG_ERROR,
+                 "Failed to allocate render graph pass as it has unexpected count of attachments: %u.",
+                 (unsigned int) pass->attachments.size)
+        return;
+    }
+
+    const struct kan_render_foundation_pass_attachment_t *attachment =
+        &((struct kan_render_foundation_pass_attachment_t *) pass->attachments.data)[0u];
+
+    struct kan_render_graph_resource_image_request_t viewport_image_request = {
+        .description =
+            {
+                .format = attachment->format,
+                .width = (kan_instance_size_t) ui_singleton->viewport_width,
+                .height = (kan_instance_size_t) ui_singleton->viewport_height,
+                .depth = 1u,
+                .layers = 1u,
+                .mips = 1u,
+                .render_target = true,
+                .supports_sampling = false,
+                .always_treat_as_layered = false,
+                .tracking_name = KAN_STATIC_INTERNED_ID_GET (ui_render_target),
+            },
+        .internal = true,
+    };
+
+    struct kan_render_graph_resource_frame_buffer_request_t frame_buffer_request = {
+        .pass = pass->pass,
+        .attachments_count = 1u,
+        .attachments =
+            (struct kan_render_graph_resource_frame_buffer_request_attachment_t[]) {
+                {
+                    .image_index = 0u,
+                    .image_layer = 0u,
+                },
+            },
+    };
+
+    struct kan_render_graph_resource_request_t graph_request = {
+        .context = render_context->render_context,
+        .dependant_count = 0u,
+        .dependant = NULL,
+        .images_count = 1u,
+        .images = &viewport_image_request,
+        .frame_buffers_count = 1u,
+        .frame_buffers = &frame_buffer_request,
+    };
+
+    public->allocation = kan_render_graph_resource_management_singleton_request (render_graph, &graph_request);
+    if (!public->allocation)
+    {
+        KAN_LOG (ui_render_graph, KAN_LOG_ERROR,
+                 "Failed to allocate render graph pass: allocation declined by render graph resource manager.")
+        return;
+    }
+
+    public->final_image = public->allocation->images[0u];
+    struct kan_render_viewport_bounds_t viewport_bounds = {
+        .x = 0.0f,
+        .y = 0.0f,
+        .width = (float) ui_singleton->viewport_width,
+        .height = (float) ui_singleton->viewport_height,
+        .depth_min = 0.0f,
+        .depth_max = 1.0f,
+    };
+
+    struct kan_render_integer_region_2d_t scissor = {
+        .x = 0,
+        .y = 0,
+        .width = (kan_instance_size_t) ui_singleton->viewport_width,
+        .height = (kan_instance_size_t) ui_singleton->viewport_height,
+    };
+
+    struct kan_render_clear_value_t clear_values[] = {
+        {
+            .color =
+                {
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                },
+        },
+    };
+
+    public->final_pass_instance = kan_render_pass_instantiate (pass->pass, public->allocation->frame_buffers[0u],
+                                                               &viewport_bounds, &scissor, clear_values);
+}
+
+struct ui_render_private_singleton_t
+{
+    kan_render_pipeline_parameter_set_t pass_parameter_set;
+    kan_render_buffer_t pass_view_data_buffer;
+
+    kan_interned_string_t used_pass_name;
+    kan_render_image_t bound_glyph_sdf_atlas;
+
+    kan_instance_size_t binding_pass_view_data;
+    kan_instance_size_t binding_image_sampler;
+    kan_instance_size_t binding_image_atlas;
+    kan_instance_size_t binding_image_entries;
+    kan_instance_size_t binding_glyph_sampler;
+    kan_instance_size_t binding_glyph_sdf_atlas;
+    kan_instance_size_t binding_color_table;
+};
+
+UNIVERSE_UI_API void ui_render_private_singleton_init (struct ui_render_private_singleton_t *instance)
+{
+    instance->pass_parameter_set = KAN_HANDLE_SET_INVALID (kan_render_pipeline_parameter_set_t);
+    instance->pass_view_data_buffer = KAN_HANDLE_SET_INVALID (kan_render_buffer_t);
+
+    instance->used_pass_name = NULL;
+    instance->bound_glyph_sdf_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
+
+    instance->binding_pass_view_data = 0u;
+    instance->binding_image_sampler = 0u;
+    instance->binding_image_atlas = 0u;
+    instance->binding_image_entries = 0u;
+    instance->binding_glyph_sampler = 0u;
+    instance->binding_glyph_sdf_atlas = 0u;
+    instance->binding_color_table = 0u;
+}
+
+UNIVERSE_UI_API void ui_render_private_singleton_shutdown (struct ui_render_private_singleton_t *instance)
+{
+    if (KAN_HANDLE_IS_VALID (instance->pass_view_data_buffer))
+    {
+        kan_render_buffer_destroy (instance->pass_view_data_buffer);
+    }
+
+    if (KAN_HANDLE_IS_VALID (instance->pass_parameter_set))
+    {
+        kan_render_pipeline_parameter_set_destroy (instance->pass_parameter_set);
+    }
+}
+
+struct ui_render_state_t
+{
+    KAN_UM_GENERATE_STATE_QUERIES (ui_render)
+    KAN_UM_BIND_STATE (ui_render, state)
+};
+
+KAN_UM_MUTATOR_DEPLOY (ui_render)
+{
+    kan_static_interned_ids_ensure_initialized ();
+    kan_cpu_static_sections_ensure_initialized ();
+
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_FRAME_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_TEXT_SHAPING_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_LAYOUT_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_RENDER_GRAPH_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_RENDER_BEGIN_CHECKPOINT);
+    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_RENDER_END_CHECKPOINT);
+}
+
+static inline bool ensure_pass_parameter_set_ready (struct ui_render_state_t *state,
+                                                    struct ui_render_private_singleton_t *private,
+                                                    const struct kan_ui_bundle_singleton_t *bundle,
+                                                    const struct kan_text_shaping_singleton_t *text_shaping,
+                                                    const struct kan_render_context_singleton_t *render_context)
+{
+    if (!KAN_HANDLE_IS_VALID (private->pass_parameter_set))
+    {
+        KAN_UMI_VALUE_READ_REQUIRED (pass_loaded, kan_render_foundation_pass_loaded_t, name,
+                                     &bundle->available_bundle.pass)
+        KAN_UMI_VALUE_READ_REQUIRED (atlas_loaded, kan_render_atlas_loaded_t, name,
+                                     &bundle->available_bundle.image_atlas)
+
+        private->binding_pass_view_data = KAN_INT_MAX (kan_instance_size_t);
+        private->binding_image_sampler = KAN_INT_MAX (kan_instance_size_t);
+        private->binding_image_atlas = KAN_INT_MAX (kan_instance_size_t);
+        private->binding_image_entries = KAN_INT_MAX (kan_instance_size_t);
+        private->binding_glyph_sampler = KAN_INT_MAX (kan_instance_size_t);
+        private->binding_glyph_sdf_atlas = KAN_INT_MAX (kan_instance_size_t);
+        private->binding_color_table = KAN_INT_MAX (kan_instance_size_t);
+
+        if (pass_loaded->variants.size > 0u)
+        {
+            KAN_LOG (ui_render, KAN_LOG_ERROR, "Expected only 1 variant in pass \"%s\", but got %u.", pass_loaded->name,
+                     (unsigned int) pass_loaded->variants.size)
+            return false;
+        }
+
+        const struct kan_render_foundation_pass_variant_t *variant =
+            &((struct kan_render_foundation_pass_variant_t *) pass_loaded->variants.data)[0u];
+
+        for (kan_loop_size_t index = 0; index < variant->pass_parameter_set_bindings.buffers.size; ++index)
+        {
+            const struct kan_rpl_meta_buffer_t *buffer =
+                &((struct kan_rpl_meta_buffer_t *) variant->pass_parameter_set_bindings.buffers.data)[index];
+
+            if (buffer->name == KAN_STATIC_INTERNED_ID_GET (pass_view_data))
+            {
+                private->binding_pass_view_data = buffer->binding;
+                if (!KAN_HANDLE_IS_VALID (private->pass_view_data_buffer) ||
+                    kan_render_buffer_get_full_size (private->pass_view_data_buffer) != buffer->main_size)
+                {
+                    if (KAN_HANDLE_IS_VALID (private->pass_view_data_buffer))
+                    {
+                        kan_render_buffer_destroy (private->pass_view_data_buffer);
+                    }
+
+                    private->pass_view_data_buffer = kan_render_buffer_create (
+                        render_context->render_context, KAN_RENDER_BUFFER_TYPE_UNIFORM, buffer->main_size, NULL,
+                        KAN_STATIC_INTERNED_ID_GET (ui_pass_view_data));
+                }
+            }
+            else if (buffer->name == KAN_STATIC_INTERNED_ID_GET (image_entires))
+            {
+                private->binding_image_entries = buffer->binding;
+            }
+            else if (buffer->name == KAN_STATIC_INTERNED_ID_GET (color_table))
+            {
+                private->binding_color_table = buffer->binding;
+            }
+        }
+
+        for (kan_loop_size_t index = 0; index < variant->pass_parameter_set_bindings.samplers.size; ++index)
+        {
+            const struct kan_rpl_meta_sampler_t *sampler =
+                &((struct kan_rpl_meta_sampler_t *) variant->pass_parameter_set_bindings.samplers.data)[index];
+
+            if (sampler->name == KAN_STATIC_INTERNED_ID_GET (image_sampler))
+            {
+                private->binding_image_sampler = sampler->binding;
+            }
+            else if (sampler->name == KAN_STATIC_INTERNED_ID_GET (glyph_sampler))
+            {
+                private->binding_glyph_sampler = sampler->binding;
+            }
+        }
+
+        for (kan_loop_size_t index = 0; index < variant->pass_parameter_set_bindings.images.size; ++index)
+        {
+            const struct kan_rpl_meta_image_t *image =
+                &((struct kan_rpl_meta_image_t *) variant->pass_parameter_set_bindings.images.data)[index];
+
+            if (image->name == KAN_STATIC_INTERNED_ID_GET (image_atlas))
+            {
+                private->binding_image_atlas = image->binding;
+            }
+            else if (image->name == KAN_STATIC_INTERNED_ID_GET (glyph_sdf_atlas))
+            {
+                private->binding_glyph_sdf_atlas = image->binding;
+            }
+        }
+
+        if (private->binding_pass_view_data == KAN_INT_MAX (kan_instance_size_t) ||
+            private->binding_image_sampler == KAN_INT_MAX (kan_instance_size_t) ||
+            private->binding_image_atlas == KAN_INT_MAX (kan_instance_size_t) ||
+            private->binding_image_entries == KAN_INT_MAX (kan_instance_size_t) ||
+            private->binding_glyph_sampler == KAN_INT_MAX (kan_instance_size_t) ||
+            private->binding_glyph_sdf_atlas == KAN_INT_MAX (kan_instance_size_t) ||
+            private->binding_color_table == KAN_INT_MAX (kan_instance_size_t))
+        {
+            KAN_LOG (ui_render, KAN_LOG_ERROR, "Failed to find expected bindings in pass \"%s\".", pass_loaded->name)
+            return false;
+        }
+
+        if (pass_loaded->variants.size > 0u)
+        {
+            KAN_LOG (ui_render, KAN_LOG_ERROR, "Failed to allocate pass view data buffer for pass \"%s\".",
+                     pass_loaded->name)
+            return false;
+        }
+
+        kan_instance_size_t image_atlas_layers;
+        kan_render_image_get_sizes (atlas_loaded->image, NULL, NULL, NULL, &image_atlas_layers);
+
+        private->bound_glyph_sdf_atlas = text_shaping->font_library_sdf_atlas;
+        kan_instance_size_t glyph_atlas_layers;
+        kan_render_image_get_sizes (private->bound_glyph_sdf_atlas, NULL, NULL, NULL, &glyph_atlas_layers);
+
+        struct kan_render_parameter_update_description_t updates[] = {
+            {
+                .binding = private->binding_pass_view_data,
+                .buffer_binding =
+                    {
+                        .buffer = private->pass_view_data_buffer,
+                        .offset = 0u,
+                        .range = kan_render_buffer_get_full_size (private->pass_view_data_buffer),
+                    },
+            },
+            {
+                .binding = private->binding_image_sampler,
+                .sampler_binding =
+                    {
+                        .sampler =
+                            {
+                                .mag_filter = KAN_RENDER_FILTER_MODE_LINEAR,
+                                .min_filter = KAN_RENDER_FILTER_MODE_LINEAR,
+                                .mip_map_mode = KAN_RENDER_MIP_MAP_MODE_NEAREST,
+                                .address_mode_u = KAN_RENDER_ADDRESS_MODE_REPEAT,
+                                .address_mode_v = KAN_RENDER_ADDRESS_MODE_REPEAT,
+                                .address_mode_w = KAN_RENDER_ADDRESS_MODE_REPEAT,
+                            },
+                    },
+            },
+            {
+                .binding = private->binding_image_atlas,
+                .image_binding =
+                    {
+                        .image = atlas_loaded->image,
+                        .array_index = 0u,
+                        .layer_offset = 0u,
+                        .layer_count = image_atlas_layers,
+                    },
+            },
+            {
+                .binding = private->binding_image_entries,
+                .buffer_binding =
+                    {
+                        .buffer = atlas_loaded->entry_buffer,
+                        .offset = 0u,
+                        .range = kan_render_buffer_get_full_size (atlas_loaded->entry_buffer),
+                    },
+            },
+            {
+                .binding = private->binding_glyph_sampler,
+                .sampler_binding =
+                    {
+                        .sampler =
+                            {
+                                .mag_filter = KAN_RENDER_FILTER_MODE_LINEAR,
+                                .min_filter = KAN_RENDER_FILTER_MODE_LINEAR,
+                                .mip_map_mode = KAN_RENDER_MIP_MAP_MODE_NEAREST,
+                                .address_mode_u = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                                .address_mode_v = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                                .address_mode_w = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                            },
+                    },
+            },
+            {
+                .binding = private->binding_glyph_sdf_atlas,
+                .image_binding =
+                    {
+                        .image = private->bound_glyph_sdf_atlas,
+                        .array_index = 0u,
+                        .layer_offset = 0u,
+                        .layer_count = glyph_atlas_layers,
+                    },
+            },
+            {
+                .binding = private->binding_color_table,
+                .buffer_binding =
+                    {
+                        .buffer = render_context->color_table_buffer,
+                        .offset = 0u,
+                        .range = kan_render_buffer_get_full_size (render_context->color_table_buffer),
+                    },
+            },
+        };
+
+        struct kan_render_pipeline_parameter_set_description_t set_description = {
+            .layout = variant->pass_parameter_set_layout,
+            .stable_binding = true,
+            .tracking_name = KAN_STATIC_INTERNED_ID_GET (ui_pass_set),
+            .initial_bindings_count = sizeof (updates) / sizeof (updates[0u]),
+            .initial_bindings = updates,
+        };
+
+        private->pass_parameter_set =
+            kan_render_pipeline_parameter_set_create (render_context->render_context, &set_description);
+
+        if (!KAN_HANDLE_IS_VALID (private->pass_parameter_set))
+        {
+            KAN_LOG (ui_render, KAN_LOG_ERROR, "Failed to allocate pass parameter set for pass \"%s\".",
+                     pass_loaded->name)
+            return false;
+        }
+    }
+
+    return true;
+}
+
+KAN_UM_MUTATOR_EXECUTE (ui_render)
+{
+    KAN_UMI_SINGLETON_WRITE (private, ui_render_private_singleton_t)
+    KAN_UMI_SINGLETON_READ (bundle, kan_ui_bundle_singleton_t)
+
+    if (!bundle->available)
+    {
+        // If bundle is not yet available, then there is nothing to do at all.
+        return;
+    }
+
+    // We need to check all the updates before checking frame: for the rare cases when frame was not scheduled,
+    // but the bound resources were changed and must be unbound,
+
+    KAN_UML_EVENT_FETCH (bundle_updated_event, kan_ui_bundle_updated_event_t)
+    {
+        kan_render_pipeline_parameter_set_destroy (private->pass_parameter_set);
+        private->used_pass_name = NULL;
+        private->bound_glyph_sdf_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
+    }
+
+    KAN_UML_EVENT_FETCH (pass_updated_event, kan_render_foundation_pass_updated_event_t)
+    {
+        if (pass_updated_event->name == private->used_pass_name)
+        {
+            kan_render_pipeline_parameter_set_destroy (private->pass_parameter_set);
+            private->used_pass_name = NULL;
+            private->bound_glyph_sdf_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
+        }
+    }
+
+    KAN_UML_EVENT_FETCH (atlas_updated_event, kan_render_atlas_updated_event_t)
+    {
+        if (atlas_updated_event->name == bundle->available_bundle.image_atlas &&
+            KAN_HANDLE_IS_VALID (private->pass_parameter_set))
+        {
+            KAN_UMI_VALUE_READ_REQUIRED (atlas_loaded, kan_render_atlas_loaded_t, name, &atlas_updated_event->name)
+            kan_instance_size_t atlas_layers;
+            kan_render_image_get_sizes (atlas_loaded->image, NULL, NULL, NULL, &atlas_layers);
+
+            struct kan_render_parameter_update_description_t updates[] = {
+                {
+                    .binding = private->binding_image_atlas,
+                    .image_binding =
+                        {
+                            .image = atlas_loaded->image,
+                            .array_index = 0u,
+                            .layer_offset = 0u,
+                            .layer_count = atlas_layers,
+                        },
+                },
+                {
+                    .binding = private->binding_image_entries,
+                    .buffer_binding =
+                        {
+                            .buffer = atlas_loaded->entry_buffer,
+                            .offset = 0u,
+                            .range = kan_render_buffer_get_full_size (atlas_loaded->entry_buffer),
+                        },
+                },
+            };
+
+            kan_render_pipeline_parameter_set_update (private->pass_parameter_set,
+                                                      sizeof (updates) / sizeof (updates[0u]), updates);
+        }
+    }
+
+    KAN_UMI_SINGLETON_READ (text_shaping, kan_text_shaping_singleton_t)
+    if (KAN_HANDLE_IS_VALID (private->pass_parameter_set) &&
+        !KAN_HANDLE_IS_EQUAL (private->bound_glyph_sdf_atlas, text_shaping->font_library_sdf_atlas) &&
+        KAN_HANDLE_IS_VALID (text_shaping->font_library_sdf_atlas))
+    {
+        kan_instance_size_t atlas_layers;
+        kan_render_image_get_sizes (text_shaping->font_library_sdf_atlas, NULL, NULL, NULL, &atlas_layers);
+
+        struct kan_render_parameter_update_description_t updates[] = {
+            {
+                .binding = private->binding_image_atlas,
+                .image_binding =
+                    {
+                        .image = text_shaping->font_library_sdf_atlas,
+                        .array_index = 0u,
+                        .layer_offset = 0u,
+                        .layer_count = atlas_layers,
+                    },
+            },
+        };
+
+        kan_render_pipeline_parameter_set_update (private->pass_parameter_set, sizeof (updates) / sizeof (updates[0u]),
+                                                  updates);
+    }
+
+    KAN_UMI_SINGLETON_READ (render_context, kan_render_context_singleton_t)
+    KAN_UML_EVENT_FETCH (color_table_updated, kan_render_color_table_buffer_updated_t)
+    {
+        if (KAN_HANDLE_IS_VALID (private->pass_parameter_set))
+        {
+            struct kan_render_parameter_update_description_t updates[] = {
+                {
+                    .binding = private->binding_color_table,
+                    .buffer_binding =
+                        {
+                            .buffer = render_context->color_table_buffer,
+                            .offset = 0u,
+                            .range = kan_render_buffer_get_full_size (render_context->color_table_buffer),
+                        },
+                },
+            };
+            
+            kan_render_pipeline_parameter_set_update (private->pass_parameter_set,
+                                                      sizeof (updates) / sizeof (updates[0u]), updates);
+        }
+    }
+
+    if (!render_context->frame_scheduled)
+    {
+        return;
+    }
+
+    if (!ensure_pass_parameter_set_ready (state, private, bundle, text_shaping, render_context))
+    {
+        return;
+    }
+
+    // TODO: Implement.
+
+    KAN_UML_INTERVAL_ASCENDING_READ (node, kan_ui_node_laid_out_t, draw_index, NULL, NULL)
+    {
+        // TODO: Implement.
+    }
+
+    // TODO: Implement.
+}
+
 void kan_ui_singleton_init (struct kan_ui_singleton_t *instance)
 {
     instance->node_id_counter = kan_atomic_int_init (1);
     instance->scale = 1.0f;
-    instance->viewport_x = 0;
-    instance->viewport_y = 0;
     instance->viewport_width = 0;
     instance->viewport_height = 0;
 }
@@ -1668,4 +2237,11 @@ void kan_ui_node_laid_out_init (struct kan_ui_node_laid_out_t *instance)
 void kan_ui_node_laid_out_shutdown (struct kan_ui_node_laid_out_t *instance)
 {
     kan_text_shaped_data_shutdown (&instance->additional_draw_commands);
+}
+
+void kan_ui_render_graph_singleton_init (struct kan_ui_render_graph_singleton_t *instance)
+{
+    instance->allocation = NULL;
+    instance->final_pass_instance = KAN_HANDLE_SET_INVALID (kan_render_pass_instance_t);
+    instance->final_image = KAN_HANDLE_SET_INVALID (kan_render_image_t);
 }

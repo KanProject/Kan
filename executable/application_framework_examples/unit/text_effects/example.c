@@ -690,24 +690,6 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_DEPLOY (text_effe
     kan_workflow_graph_node_depend_on (workflow_node, KAN_TEXT_SHAPING_END_CHECKPOINT);
 }
 
-static inline kan_render_graphics_pipeline_t find_pipeline (const struct kan_render_material_loaded_t *material,
-                                                            kan_interned_string_t pass_name,
-                                                            kan_interned_string_t variant_name)
-{
-    for (kan_loop_size_t index = 0u; index < material->pipelines.size; ++index)
-    {
-        const struct kan_render_material_pipeline_t *loaded =
-            &((struct kan_render_material_pipeline_t *) material->pipelines.data)[index];
-
-        if (loaded->pass_name == pass_name && loaded->variant_name == variant_name)
-        {
-            return loaded->pipeline;
-        }
-    }
-
-    return KAN_HANDLE_SET_INVALID (kan_render_graphics_pipeline_t);
-}
-
 static void try_render_frame (struct text_effects_render_state_t *state,
                               const struct kan_render_context_singleton_t *render_context,
                               const struct kan_render_graph_resource_management_singleton_t *render_resource_management,
@@ -1028,7 +1010,6 @@ static void try_render_frame (struct text_effects_render_state_t *state,
             switch (unit->request.alignment)
             {
             case KAN_TEXT_SHAPING_ALIGNMENT_LEFT:
-                push.offset_and_time.x -= unit->shaped_min.x;
                 break;
 
             case KAN_TEXT_SHAPING_ALIGNMENT_CENTER:

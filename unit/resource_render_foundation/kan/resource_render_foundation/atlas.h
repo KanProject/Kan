@@ -22,13 +22,13 @@ struct kan_resource_atlas_image_nine_patch_t
 {
     /// \brief Distance from left corner to the end of left static area.
     kan_instance_size_t left;
-    
+
     /// \brief Distance from the right corner to the beginning of the right static area.
     kan_instance_size_t right;
-    
+
     /// \brief Distance from the top corner to the end of the top static area.
     kan_instance_size_t top;
-    
+
     /// \brief Distance from the bottom corner to the beginning of the bottom static area.
     kan_instance_size_t bottom;
 };

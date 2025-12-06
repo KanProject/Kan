@@ -1,0 +1,97 @@
+push_constant push
+{
+    f4 offset_and_time;
+    alias (offset, offset_and_time.xy)
+    alias (local_time, offset_and_time.z)
+    u4 meta;
+    alias (ui_mark, meta.x)
+};
+
+vertex_attribute_container vertex
+{
+    f2 position;
+};
+
+instanced_attribute_container instanced
+{
+    f4 min_max;
+    alias (min, min_max.xy)
+    alias (max, min_max.zw)
+    u3 meta;
+    alias (icon_index, meta.x)
+    alias (mark, meta.y)
+    alias (read_index, meta.z)
+};
+
+struct palette_entry
+{
+    f4 color_main;
+    f4 cos_anim_color;
+    u1 color_table_multiplier_index;
+};
+
+set_material read_only_storage_buffer setup
+{
+    f1 cos_anim_period;
+    f1 glyph_read_time;
+    palette_entry... palette;
+};
+
+state_container state
+{
+    u3 meta;
+    alias (icon_index, meta.x)
+    alias (mark, meta.y)
+    alias (read_index, meta.z)
+    f2 uv;
+};
+
+void ui_vertex_main (void)
+{
+    state.meta = instanced.meta;
+    state.uv =  vertex.position;
+    f2 position = instanced.min + vertex.position * (instanced.max - instanced.min);
+    vertex_stage_output_position (pass_view_data.projection_view * f4 {push.offset + position, 0.5, 1.0});
+}
+
+constant palette_mask = 0xff;
+// Commented out as not supported, however still a part of mark flags.
+// constant outline_flag = 1u << 8u;
+constant cos_anim_flag = 1u << 9u;
+constant reading_anim_flag = 1u << 10u;
+constant color_table_flag = 1u << 11u;
+
+void ui_fragment_main (void)
+{
+    if ((state.mark & reading_anim_flag) != 0u)
+    {
+        f1 time_to_get_here = setup.glyph_read_time * f1 {state.read_index};
+        if (time_to_get_here > push.local_time)
+        {
+            color_output.color = f4 {0.0};
+            return;
+        }
+    }
+    
+    u1 palette_index = state.mark & palette_mask;
+    alias (palette, setup.palette[palette_index])
+    alias (entry, image_entries[state.icon_index])
+    
+    f2 atlas_uv = entry.uv_min + state.uv * (entry.uv_min - entry.uv_max);
+    f4 modifier_color = palette.color_main;
+    
+    if ((state.mark & cos_anim_flag) != 0u)
+    {
+       f1 phase = 2.0 * pi() * fract_f1 (push.local_time / setup.cos_anim_period);
+       f1 modifier = cos_f1(phase) * 0.5 + 0.5;
+       modifier_color = mix_f4 (palette.cos_anim_color, modifier_color, f4 {modifier});
+    }
+    
+    if ((state.mark & color_table_flag) != 0u)
+    {
+        modifier_color = modifier_color * color_table.values[palette.color_table_multiplier_index];
+    }
+    
+    f4 color = sample (image_sampler, image_atlas, entry.page, atlas_uv) * modifier_color;    
+    color_output.color = color;
+}

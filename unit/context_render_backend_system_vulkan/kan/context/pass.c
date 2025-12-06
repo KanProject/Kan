@@ -618,7 +618,7 @@ void kan_render_pass_instance_attributes (kan_render_pass_instance_t pass_instan
                                           vulkan_size_t start_at_binding,
                                           kan_instance_size_t buffers_count,
                                           kan_render_buffer_t *buffers,
-                                          kan_instance_size_t *buffer_offsets)
+                                          const kan_instance_size_t *buffer_offsets)
 {
     struct render_backend_pass_instance_t *instance = KAN_HANDLE_GET (pass_instance);
     struct render_backend_command_state_t *command_state =

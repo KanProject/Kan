@@ -267,11 +267,21 @@ enum kan_ui_draw_command_t
 
 struct kan_ui_draw_command_image_t
 {
-    kan_instance_size_t image_record_index;
+    uint32_t image_record_index;
 
     /// \brief Additional 32-bit mark that will be passed through instanced data and can be used for custom effects if
     ///        user overrides default UI material.
-    kan_instance_size_t ui_mark;
+    uint32_t ui_mark;
+};
+
+#define KAN_UI_DEFAULT_TEXT_MARK_PALETTE_MASK 0x000000ff
+
+enum kan_ui_default_text_mark_flag_t
+{
+    KAN_UI_DEFAULT_TEXT_MARK_FLAG_OUTLINE = 1u << 8u,
+    KAN_UI_DEFAULT_TEXT_MARK_FLAG_COS_ANIMATION = 1u << 9u,
+    KAN_UI_DEFAULT_TEXT_MARK_FLAG_READING_ANIMATION = 1u << 10u,
+    KAN_UI_DEFAULT_TEXT_MARK_FLAG_COLOR_TABLE = 1u << 11u,
 };
 
 struct kan_ui_draw_command_text_t
@@ -279,9 +289,19 @@ struct kan_ui_draw_command_text_t
     kan_text_shaping_unit_id_t shaping_unit;
 
     /// \brief Additional 32-bit mark, that will be passed through push constants for the text as a whole.
-    kan_instance_size_t ui_mark;
+    uint32_t ui_mark;
+
+    /// \brief Used to calculate local time for text animation on GPU if any.
+    /// \details Relative to `kan_ui_render_graph_singleton_t::animation_global_time_s`.
+    float animation_start_time_s;
 
     // TODO: Would surely require a little bit more fields later for correct spacing.
+};
+
+struct kan_ui_draw_command_custom_push_layout_t
+{
+    struct kan_float_vector_2_t offset;
+    struct kan_float_vector_2_t size;
 };
 
 struct kan_ui_draw_command_custom_t
@@ -294,9 +314,6 @@ struct kan_ui_draw_command_custom_t
 
     /// \details Not owned, must be managed by user that provides it.
     kan_render_pipeline_parameter_set_t shared_set;
-
-    /// \brief Additional 32-bit mark, that will be passed through push constants for this element.
-    kan_instance_size_t ui_mark;
 };
 
 struct kan_ui_draw_command_data_t
@@ -364,6 +381,16 @@ struct kan_ui_render_graph_singleton_t
 
     /// \brief Render image which can be presented on surface after `final_pass_instance`.
     kan_render_image_t final_image;
+
+    /// \brief Global time for UI gpu-based animations.
+    /// \details Calculated inside render graph singleton by manually appending delta's.
+    float animation_global_time_s;
+
+    /// \brief Global time for UI animations loops back to zero when it becomes higher than this value.
+    float animation_global_time_loop_s;
+
+    /// \brief Use to calculate deltas for `animation_global_time_s`.
+    kan_time_size_t last_time_ns;
 };
 
 UNIVERSE_UI_API void kan_ui_render_graph_singleton_init (struct kan_ui_render_graph_singleton_t *instance);

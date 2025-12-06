@@ -5,6 +5,7 @@
 #include <qsort.h>
 
 #include <kan/log/logging.h>
+#include <kan/precise_time/precise_time.h>
 #include <kan/universe/macro.h>
 #include <kan/universe_render_foundation/atlas.h>
 #include <kan/universe_render_foundation/program.h>
@@ -232,6 +233,7 @@ struct ui_layout_state_t
     KAN_UM_GENERATE_STATE_QUERIES (ui_layout)
     KAN_UM_BIND_STATE (ui_layout, state)
 
+    KAN_REFLECTION_IGNORE
     struct kan_stack_group_allocator_t temporary_allocator;
 
     KAN_REFLECTION_IGNORE
@@ -1626,10 +1628,24 @@ KAN_UM_MUTATOR_DEPLOY (ui_render_graph)
 KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
 {
     KAN_UMI_SINGLETON_WRITE (public, kan_ui_render_graph_singleton_t)
-    // Clear out previous frame data.
-    kan_ui_render_graph_singleton_init (public);
 
+    // Clear out previous frame data.
+    public->allocation = NULL;
+    public->final_pass_instance = KAN_HANDLE_SET_INVALID (kan_render_pass_instance_t);
+    public->final_image = KAN_HANDLE_SET_INVALID (kan_render_image_t);
+
+    if (public->last_time_ns != KAN_INT_MAX (kan_time_size_t))
+    {
+        const kan_time_size_t delta_ns = kan_precise_time_get_elapsed_nanoseconds () - public->last_time_ns;
+        const float delta_s = 1e-9f * (float) delta_ns;
+
+        public->animation_global_time_s =
+            fmodf (public->animation_global_time_s + delta_s, public->animation_global_time_loop_s);
+    }
+
+    public->last_time_ns = kan_precise_time_get_elapsed_nanoseconds ();
     KAN_UMI_SINGLETON_READ (render_context, kan_render_context_singleton_t)
+
     if (!render_context->frame_scheduled)
     {
         return;
@@ -1736,10 +1752,22 @@ KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
                                                                &viewport_bounds, &scissor, clear_values);
 }
 
+KAN_REFLECTION_IGNORE
+struct ui_pass_view_data_t
+{
+    struct kan_float_matrix_4x4_t projection_view;
+};
+
 struct ui_render_private_singleton_t
 {
     kan_render_pipeline_parameter_set_t pass_parameter_set;
     kan_render_buffer_t pass_view_data_buffer;
+
+    kan_render_frame_lifetime_buffer_allocator_t frame_lifetime_allocator;
+    kan_instance_size_t previous_frame_instanced_images;
+
+    kan_render_buffer_t ui_rect_vertices;
+    kan_render_buffer_t ui_rect_indices;
 
     kan_interned_string_t used_pass_name;
     kan_render_image_t bound_glyph_sdf_atlas;
@@ -1758,6 +1786,12 @@ UNIVERSE_UI_API void ui_render_private_singleton_init (struct ui_render_private_
     instance->pass_parameter_set = KAN_HANDLE_SET_INVALID (kan_render_pipeline_parameter_set_t);
     instance->pass_view_data_buffer = KAN_HANDLE_SET_INVALID (kan_render_buffer_t);
 
+    instance->frame_lifetime_allocator = KAN_HANDLE_SET_INVALID (kan_render_frame_lifetime_buffer_allocator_t);
+    instance->previous_frame_instanced_images = 0u;
+
+    instance->ui_rect_vertices = KAN_HANDLE_SET_INVALID (kan_render_buffer_t);
+    instance->ui_rect_indices = KAN_HANDLE_SET_INVALID (kan_render_buffer_t);
+
     instance->used_pass_name = NULL;
     instance->bound_glyph_sdf_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
 
@@ -1772,21 +1806,85 @@ UNIVERSE_UI_API void ui_render_private_singleton_init (struct ui_render_private_
 
 UNIVERSE_UI_API void ui_render_private_singleton_shutdown (struct ui_render_private_singleton_t *instance)
 {
+    if (KAN_HANDLE_IS_VALID (instance->pass_parameter_set))
+    {
+        kan_render_pipeline_parameter_set_destroy (instance->pass_parameter_set);
+    }
+
     if (KAN_HANDLE_IS_VALID (instance->pass_view_data_buffer))
     {
         kan_render_buffer_destroy (instance->pass_view_data_buffer);
     }
 
-    if (KAN_HANDLE_IS_VALID (instance->pass_parameter_set))
+    if (KAN_HANDLE_IS_VALID (instance->frame_lifetime_allocator))
     {
-        kan_render_pipeline_parameter_set_destroy (instance->pass_parameter_set);
+        kan_render_frame_lifetime_buffer_allocator_destroy (instance->frame_lifetime_allocator);
+    }
+
+    if (KAN_HANDLE_IS_VALID (instance->ui_rect_vertices))
+    {
+        kan_render_buffer_destroy (instance->ui_rect_vertices);
+    }
+
+    if (KAN_HANDLE_IS_VALID (instance->ui_rect_indices))
+    {
+        kan_render_buffer_destroy (instance->ui_rect_indices);
     }
 }
+
+KAN_REFLECTION_IGNORE
+enum ui_bound_pipeline_t
+{
+    UI_BOUND_PIPELINE_NONE = 0u,
+    UI_BOUND_PIPELINE_IMAGE,
+    UI_BOUND_PIPELINE_TEXT_SDF,
+    UI_BOUND_PIPELINE_TEXT_ICON,
+};
+
+KAN_REFLECTION_IGNORE
+struct image_instanced_data_t
+{
+    struct kan_float_vector_2_t offset;
+    struct kan_float_vector_2_t size;
+    uint32_t image_index;
+    uint32_t ui_mark;
+};
+
+KAN_REFLECTION_IGNORE
+struct ui_render_transient_state_t
+{
+    struct ui_render_private_singleton_t *private;
+    const struct kan_ui_render_graph_singleton_t *ui_render_graph;
+
+    enum ui_bound_pipeline_t bound_pipeline;
+    struct kan_ui_clip_rect_t clip_rect;
+
+    struct image_instanced_data_t *image_bulk_run_begin;
+    struct image_instanced_data_t *image_bulk_next;
+    struct image_instanced_data_t *image_bulk_end;
+
+    struct kan_render_allocated_slice_t image_bulk_allocation;
+    struct image_instanced_data_t *image_bulk_slice_begin;
+
+    kan_instance_size_t this_frame_instanced_images;
+
+    kan_render_graphics_pipeline_t image_pipeline;
+    kan_render_pipeline_parameter_set_t image_pipeline_material_parameters;
+
+    kan_render_graphics_pipeline_t text_sdf_pipeline;
+    kan_render_pipeline_parameter_set_t text_sdf_pipeline_material_parameters;
+
+    kan_render_graphics_pipeline_t text_icon_pipeline;
+    kan_render_pipeline_parameter_set_t text_icon_pipeline_material_parameters;
+};
 
 struct ui_render_state_t
 {
     KAN_UM_GENERATE_STATE_QUERIES (ui_render)
     KAN_UM_BIND_STATE (ui_render, state)
+
+    KAN_REFLECTION_IGNORE
+    struct ui_render_transient_state_t transient;
 };
 
 KAN_UM_MUTATOR_DEPLOY (ui_render)
@@ -1802,11 +1900,40 @@ KAN_UM_MUTATOR_DEPLOY (ui_render)
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_RENDER_END_CHECKPOINT);
 }
 
-static inline bool ensure_pass_parameter_set_ready (struct ui_render_state_t *state,
-                                                    struct ui_render_private_singleton_t *private,
-                                                    const struct kan_ui_bundle_singleton_t *bundle,
-                                                    const struct kan_text_shaping_singleton_t *text_shaping,
-                                                    const struct kan_render_context_singleton_t *render_context)
+static const struct kan_float_vector_2_t ui_rect_vertices[] = {
+    {0.0f, 0.0f},
+    {1.0f, 0.0f},
+    {1.0f, 1.0f},
+    {0.0f, 1.0f},
+};
+
+static const uint16_t ui_rect_indices[] = {
+    0u, 1u, 2u, 2u, 3u, 0u,
+};
+
+static void ensure_ui_rect_ready (struct ui_render_private_singleton_t *private,
+                                  const struct kan_render_context_singleton_t *render_context)
+{
+    if (!KAN_HANDLE_IS_VALID (private->ui_rect_vertices))
+    {
+        private->ui_rect_vertices = kan_render_buffer_create (
+            render_context->render_context, KAN_RENDER_BUFFER_TYPE_ATTRIBUTE, sizeof (ui_rect_vertices),
+            ui_rect_vertices, kan_string_intern ("ui_rect_vertices"));
+    }
+
+    if (!KAN_HANDLE_IS_VALID (private->ui_rect_indices))
+    {
+        private->ui_rect_indices =
+            kan_render_buffer_create (render_context->render_context, KAN_RENDER_BUFFER_TYPE_ATTRIBUTE,
+                                      sizeof (ui_rect_indices), ui_rect_indices, kan_string_intern ("ui_rect_indices"));
+    }
+}
+
+static bool ensure_pass_parameter_set_ready (struct ui_render_state_t *state,
+                                             struct ui_render_private_singleton_t *private,
+                                             const struct kan_ui_bundle_singleton_t *bundle,
+                                             const struct kan_text_shaping_singleton_t *text_shaping,
+                                             const struct kan_render_context_singleton_t *render_context)
 {
     if (!KAN_HANDLE_IS_VALID (private->pass_parameter_set))
     {
@@ -1823,7 +1950,7 @@ static inline bool ensure_pass_parameter_set_ready (struct ui_render_state_t *st
         private->binding_glyph_sdf_atlas = KAN_INT_MAX (kan_instance_size_t);
         private->binding_color_table = KAN_INT_MAX (kan_instance_size_t);
 
-        if (pass_loaded->variants.size > 0u)
+        if (pass_loaded->variants.size > 1u)
         {
             KAN_LOG (ui_render, KAN_LOG_ERROR, "Expected only 1 variant in pass \"%s\", but got %u.", pass_loaded->name,
                      (unsigned int) pass_loaded->variants.size)
@@ -2022,6 +2149,531 @@ static inline bool ensure_pass_parameter_set_ready (struct ui_render_state_t *st
     return true;
 }
 
+#define UI_RECT_ATTRIBUTE_BINDING 0u
+#define UI_INSTANCED_BINDING 1u
+
+static bool cache_material_instance_data (struct ui_render_state_t *state,
+                                          kan_interned_string_t pass_name,
+                                          kan_interned_string_t material_instance_name,
+                                          kan_render_graphics_pipeline_t *output_pipeline,
+                                          kan_render_pipeline_parameter_set_t *output_parameters)
+{
+    KAN_UMI_VALUE_READ_REQUIRED (material_instance, kan_render_material_instance_loaded_t, name,
+                                 &material_instance_name)
+
+    *output_parameters = material_instance->parameter_set;
+    KAN_UMI_VALUE_READ_REQUIRED (material, kan_render_material_loaded_t, name, &material_instance->material_name)
+
+    for (kan_loop_size_t index = 0u; index < material->pipelines.size; ++index)
+    {
+        const struct kan_render_material_pipeline_t *pipeline =
+            &((struct kan_render_material_pipeline_t *) material->pipelines.data)[index];
+
+        if (pipeline->pass_name == pass_name && pipeline->variant_name == KAN_STATIC_INTERNED_ID_GET (default))
+        {
+            *output_pipeline = pipeline->pipeline;
+            if (material->vertex_attribute_sources.size != 1u)
+            {
+                KAN_LOG (ui_render, KAN_LOG_ERROR,
+                         "Material \"%s\" should have only one vertex attribute source in order to be usable with ui.",
+                         material->name)
+                return false;
+            }
+
+            const struct kan_rpl_meta_attribute_source_t *attribute_source =
+                &((struct kan_rpl_meta_attribute_source_t *) material->vertex_attribute_sources.data)[0u];
+
+            if (attribute_source->binding != UI_RECT_ATTRIBUTE_BINDING)
+            {
+                KAN_LOG (ui_render, KAN_LOG_ERROR,
+                         "Material \"%s\" vertex attribute source for ui rect must be bound at %u, but has binding "
+                         "index %u.",
+                         material->name, (unsigned int) UI_RECT_ATTRIBUTE_BINDING,
+                         (unsigned int) attribute_source->binding)
+                return false;
+            }
+
+            if (!material->has_instanced_attribute_source)
+            {
+                KAN_LOG (ui_render, KAN_LOG_ERROR,
+                         "Material \"%s\" should have instanced attribute source as it is used as general ui material "
+                         "(either image, text sdf glyph or text icon material).",
+                         material->name)
+                return false;
+            }
+
+            if (material->instanced_attribute_source.binding != UI_INSTANCED_BINDING)
+            {
+                KAN_LOG (
+                    ui_render, KAN_LOG_ERROR,
+                    "Material \"%s\" instanced attribute source for general instanced data must be bound at %u, "
+                    "but has binding index %u. Material is used for either image, text sdf glyph or text icon render.",
+                    material->name, (unsigned int) UI_INSTANCED_BINDING,
+                    (unsigned int) material->instanced_attribute_source.binding)
+                return false;
+            }
+
+            return true;
+        }
+    }
+
+    KAN_LOG (ui_render, KAN_LOG_ERROR,
+             "Failed to find pipeline for pass \"%s\" and variant \"default\" in material \"%s\".", pass_name,
+             material->name)
+    return false;
+}
+
+static void flush_instanced_ui_images (struct ui_render_state_t *state)
+{
+    if (!state->transient.image_bulk_run_begin)
+    {
+        return;
+    }
+
+    const kan_instance_size_t instance_count = state->transient.image_bulk_next - state->transient.image_bulk_run_begin;
+    kan_render_pass_instance_t pass_instance = state->transient.ui_render_graph->final_pass_instance;
+
+    if (state->transient.bound_pipeline != UI_BOUND_PIPELINE_IMAGE &&
+        kan_render_pass_instance_graphics_pipeline (pass_instance, state->transient.image_pipeline))
+    {
+        kan_render_pipeline_parameter_set_t sets[] = {
+            state->transient.private->pass_parameter_set,
+            state->transient.image_pipeline_material_parameters,
+        };
+
+        kan_render_pass_instance_pipeline_parameter_sets (pass_instance, KAN_RPL_SET_PASS,
+                                                          sizeof (sets) / sizeof (sets[0u]), sets);
+
+        kan_render_pass_instance_indices (pass_instance, state->transient.private->ui_rect_indices);
+        kan_render_pass_instance_attributes (pass_instance, UI_RECT_ATTRIBUTE_BINDING, 1u,
+                                             &state->transient.private->ui_rect_vertices, NULL);
+
+        state->transient.bound_pipeline = UI_BOUND_PIPELINE_IMAGE;
+    }
+
+    // Check again as bind might have failed.
+    if (state->transient.bound_pipeline == UI_BOUND_PIPELINE_IMAGE)
+    {
+        const kan_instance_size_t begin_index =
+            state->transient.image_bulk_run_begin - state->transient.image_bulk_slice_begin;
+
+        const kan_instance_size_t full_offset =
+            state->transient.image_bulk_allocation.slice_offset + begin_index * sizeof (struct image_instanced_data_t);
+
+        kan_render_pass_instance_attributes (pass_instance, UI_INSTANCED_BINDING, 1u,
+                                             &state->transient.image_bulk_allocation.buffer, &full_offset);
+
+        kan_render_pass_instance_draw (pass_instance, 0u, sizeof (ui_rect_indices) / sizeof (ui_rect_indices[0u]), 0u,
+                                       0u, instance_count);
+    }
+
+    state->transient.image_bulk_run_begin = NULL;
+    state->transient.this_frame_instanced_images += instance_count;
+}
+
+static inline void apply_clip_rect (struct ui_render_state_t *state, const struct kan_ui_clip_rect_t *clip_rect)
+{
+    if (clip_rect->x != state->transient.clip_rect.x || clip_rect->y != state->transient.clip_rect.y ||
+        clip_rect->width != state->transient.clip_rect.width || clip_rect->height != state->transient.clip_rect.height)
+    {
+        flush_instanced_ui_images (state);
+        state->transient.clip_rect = *clip_rect;
+
+        struct kan_render_integer_region_2d_t scissor = {
+            .x = clip_rect->x,
+            .y = clip_rect->y,
+            .width = (kan_instance_size_t) clip_rect->width,
+            .height = (kan_instance_size_t) clip_rect->height,
+        };
+
+        kan_render_pass_instance_override_scissor (state->transient.ui_render_graph->final_pass_instance, &scissor);
+    }
+}
+
+static void allocate_new_image_bulk_region (struct ui_render_state_t *state)
+{
+    kan_instance_size_t allocation_size = 0u;
+    if (state->transient.private->previous_frame_instanced_images == 0u)
+    {
+        // Unknown amount of images, allocate 25% of a page.
+        allocation_size =
+            kan_apply_alignment (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE / 4u, alignof (struct image_instanced_data_t));
+    }
+    else
+    {
+        static_assert (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE % alignof (struct image_instanced_data_t) == 0u,
+                       "Page size is aligned to image data.");
+
+        allocation_size =
+            state->transient.private->previous_frame_instanced_images * sizeof (struct image_instanced_data_t);
+        allocation_size = KAN_MIN (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE, allocation_size);
+    }
+
+    state->transient.image_bulk_allocation = kan_render_frame_lifetime_buffer_allocator_allocate (
+        state->transient.private->frame_lifetime_allocator, allocation_size, alignof (struct image_instanced_data_t));
+
+    if (!KAN_HANDLE_IS_VALID (state->transient.image_bulk_allocation.buffer))
+    {
+        kan_error_critical ("Failed to allocate bulk image instanced data, critical error.", __FILE__, __LINE__);
+    }
+
+    state->transient.image_bulk_slice_begin =
+        kan_render_buffer_patch (state->transient.image_bulk_allocation.buffer,
+                                 state->transient.image_bulk_allocation.slice_offset, allocation_size);
+
+    state->transient.image_bulk_run_begin = NULL;
+    state->transient.image_bulk_next = state->transient.image_bulk_slice_begin;
+    state->transient.image_bulk_end =
+        state->transient.image_bulk_slice_begin + allocation_size / sizeof (struct image_instanced_data_t);
+}
+
+KAN_REFLECTION_IGNORE
+struct text_push_constant_layout_t
+{
+    struct kan_float_vector_2_t offset;
+    float local_time;
+    float unused_padding_1;
+
+    uint32_t ui_mark;
+    uint32_t unused_padding_2[3u];
+};
+
+static void execute_draw_text_command (struct ui_render_state_t *state,
+                                       const struct kan_ui_node_laid_out_t *laid_out,
+                                       const struct kan_ui_draw_command_data_t *command)
+{
+    KAN_UMI_VALUE_READ_OPTIONAL (shaping_unit, kan_text_shaping_unit_t, id, &command->text.shaping_unit)
+    if (!shaping_unit || !shaping_unit->shaped)
+    {
+        return;
+    }
+
+    kan_render_pass_instance_t pass_instance = state->transient.ui_render_graph->final_pass_instance;
+    const kan_instance_size_t glyph_count = shaping_unit->shaped_as_stable ? shaping_unit->shaped_stable.glyphs_count :
+                                                                             shaping_unit->shaped_unstable.glyphs.size;
+
+    const kan_instance_size_t icon_count = shaping_unit->shaped_as_stable ? shaping_unit->shaped_stable.icons_count :
+                                                                            shaping_unit->shaped_unstable.icons.size;
+
+    struct text_push_constant_layout_t push_constant;
+    push_constant.offset.x = (float) laid_out->global_x - shaping_unit->shaped_min.x;
+    push_constant.offset.y = (float) laid_out->global_y - shaping_unit->shaped_min.y;
+
+    switch (shaping_unit->request.alignment)
+    {
+    case KAN_TEXT_SHAPING_ALIGNMENT_LEFT:
+        break;
+
+    case KAN_TEXT_SHAPING_ALIGNMENT_CENTER:
+        push_constant.offset.x +=
+            0.5f * (float) laid_out->width - 0.5f * (float) shaping_unit->request.primary_axis_limit;
+        break;
+
+    case KAN_TEXT_SHAPING_ALIGNMENT_RIGHT:
+        push_constant.offset.x += (float) laid_out->width - (float) shaping_unit->request.primary_axis_limit;
+        break;
+    }
+
+    push_constant.local_time =
+        state->transient.ui_render_graph->animation_global_time_s - command->text.animation_start_time_s;
+    push_constant.ui_mark = command->text.ui_mark;
+
+    while (push_constant.local_time < 0.0f)
+    {
+        push_constant.local_time += state->transient.ui_render_graph->animation_global_time_loop_s;
+    }
+
+    if (glyph_count > 0u)
+    {
+        if (state->transient.bound_pipeline != UI_BOUND_PIPELINE_TEXT_SDF &&
+            kan_render_pass_instance_graphics_pipeline (pass_instance, state->transient.text_sdf_pipeline))
+        {
+            kan_render_pipeline_parameter_set_t sets[] = {
+                state->transient.private->pass_parameter_set,
+                state->transient.text_sdf_pipeline_material_parameters,
+            };
+
+            kan_render_pass_instance_pipeline_parameter_sets (pass_instance, KAN_RPL_SET_PASS,
+                                                              sizeof (sets) / sizeof (sets[0u]), sets);
+
+            kan_render_pass_instance_indices (pass_instance, state->transient.private->ui_rect_indices);
+            kan_render_pass_instance_attributes (pass_instance, UI_RECT_ATTRIBUTE_BINDING, 1u,
+                                                 &state->transient.private->ui_rect_vertices, NULL);
+
+            state->transient.bound_pipeline = UI_BOUND_PIPELINE_TEXT_SDF;
+        }
+
+        // Check again as bind might have failed.
+        if (state->transient.bound_pipeline == UI_BOUND_PIPELINE_TEXT_SDF)
+        {
+            kan_render_pass_instance_push_constant (pass_instance, &push_constant);
+            if (shaping_unit->shaped_as_stable)
+            {
+                // Otherwise might technically trigger "discards const" error.
+                kan_render_buffer_t attributes[] = {shaping_unit->shaped_stable.glyphs};
+                kan_render_pass_instance_attributes (pass_instance, UI_INSTANCED_BINDING, 1u, attributes, NULL);
+
+                kan_render_pass_instance_draw (
+                    pass_instance, 0u, sizeof (ui_rect_indices) / sizeof (ui_rect_indices[0u]), 0u, 0u, glyph_count);
+            }
+            else
+            {
+                // Handle page overflows for very large texts.
+                // Should generally never happen in reality as huge texts never be unstable.
+                kan_instance_size_t glyphs_rendered = 0u;
+                const kan_instance_size_t max_to_render_in_one_call =
+                    KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE / sizeof (struct kan_text_shaped_glyph_instance_data_t);
+
+                while (glyphs_rendered < glyph_count)
+                {
+                    const kan_instance_size_t to_render =
+                        KAN_MIN (glyph_count - glyphs_rendered, max_to_render_in_one_call);
+
+                    struct kan_render_allocated_slice_t slice = kan_render_frame_lifetime_buffer_allocator_allocate (
+                        state->transient.private->frame_lifetime_allocator,
+                        sizeof (struct kan_text_shaped_glyph_instance_data_t) * to_render,
+                        alignof (struct kan_text_shaped_glyph_instance_data_t));
+
+                    void *text_instanced_memory =
+                        kan_render_buffer_patch (slice.buffer, slice.slice_offset,
+                                                 sizeof (struct kan_text_shaped_glyph_instance_data_t) * to_render);
+
+                    KAN_ASSERT (text_instanced_memory)
+                    memcpy (text_instanced_memory,
+                            shaping_unit->shaped_unstable.glyphs.data +
+                                sizeof (struct kan_text_shaped_glyph_instance_data_t) * glyphs_rendered,
+                            sizeof (struct kan_text_shaped_glyph_instance_data_t) * to_render);
+
+                    kan_render_pass_instance_attributes (pass_instance, UI_INSTANCED_BINDING, 1u, &slice.buffer,
+                                                         &slice.slice_offset);
+                    glyphs_rendered += to_render;
+                }
+            }
+        }
+    }
+
+    if (icon_count > 0u)
+    {
+        if (state->transient.bound_pipeline != UI_BOUND_PIPELINE_TEXT_ICON &&
+            kan_render_pass_instance_graphics_pipeline (pass_instance, state->transient.text_icon_pipeline))
+        {
+            kan_render_pipeline_parameter_set_t sets[] = {
+                state->transient.private->pass_parameter_set,
+                state->transient.text_icon_pipeline_material_parameters,
+            };
+
+            kan_render_pass_instance_pipeline_parameter_sets (pass_instance, KAN_RPL_SET_PASS,
+                                                              sizeof (sets) / sizeof (sets[0u]), sets);
+
+            kan_render_pass_instance_indices (pass_instance, state->transient.private->ui_rect_indices);
+            kan_render_pass_instance_attributes (pass_instance, UI_RECT_ATTRIBUTE_BINDING, 1u,
+                                                 &state->transient.private->ui_rect_vertices, NULL);
+
+            state->transient.bound_pipeline = UI_BOUND_PIPELINE_TEXT_ICON;
+        }
+
+        // Check again as bind might have failed.
+        if (state->transient.bound_pipeline == UI_BOUND_PIPELINE_TEXT_ICON)
+        {
+            kan_render_pass_instance_push_constant (pass_instance, &push_constant);
+            if (shaping_unit->shaped_as_stable)
+            {
+                // Otherwise might technically trigger "discards const" error.
+                kan_render_buffer_t attributes[] = {shaping_unit->shaped_stable.icons};
+                kan_render_pass_instance_attributes (pass_instance, UI_INSTANCED_BINDING, 1u, attributes, NULL);
+
+                kan_render_pass_instance_draw (
+                    pass_instance, 0u, sizeof (ui_rect_indices) / sizeof (ui_rect_indices[0u]), 0u, 0u, icon_count);
+            }
+            else
+            {
+                // Handle page overflows for very large texts.
+                // Should generally never happen in reality as huge texts never be unstable.
+                kan_instance_size_t icons_rendered = 0u;
+                const kan_instance_size_t max_to_render_in_one_call =
+                    KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE / sizeof (struct kan_text_shaped_icon_instance_data_t);
+
+                while (icons_rendered < icon_count)
+                {
+                    const kan_instance_size_t to_render =
+                        KAN_MIN (icon_count - icons_rendered, max_to_render_in_one_call);
+
+                    struct kan_render_allocated_slice_t slice = kan_render_frame_lifetime_buffer_allocator_allocate (
+                        state->transient.private->frame_lifetime_allocator,
+                        sizeof (struct kan_text_shaped_icon_instance_data_t) * to_render,
+                        alignof (struct kan_text_shaped_icon_instance_data_t));
+
+                    void *text_instanced_memory =
+                        kan_render_buffer_patch (slice.buffer, slice.slice_offset,
+                                                 sizeof (struct kan_text_shaped_icon_instance_data_t) * to_render);
+
+                    KAN_ASSERT (text_instanced_memory)
+                    memcpy (text_instanced_memory,
+                            shaping_unit->shaped_unstable.icons.data +
+                                sizeof (struct kan_text_shaped_icon_instance_data_t) * icons_rendered,
+                            sizeof (struct kan_text_shaped_icon_instance_data_t) * to_render);
+
+                    kan_render_pass_instance_attributes (pass_instance, UI_INSTANCED_BINDING, 1u, &slice.buffer,
+                                                         &slice.slice_offset);
+                    icons_rendered += to_render;
+                }
+            }
+        }
+    }
+}
+
+static void execute_draw_custom_command (struct ui_render_state_t *state,
+                                         const struct kan_ui_node_laid_out_t *laid_out,
+                                         const struct kan_ui_draw_command_data_t *command)
+{
+    KAN_UMI_VALUE_READ_OPTIONAL (material_instance, kan_render_material_instance_loaded_t, name,
+                                 &command->custom.material_instance_name)
+
+    if (!material_instance)
+    {
+        return;
+    }
+
+    KAN_UMI_VALUE_READ_REQUIRED (material, kan_render_material_loaded_t, name, &material_instance->material_name)
+    kan_render_graphics_pipeline_t selected_pipeline = KAN_HANDLE_SET_INVALID (kan_render_graphics_pipeline_t);
+
+    for (kan_loop_size_t index = 0u; index < material->pipelines.size; ++index)
+    {
+        const struct kan_render_material_pipeline_t *pipeline =
+            &((struct kan_render_material_pipeline_t *) material->pipelines.data)[index];
+
+        if (pipeline->pass_name == state->transient.private->used_pass_name &&
+            pipeline->variant_name == KAN_STATIC_INTERNED_ID_GET (default))
+        {
+            selected_pipeline = pipeline->pipeline;
+            if (material->vertex_attribute_sources.size != 1u)
+            {
+                KAN_LOG (ui_render, KAN_LOG_ERROR,
+                         "Material \"%s\" should have only one vertex attribute source in order to be usable with ui "
+                         "as custom material.",
+                         material->name)
+                return;
+            }
+
+            const struct kan_rpl_meta_attribute_source_t *attribute_source =
+                &((struct kan_rpl_meta_attribute_source_t *) material->vertex_attribute_sources.data)[0u];
+
+            if (attribute_source->binding != UI_RECT_ATTRIBUTE_BINDING)
+            {
+                KAN_LOG (ui_render, KAN_LOG_ERROR,
+                         "Material \"%s\" vertex attribute source for ui rect must be bound at %u, but has binding "
+                         "index %u.",
+                         material->name, (unsigned int) UI_RECT_ATTRIBUTE_BINDING,
+                         (unsigned int) attribute_source->binding)
+                return;
+            }
+
+            if (material->has_instanced_attribute_source)
+            {
+                KAN_LOG (ui_render, KAN_LOG_ERROR,
+                         "Material \"%s\" should not have instanced attribute source in order to be usable in ui as "
+                         "custom draw material.",
+                         material->name)
+                return;
+            }
+
+            break;
+        }
+    }
+
+    if (!KAN_HANDLE_IS_VALID (selected_pipeline))
+    {
+        KAN_LOG (ui_render, KAN_LOG_ERROR,
+                 "Failed to find pipeline for pass \"%s\" and variant \"default\" in material \"%s\".",
+                 state->transient.private->used_pass_name, material->name)
+    }
+
+    kan_render_pass_instance_t pass_instance = state->transient.ui_render_graph->final_pass_instance;
+    if (kan_render_pass_instance_graphics_pipeline (pass_instance, selected_pipeline))
+    {
+        kan_render_pipeline_parameter_set_t sets[] = {
+            state->transient.private->pass_parameter_set,
+            state->transient.image_pipeline_material_parameters,
+            command->custom.object_set,
+            command->custom.shared_set,
+        };
+
+        kan_render_pass_instance_pipeline_parameter_sets (pass_instance, KAN_RPL_SET_PASS,
+                                                          sizeof (sets) / sizeof (sets[0u]), sets);
+
+        kan_render_pass_instance_indices (pass_instance, state->transient.private->ui_rect_indices);
+        kan_render_pass_instance_attributes (pass_instance, UI_RECT_ATTRIBUTE_BINDING, 1u,
+                                             &state->transient.private->ui_rect_vertices, NULL);
+
+        struct kan_ui_draw_command_custom_push_layout_t push;
+        push.size.x = (float) laid_out->global_x;
+        push.size.y = (float) laid_out->global_y;
+        push.offset.x = (float) laid_out->width;
+        push.offset.y = (float) laid_out->height;
+        kan_render_pass_instance_push_constant (pass_instance, &push);
+
+        kan_render_pass_instance_draw (pass_instance, 0u, sizeof (ui_rect_indices) / sizeof (ui_rect_indices[0u]), 0u,
+                                       0u, 1u);
+        state->transient.bound_pipeline = UI_BOUND_PIPELINE_NONE;
+    }
+}
+
+static void process_draw_command (struct ui_render_state_t *state,
+                                  const struct kan_ui_node_laid_out_t *laid_out,
+                                  const struct kan_ui_draw_command_data_t *command)
+{
+    switch (command->type)
+    {
+    case KAN_UI_DRAW_COMMAND_NONE:
+        break;
+
+    case KAN_UI_DRAW_COMMAND_IMAGE:
+    {
+        if (!state->transient.image_bulk_slice_begin)
+        {
+            allocate_new_image_bulk_region (state);
+        }
+
+        if (state->transient.image_bulk_next >= state->transient.image_bulk_end)
+        {
+            flush_instanced_ui_images (state);
+            allocate_new_image_bulk_region (state);
+        }
+
+        if (!state->transient.image_bulk_run_begin)
+        {
+            state->transient.image_bulk_run_begin = state->transient.image_bulk_next;
+        }
+
+        struct image_instanced_data_t *data = state->transient.image_bulk_next;
+        ++state->transient.image_bulk_next;
+
+        data->size.x = (float) laid_out->global_x;
+        data->size.y = (float) laid_out->global_y;
+        data->offset.x = (float) laid_out->width;
+        data->offset.y = (float) laid_out->height;
+
+        data->image_index = command->image.image_record_index;
+        data->ui_mark = command->image.ui_mark;
+        break;
+    }
+
+    case KAN_UI_DRAW_COMMAND_TEXT:
+    {
+        flush_instanced_ui_images (state);
+        execute_draw_text_command (state, laid_out, command);
+        break;
+    }
+
+    case KAN_UI_DRAW_COMMAND_CUSTOM:
+    {
+        flush_instanced_ui_images (state);
+        execute_draw_custom_command (state, laid_out, command);
+        break;
+    }
+    }
+}
+
 KAN_UM_MUTATOR_EXECUTE (ui_render)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_render_private_singleton_t)
@@ -2130,7 +2782,7 @@ KAN_UM_MUTATOR_EXECUTE (ui_render)
                         },
                 },
             };
-            
+
             kan_render_pipeline_parameter_set_update (private->pass_parameter_set,
                                                       sizeof (updates) / sizeof (updates[0u]), updates);
         }
@@ -2141,19 +2793,72 @@ KAN_UM_MUTATOR_EXECUTE (ui_render)
         return;
     }
 
-    if (!ensure_pass_parameter_set_ready (state, private, bundle, text_shaping, render_context))
+    KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
+    KAN_UMI_SINGLETON_READ (ui_render_graph, kan_ui_render_graph_singleton_t)
+
+    if (!KAN_HANDLE_IS_VALID (ui_render_graph->final_pass_instance))
     {
         return;
     }
 
-    // TODO: Implement.
+    if (!KAN_HANDLE_IS_VALID (private->frame_lifetime_allocator))
+    {
+        private->frame_lifetime_allocator = kan_render_frame_lifetime_buffer_allocator_create (
+            render_context->render_context, KAN_RENDER_BUFFER_TYPE_ATTRIBUTE, KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE,
+            false, KAN_STATIC_INTERNED_ID_GET (ui_render_instanced_allocator));
+    }
+
+    ensure_ui_rect_ready (private, render_context);
+    if (!ensure_pass_parameter_set_ready (state, private, bundle, text_shaping, render_context) ||
+        !cache_material_instance_data (
+            state, bundle->available_bundle.pass, bundle->available_bundle.image_material_instance,
+            &state->transient.image_pipeline, &state->transient.image_pipeline_material_parameters) ||
+        !cache_material_instance_data (
+            state, bundle->available_bundle.pass, bundle->available_bundle.text_sdf_material_instance,
+            &state->transient.text_sdf_pipeline, &state->transient.text_sdf_pipeline_material_parameters) ||
+        !cache_material_instance_data (
+            state, bundle->available_bundle.pass, bundle->available_bundle.text_icon_material_instance,
+            &state->transient.text_icon_pipeline, &state->transient.text_icon_pipeline_material_parameters))
+    {
+        return;
+    }
+
+    struct ui_pass_view_data_t *pass_view_data =
+        kan_render_buffer_patch (private->pass_view_data_buffer, 0u, sizeof (struct ui_pass_view_data_t));
+
+    pass_view_data->projection_view = kan_orthographic_projection (0.0f, (float) ui->viewport_width,
+                                                                   (float) ui->viewport_height, 0.0f, 0.01f, 100.0f);
+
+    state->transient.private = private;
+    state->transient.ui_render_graph = ui_render_graph;
+
+    state->transient.bound_pipeline = UI_BOUND_PIPELINE_NONE;
+    state->transient.clip_rect.x = 0;
+    state->transient.clip_rect.y = 0;
+    state->transient.clip_rect.width = ui->viewport_width;
+    state->transient.clip_rect.height = ui->viewport_height;
+
+    state->transient.image_bulk_run_begin = NULL;
+    state->transient.image_bulk_next = NULL;
+    state->transient.image_bulk_end = NULL;
+    state->transient.image_bulk_slice_begin = NULL;
+    state->transient.this_frame_instanced_images = 0u;
 
     KAN_UML_INTERVAL_ASCENDING_READ (node, kan_ui_node_laid_out_t, draw_index, NULL, NULL)
     {
-        // TODO: Implement.
+        apply_clip_rect (state, &node->clip_rect);
+        process_draw_command (state, node, &node->main_draw_command);
+
+        for (kan_loop_size_t index = 0; index < node->additional_draw_commands.size; ++index)
+        {
+            const struct kan_ui_draw_command_data_t *command =
+                &((struct kan_ui_draw_command_data_t *) node->additional_draw_commands.data)[index];
+            process_draw_command (state, node, command);
+        }
     }
 
-    // TODO: Implement.
+    flush_instanced_ui_images (state);
+    private->previous_frame_instanced_images = state->transient.this_frame_instanced_images;
 }
 
 void kan_ui_singleton_init (struct kan_ui_singleton_t *instance)
@@ -2244,4 +2949,7 @@ void kan_ui_render_graph_singleton_init (struct kan_ui_render_graph_singleton_t 
     instance->allocation = NULL;
     instance->final_pass_instance = KAN_HANDLE_SET_INVALID (kan_render_pass_instance_t);
     instance->final_image = KAN_HANDLE_SET_INVALID (kan_render_image_t);
+    instance->animation_global_time_s = 0.0f;
+    instance->animation_global_time_loop_s = 24.0f * 60.0f * 60.0f;
+    instance->last_time_ns = KAN_INT_MAX (kan_time_size_t);
 }

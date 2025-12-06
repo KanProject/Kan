@@ -1,0 +1,111 @@
+push_constant push
+{
+    f4 offset_and_time;
+    alias (offset, offset_and_time.xy)
+    alias (local_time, offset_and_time.z)
+    u4 meta;
+    alias (ui_mark, meta.x)
+};
+
+vertex_attribute_container vertex
+{
+    f2 position;
+};
+
+instanced_attribute_container instanced
+{
+    f4 min_max;
+    alias (min, min_max.xy)
+    alias (max, min_max.zw)
+    f4 uv_min_max;
+    alias (uv_min, uv_min_max.xy)
+    alias (uv_max, uv_min_max.zw)
+    u3 meta;
+    alias (layer, meta.x)
+    alias (mark, meta.y)
+    alias (read_index, meta.z)
+};
+
+struct palette_entry
+{
+    f4 color_main;
+    f4 color_outline;
+    f4 cos_anim_color;
+    u1 color_table_multiplier_index;
+};
+
+set_material read_only_storage_buffer setup
+{
+    f1 cos_anim_period;
+    f1 glyph_read_time;
+    palette_entry... palette;
+};
+
+state_container state
+{
+    u3 meta;
+    alias (layer, meta.x)
+    alias (mark, meta.y)
+    alias (read_index, meta.z)
+    f2 uv;
+};
+
+void ui_vertex_main (void)
+{
+    state.meta = instanced.meta;
+    state.uv = instanced.uv_min + vertex.position * (instanced.uv_max - instanced.uv_min);
+    f2 position = instanced.min + vertex.position * (instanced.max - instanced.min);
+    vertex_stage_output_position (pass_view_data.projection_view * f4 {push.offset + position, 0.5, 1.0});
+}
+
+constant smoothing = 1.0 / 32.0;
+constant bound = 0.5;
+constant outline_width = 3.0 / 32.0;
+constant outline_bound = bound - outline_width;
+
+constant palette_mask = 0xff;
+constant outline_flag = 1u << 8u;
+constant cos_anim_flag = 1u << 9u;
+constant reading_anim_flag = 1u << 10u;
+constant color_table_flag = 1u << 11u;
+
+void ui_fragment_main (void)
+{
+    if ((state.mark & reading_anim_flag) != 0u)
+    {
+        f1 time_to_get_here = setup.glyph_read_time * f1 {state.read_index};
+        if (time_to_get_here > push.local_time)
+        {
+            color_output.color = f4 {0.0};
+            return;
+        }
+    }
+    
+    u1 palette_index = state.mark & palette_mask;
+    alias (palette, setup.palette[palette_index])
+    f1 distance = sample (glyph_sampler, glyph_sdf_atlas, state.layer, state.uv).x;
+    f1 alpha_bound = smooth_step_f1 (bound - smoothing, bound + smoothing, distance);
+    f4 color = palette.color_main;
+    
+    if ((state.mark & cos_anim_flag) != 0u)
+    {
+       f1 phase = 2.0 * pi() * fract_f1 (push.local_time / setup.cos_anim_period);
+       f1 modifier = cos_f1(phase) * 0.5 + 0.5;
+       color = mix_f4 (palette.cos_anim_color, color, f4 {modifier});
+    }
+    
+    if ((state.mark & outline_flag) != 0u)
+    {
+        f1 alpha_outline = smooth_step_f1 (outline_bound - smoothing, outline_bound + smoothing, distance);
+        color = mix_f4 (palette.color_outline, color, f4 {alpha_bound});
+        alpha_bound = alpha_outline;
+    }
+    
+    color.w = color.w * alpha_bound;
+    if ((state.mark & color_table_flag) != 0u)
+    {
+        color = color * color_table.values[palette.color_table_multiplier_index];
+    }
+    
+    color_output.color = color;
+}

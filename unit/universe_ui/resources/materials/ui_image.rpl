@@ -5,35 +5,35 @@ vertex_attribute_container vertex
 
 instanced_attribute_container instanced
 {
-    f4 min_max;
-    alias (min, min_max.xy)
-    alias (max, min_max.zw)
+    f4 transform;
+    alias (offset, min_max.xy)
+    alias (size, min_max.zw)
     u2 meta;
     alias (index, meta.x)
-    alias (mark, meta.y)
+    alias (ui_mark, meta.y)
 };
 
 state_container state
 {
     u2 meta;
     alias (index, meta.x)
-    alias (mark, meta.y)
+    alias (ui_mark, meta.y)
     f2 uv;
     f2 size;
     f2 pixel;
 };
 
-void image_vertex_main (void)
+void ui_vertex_main (void)
 {
     state.meta = instanced.meta;
     state.uv = vertex.position;
-    state.size = instanced.max - instanced.min;
-    state.pixel = vertex.position * (instanced.max - instanced.min);
-    f2 position = instanced.min + vertex.position * (instanced.max - instanced.min);
+    state.size = instanced.size;
+    state.pixel = vertex.position * instanced.size;
+    f2 position = instanced.offset + vertex.position * instanced.size;
     vertex_stage_output_position (pass_view_data.projection_view * f4 {position, 0.5, 1.0});
 }
 
-void image_fragment_main (void)
+void ui_fragment_main (void)
 {
     alias (entry, image_entries[state.index])
     f2 base_uv = state.uv;

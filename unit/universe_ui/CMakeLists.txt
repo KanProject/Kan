@@ -9,7 +9,7 @@ concrete_require (
 
 concrete_require (
         SCOPE PRIVATE
-        ABSTRACT cpu_profiler log
+        ABSTRACT cpu_profiler log precise_time
         CONCRETE_INTERFACE universe_locale universe_resource_provider
         THIRD_PARTY qsort)
 
@@ -22,7 +22,11 @@ set (KAN_UNIVERSE_UI_LAYOUT_TEMPORARY_PAGE "32768" CACHE STRING
 set (KAN_UNIVERSE_UI_BUNDLE_PRIORITY "150" CACHE STRING
         "Loading priority at which ui bundle data is loaded.")
 
+set (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE "16384" CACHE STRING
+        "Size of a page for gpu instanced data allocator for rendering ui images and unstable text fragments.")
+
 concrete_compile_definitions (
         PRIVATE
         KAN_UNIVERSE_UI_LAYOUT_TEMPORARY_PAGE=${KAN_UNIVERSE_UI_LAYOUT_TEMPORARY_PAGE}
-        KAN_UNIVERSE_UI_BUNDLE_PRIORITY=${KAN_UNIVERSE_UI_BUNDLE_PRIORITY})
+        KAN_UNIVERSE_UI_BUNDLE_PRIORITY=${KAN_UNIVERSE_UI_BUNDLE_PRIORITY}
+        KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE=${KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE})

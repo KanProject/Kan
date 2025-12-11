@@ -74,7 +74,11 @@ struct kan_ui_configuration_t
     kan_interned_string_t default_bundle_name;
 };
 
-/// \details Singleton that contains loaded ui bundle data for this leaf world.
+/// \brief Singleton that contains loaded ui bundle data for this world and its children.
+/// \details Should not be accessed in root world as it would place this singleton in root and force single bundle
+///          everywhere, however should be used in as-high-as-possible game worlds and editor worlds in order to avoid
+///          unnecessary configuration duplication. Creation in root worlds is considered to be bad as editor may use
+///          its separate ui bundle.
 struct kan_ui_bundle_singleton_t
 {
     /// \brief Bundle name to be selected and loaded for this world.
@@ -127,13 +131,6 @@ struct kan_ui_coordinate_t
 #define KAN_UI_VALUE_PX(VALUE) KAN_UI_VALUE_BUILD (KAN_UI_PX, VALUE)
 #define KAN_UI_VALUE_WH(VALUE) KAN_UI_VALUE_BUILD (KAN_UI_WH, VALUE)
 #define KAN_UI_VALUE_WW(VALUE) KAN_UI_VALUE_BUILD (KAN_UI_WW, VALUE)
-
-enum kan_ui_layout_t
-{
-    KAN_UI_LAYOUT_FRAME = 0u,
-    KAN_UI_LAYOUT_VERTICAL_CONTAINER,
-    KAN_UI_LAYOUT_HORIZONTAL_CONTAINER,
-};
 
 struct kan_ui_rect_t
 {
@@ -211,16 +208,35 @@ struct kan_ui_node_element_setup_t
     struct kan_ui_coordinate_t frame_offset_y;
 };
 
+enum kan_ui_layout_t
+{
+    KAN_UI_LAYOUT_FRAME = 0u,
+    KAN_UI_LAYOUT_VERTICAL_CONTAINER,
+    KAN_UI_LAYOUT_HORIZONTAL_CONTAINER,
+};
+
+enum kan_ui_layout_flags_t
+{
+    KAN_UI_LAYOUT_FLAG_NONE = 0u,
+    
+    /// \brief Collapsed outer whitespace while calculating margins for inner elements as if that whitespace was a part
+    ///        of the layout.
+    /// \details Primarily used when emulating complex layouts (like table) through basic ones (like containers) to
+    ///          avoid creating unnecessary whitespace between emulated layout and outer elements.
+    KAN_UI_LAYOUT_FLAG_COLLAPSE_OUTER_WHITESPACE = 1u << 0u,
+};
+
 struct kan_ui_node_layout_setup_t
 {
     enum kan_ui_layout_t layout;
+    enum kan_ui_layout_flags_t flags;
     struct kan_ui_rect_t padding;
 };
 
 struct kan_ui_node_render_setup_t
 {
-    int32_t scroll_x_px;
-    int32_t scroll_y_px;
+    kan_instance_offset_t scroll_x_px;
+    kan_instance_offset_t scroll_y_px;
     bool clip_children;
 };
 
@@ -234,7 +250,7 @@ struct kan_ui_node_t
     /// \brief Local integer value used to sort child elements.
     /// \details For frame layout children or for root nodes affects only draw order.
     ///          For container layout children, affects positions on container layout.
-    int32_t local_element_order;
+    kan_instance_offset_t local_element_order;
 
     struct kan_ui_node_layout_setup_t layout;
     struct kan_ui_node_render_setup_t render;
@@ -335,7 +351,15 @@ struct kan_ui_draw_command_data_t
     };
 };
 
-struct kan_ui_node_laid_out_t
+/// \brief Internal enum for deciding how much we need to recalculate in layout update.
+enum kan_ui_layout_dirt_level_t
+{
+    KAN_UI_LAYOUT_DIRT_LEVEL_NONE = 0u,
+    KAN_UI_LAYOUT_DIRT_LEVEL_ONLY_RENDER,
+    KAN_UI_LAYOUT_DIRT_LEVEL_FULL,
+};
+
+struct kan_ui_node_drawable_t
 {
     kan_ui_node_id_t id;
     kan_instance_size_t draw_index;
@@ -360,14 +384,12 @@ struct kan_ui_node_laid_out_t
 
     KAN_REFLECTION_IGNORE
     void *temporary_data;
-
-    /// \details Internal flag that could be non-false only during ui layout execution.
-    bool dirty_for_laying_out;
+    enum kan_ui_layout_dirt_level_t layout_dirt_level;
 };
 
-UNIVERSE_UI_API void kan_ui_node_laid_out_init (struct kan_ui_node_laid_out_t *instance);
+UNIVERSE_UI_API void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance);
 
-UNIVERSE_UI_API void kan_ui_node_laid_out_shutdown (struct kan_ui_node_laid_out_t *instance);
+UNIVERSE_UI_API void kan_ui_node_drawable_shutdown (struct kan_ui_node_drawable_t *instance);
 
 /// \brief Contains ui render graph data, which is only valid for the outside user after
 ///        `KAN_UI_RENDER_GRAPH_END_CHECKPOINT`.
@@ -391,6 +413,11 @@ struct kan_ui_render_graph_singleton_t
 
     /// \brief Use to calculate deltas for `animation_global_time_s`.
     kan_time_size_t last_time_ns;
+
+    float clear_color_r;
+    float clear_color_g;
+    float clear_color_b;
+    float clear_color_a;
 };
 
 UNIVERSE_UI_API void kan_ui_render_graph_singleton_init (struct kan_ui_render_graph_singleton_t *instance);

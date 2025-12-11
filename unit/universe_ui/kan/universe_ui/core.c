@@ -26,7 +26,7 @@ KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_layout)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_bundle_management)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_render_graph)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_render)
-UNIVERSE_UI_API KAN_UM_MUTATOR_GROUP_META (text_management, KAN_UI_CORE_MUTATOR_GROUP);
+UNIVERSE_UI_API KAN_UM_MUTATOR_GROUP_META (ui_core, KAN_UI_CORE_MUTATOR_GROUP);
 
 struct kan_ui_singleton_viewport_on_change_event_t
 {
@@ -36,12 +36,10 @@ struct kan_ui_singleton_viewport_on_change_event_t
 KAN_REFLECTION_STRUCT_META (kan_ui_singleton_t)
 UNIVERSE_UI_API struct kan_repository_meta_automatic_on_change_event_t kan_ui_singleton_viewport_on_change_event = {
     .event_type = "kan_ui_singleton_viewport_on_change_event_t",
-    .observed_fields_count = 5u,
+    .observed_fields_count = 3u,
     .observed_fields =
         (struct kan_repository_field_path_t[]) {
             {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"scale"}},
-            {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"viewport_x"}},
-            {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"viewport_y"}},
             {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"viewport_width"}},
             {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"viewport_height"}},
         },
@@ -200,9 +198,9 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_on_delete_event_t kan_ui_no
 };
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
-UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_laid_out_cascade_deletion = {
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_drawable_cascade_deletion = {
     .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
-    .child_type_name = "kan_ui_node_laid_out_t",
+    .child_type_name = "kan_ui_node_drawable_t",
     .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
 };
 
@@ -269,11 +267,17 @@ static kan_ui_node_id_t determine_dirty_root_recursive (struct ui_layout_state_t
                                                         const struct kan_ui_node_t *node,
                                                         bool only_layout_data_changed)
 {
-    KAN_UMI_VALUE_READ_REQUIRED (laid_out, kan_ui_node_laid_out_t, id, &node->id)
-    if (laid_out->dirty_for_laying_out)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (existent_drawable, kan_ui_node_drawable_t, id, &node->id)
+    if (existent_drawable && existent_drawable->layout_dirt_level > KAN_UI_LAYOUT_DIRT_LEVEL_NONE)
     {
         // Return invalid as we're already in dirty hierarchy.
         return KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    }
+
+    // Initialize missing drawables as we go.
+    if (!existent_drawable)
+    {
+        KAN_UMO_INDEXED_INSERT (drawable, kan_ui_node_drawable_t) { drawable->id = node->id; }
     }
 
     // Check if we just can't ascend anymore.
@@ -303,65 +307,128 @@ static kan_ui_node_id_t determine_dirty_root_recursive (struct ui_layout_state_t
     return determine_dirty_root_recursive (state, parent, true);
 }
 
-static void mark_dirty_recursive (struct ui_layout_state_t *state, kan_ui_node_id_t id)
+static void mark_dirty_recursive (struct ui_layout_state_t *state,
+                                  kan_ui_node_id_t id,
+                                  enum kan_ui_layout_dirt_level_t dirt_level,
+                                  bool with_root_removal)
 {
-    KAN_UMI_VALUE_UPDATE_REQUIRED (laid_out, kan_ui_node_laid_out_t, id, &id)
-    if (laid_out->dirty_for_laying_out)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (existent_drawable, kan_ui_node_drawable_t, id, &id)
+    if (existent_drawable)
     {
-        // Should be another dirty root, if it is already marked dirty and we're in recursive chain (if we're in
-        // recursive chain, than chain root was not dirty).
-        struct ui_layout_dirty_root_t *previous = NULL;
-        struct ui_layout_dirty_root_t *dirty_root = state->transient.first_dirty_root;
-
-        while (dirty_root)
+        if (with_root_removal && existent_drawable->layout_dirt_level != KAN_UI_LAYOUT_DIRT_LEVEL_NONE)
         {
-            if (KAN_TYPED_ID_32_IS_EQUAL (dirty_root->root_node_id, id))
+            // Should be another dirty root, if it is already marked dirty and we're in recursive chain (if we're in
+            // recursive chain, than chain root was not dirty).
+            struct ui_layout_dirty_root_t *previous = NULL;
+            struct ui_layout_dirty_root_t *dirty_root = state->transient.first_dirty_root;
+
+            while (dirty_root)
             {
-                if (previous)
+                if (KAN_TYPED_ID_32_IS_EQUAL (dirty_root->root_node_id, id))
                 {
-                    previous->next = dirty_root->next;
-                }
-                else
-                {
-                    state->transient.first_dirty_root = dirty_root->next;
+                    if (previous)
+                    {
+                        previous->next = dirty_root->next;
+                    }
+                    else
+                    {
+                        state->transient.first_dirty_root = dirty_root->next;
+                    }
+
+                    break;
                 }
 
-                return;
+                previous = dirty_root;
+                dirty_root = dirty_root->next;
             }
 
-            previous = dirty_root;
-            dirty_root = dirty_root->next;
+            // It should always be a known dirty root, if our logic is correct.
+            KAN_ASSERT (dirty_root)
+
+            // Root cannot contain more roots, therefore disable root removal.
+            with_root_removal = false;
         }
 
-        // It should always be a known dirty root, if our logic is correct.
-        KAN_ASSERT (false)
-        return;
+        if (existent_drawable->layout_dirt_level >= dirt_level)
+        {
+            // No need to recurse as dirt level is already like this or higher.
+            return;
+        }
+
+        existent_drawable->layout_dirt_level = dirt_level;
+    }
+    // Initialize missing drawables as we go.
+    else
+    {
+        KAN_UMO_INDEXED_INSERT (drawable, kan_ui_node_drawable_t)
+        {
+            drawable->id = id;
+            drawable->layout_dirt_level = dirt_level;
+        }
     }
 
-    laid_out->dirty_for_laying_out = true;
-    KAN_UML_VALUE_READ (child, kan_ui_node_t, parent_id, &id) { mark_dirty_recursive (state, child->id); }
+    KAN_UML_VALUE_READ (child, kan_ui_node_t, parent_id, &id)
+    {
+        mark_dirty_recursive (state, child->id, dirt_level, with_root_removal);
+    }
 }
 
-static void mark_dirty_root (struct ui_layout_state_t *state, kan_ui_node_id_t dirty_root)
+static void mark_dirty_root (struct ui_layout_state_t *state,
+                             kan_ui_node_id_t dirty_root,
+                             enum kan_ui_layout_dirt_level_t dirt_level)
 {
-    KAN_UMI_VALUE_UPDATE_REQUIRED (laid_out, kan_ui_node_laid_out_t, id, &dirty_root)
-    if (laid_out->dirty_for_laying_out)
+    if (!KAN_TYPED_ID_32_IS_VALID (dirty_root))
     {
-        // Already dirty, nothing to do.
         return;
     }
 
-    laid_out->dirty_for_laying_out = true;
-    KAN_UML_VALUE_READ (child, kan_ui_node_t, parent_id, &dirty_root) { mark_dirty_recursive (state, child->id); }
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (existent_drawable, kan_ui_node_drawable_t, id, &dirty_root)
+    bool add_new_root = true;
+
+    if (existent_drawable)
+    {
+        add_new_root = existent_drawable->layout_dirt_level == KAN_UI_LAYOUT_DIRT_LEVEL_NONE;
+        if (existent_drawable->layout_dirt_level >= dirt_level)
+        {
+            // Already dirty at that level, nothing to do.
+            return;
+        }
+
+        existent_drawable->layout_dirt_level = dirt_level;
+    }
+    // Initialize missing drawables as we go.
+    else
+    {
+        KAN_UMO_INDEXED_INSERT (drawable, kan_ui_node_drawable_t)
+        {
+            drawable->id = dirty_root;
+            drawable->layout_dirt_level = dirt_level;
+        }
+    }
+
+    if (add_new_root)
+    {
+        struct ui_layout_dirty_root_t *new_root =
+            KAN_STACK_GROUP_ALLOCATOR_ALLOCATE_TYPED (&state->temporary_allocator, struct ui_layout_dirty_root_t);
+        new_root->root_node_id = dirty_root;
+
+        new_root->next = state->transient.first_dirty_root;
+        state->transient.first_dirty_root = new_root;
+    }
+
+    KAN_UML_VALUE_READ (child, kan_ui_node_t, parent_id, &dirty_root)
+    {
+        mark_dirty_recursive (state, child->id, dirt_level, add_new_root);
+    }
 }
 
 KAN_REFLECTION_IGNORE
 struct layout_child_access_t
 {
     const struct kan_ui_node_t *child;
-    struct kan_ui_node_laid_out_t *laid_out;
+    struct kan_ui_node_drawable_t *drawable;
     struct kan_repository_indexed_value_read_access_t child_access;
-    struct kan_repository_indexed_value_update_access_t laid_out_access;
+    struct kan_repository_indexed_value_update_access_t drawable_access;
 };
 
 KAN_REFLECTION_IGNORE
@@ -378,6 +445,7 @@ struct layout_temporary_data_t
     struct layout_child_access_t *sorted_children;
 
     enum kan_ui_layout_t cached_layout;
+    enum kan_ui_layout_flags_t cached_layout_flags;
 
     // Offsets is used to reduce amount of casts in calculations as coordinates are calculated into offsets either way.
 
@@ -386,9 +454,9 @@ struct layout_temporary_data_t
 
     kan_instance_offset_t children_width_usage_px;
     kan_instance_offset_t children_height_usage_px;
-    kan_instance_offset_t layout_previous_margin;
 
-    // Cached margins are automatically collapsed during layout_size_pass, do not try to collapse them again after that.
+    // Cached margins are automatically collapsed during layout_whitespace_pass,
+    // do not try to collapse them again after that.
 
     kan_instance_offset_t cached_margin_left_px;
     kan_instance_offset_t cached_margin_right_px;
@@ -399,6 +467,17 @@ struct layout_temporary_data_t
     kan_instance_offset_t cached_padding_right_px;
     kan_instance_offset_t cached_padding_top_px;
     kan_instance_offset_t cached_padding_bottom_px;
+
+    // Compound margins are calculated as "real distances to nearest element or border" in layout_whitespace_pass and
+    // are used for properly collapsing outer margins when layout requests it through flag. However, keep in mind that
+    // compound margins are calculated between elements in the same layout, there are not designed to add padding
+    // between elements of two sibling layouts if that padding didn't exist between those sibling layout nodes. They
+    // are only designed to get rid of unnecessary additional paddings in between.
+
+    kan_instance_offset_t compound_margin_left_px;
+    kan_instance_offset_t compound_margin_right_px;
+    kan_instance_offset_t compound_margin_top_px;
+    kan_instance_offset_t compound_margin_bottom_px;
 };
 
 static inline void read_and_sort_children_into (struct ui_layout_state_t *state,
@@ -414,12 +493,12 @@ static inline void read_and_sort_children_into (struct ui_layout_state_t *state,
         struct layout_child_access_node_t *access =
             KAN_STACK_GROUP_ALLOCATOR_ALLOCATE_TYPED (&state->temporary_allocator, struct layout_child_access_node_t);
 
+        KAN_UMI_VALUE_UPDATE_REQUIRED (drawable, kan_ui_node_drawable_t, id, &child->id)
         access->access.child = child;
         KAN_UM_ACCESS_ESCAPE (access->access.child_access, child);
 
-        KAN_UMI_VALUE_UPDATE_REQUIRED (laid_out, kan_ui_node_laid_out_t, id, &child->id)
-        access->access.laid_out = laid_out;
-        KAN_UM_ACCESS_ESCAPE (access->access.laid_out_access, laid_out);
+        access->access.drawable = drawable;
+        KAN_UM_ACCESS_ESCAPE (access->access.drawable_access, drawable);
 
         ++*count_output;
         access->next = first_child;
@@ -434,7 +513,7 @@ static inline void read_and_sort_children_into (struct ui_layout_state_t *state,
     while (first_child)
     {
         *copy_output = first_child->access;
-        ++output;
+        ++copy_output;
         first_child = first_child->next;
     }
 
@@ -460,14 +539,15 @@ static struct layout_temporary_data_t *layout_temporary_data_create (struct ui_l
 
     data->sorted_children_count = 0u;
     data->sorted_children = NULL;
+
     data->cached_layout = node->layout.layout;
+    data->cached_layout_flags = node->layout.flags;
 
     data->width_px = 0;
     data->height_px = 0;
 
     data->children_width_usage_px = 0;
     data->children_height_usage_px = 0;
-    data->layout_previous_margin = 0;
 
     data->cached_margin_left_px = 0;
     data->cached_margin_right_px = 0;
@@ -478,6 +558,11 @@ static struct layout_temporary_data_t *layout_temporary_data_create (struct ui_l
     data->cached_padding_right_px = 0;
     data->cached_padding_top_px = 0;
     data->cached_padding_bottom_px = 0;
+
+    data->compound_margin_left_px = 0;
+    data->compound_margin_right_px = 0;
+    data->compound_margin_top_px = 0;
+    data->compound_margin_bottom_px = 0;
 
     read_and_sort_children_into (state, node->id, &data->sorted_children_count, &data->sorted_children);
     return data;
@@ -511,14 +596,27 @@ static inline kan_instance_offset_t calculate_ui_coordinate (const struct kan_ui
 
 #define UI_COLLAPSE_MARGIN(FIELD, BASELINE) (FIELD) = KAN_MAX ((FIELD) - (BASELINE), 0)
 
-static void layout_size_pass (struct ui_layout_state_t *state,
+/// \details Returns true when short circuit mode detected and we can go to render finalize pass right away.
+static bool layout_base_pass (struct ui_layout_state_t *state,
                               const struct kan_ui_node_t *node,
-                              struct kan_ui_node_laid_out_t *laid_out,
-                              struct layout_temporary_data_t *parent_data)
+                              struct kan_ui_node_drawable_t *drawable)
 {
-    KAN_ASSERT (!laid_out->temporary_data)
+    KAN_ASSERT (!drawable->temporary_data)
     struct layout_temporary_data_t *data = layout_temporary_data_create (state, node);
-    laid_out->temporary_data = data;
+    drawable->temporary_data = data;
+
+    // Short-circuit for non-full updates -- just go to the children and initialize temporary data with accesses.
+    if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
+    {
+        bool short_circuit = true;
+        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        {
+            const struct layout_child_access_t *access = &data->sorted_children[index];
+            short_circuit &= layout_base_pass (state, access->child, access->drawable);
+        }
+
+        return short_circuit;
+    }
 
     data->width_px = calculate_ui_coordinate (state->transient.ui, node->element.width);
     data->height_px = calculate_ui_coordinate (state->transient.ui, node->element.height);
@@ -533,15 +631,172 @@ static void layout_size_pass (struct ui_layout_state_t *state,
     data->cached_padding_top_px = calculate_ui_coordinate (state->transient.ui, node->layout.padding.top);
     data->cached_padding_bottom_px = calculate_ui_coordinate (state->transient.ui, node->layout.padding.bottom);
 
-    // Padding is an initial margin, technically.
-    data->layout_previous_margin = data->cached_layout == KAN_UI_LAYOUT_HORIZONTAL_CONTAINER ?
-                                       data->cached_padding_left_px :
-                                       data->cached_padding_top_px;
+    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    {
+        const struct layout_child_access_t *access = &data->sorted_children[index];
+#if defined(KAN_WITH_ASSERT)
+        const bool short_circuit = 
+#endif
+            layout_base_pass (state, access->child, access->drawable);
+        KAN_ASSERT (!short_circuit)
+    }
+
+    return false;
+}
+
+static void layout_whitespace_pass (struct ui_layout_state_t *state,
+                                    const struct kan_ui_node_t *node,
+                                    struct kan_ui_node_drawable_t *drawable)
+{
+    struct layout_temporary_data_t *data = drawable->temporary_data;
+    if (drawable->layout_dirt_level == KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
+    {
+        kan_instance_offset_t baseline_left = data->cached_padding_left_px;
+        kan_instance_offset_t baseline_right = data->cached_padding_right_px;
+        kan_instance_offset_t baseline_top = data->cached_padding_top_px;
+        kan_instance_offset_t baseline_bottom = data->cached_padding_bottom_px;
+
+        if (data->cached_layout_flags & KAN_UI_LAYOUT_FLAG_COLLAPSE_OUTER_WHITESPACE)
+        {
+            baseline_left += data->compound_margin_left_px;
+            baseline_right += data->compound_margin_right_px;
+            baseline_top += data->compound_margin_top_px;
+            baseline_bottom += data->compound_margin_bottom_px;
+        }
+
+        struct layout_temporary_data_t *previous_child_data = NULL;
+        switch (data->cached_layout)
+        {
+        case KAN_UI_LAYOUT_FRAME:
+            // No margins for frames.
+            break;
+
+        case KAN_UI_LAYOUT_VERTICAL_CONTAINER:
+        {
+            kan_instance_offset_t previous_margin = baseline_top;
+            for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+            {
+                const struct layout_child_access_t *access = &data->sorted_children[index];
+                struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
+
+                UI_COLLAPSE_MARGIN (child_data->cached_margin_left_px, baseline_left);
+                UI_COLLAPSE_MARGIN (child_data->cached_margin_right_px, baseline_right);
+                UI_COLLAPSE_MARGIN (child_data->cached_margin_top_px, previous_margin);
+
+                child_data->compound_margin_left_px = child_data->cached_margin_left_px + baseline_left;
+                child_data->compound_margin_right_px = child_data->cached_margin_right_px + baseline_right;
+                child_data->compound_margin_top_px = data->cached_margin_top_px + previous_margin;
+
+                if (previous_child_data)
+                {
+                    previous_child_data->compound_margin_bottom_px = child_data->compound_margin_top_px;
+                }
+
+                previous_margin = child_data->cached_margin_bottom_px;
+                previous_child_data = child_data;
+            }
+
+            if (previous_child_data)
+            {
+                UI_COLLAPSE_MARGIN (previous_child_data->cached_margin_bottom_px, baseline_bottom);
+                previous_child_data->compound_margin_bottom_px =
+                    previous_child_data->cached_margin_bottom_px + baseline_bottom;
+            }
+
+            break;
+        }
+
+        case KAN_UI_LAYOUT_HORIZONTAL_CONTAINER:
+        {
+            kan_instance_offset_t previous_margin = baseline_left;
+            for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+            {
+                const struct layout_child_access_t *access = &data->sorted_children[index];
+                struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
+
+                UI_COLLAPSE_MARGIN (child_data->cached_margin_left_px, previous_margin);
+                UI_COLLAPSE_MARGIN (child_data->cached_margin_top_px, baseline_top);
+                UI_COLLAPSE_MARGIN (child_data->cached_margin_bottom_px, baseline_bottom);
+
+                child_data->compound_margin_left_px = data->cached_margin_left_px + previous_margin;
+                if (previous_child_data)
+                {
+                    previous_child_data->compound_margin_right_px = child_data->compound_margin_left_px;
+                }
+
+                child_data->compound_margin_top_px = child_data->cached_margin_top_px + baseline_top;
+                child_data->compound_margin_bottom_px = child_data->cached_margin_bottom_px + baseline_bottom;
+
+                previous_margin = child_data->cached_margin_right_px;
+                previous_child_data = child_data;
+            }
+
+            if (previous_child_data)
+            {
+                UI_COLLAPSE_MARGIN (previous_child_data->cached_margin_right_px, baseline_right);
+                previous_child_data->compound_margin_right_px =
+                    previous_child_data->cached_margin_right_px + baseline_right;
+            }
+
+            break;
+        }
+        }
+    }
 
     for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
-        layout_size_pass (state, access->child, access->laid_out, data);
+        layout_whitespace_pass (state, access->child, access->drawable);
+    }
+}
+
+static void layout_size_pass (struct ui_layout_state_t *state,
+                              const struct kan_ui_node_t *node,
+                              struct kan_ui_node_drawable_t *drawable)
+{
+    struct layout_temporary_data_t *data = drawable->temporary_data;
+
+    // Short-circuit for non-full updates -- just go to the children.
+    if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
+    {
+        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        {
+            const struct layout_child_access_t *access = &data->sorted_children[index];
+            layout_size_pass (state, access->child, access->drawable);
+        }
+
+        return;
+    }
+
+    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    {
+        const struct layout_child_access_t *access = &data->sorted_children[index];
+        layout_size_pass (state, access->child, access->drawable);
+        struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
+
+        const kan_instance_offset_t occupied_width =
+            child_data->width_px + child_data->cached_margin_left_px + child_data->cached_margin_right_px;
+
+        const kan_instance_offset_t occupied_height =
+            child_data->height_px + child_data->cached_margin_top_px + child_data->cached_margin_bottom_px;
+
+        switch (data->cached_layout)
+        {
+        case KAN_UI_LAYOUT_FRAME:
+            data->children_width_usage_px = KAN_MAX (data->children_width_usage_px, occupied_width);
+            data->children_height_usage_px = KAN_MAX (data->children_height_usage_px, occupied_height);
+            break;
+
+        case KAN_UI_LAYOUT_VERTICAL_CONTAINER:
+            data->children_width_usage_px = KAN_MAX (data->children_width_usage_px, occupied_width);
+            data->children_height_usage_px += occupied_height;
+            break;
+
+        case KAN_UI_LAYOUT_HORIZONTAL_CONTAINER:
+            data->children_width_usage_px += occupied_width;
+            data->children_height_usage_px = KAN_MAX (data->children_height_usage_px, occupied_height);
+            break;
+        }
     }
 
     data->children_width_usage_px += data->cached_padding_left_px;
@@ -561,49 +816,6 @@ static void layout_size_pass (struct ui_layout_state_t *state,
             data->height_px = KAN_MAX (data->height_px, data->children_height_usage_px);
         }
     }
-
-    if (parent_data)
-    {
-        kan_instance_offset_t occupied_width = data->width_px;
-        kan_instance_offset_t occupied_height = data->height_px;
-
-        switch (parent_data->cached_layout)
-        {
-        case KAN_UI_LAYOUT_FRAME:
-            // Frame does not need additional calculations as it does not position children one after another.
-            break;
-
-        case KAN_UI_LAYOUT_VERTICAL_CONTAINER:
-            UI_COLLAPSE_MARGIN (data->cached_margin_left_px, parent_data->cached_padding_left_px);
-            UI_COLLAPSE_MARGIN (data->cached_margin_right_px, parent_data->cached_padding_right_px);
-            occupied_width += data->cached_margin_left_px;
-            occupied_width += data->cached_margin_right_px;
-
-            UI_COLLAPSE_MARGIN (data->cached_margin_top_px, parent_data->layout_previous_margin);
-            occupied_height += data->cached_margin_top_px;
-            occupied_height += data->cached_margin_bottom_px;
-            parent_data->layout_previous_margin = data->cached_margin_bottom_px;
-
-            parent_data->children_width_usage_px = KAN_MAX (parent_data->children_width_usage_px, occupied_width);
-            parent_data->children_height_usage_px += occupied_height;
-            break;
-
-        case KAN_UI_LAYOUT_HORIZONTAL_CONTAINER:
-            UI_COLLAPSE_MARGIN (data->cached_margin_left_px, parent_data->layout_previous_margin);
-            occupied_width += data->cached_margin_left_px;
-            occupied_width += data->cached_margin_right_px;
-            parent_data->layout_previous_margin = data->cached_margin_right_px;
-
-            UI_COLLAPSE_MARGIN (data->cached_margin_top_px, parent_data->cached_padding_top_px);
-            UI_COLLAPSE_MARGIN (data->cached_margin_bottom_px, parent_data->cached_padding_bottom_px);
-            occupied_height += data->cached_margin_top_px;
-            occupied_height += data->cached_margin_bottom_px;
-
-            parent_data->children_width_usage_px += occupied_width;
-            parent_data->children_height_usage_px = KAN_MAX (parent_data->children_height_usage_px, occupied_height);
-            break;
-        }
-    }
 }
 
 KAN_REFLECTION_IGNORE
@@ -615,21 +827,34 @@ struct layout_grow_node_t
 
 static void layout_grow_pass (struct ui_layout_state_t *state,
                               const struct kan_ui_node_t *node,
-                              struct kan_ui_node_laid_out_t *laid_out,
+                              struct kan_ui_node_drawable_t *drawable,
                               bool root)
 {
-    struct layout_temporary_data_t *data = laid_out->temporary_data;
+    struct layout_temporary_data_t *data = drawable->temporary_data;
+
+    // Short-circuit for non-full updates -- just go to the children.
+    if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
+    {
+        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        {
+            const struct layout_child_access_t *access = &data->sorted_children[index];
+            layout_grow_pass (state, access->child, access->drawable, root);
+        }
+
+        return;
+    }
+
     if (root)
     {
         // When root, need to grow itself from cached growth.
         if (node->element.width_flags & KAN_UI_SIZE_FLAG_GROW)
         {
-            data->width_px += laid_out->cached_grow_width;
+            data->width_px += drawable->cached_grow_width;
         }
 
         if (node->element.height_flags & KAN_UI_SIZE_FLAG_GROW)
         {
-            data->height_px += laid_out->cached_grow_height;
+            data->height_px += drawable->cached_grow_height;
         }
     }
 
@@ -640,15 +865,17 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
     for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
-        struct layout_temporary_data_t *child_data = access->laid_out->temporary_data;
-        access->laid_out->cached_grow_width = 0;
-        access->laid_out->cached_grow_height = 0;
+        struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
+        access->drawable->cached_grow_width = 0;
+        access->drawable->cached_grow_height = 0;
 
         if (access->child->element.width_flags & KAN_UI_SIZE_FLAG_GROW)
         {
-            struct layout_grow_node_t *grow_node =
-                KAN_STACK_GROUP_ALLOCATOR_ALLOCATE_TYPED (&state->temporary_allocator, struct layout_grow_node_t);
-            grow_node->access = access;
+            if (data->cached_layout == KAN_UI_LAYOUT_HORIZONTAL_CONTAINER)
+            {
+                struct layout_grow_node_t *grow_node =
+                    KAN_STACK_GROUP_ALLOCATOR_ALLOCATE_TYPED (&state->temporary_allocator, struct layout_grow_node_t);
+                grow_node->access = access;
 
 #define PUSH_GROW_NODE(AXIS_NAME)                                                                                      \
     struct layout_grow_node_t *push_after = NULL;                                                                      \
@@ -656,7 +883,7 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
                                                                                                                        \
     while (push_before)                                                                                                \
     {                                                                                                                  \
-        struct layout_temporary_data_t *other_data = push_before->access->laid_out->temporary_data;                    \
+        struct layout_temporary_data_t *other_data = push_before->access->drawable->temporary_data;                    \
         if (child_data->AXIS_NAME##_px < other_data->AXIS_NAME##_px)                                                   \
         {                                                                                                              \
             if (push_after)                                                                                            \
@@ -690,17 +917,47 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
         grow_node->next = NULL;                                                                                        \
     }
 
-            PUSH_GROW_NODE (width)
+                PUSH_GROW_NODE (width)
+            }
+            else
+            {
+                // Not a horizontal container, therefore width is not shared and we can use all space available.
+                const kan_instance_offset_t width_available =
+                    data->width_px - data->cached_padding_left_px - data->cached_padding_right_px -
+                    child_data->cached_margin_left_px - child_data->cached_margin_right_px;
+
+                if (child_data->width_px < width_available)
+                {
+                    access->drawable->cached_grow_width = width_available - child_data->width_px;
+                    child_data->width_px = width_available;
+                }
+            }
         }
 
         if (access->child->element.height_flags & KAN_UI_SIZE_FLAG_GROW)
         {
-            struct layout_grow_node_t *grow_node =
-                KAN_STACK_GROUP_ALLOCATOR_ALLOCATE_TYPED (&state->temporary_allocator, struct layout_grow_node_t);
-            grow_node->access = access;
+            if (data->cached_layout == KAN_UI_LAYOUT_VERTICAL_CONTAINER)
+            {
+                struct layout_grow_node_t *grow_node =
+                    KAN_STACK_GROUP_ALLOCATOR_ALLOCATE_TYPED (&state->temporary_allocator, struct layout_grow_node_t);
+                grow_node->access = access;
 
-            PUSH_GROW_NODE (height)
+                PUSH_GROW_NODE (height)
 #undef PUSH_GROW_NODE
+            }
+            else
+            {
+                // Not a vertical container, therefore height is not shared and we can use all space available.
+                const kan_instance_offset_t height_available =
+                    data->height_px - data->cached_padding_top_px - data->cached_padding_bottom_px -
+                    child_data->cached_margin_top_px - child_data->cached_margin_bottom_px;
+
+                if (child_data->height_px < height_available)
+                {
+                    access->drawable->cached_grow_height = height_available - child_data->height_px;
+                    child_data->height_px = height_available;
+                }
+            }
         }
     }
 
@@ -712,12 +969,12 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
         {                                                                                                              \
             kan_instance_offset_t candidate_count = 1;                                                                 \
             struct layout_temporary_data_t *first_data =                                                               \
-                first_grow_##AXIS_NAME##_node->access->laid_out->temporary_data;                                       \
+                first_grow_##AXIS_NAME##_node->access->drawable->temporary_data;                                       \
             struct layout_grow_node_t *barrier = first_grow_##AXIS_NAME##_node->next;                                  \
                                                                                                                        \
             while (barrier)                                                                                            \
             {                                                                                                          \
-                struct layout_temporary_data_t *second_data = barrier->access->laid_out->temporary_data;               \
+                struct layout_temporary_data_t *second_data = barrier->access->drawable->temporary_data;               \
                 if (second_data->AXIS_NAME##_px > first_data->AXIS_NAME##_px)                                          \
                 {                                                                                                      \
                     break;                                                                                             \
@@ -736,7 +993,7 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
             kan_instance_offset_t max_to_give;                                                                         \
             if (barrier)                                                                                               \
             {                                                                                                          \
-                struct layout_temporary_data_t *barrier_data = barrier->access->laid_out->temporary_data;              \
+                struct layout_temporary_data_t *barrier_data = barrier->access->drawable->temporary_data;              \
                 max_to_give = barrier_data->AXIS_NAME##_px - first_data->AXIS_NAME##_px;                               \
             }                                                                                                          \
             else                                                                                                       \
@@ -749,9 +1006,9 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
                                                                                                                        \
             while (receiver != barrier)                                                                                \
             {                                                                                                          \
-                struct layout_temporary_data_t *receiver_data = receiver->access->laid_out->temporary_data;            \
+                struct layout_temporary_data_t *receiver_data = receiver->access->drawable->temporary_data;            \
                 receiver_data->AXIS_NAME##_px += give_every;                                                           \
-                receiver->access->laid_out->cached_grow_##AXIS_NAME += give_every;                                     \
+                receiver->access->drawable->cached_grow_##AXIS_NAME += give_every;                                     \
                 receiver = receiver->next;                                                                             \
             }                                                                                                          \
                                                                                                                        \
@@ -765,23 +1022,36 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
     for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
-        layout_grow_pass (state, access->child, access->laid_out, false);
+        layout_grow_pass (state, access->child, access->drawable, false);
     }
 }
 
 static void layout_position_pass (struct ui_layout_state_t *state,
                                   const struct kan_ui_node_t *node,
-                                  struct kan_ui_node_laid_out_t *laid_out)
+                                  struct kan_ui_node_drawable_t *drawable)
 {
-    struct layout_temporary_data_t *data = laid_out->temporary_data;
-    laid_out->width = data->width_px;
-    laid_out->height = data->height_px;
+    struct layout_temporary_data_t *data = drawable->temporary_data;
+
+    // Short-circuit for non-full updates -- just go to the children.
+    if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
+    {
+        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        {
+            const struct layout_child_access_t *access = &data->sorted_children[index];
+            layout_position_pass (state, access->child, access->drawable);
+        }
+
+        return;
+    }
+
+    drawable->width = data->width_px;
+    drawable->height = data->height_px;
 
     if (!KAN_TYPED_ID_32_IS_VALID (node->parent_id))
     {
         // Child of root frame, align accordingly.
-        laid_out->local_x = calculate_ui_coordinate (state->transient.ui, node->element.frame_offset_x);
-        laid_out->local_y = calculate_ui_coordinate (state->transient.ui, node->element.frame_offset_y);
+        drawable->local_x = calculate_ui_coordinate (state->transient.ui, node->element.frame_offset_x);
+        drawable->local_y = calculate_ui_coordinate (state->transient.ui, node->element.frame_offset_y);
 
         switch (node->element.horizontal_alignment)
         {
@@ -789,11 +1059,11 @@ static void layout_position_pass (struct ui_layout_state_t *state,
             break;
 
         case KAN_UI_HORIZONTAL_ALIGNMENT_CENTER:
-            laid_out->local_x += state->transient.ui->viewport_width / 2 - data->width_px / 2;
+            drawable->local_x += state->transient.ui->viewport_width / 2 - data->width_px / 2;
             break;
 
         case KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT:
-            laid_out->local_x += state->transient.ui->viewport_height - data->width_px;
+            drawable->local_x += state->transient.ui->viewport_height - data->width_px;
             break;
         }
 
@@ -803,16 +1073,16 @@ static void layout_position_pass (struct ui_layout_state_t *state,
             break;
 
         case KAN_UI_VERTICAL_ALIGNMENT_CENTER:
-            laid_out->local_y += state->transient.ui->viewport_height / 2 - data->height_px / 2;
+            drawable->local_y += state->transient.ui->viewport_height / 2 - data->height_px / 2;
             break;
 
         case KAN_UI_VERTICAL_ALIGNMENT_BOTTOM:
-            laid_out->local_y += state->transient.ui->viewport_height - data->height_px;
+            drawable->local_y += state->transient.ui->viewport_height - data->height_px;
             break;
         }
 
-        laid_out->global_x = laid_out->local_x;
-        laid_out->global_y = laid_out->local_y;
+        drawable->global_x = drawable->local_x;
+        drawable->global_y = drawable->local_y;
     }
 
     const kan_instance_size_t pad_left = data->cached_padding_left_px;
@@ -828,9 +1098,9 @@ static void layout_position_pass (struct ui_layout_state_t *state,
         for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
-            struct layout_temporary_data_t *child_data = access->laid_out->temporary_data;
+            struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
 
-            access->laid_out->local_x =
+            access->drawable->local_x =
                 pad_left + calculate_ui_coordinate (state->transient.ui, access->child->element.frame_offset_x);
 
             switch (access->child->element.horizontal_alignment)
@@ -839,15 +1109,15 @@ static void layout_position_pass (struct ui_layout_state_t *state,
                 break;
 
             case KAN_UI_HORIZONTAL_ALIGNMENT_CENTER:
-                access->laid_out->local_x += available_width / 2 - child_data->width_px / 2;
+                access->drawable->local_x += available_width / 2 - child_data->width_px / 2;
                 break;
 
             case KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT:
-                access->laid_out->local_x += available_width - child_data->width_px;
+                access->drawable->local_x += available_width - child_data->width_px;
                 break;
             }
 
-            access->laid_out->local_y =
+            access->drawable->local_y =
                 pad_top + calculate_ui_coordinate (state->transient.ui, access->child->element.frame_offset_y);
 
             switch (access->child->element.vertical_alignment)
@@ -856,11 +1126,11 @@ static void layout_position_pass (struct ui_layout_state_t *state,
                 break;
 
             case KAN_UI_VERTICAL_ALIGNMENT_CENTER:
-                access->laid_out->local_y += available_height / 2 - child_data->height_px / 2;
+                access->drawable->local_y += available_height / 2 - child_data->height_px / 2;
                 break;
 
             case KAN_UI_VERTICAL_ALIGNMENT_BOTTOM:
-                access->laid_out->local_y += available_height - child_data->height_px;
+                access->drawable->local_y += available_height - child_data->height_px;
                 break;
             }
         }
@@ -873,12 +1143,12 @@ static void layout_position_pass (struct ui_layout_state_t *state,
         for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
-            struct layout_temporary_data_t *child_data = access->laid_out->temporary_data;
+            struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
             cursor += child_data->cached_margin_top_px;
 
-            access->laid_out->local_x = pad_left;
-            access->laid_out->local_y = cursor;
-            cursor += child_data->cached_margin_bottom_px;
+            access->drawable->local_x = pad_left;
+            access->drawable->local_y = cursor;
+            cursor += child_data->height_px + child_data->cached_margin_bottom_px;
 
             switch (access->child->element.horizontal_alignment)
             {
@@ -886,11 +1156,11 @@ static void layout_position_pass (struct ui_layout_state_t *state,
                 break;
 
             case KAN_UI_HORIZONTAL_ALIGNMENT_CENTER:
-                access->laid_out->local_x += available_width / 2 - child_data->width_px / 2;
+                access->drawable->local_x += available_width / 2 - child_data->width_px / 2;
                 break;
 
             case KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT:
-                access->laid_out->local_x += available_width - child_data->width_px;
+                access->drawable->local_x += available_width - child_data->width_px;
                 break;
             }
         }
@@ -904,12 +1174,12 @@ static void layout_position_pass (struct ui_layout_state_t *state,
         for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
-            struct layout_temporary_data_t *child_data = access->laid_out->temporary_data;
+            struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
             cursor += child_data->cached_margin_left_px;
 
-            access->laid_out->local_x = cursor;
-            access->laid_out->local_y = pad_top;
-            cursor += child_data->cached_margin_right_px;
+            access->drawable->local_x = cursor;
+            access->drawable->local_y = pad_top;
+            cursor += child_data->width_px + child_data->cached_margin_right_px;
 
             switch (access->child->element.vertical_alignment)
             {
@@ -917,11 +1187,11 @@ static void layout_position_pass (struct ui_layout_state_t *state,
                 break;
 
             case KAN_UI_VERTICAL_ALIGNMENT_CENTER:
-                access->laid_out->local_y += available_height / 2 - child_data->height_px / 2;
+                access->drawable->local_y += available_height / 2 - child_data->height_px / 2;
                 break;
 
             case KAN_UI_VERTICAL_ALIGNMENT_BOTTOM:
-                access->laid_out->local_y += available_height - child_data->height_px;
+                access->drawable->local_y += available_height - child_data->height_px;
                 break;
             }
         }
@@ -933,84 +1203,80 @@ static void layout_position_pass (struct ui_layout_state_t *state,
     for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
-        layout_position_pass (state, node, access->laid_out);
+        layout_position_pass (state, access->child, access->drawable);
     }
-}
-
-static void recalculate_layout_primary (struct ui_layout_state_t *state, kan_ui_node_id_t root_id)
-{
-    KAN_UMI_VALUE_READ_REQUIRED (node, kan_ui_node_t, id, &root_id)
-    KAN_UMI_VALUE_UPDATE_REQUIRED (laid_out, kan_ui_node_laid_out_t, id, &root_id)
-
-    // Dirty roots are selected in a way that their size should never change and therefore should never affect parent.
-    // Which means that we can pass NULL instead of parent data.
-    layout_size_pass (state, node, laid_out, NULL);
-
-    layout_grow_pass (state, node, laid_out, true);
-    layout_position_pass (state, node, laid_out);
 }
 
 static void layout_render_finalize_pass (struct ui_layout_state_t *state,
                                          const struct kan_ui_node_t *node,
-                                         struct kan_ui_node_laid_out_t *laid_out)
+                                         struct kan_ui_node_drawable_t *drawable)
 {
-    struct layout_temporary_data_t *data = laid_out->temporary_data;
-    struct kan_ui_clip_rect_t children_clip_rect = laid_out->clip_rect;
+    struct layout_temporary_data_t *data = drawable->temporary_data;
+    struct kan_ui_clip_rect_t children_clip_rect = drawable->clip_rect;
 
     if (node->render.clip_children)
     {
         struct kan_ui_clip_rect_t my_clip_rect = {
-            .x = laid_out->global_x,
-            .y = laid_out->global_y,
-            .width = laid_out->width,
-            .height = laid_out->height,
+            .x = drawable->global_x,
+            .y = drawable->global_y,
+            .width = drawable->width,
+            .height = drawable->height,
         };
 
-        children_clip_rect.x = KAN_MAX (laid_out->clip_rect.x, my_clip_rect.x);
-        children_clip_rect.y = KAN_MAX (laid_out->clip_rect.y, my_clip_rect.y);
+        children_clip_rect.x = KAN_MAX (drawable->clip_rect.x, my_clip_rect.x);
+        children_clip_rect.y = KAN_MAX (drawable->clip_rect.y, my_clip_rect.y);
 
         children_clip_rect.width =
-            KAN_MIN (laid_out->clip_rect.x + laid_out->clip_rect.width, my_clip_rect.x + my_clip_rect.width) -
+            KAN_MIN (drawable->clip_rect.x + drawable->clip_rect.width, my_clip_rect.x + my_clip_rect.width) -
             children_clip_rect.x;
 
         children_clip_rect.height =
-            KAN_MIN (laid_out->clip_rect.y + laid_out->clip_rect.height, my_clip_rect.y + my_clip_rect.height) -
+            KAN_MIN (drawable->clip_rect.y + drawable->clip_rect.height, my_clip_rect.y + my_clip_rect.height) -
             children_clip_rect.y;
     }
 
     for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         struct layout_child_access_t *access = &data->sorted_children[index];
-        access->laid_out->clip_rect = children_clip_rect;
-        access->laid_out->global_x = laid_out->global_x - node->render.scroll_x_px + access->laid_out->local_x;
-        access->laid_out->global_y = laid_out->global_y - node->render.scroll_y_px + access->laid_out->local_y;
+        access->drawable->clip_rect = children_clip_rect;
+        access->drawable->global_x = drawable->global_x - node->render.scroll_x_px + access->drawable->local_x;
+        access->drawable->global_y = drawable->global_y - node->render.scroll_y_px + access->drawable->local_y;
 
-        access->laid_out->fully_clipped_out =
-            access->laid_out->global_x + access->laid_out->width < children_clip_rect.x ||
-            access->laid_out->global_x >= children_clip_rect.x + children_clip_rect.width ||
-            access->laid_out->global_y + access->laid_out->height < children_clip_rect.y ||
-            access->laid_out->global_y >= children_clip_rect.y + children_clip_rect.height;
+        access->drawable->fully_clipped_out =
+            access->drawable->global_x + access->drawable->width < children_clip_rect.x ||
+            access->drawable->global_x >= children_clip_rect.x + children_clip_rect.width ||
+            access->drawable->global_y + access->drawable->height < children_clip_rect.y ||
+            access->drawable->global_y >= children_clip_rect.y + children_clip_rect.height;
 
-        layout_render_finalize_pass (state, access->child, access->laid_out);
+        layout_render_finalize_pass (state, access->child, access->drawable);
 
         // We should no longer need the accesses and we need to close them.
         kan_repository_indexed_value_read_access_close (&access->child_access);
-        kan_repository_indexed_value_update_access_close (&access->laid_out_access);
+        kan_repository_indexed_value_update_access_close (&access->drawable_access);
     }
 
     // We should no longer use temporary data.
-    laid_out->temporary_data = NULL;
-    laid_out->dirty_for_laying_out = false;
+    drawable->temporary_data = NULL;
+    drawable->layout_dirt_level = KAN_UI_LAYOUT_DIRT_LEVEL_NONE;
 }
 
-static void recalculate_layout_finalize (struct ui_layout_state_t *state, kan_ui_node_id_t root_id)
+static void recalculate_layout (struct ui_layout_state_t *state, kan_ui_node_id_t root_id)
 {
     KAN_UMI_VALUE_READ_REQUIRED (node, kan_ui_node_t, id, &root_id)
-    KAN_UMI_VALUE_UPDATE_REQUIRED (laid_out, kan_ui_node_laid_out_t, id, &root_id)
+    KAN_UMI_VALUE_UPDATE_REQUIRED (drawable, kan_ui_node_drawable_t, id, &root_id)
+
+    const bool short_circuit = layout_base_pass (state, node, drawable);
+    if (!short_circuit)
+    {
+        layout_whitespace_pass (state, node, drawable);
+        layout_size_pass (state, node, drawable);
+        layout_grow_pass (state, node, drawable, true);
+        layout_position_pass (state, node, drawable);
+    }
 
     if (!KAN_TYPED_ID_32_IS_VALID (node->parent_id))
     {
-        laid_out->clip_rect = (struct kan_ui_clip_rect_t) {
+        drawable->clip_rect = (struct kan_ui_clip_rect_t) {
             .x = 0,
             .y = 0,
             .width = state->transient.ui->viewport_width,
@@ -1018,7 +1284,7 @@ static void recalculate_layout_finalize (struct ui_layout_state_t *state, kan_ui
         };
     }
 
-    layout_render_finalize_pass (state, node, laid_out);
+    layout_render_finalize_pass (state, node, drawable);
 }
 
 static void execute_draw_index_reorder (struct ui_layout_state_t *state, const struct kan_ui_node_t *parent)
@@ -1031,17 +1297,17 @@ static void execute_draw_index_reorder (struct ui_layout_state_t *state, const s
     for (kan_loop_size_t index = 0u; index < sorted_children_count; ++index)
     {
         struct layout_child_access_t *access = &sorted_children[index];
-        access->laid_out->draw_index = state->transient.reorder_index;
+        access->drawable->draw_index = state->transient.reorder_index;
         ++state->transient.reorder_index;
         execute_draw_index_reorder (state, access->child);
 
         // We should no longer need the accesses and we need to close them.
         kan_repository_indexed_value_read_access_close (&access->child_access);
-        kan_repository_indexed_value_update_access_close (&access->laid_out_access);
+        kan_repository_indexed_value_update_access_close (&access->drawable_access);
     }
 }
 
-KAN_UM_MUTATOR_EXECUTE (ui_layout)
+UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_layout)
 {
     KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
     state->transient.ui = ui;
@@ -1061,22 +1327,28 @@ KAN_UM_MUTATOR_EXECUTE (ui_layout)
                 continue;
             }
 
-            KAN_UMO_INDEXED_INSERT (laid_out, kan_ui_node_laid_out_t)
+            // Ensure that drawable exists.
             {
-                laid_out->id = node->id;
-                // Must be seen and set to false during mark dirty below.
-                laid_out->dirty_for_laying_out = false;
+                KAN_UMI_VALUE_READ_OPTIONAL (existent, kan_ui_node_drawable_t, id, &node_on_insert->id)
+                if (!existent)
+                {
+                    KAN_UMO_INDEXED_INSERT (drawable, kan_ui_node_drawable_t) { drawable->id = node->id; }
+                }
             }
 
             KAN_UMI_VALUE_READ_OPTIONAL (parent, kan_ui_node_t, id, &node->parent_id)
             if (parent)
             {
                 const kan_ui_node_id_t dirty_root = determine_dirty_root_recursive (state, parent, true);
-                mark_dirty_root (state, dirty_root);
+                mark_dirty_root (state, dirty_root, KAN_UI_LAYOUT_DIRT_LEVEL_FULL);
+
+                // If parents are already marked, our drawable might not receive a mark. Fixup it.
+                KAN_UMI_VALUE_UPDATE_REQUIRED (drawable, kan_ui_node_drawable_t, id, &node_on_insert->id)
+                drawable->layout_dirt_level = KAN_UI_LAYOUT_DIRT_LEVEL_FULL;
             }
             else
             {
-                mark_dirty_root (state, node->id);
+                mark_dirty_root (state, node->id, KAN_UI_LAYOUT_DIRT_LEVEL_FULL);
             }
         }
 
@@ -1088,7 +1360,7 @@ KAN_UM_MUTATOR_EXECUTE (ui_layout)
             if (parent)
             {
                 const kan_ui_node_id_t dirty_root = determine_dirty_root_recursive (state, parent, true);
-                mark_dirty_root (state, dirty_root);
+                mark_dirty_root (state, dirty_root, KAN_UI_LAYOUT_DIRT_LEVEL_FULL);
             }
         }
     }
@@ -1096,7 +1368,6 @@ KAN_UM_MUTATOR_EXECUTE (ui_layout)
     {
         KAN_CPU_SCOPED_STATIC_SECTION (ui_layout_viewport_change_events)
         bool changed = false;
-
         KAN_UML_EVENT_FETCH (viewport_on_change, kan_ui_singleton_viewport_on_change_event_t) { changed = true; }
 
         if (changed)
@@ -1104,7 +1375,7 @@ KAN_UM_MUTATOR_EXECUTE (ui_layout)
             const kan_ui_node_id_t child_of_root_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
             KAN_UML_VALUE_READ (node, kan_ui_node_t, parent_id, &child_of_root_id)
             {
-                mark_dirty_root (state, node->id);
+                mark_dirty_root (state, node->id, KAN_UI_LAYOUT_DIRT_LEVEL_FULL);
             }
         }
     }
@@ -1117,7 +1388,7 @@ KAN_UM_MUTATOR_EXECUTE (ui_layout)
             if (node)
             {
                 const kan_ui_node_id_t dirty_root = determine_dirty_root_recursive (state, node, false);
-                mark_dirty_root (state, dirty_root);
+                mark_dirty_root (state, dirty_root, KAN_UI_LAYOUT_DIRT_LEVEL_FULL);
             }
         }
 
@@ -1128,7 +1399,7 @@ KAN_UM_MUTATOR_EXECUTE (ui_layout)
             if (node)
             {
                 const kan_ui_node_id_t dirty_root = determine_dirty_root_recursive (state, node, false);
-                mark_dirty_root (state, dirty_root);
+                mark_dirty_root (state, dirty_root, KAN_UI_LAYOUT_DIRT_LEVEL_FULL);
             }
         }
 
@@ -1138,19 +1409,8 @@ KAN_UM_MUTATOR_EXECUTE (ui_layout)
             if (node)
             {
                 const kan_ui_node_id_t dirty_root = determine_dirty_root_recursive (state, node, true);
-                mark_dirty_root (state, dirty_root);
+                mark_dirty_root (state, dirty_root, KAN_UI_LAYOUT_DIRT_LEVEL_FULL);
             }
-        }
-    }
-
-    {
-        KAN_CPU_SCOPED_STATIC_SECTION (ui_layout_recalculate_main)
-        struct ui_layout_dirty_root_t *root = state->transient.first_dirty_root;
-
-        while (root)
-        {
-            recalculate_layout_primary (state, root->root_node_id);
-            root = root->next;
         }
     }
 
@@ -1162,18 +1422,18 @@ KAN_UM_MUTATOR_EXECUTE (ui_layout)
             if (node)
             {
                 // Render-based changes never propagate.
-                mark_dirty_root (state, node_on_render->id);
+                mark_dirty_root (state, node_on_render->id, KAN_UI_LAYOUT_DIRT_LEVEL_ONLY_RENDER);
             }
         }
     }
 
     {
-        KAN_CPU_SCOPED_STATIC_SECTION (ui_layout_recalculate_render_and_global)
+        KAN_CPU_SCOPED_STATIC_SECTION (ui_layout_recalculate)
         struct ui_layout_dirty_root_t *root = state->transient.first_dirty_root;
 
         while (root)
         {
-            recalculate_layout_finalize (state, root->root_node_id);
+            recalculate_layout (state, root->root_node_id);
             root = root->next;
         }
     }
@@ -1193,7 +1453,7 @@ enum ui_bundle_loading_state_t
     UI_BUNDLE_LOADING_STATE_INITIAL = 0u,
     UI_BUNDLE_LOADING_STATE_WAITING_MAIN,
     UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES,
-    UI_BUNDLE_LOADING_STATE_WAITING_READY,
+    UI_BUNDLE_LOADING_STATE_READY,
 };
 
 struct ui_bundle_private_singleton_t
@@ -1240,7 +1500,7 @@ struct ui_bundle_management_state_t
     kan_interned_string_t default_bundle;
 };
 
-KAN_UM_MUTATOR_DEPLOY (ui_bundle_management)
+UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_bundle_management)
 {
     kan_static_interned_ids_ensure_initialized ();
     kan_cpu_static_sections_ensure_initialized ();
@@ -1341,7 +1601,7 @@ static void advance_bundle_from_initial_state (struct ui_bundle_management_state
     private->main_usage_id = kan_next_resource_usage_id (provider);
     KAN_UMO_INDEXED_INSERT (usage, kan_resource_usage_t)
     {
-        usage->usage_id = usage->usage_id;
+        usage->usage_id = private->main_usage_id;
         usage->type = KAN_STATIC_INTERNED_ID_GET (kan_resource_ui_bundle_t);
         usage->name = public->bundle_name;
         usage->priority = KAN_UNIVERSE_UI_BUNDLE_PRIORITY;
@@ -1370,6 +1630,7 @@ static void advance_bundle_from_waiting_main_state (struct ui_bundle_management_
     KAN_UMI_SINGLETON_READ (atlas_singleton, kan_render_atlas_singleton_t)
     KAN_UMI_SINGLETON_READ (program_singleton, kan_render_program_singleton_t)
 
+    private->state = UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES;
     private->loading_image_material_instance_usage_id = kan_next_material_instance_usage_id (program_singleton);
     private->loading_image_atlas_usage_id = kan_next_atlas_usage_id (atlas_singleton);
     private->loading_text_sdf_usage_id = kan_next_material_instance_usage_id (program_singleton);
@@ -1429,7 +1690,7 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
     }
 
     KAN_UMI_VALUE_READ_OPTIONAL (image_atlas, kan_render_atlas_loaded_t, name, &resource->image_atlas)
-    if (!image_material_instance)
+    if (!image_atlas)
     {
         return;
     }
@@ -1452,6 +1713,7 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
 
     // Everything is loaded, so we can finalize the loading now.
 
+    private->state = UI_BUNDLE_LOADING_STATE_READY;
     public->available = true;
     public->available_bundle.pass = resource->pass;
     public->available_bundle.image_material_instance = resource->image_material_instance;
@@ -1518,7 +1780,7 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
     KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG, "Advanced bundle \"%s\" state to ready.", public->bundle_name)
 }
 
-KAN_UM_MUTATOR_EXECUTE (ui_bundle_management)
+UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_bundle_management)
 {
     KAN_UMI_SINGLETON_READ (resource_provider, kan_resource_provider_singleton_t)
     if (!resource_provider->scan_done)
@@ -1560,7 +1822,7 @@ KAN_UM_MUTATOR_EXECUTE (ui_bundle_management)
             {
             case UI_BUNDLE_LOADING_STATE_INITIAL:
             case UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES:
-            case UI_BUNDLE_LOADING_STATE_WAITING_READY:
+            case UI_BUNDLE_LOADING_STATE_READY:
                 KAN_ASSERT_FORMATTED (false,
                                       "Bundle \"%s\" in state %u received main resource loaded event, which is totally "
                                       "unexpected in this state.",
@@ -1614,18 +1876,19 @@ struct ui_render_graph_state_t
     KAN_UM_BIND_STATE (ui_render_graph, state)
 };
 
-KAN_UM_MUTATOR_DEPLOY (ui_render_graph)
+UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_render_graph)
 {
     kan_static_interned_ids_ensure_initialized ();
     kan_cpu_static_sections_ensure_initialized ();
 
     kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_FRAME_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_LAYOUT_END_CHECKPOINT);
     kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT);
     kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_RENDER_GRAPH_BEGIN_CHECKPOINT);
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_RENDER_GRAPH_END_CHECKPOINT);
 }
 
-KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
+UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
 {
     KAN_UMI_SINGLETON_WRITE (public, kan_ui_render_graph_singleton_t)
 
@@ -1658,6 +1921,12 @@ KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
     }
 
     KAN_UMI_SINGLETON_READ (ui_singleton, kan_ui_singleton_t)
+    if (ui_singleton->viewport_width <= 0 || ui_singleton->viewport_height <= 0)
+    {
+        // Cannot allocate and render for zero-sized viewport.
+        return;
+    }
+
     KAN_UMI_SINGLETON_READ (render_graph, kan_render_graph_resource_management_singleton_t)
     KAN_UMI_VALUE_READ_REQUIRED (pass, kan_render_foundation_pass_loaded_t, name, &bundle->available_bundle.pass)
 
@@ -1740,10 +2009,10 @@ KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
         {
             .color =
                 {
-                    0.0f,
-                    0.0f,
-                    0.0f,
-                    0.0f,
+                    public->clear_color_r,
+                    public->clear_color_g,
+                    public->clear_color_b,
+                    public->clear_color_a,
                 },
         },
     };
@@ -1887,7 +2156,7 @@ struct ui_render_state_t
     struct ui_render_transient_state_t transient;
 };
 
-KAN_UM_MUTATOR_DEPLOY (ui_render)
+UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_render)
 {
     kan_static_interned_ids_ensure_initialized ();
     kan_cpu_static_sections_ensure_initialized ();
@@ -1924,7 +2193,7 @@ static void ensure_ui_rect_ready (struct ui_render_private_singleton_t *private,
     if (!KAN_HANDLE_IS_VALID (private->ui_rect_indices))
     {
         private->ui_rect_indices =
-            kan_render_buffer_create (render_context->render_context, KAN_RENDER_BUFFER_TYPE_ATTRIBUTE,
+            kan_render_buffer_create (render_context->render_context, KAN_RENDER_BUFFER_TYPE_INDEX_16,
                                       sizeof (ui_rect_indices), ui_rect_indices, kan_string_intern ("ui_rect_indices"));
     }
 }
@@ -1981,7 +2250,7 @@ static bool ensure_pass_parameter_set_ready (struct ui_render_state_t *state,
                         KAN_STATIC_INTERNED_ID_GET (ui_pass_view_data));
                 }
             }
-            else if (buffer->name == KAN_STATIC_INTERNED_ID_GET (image_entires))
+            else if (buffer->name == KAN_STATIC_INTERNED_ID_GET (image_entries))
             {
                 private->binding_image_entries = buffer->binding;
             }
@@ -2033,19 +2302,16 @@ static bool ensure_pass_parameter_set_ready (struct ui_render_state_t *state,
             return false;
         }
 
-        if (pass_loaded->variants.size > 0u)
-        {
-            KAN_LOG (ui_render, KAN_LOG_ERROR, "Failed to allocate pass view data buffer for pass \"%s\".",
-                     pass_loaded->name)
-            return false;
-        }
-
         kan_instance_size_t image_atlas_layers;
         kan_render_image_get_sizes (atlas_loaded->image, NULL, NULL, NULL, &image_atlas_layers);
 
         private->bound_glyph_sdf_atlas = text_shaping->font_library_sdf_atlas;
-        kan_instance_size_t glyph_atlas_layers;
-        kan_render_image_get_sizes (private->bound_glyph_sdf_atlas, NULL, NULL, NULL, &glyph_atlas_layers);
+        kan_instance_size_t glyph_atlas_layers = 0u;
+
+        if (KAN_HANDLE_IS_VALID (private->bound_glyph_sdf_atlas))
+        {
+            kan_render_image_get_sizes (private->bound_glyph_sdf_atlas, NULL, NULL, NULL, &glyph_atlas_layers);
+        }
 
         struct kan_render_parameter_update_description_t updates[] = {
             {
@@ -2107,6 +2373,15 @@ static bool ensure_pass_parameter_set_ready (struct ui_render_state_t *state,
                     },
             },
             {
+                .binding = private->binding_color_table,
+                .buffer_binding =
+                    {
+                        .buffer = render_context->color_table_buffer,
+                        .offset = 0u,
+                        .range = kan_render_buffer_get_full_size (render_context->color_table_buffer),
+                    },
+            },
+            {
                 .binding = private->binding_glyph_sdf_atlas,
                 .image_binding =
                     {
@@ -2116,22 +2391,20 @@ static bool ensure_pass_parameter_set_ready (struct ui_render_state_t *state,
                         .layer_count = glyph_atlas_layers,
                     },
             },
-            {
-                .binding = private->binding_color_table,
-                .buffer_binding =
-                    {
-                        .buffer = render_context->color_table_buffer,
-                        .offset = 0u,
-                        .range = kan_render_buffer_get_full_size (render_context->color_table_buffer),
-                    },
-            },
         };
+
+        kan_instance_size_t updates_count = sizeof (updates) / sizeof (updates[0u]);
+        if (!KAN_HANDLE_IS_VALID (private->bound_glyph_sdf_atlas))
+        {
+            // Skip last binding as it would be invalid.
+            --updates_count;
+        }
 
         struct kan_render_pipeline_parameter_set_description_t set_description = {
             .layout = variant->pass_parameter_set_layout,
             .stable_binding = true,
             .tracking_name = KAN_STATIC_INTERNED_ID_GET (ui_pass_set),
-            .initial_bindings_count = sizeof (updates) / sizeof (updates[0u]),
+            .initial_bindings_count = updates_count,
             .initial_bindings = updates,
         };
 
@@ -2339,7 +2612,7 @@ struct text_push_constant_layout_t
 };
 
 static void execute_draw_text_command (struct ui_render_state_t *state,
-                                       const struct kan_ui_node_laid_out_t *laid_out,
+                                       const struct kan_ui_node_drawable_t *drawable,
                                        const struct kan_ui_draw_command_data_t *command)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (shaping_unit, kan_text_shaping_unit_t, id, &command->text.shaping_unit)
@@ -2356,8 +2629,8 @@ static void execute_draw_text_command (struct ui_render_state_t *state,
                                                                             shaping_unit->shaped_unstable.icons.size;
 
     struct text_push_constant_layout_t push_constant;
-    push_constant.offset.x = (float) laid_out->global_x - shaping_unit->shaped_min.x;
-    push_constant.offset.y = (float) laid_out->global_y - shaping_unit->shaped_min.y;
+    push_constant.offset.x = (float) drawable->global_x - shaping_unit->shaped_min.x;
+    push_constant.offset.y = (float) drawable->global_y - shaping_unit->shaped_min.y;
 
     switch (shaping_unit->request.alignment)
     {
@@ -2366,11 +2639,11 @@ static void execute_draw_text_command (struct ui_render_state_t *state,
 
     case KAN_TEXT_SHAPING_ALIGNMENT_CENTER:
         push_constant.offset.x +=
-            0.5f * (float) laid_out->width - 0.5f * (float) shaping_unit->request.primary_axis_limit;
+            0.5f * (float) drawable->width - 0.5f * (float) shaping_unit->request.primary_axis_limit;
         break;
 
     case KAN_TEXT_SHAPING_ALIGNMENT_RIGHT:
-        push_constant.offset.x += (float) laid_out->width - (float) shaping_unit->request.primary_axis_limit;
+        push_constant.offset.x += (float) drawable->width - (float) shaping_unit->request.primary_axis_limit;
         break;
     }
 
@@ -2523,7 +2796,7 @@ static void execute_draw_text_command (struct ui_render_state_t *state,
 }
 
 static void execute_draw_custom_command (struct ui_render_state_t *state,
-                                         const struct kan_ui_node_laid_out_t *laid_out,
+                                         const struct kan_ui_node_drawable_t *drawable,
                                          const struct kan_ui_draw_command_data_t *command)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (material_instance, kan_render_material_instance_loaded_t, name,
@@ -2606,10 +2879,10 @@ static void execute_draw_custom_command (struct ui_render_state_t *state,
                                              &state->transient.private->ui_rect_vertices, NULL);
 
         struct kan_ui_draw_command_custom_push_layout_t push;
-        push.size.x = (float) laid_out->global_x;
-        push.size.y = (float) laid_out->global_y;
-        push.offset.x = (float) laid_out->width;
-        push.offset.y = (float) laid_out->height;
+        push.size.x = (float) drawable->global_x;
+        push.size.y = (float) drawable->global_y;
+        push.offset.x = (float) drawable->width;
+        push.offset.y = (float) drawable->height;
         kan_render_pass_instance_push_constant (pass_instance, &push);
 
         kan_render_pass_instance_draw (pass_instance, 0u, sizeof (ui_rect_indices) / sizeof (ui_rect_indices[0u]), 0u,
@@ -2619,7 +2892,7 @@ static void execute_draw_custom_command (struct ui_render_state_t *state,
 }
 
 static void process_draw_command (struct ui_render_state_t *state,
-                                  const struct kan_ui_node_laid_out_t *laid_out,
+                                  const struct kan_ui_node_drawable_t *drawable,
                                   const struct kan_ui_draw_command_data_t *command)
 {
     switch (command->type)
@@ -2648,10 +2921,10 @@ static void process_draw_command (struct ui_render_state_t *state,
         struct image_instanced_data_t *data = state->transient.image_bulk_next;
         ++state->transient.image_bulk_next;
 
-        data->size.x = (float) laid_out->global_x;
-        data->size.y = (float) laid_out->global_y;
-        data->offset.x = (float) laid_out->width;
-        data->offset.y = (float) laid_out->height;
+        data->offset.x = (float) drawable->global_x;
+        data->offset.y = (float) drawable->global_y;
+        data->size.x = (float) drawable->width;
+        data->size.y = (float) drawable->height;
 
         data->image_index = command->image.image_record_index;
         data->ui_mark = command->image.ui_mark;
@@ -2661,20 +2934,20 @@ static void process_draw_command (struct ui_render_state_t *state,
     case KAN_UI_DRAW_COMMAND_TEXT:
     {
         flush_instanced_ui_images (state);
-        execute_draw_text_command (state, laid_out, command);
+        execute_draw_text_command (state, drawable, command);
         break;
     }
 
     case KAN_UI_DRAW_COMMAND_CUSTOM:
     {
         flush_instanced_ui_images (state);
-        execute_draw_custom_command (state, laid_out, command);
+        execute_draw_custom_command (state, drawable, command);
         break;
     }
     }
 }
 
-KAN_UM_MUTATOR_EXECUTE (ui_render)
+UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_render_private_singleton_t)
     KAN_UMI_SINGLETON_READ (bundle, kan_ui_bundle_singleton_t)
@@ -2690,7 +2963,11 @@ KAN_UM_MUTATOR_EXECUTE (ui_render)
 
     KAN_UML_EVENT_FETCH (bundle_updated_event, kan_ui_bundle_updated_event_t)
     {
-        kan_render_pipeline_parameter_set_destroy (private->pass_parameter_set);
+        if (KAN_HANDLE_IS_VALID (private->pass_parameter_set))
+        {
+            kan_render_pipeline_parameter_set_destroy (private->pass_parameter_set);
+        }
+
         private->used_pass_name = NULL;
         private->bound_glyph_sdf_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
     }
@@ -2699,7 +2976,11 @@ KAN_UM_MUTATOR_EXECUTE (ui_render)
     {
         if (pass_updated_event->name == private->used_pass_name)
         {
-            kan_render_pipeline_parameter_set_destroy (private->pass_parameter_set);
+            if (KAN_HANDLE_IS_VALID (private->pass_parameter_set))
+            {
+                kan_render_pipeline_parameter_set_destroy (private->pass_parameter_set);
+            }
+
             private->used_pass_name = NULL;
             private->bound_glyph_sdf_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
         }
@@ -2844,8 +3125,13 @@ KAN_UM_MUTATOR_EXECUTE (ui_render)
     state->transient.image_bulk_slice_begin = NULL;
     state->transient.this_frame_instanced_images = 0u;
 
-    KAN_UML_INTERVAL_ASCENDING_READ (node, kan_ui_node_laid_out_t, draw_index, NULL, NULL)
+    KAN_UML_INTERVAL_ASCENDING_READ (node, kan_ui_node_drawable_t, draw_index, NULL, NULL)
     {
+        if (node->fully_clipped_out)
+        {
+            continue;
+        }
+
         apply_clip_rect (state, &node->clip_rect);
         process_draw_command (state, node, &node->main_draw_command);
 
@@ -2903,6 +3189,7 @@ void kan_ui_node_init (struct kan_ui_node_t *instance)
     instance->local_element_order = 0;
 
     instance->layout.layout = KAN_UI_LAYOUT_FRAME;
+    instance->layout.flags = KAN_UI_LAYOUT_FLAG_NONE;
     instance->layout.padding = KAN_UI_RECT_PT (0.0f, 0.0f, 0.0f, 0.0f);
 
     instance->render.clip_children = false;
@@ -2910,7 +3197,7 @@ void kan_ui_node_init (struct kan_ui_node_t *instance)
     instance->render.scroll_y_px = 0;
 }
 
-void kan_ui_node_laid_out_init (struct kan_ui_node_laid_out_t *instance)
+void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
 {
     instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     instance->draw_index = 0u;
@@ -2936,12 +3223,12 @@ void kan_ui_node_laid_out_init (struct kan_ui_node_laid_out_t *instance)
     instance->cached_grow_height = 0;
 
     instance->temporary_data = NULL;
-    instance->dirty_for_laying_out = false;
+    instance->layout_dirt_level = KAN_UI_LAYOUT_DIRT_LEVEL_NONE;
 }
 
-void kan_ui_node_laid_out_shutdown (struct kan_ui_node_laid_out_t *instance)
+void kan_ui_node_drawable_shutdown (struct kan_ui_node_drawable_t *instance)
 {
-    kan_text_shaped_data_shutdown (&instance->additional_draw_commands);
+    kan_dynamic_array_shutdown (&instance->additional_draw_commands);
 }
 
 void kan_ui_render_graph_singleton_init (struct kan_ui_render_graph_singleton_t *instance)
@@ -2952,4 +3239,8 @@ void kan_ui_render_graph_singleton_init (struct kan_ui_render_graph_singleton_t 
     instance->animation_global_time_s = 0.0f;
     instance->animation_global_time_loop_s = 24.0f * 60.0f * 60.0f;
     instance->last_time_ns = KAN_INT_MAX (kan_time_size_t);
+    instance->clear_color_r = 0.0f;
+    instance->clear_color_g = 0.0f;
+    instance->clear_color_b = 0.0f;
+    instance->clear_color_a = 0.0f;
 }

@@ -20,6 +20,12 @@ enum kan_resource_atlas_image_type_t
 
 struct kan_resource_atlas_image_nine_patch_t
 {
+    /// \brief If true, center is tiled horizontally instead of being stretched.
+    bool tiled_x;
+
+    /// \brief If true, center is tiled vertically instead of being stretched.
+    bool tiled_y;
+
     /// \brief Distance from left corner to the end of left static area.
     kan_instance_size_t left;
 

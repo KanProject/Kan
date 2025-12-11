@@ -202,7 +202,7 @@ static void advance_from_initial_state (struct render_foundation_atlas_managemen
         atlas->usage_id = kan_next_resource_usage_id (provider);
         KAN_UMO_INDEXED_INSERT (usage, kan_resource_usage_t)
         {
-            usage->usage_id = usage->usage_id;
+            usage->usage_id = atlas->usage_id;
             usage->type = KAN_STATIC_INTERNED_ID_GET (kan_resource_atlas_t);
             usage->name = atlas->name;
             usage->priority = KAN_UNIVERSE_RENDER_FOUNDATION_ATLAS_PRIORITY;
@@ -232,6 +232,13 @@ enum atlas_entry_gpu_flags_t
     ATLAS_ENTRY_GPU_FLAG_COLOR_MULTIPLIER = 1u << 1u,
 };
 
+KAN_REFLECTION_IGNORE
+enum atlas_entry_nine_patch_gpu_flags_t
+{
+    ATLAS_ENTRY_NINE_PATCH_GPU_FLAG_TILED_X = 1u << 0u,
+    ATLAS_ENTRY_NINE_PATCH_GPU_FLAG_TILED_Y = 1u << 1u,
+};
+
 /// \details Must be in sync with `atlas_entry` in `atlas_entry.rpl`.
 KAN_REFLECTION_IGNORE
 struct atlas_entry_gpu_data_t
@@ -245,6 +252,7 @@ struct atlas_entry_gpu_data_t
     /// \details Needed for nine patch.
     struct kan_float_vector_2_t pixel_size;
 
+    uint32_t nine_patch_flags;
     float nine_patch_left;
     float nine_patch_right;
     float nine_patch_top;
@@ -340,9 +348,14 @@ static void load_atlas (struct render_foundation_atlas_management_state_t *state
 #define FILL_ENTRY_GPU_DATA                                                                                            \
     {                                                                                                                  \
         uint32_t entry_flags = 0u;                                                                                     \
-        if (input->type == KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH)                                                   \
+        switch (input->type)                                                                                           \
         {                                                                                                              \
+        case KAN_RESOURCE_ATLAS_IMAGE_TYPE_REGULAR:                                                                    \
+            break;                                                                                                     \
+                                                                                                                       \
+        case KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH:                                                                 \
             entry_flags |= ATLAS_ENTRY_GPU_FLAG_NINE_PATCH;                                                            \
+            break;                                                                                                     \
         }                                                                                                              \
                                                                                                                        \
         if (input->color_table_multiplier_index != KAN_INT_MAX (kan_instance_size_t))                                  \
@@ -363,6 +376,18 @@ static void load_atlas (struct render_foundation_atlas_management_state_t *state
                                                                                                                        \
         if (input->type == KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH)                                                   \
         {                                                                                                              \
+            uint32_t nine_patch_flags = 0u;                                                                            \
+            if (input->nine_patch.tiled_x)                                                                             \
+            {                                                                                                          \
+                nine_patch_flags |= ATLAS_ENTRY_NINE_PATCH_GPU_FLAG_TILED_X;                                           \
+            }                                                                                                          \
+                                                                                                                       \
+            if (input->nine_patch.tiled_y)                                                                             \
+            {                                                                                                          \
+                nine_patch_flags |= ATLAS_ENTRY_NINE_PATCH_GPU_FLAG_TILED_Y;                                           \
+            }                                                                                                          \
+                                                                                                                       \
+            output->nine_patch_flags = nine_patch_flags;                                                               \
             output->nine_patch_left = (float) input->nine_patch.left;                                                  \
             output->nine_patch_right = (float) input->nine_patch.right;                                                \
             output->nine_patch_top = (float) input->nine_patch.top;                                                    \
@@ -532,6 +557,9 @@ void kan_render_atlas_loaded_init (struct kan_render_atlas_loaded_t *instance)
     kan_dynamic_array_init (&instance->mapping, 0u, sizeof (struct kan_render_atlas_loaded_entry_mapping_t),
                             alignof (struct kan_render_atlas_loaded_entry_mapping_t),
                             kan_allocation_group_stack_get ());
+
+    kan_dynamic_array_init (&instance->locale_requirements, 0u, sizeof (kan_interned_string_t),
+                            alignof (kan_interned_string_t), kan_allocation_group_stack_get ());
 }
 
 kan_instance_size_t kan_render_atlas_loaded_query (struct kan_render_atlas_loaded_t *instance,

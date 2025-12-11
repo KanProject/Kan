@@ -1960,14 +1960,6 @@ static void load_material_instance (struct render_foundation_material_instance_m
     KAN_ASSERT (KAN_HANDLE_IS_VALID (render_context))
 
     KAN_UMI_VALUE_READ_REQUIRED (material_loaded, kan_render_material_loaded_t, name, &resource->material)
-    if (!KAN_HANDLE_IS_VALID (material_loaded->set_material))
-    {
-        KAN_LOG (render_foundation_program, KAN_LOG_ERROR,
-                 "Failed to load material instance \"%s\" as material \"%s\" parameter set layout is not available.",
-                 loaded->name, resource->material)
-        return;
-    }
-
     struct kan_render_parameter_update_description_t bindings_static[KAN_UNIVERSE_RENDER_FOUNDATION_MI_UPDATES_COUNT];
     struct kan_render_parameter_update_description_t *bindings = bindings_static;
     const kan_instance_size_t bindings_count = resource->buffers.size + resource->samplers.size + resource->images.size;
@@ -2078,36 +2070,41 @@ static void load_material_instance (struct render_foundation_material_instance_m
         ++bindings_output;
     }
 
-    struct kan_render_pipeline_parameter_set_description_t description = {
-        .layout = material_loaded->set_material,
-        .stable_binding = true,
-        .tracking_name = loaded->name,
-        .initial_bindings_count = (kan_instance_size_t) (bindings_output - bindings),
-        .initial_bindings = bindings,
-    };
-
-    loaded->parameter_set = kan_render_pipeline_parameter_set_create (render_context, &description);
-    if (!KAN_HANDLE_IS_VALID (loaded->parameter_set))
+    // Technically, having no material set is not an error as it just means that there would be no bindings, and it is
+    // technically fine, as if it not fine, it wouldn't be built as a resource.
+    if (KAN_HANDLE_IS_VALID (material_loaded->set_material))
     {
-        KAN_LOG (render_foundation_program, KAN_LOG_ERROR,
-                 "Failed to create parameter set for material instance \"%s\".", loaded->name)
-    }
+        struct kan_render_pipeline_parameter_set_description_t description = {
+            .layout = material_loaded->set_material,
+            .stable_binding = true,
+            .tracking_name = loaded->name,
+            .initial_bindings_count = (kan_instance_size_t) (bindings_output - bindings),
+            .initial_bindings = bindings,
+        };
 
-    kan_dynamic_array_set_capacity (&loaded->variants, resource->variants.size);
-    for (kan_loop_size_t index = 0u; index < resource->variants.size; ++index)
-    {
-        const struct kan_resource_material_variant_t *source =
-            &((struct kan_resource_material_variant_t *) resource->variants.data)[index];
-        struct kan_resource_material_variant_t *target = kan_dynamic_array_add_last (&loaded->variants);
+        loaded->parameter_set = kan_render_pipeline_parameter_set_create (render_context, &description);
+        if (!KAN_HANDLE_IS_VALID (loaded->parameter_set))
+        {
+            KAN_LOG (render_foundation_program, KAN_LOG_ERROR,
+                     "Failed to create parameter set for material instance \"%s\".", loaded->name)
+        }
 
-        kan_allocation_group_stack_push (loaded->variants.allocation_group);
-        kan_resource_material_variant_init (target);
-        kan_allocation_group_stack_pop ();
+        kan_dynamic_array_set_capacity (&loaded->variants, resource->variants.size);
+        for (kan_loop_size_t index = 0u; index < resource->variants.size; ++index)
+        {
+            const struct kan_resource_material_variant_t *source =
+                &((struct kan_resource_material_variant_t *) resource->variants.data)[index];
+            struct kan_resource_material_variant_t *target = kan_dynamic_array_add_last (&loaded->variants);
 
-        target->name = source->name;
-        kan_dynamic_array_set_capacity (&target->instanced_data, source->instanced_data.size);
-        target->instanced_data.size = source->instanced_data.size;
-        memcpy (target->instanced_data.data, source->instanced_data.data, source->instanced_data.size);
+            kan_allocation_group_stack_push (loaded->variants.allocation_group);
+            kan_resource_material_variant_init (target);
+            kan_allocation_group_stack_pop ();
+
+            target->name = source->name;
+            kan_dynamic_array_set_capacity (&target->instanced_data, source->instanced_data.size);
+            target->instanced_data.size = source->instanced_data.size;
+            memcpy (target->instanced_data.data, source->instanced_data.data, source->instanced_data.size);
+        }
     }
 
     KAN_UMO_EVENT_INSERT (updated_event, kan_render_material_instance_updated_event_t) { updated_event->name = name; }

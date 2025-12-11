@@ -2813,7 +2813,7 @@ static spirv_size_t spirv_emit_expression (struct spirv_generation_context_t *co
         switch (expression->output.vector_data->item)
         {
         case INBUILT_TYPE_ITEM_FLOAT:
-            KAN_ASSERT (false)
+            operation = SpvOpFMod;
             break;
 
         case INBUILT_TYPE_ITEM_UNSIGNED:

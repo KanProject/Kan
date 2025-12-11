@@ -6,6 +6,7 @@
         "kan/render_pipeline_language/compiler_internal.h should only be included by implementation as it has no stage API and is subject to lots of changes during development."
 #endif
 
+#include <math.h>
 #include <stddef.h>
 #include <string.h>
 

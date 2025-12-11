@@ -2500,11 +2500,15 @@ static inline void confirm_resource_status (struct build_state_t *state,
 
     case RESOURCE_STATUS_BUILDING:
     {
-        KAN_ATOMIC_INT_SCOPED_LOCK_WRITE (&entry->build.lock)
-        entry->build.internal_next_build_task = RESOURCE_ENTRY_NEXT_BUILD_TASK_BUILD_START;
+        if (entry->target->marked_for_build)
+        {
+            KAN_ATOMIC_INT_SCOPED_LOCK_WRITE (&entry->build.lock)
+            entry->build.internal_next_build_task = RESOURCE_ENTRY_NEXT_BUILD_TASK_BUILD_START;
 
-        KAN_ATOMIC_INT_SCOPED_LOCK (&state->build_queue_lock)
-        add_to_build_queue_new_unsafe (state, entry);
+            KAN_ATOMIC_INT_SCOPED_LOCK (&state->build_queue_lock)
+            add_to_build_queue_new_unsafe (state, entry);
+        }
+
         break;
     }
 
@@ -3276,10 +3280,9 @@ static void *load_resource_entry_data (struct build_state_t *state, struct resou
 
         if (serialization_state == KAN_SERIALIZATION_FAILED)
         {
-            KAN_LOG (
-                resource_pipeline_build, KAN_LOG_ERROR,
-                "[Target \"%s\"] Failed to load \"%s\" of type \"%s\" as due to readable data serialization error.",
-                entry->target->name, entry->name, entry->type->name, entry->current_file_location);
+            KAN_LOG (resource_pipeline_build, KAN_LOG_ERROR,
+                     "[Target \"%s\"] Failed to load \"%s\" of type \"%s\" due to readable data serialization error.",
+                     entry->target->name, entry->name, entry->type->name, entry->current_file_location);
         }
 
         kan_serialization_rd_reader_destroy (reader);
@@ -4486,6 +4489,7 @@ static struct build_step_output_t execute_build_step (struct build_state_t *stat
 /// \details Has no inbuilt locking, must be externally synchronized (therefore _unsafe suffix).
 static void add_to_build_queue_new_unsafe (struct build_state_t *state, struct resource_entry_t *entry)
 {
+    KAN_ASSERT (entry->target->marked_for_build)
     struct build_queue_item_t *item =
         kan_allocate_batched (build_queue_allocation_group, sizeof (struct build_queue_item_t));
 

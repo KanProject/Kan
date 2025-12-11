@@ -714,7 +714,8 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_management)
         {
         case FONT_LIBRARY_LOADING_STATE_INITIAL:
         case FONT_LIBRARY_LOADING_STATE_READY:
-            KAN_ASSERT (false)
+            KAN_ASSERT_FORMATTED (
+                false, "Failed to advance text management routine as there is no available font libraries at all.", );
             break;
 
         case FONT_LIBRARY_LOADING_STATE_WAITING_MAIN:

@@ -8936,7 +8936,7 @@ static void repository_init_cascade_deleters (struct repository_t *repository,
     repository = repository->first;
     while (repository)
     {
-        repository_clean_storages (repository);
+        repository_init_cascade_deleters (repository, temporary_allocator);
         repository = repository->next;
     }
 }

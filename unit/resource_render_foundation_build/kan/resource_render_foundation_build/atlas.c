@@ -330,16 +330,18 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
         first_pin->height = input->page_height - input->border_size * 2u;
         kan_bd_list_add (&build_context.allocation_pins, NULL, &first_pin->node);
 
-        struct atlas_image_node_t *image_node = (struct atlas_image_node_t *) build_context.images.items.first;
-        while (image_node)
+        for (kan_loop_size_t index = 0u; index < build_context.sorted_images.size; ++index)
         {
+            struct atlas_image_node_t *image_node =
+                ((struct atlas_image_node_t **) build_context.sorted_images.data)[index];
+
             struct atlas_allocation_pin_t *suitable_pin =
                 (struct atlas_allocation_pin_t *) build_context.allocation_pins.first;
 
             while (suitable_pin)
             {
-                if (suitable_pin->width <= image_node->raw_data.width &&
-                    suitable_pin->height <= image_node->raw_data.height)
+                if (suitable_pin->width >= image_node->raw_data.width &&
+                    suitable_pin->height >= image_node->raw_data.height)
                 {
                     // Can allocate from here.
                     break;
@@ -401,8 +403,6 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
                 kan_bd_list_remove (&build_context.allocation_pins, &suitable_pin->node);
                 kan_free_batched (build_context.main_allocation_group, suitable_pin);
             }
-
-            image_node = (struct atlas_image_node_t *) image_node->node.list_node.next;
         }
     }
 
@@ -429,21 +429,21 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
         }
 
         // Now write images into their allocated space.
-        struct atlas_image_node_t *image_node = (struct atlas_image_node_t *) build_context.images.items.first;
-        while (image_node)
+        for (kan_loop_size_t index = 0u; index < build_context.sorted_images.size; ++index)
         {
+            struct atlas_image_node_t *image_node =
+                ((struct atlas_image_node_t **) build_context.sorted_images.data)[index];
             const kan_instance_size_t page_base_pixel = image_node->allocated_page * page_size;
+
             for (kan_instance_size_t image_y = 0u; image_y < image_node->raw_data.height; ++image_y)
             {
                 const kan_instance_size_t image_row_pixel = image_y * image_node->raw_data.width;
                 const kan_instance_size_t atlas_row_pixel =
-                    page_base_pixel + (image_node->allocated_y + image_y) * input->page_width;
+                    page_base_pixel + (image_node->allocated_y + image_y) * input->page_width + image_node->allocated_x;
 
                 memcpy (&output->data.data[atlas_row_pixel * 4u], &image_node->raw_data.data[image_row_pixel * 4u],
                         image_node->raw_data.width * 4u);
             }
-
-            image_node = (struct atlas_image_node_t *) image_node->node.list_node.next;
         }
     }
 
@@ -461,6 +461,10 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
         struct kan_resource_atlas_entry_t *entry_target = kan_dynamic_array_add_last (&output->entries);
         KAN_ASSERT (entry_target)
         ++output->total_entries;
+
+        kan_allocation_group_stack_push (output->entries.allocation_group);
+        kan_resource_atlas_entry_init (entry_target);
+        kan_allocation_group_stack_pop ();
 
         entry_target->name = entry_source->name;
         kan_dynamic_array_set_capacity (&entry_target->replacements, entry_source->replacements.size);

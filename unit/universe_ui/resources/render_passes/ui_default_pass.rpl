@@ -18,7 +18,7 @@ set_pass image_color_2d_array glyph_sdf_atlas;
 
 set_pass read_only_storage_buffer color_table
 {
-    f4... data;
+    f4... values;
 };
 
 // Define common color output for all pipelines.

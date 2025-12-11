@@ -75,7 +75,7 @@ void ui_fragment_main (void)
     
     u1 palette_index = state.mark & palette_mask;
     alias (palette, setup.palette[palette_index])
-    alias (entry, image_entries[state.icon_index])
+    alias (entry, image_entries.data[state.icon_index])
     
     f2 atlas_uv = entry.uv_min + state.uv * (entry.uv_min - entry.uv_max);
     f4 modifier_color = palette.color_main;

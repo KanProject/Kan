@@ -6,8 +6,8 @@ vertex_attribute_container vertex
 instanced_attribute_container instanced
 {
     f4 transform;
-    alias (offset, min_max.xy)
-    alias (size, min_max.zw)
+    alias (offset, transform.xy)
+    alias (size, transform.zw)
     u2 meta;
     alias (index, meta.x)
     alias (ui_mark, meta.y)
@@ -35,47 +35,87 @@ void ui_vertex_main (void)
 
 void ui_fragment_main (void)
 {
-    alias (entry, image_entries[state.index])
+    alias (entry, image_entries.data[state.index])
     f2 base_uv = state.uv;
     
     if ((entry.flags & atlas_entry_flag_nine_patch) != 0u)
     {
         f2 entry_space = f2 {0.0};
+        f2 borders = f2 {
+            entry.nine_patch_left + entry.nine_patch_right, 
+            entry.nine_patch_top + entry.nine_patch_bottom};
+        f2 center_size = entry.pixel_size - borders;
         
-        if (state.pixel.x < entry.nine_patch_left)
+        if (state.size.x > borders.x)
         {
-            entry_space.x = state.pixel.x;
-        }
-        else if (state.size.x - state.pixel.x < entry.nine_patch_right)
-        {
-            entry_space.x = entry.pixel_size.x - (state.size.x - state.pixel.x);
+            if (state.pixel.x < entry.nine_patch_left)
+            {
+                entry_space.x = state.pixel.x;
+            }
+            else if (state.size.x - state.pixel.x < entry.nine_patch_right)
+            {
+                entry_space.x = entry.pixel_size.x - (state.size.x - state.pixel.x);
+            }
+            else if ((entry.nine_patch_flags & atlas_entry_nine_patch_flag_tiled_x) != 0u)
+            {
+                entry_space.x = entry.nine_patch_left + (state.pixel.x - entry.nine_patch_left) % center_size.x;
+            }
+            else
+            {
+                f1 stretch_element = (state.pixel.x - entry.nine_patch_left) / (state.size.x - borders.x);
+                entry_space.x = entry.nine_patch_left + stretch_element * (entry.pixel_size.x - borders.x);
+            }
         }
         else
         {
-            f1 borders = entry.nine_patch_left + entry.nine_patch_right;
-            f1 stretch_element = (state.pixel.x - entry.nine_patch_left) / (state.size.x - borders);
-            entry_space.x = entry.nine_patch_left + stretch_element * (entry.pixel_size.x - borders);
+            f1 edge = state.size.x * entry.nine_patch_left / borders.x;
+            if (state.pixel.x < edge)
+            {
+                entry_space.x = state.pixel.x;
+            }
+            else
+            {
+                entry_space.x = entry.pixel_size.x - (state.size.x - state.pixel.x);
+            }
         }
-        
-        if (state.pixel.y < entry.nine_patch_top)
+            
+        if (state.size.y > borders.y)
         {
-            entry_space.y = state.pixel.y;
-        }
-        else if (state.size.y - state.pixel.y < entry.nine_patch_bottom)
-        {
-            entry_space.y = entry.pixel_size.y - (state.size.y - state.pixel.y);
+            if (state.pixel.y < entry.nine_patch_top)
+            {
+                entry_space.y = state.pixel.y;
+            }
+            else if (state.size.y - state.pixel.y < entry.nine_patch_bottom)
+            {
+                entry_space.y = entry.pixel_size.y - (state.size.y - state.pixel.y);
+            }
+            else if ((entry.nine_patch_flags & atlas_entry_nine_patch_flag_tiled_y) != 0u)
+            {
+                entry_space.y = entry.nine_patch_top + (state.pixel.y - entry.nine_patch_top) % center_size.y;
+            }
+            else
+            {
+                f1 stretch_element = (state.pixel.y - entry.nine_patch_top) / (state.size.y - borders.y);
+                entry_space.y = entry.nine_patch_top + stretch_element * (entry.pixel_size.y - borders.y);
+            }
         }
         else
         {
-            f1 borders = entry.nine_patch_top + entry.nine_patch_bottom;
-            f1 stretch_element = (state.pixel.y - entry.nine_patch_top) / (state.size.y - borders);
-            entry_space.y = entry.nine_patch_top + stretch_element * (entry.pixel_size.y - borders);
+            f1 edge = state.size.y * entry.nine_patch_top / borders.y;
+            if (state.pixel.y < edge)
+            {
+                entry_space.y = state.pixel.y;
+            }
+            else
+            {
+                entry_space.y = entry.pixel_size.y - (state.size.y - state.pixel.y);
+            }
         }
         
         base_uv = entry_space / entry.pixel_size;
     }
     
-    f2 atlas_uv = entry.uv_min + base_uv * (entry.uv_min - entry.uv_max);
+    f2 atlas_uv = entry.uv_min + base_uv * (entry.uv_max - entry.uv_min);
     f4 color = sample (image_sampler, image_atlas, entry.page, atlas_uv);
     
     if ((entry.flags & atlas_entry_flag_color_multiplier) != 0u)

@@ -174,8 +174,8 @@ struct kan_text_shaped_glyph_instance_data_t
 /// \brief Describes shaped instance of one icon from text.
 struct kan_text_shaped_icon_instance_data_t
 {
-    struct kan_float_vector_4_t min;
-    struct kan_float_vector_4_t max;
+    struct kan_float_vector_2_t min;
+    struct kan_float_vector_2_t max;
     uint32_t icon_index;
     uint32_t mark;
     uint32_t read_index;

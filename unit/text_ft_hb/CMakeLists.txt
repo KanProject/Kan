@@ -14,6 +14,7 @@ concrete_implements_abstract (text)
 set (KAN_TEXT_FT_HB_SDF_ATLAS_WIDTH "2048" CACHE STRING "Width for SDF atlas image.")
 set (KAN_TEXT_FT_HB_SDF_ATLAS_HEIGHT "2048" CACHE STRING "Height for SDF atlas image.")
 set (KAN_TEXT_FT_HB_SDF_ATLAS_LAYERS "1" CACHE STRING "Initial count of layers for SDF atlas image.")
+set (KAN_TEXT_FT_HB_SDF_ATLAS_FONT_SIZE "24" CACHE STRING "Font size for rendering glyphs in SDF format.")
 set (KAN_TEXT_FT_HB_SDF_ATLAS_GLYPH_BORDER "1" CACHE STRING 
         "Size of an empty border space between SDF glyphs in atlas.")
 set (KAN_TEXT_FT_HB_SDF_ATLAS_LAYER_STEP "1" CACHE STRING
@@ -29,7 +30,8 @@ set (KAN_TEXT_FT_HB_FONT_SHAPE_DELAYED_RENDER_BASE "16" CACHE STRING
         "Base size for an array of glyphs that are not rendered and should be rendered later during shaping.")
 set (KAN_TEXT_FT_HB_FONT_SHAPED_GLYPHS_INITIAL "64" CACHE STRING
         "Initial capacity for shaped glyphs array in shaped data.")
-set (KAN_TEXT_FT_HB_SDF_ATLAS_FONT_SIZE "24" CACHE STRING "Font size for rendering glyphs in SDF format.")
+set (KAN_TEXT_FT_HB_FONT_SHAPED_ICONS_MIN "4" CACHE STRING
+        "Minimum capacity for shaped icons array in shaped data if icons are present in text.")
 
 concrete_compile_definitions (
         PRIVATE
@@ -44,7 +46,8 @@ concrete_compile_definitions (
         KAN_TEXT_FT_HB_FONT_SHAPE_LINE_BREAKS_INITIAL=${KAN_TEXT_FT_HB_FONT_SHAPE_LINE_BREAKS_INITIAL}
         KAN_TEXT_FT_HB_FONT_SHAPE_SEQUENCES_INITIAL=${KAN_TEXT_FT_HB_FONT_SHAPE_SEQUENCES_INITIAL}
         KAN_TEXT_FT_HB_FONT_SHAPE_DELAYED_RENDER_BASE=${KAN_TEXT_FT_HB_FONT_SHAPE_DELAYED_RENDER_BASE}
-        KAN_TEXT_FT_HB_FONT_SHAPED_GLYPHS_INITIAL=${KAN_TEXT_FT_HB_FONT_SHAPED_GLYPHS_INITIAL})
+        KAN_TEXT_FT_HB_FONT_SHAPED_GLYPHS_INITIAL=${KAN_TEXT_FT_HB_FONT_SHAPED_GLYPHS_INITIAL}
+        KAN_TEXT_FT_HB_FONT_SHAPED_ICONS_MIN=${KAN_TEXT_FT_HB_FONT_SHAPED_ICONS_MIN})
 
 option (KAN_TEXT_FT_HB_PROFILE_MEMORY "Whether memory profiling is enabled for freetype and harfbuzz." ON)
 if (KAN_TEXT_FT_HB_PROFILE_MEMORY)

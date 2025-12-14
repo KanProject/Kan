@@ -986,7 +986,7 @@ struct shape_context_t
     uint32_t mark;
     kan_instance_size_t last_read_index;
     kan_instance_size_t last_read_cluster;
-    int32_t primary_axis_limit_26_6;
+    const int32_t primary_axis_limit_26_6;
 
     struct font_library_category_t *current_category;
     hb_font_t *harfbuzz_font;
@@ -1796,7 +1796,7 @@ static void shape_text_node_icon (struct shape_context_t *context, struct text_n
         last_sequence = &((struct shape_sequence_t *) context->sequences.data)[context->sequences.size - 1u];
     }
 
-    if (!last_sequence || last_sequence->length_26_6 + length_26_6)
+    if (!last_sequence || last_sequence->length_26_6 + length_26_6 > context->primary_axis_limit_26_6)
     {
         last_sequence = kan_dynamic_array_add_last (&context->sequences);
         if (!last_sequence)
@@ -1818,7 +1818,8 @@ static void shape_text_node_icon (struct shape_context_t *context, struct text_n
     struct kan_text_shaped_icon_instance_data_t *shaped = kan_dynamic_array_add_last (&context->output->icons);
     if (!shaped)
     {
-        kan_dynamic_array_set_capacity (&context->output->icons, context->output->icons.size * 2u);
+        kan_dynamic_array_set_capacity (
+            &context->output->icons, KAN_MAX (context->output->icons.size * 2u, KAN_TEXT_FT_HB_FONT_SHAPED_ICONS_MIN));
         shaped = kan_dynamic_array_add_last (&context->output->icons);
     }
 
@@ -1858,9 +1859,9 @@ static void shape_text_node_icon (struct shape_context_t *context, struct text_n
     struct kan_int32_vector_2_t *min_26_6 = (struct kan_int32_vector_2_t *) &shaped->min;
     struct kan_int32_vector_2_t *max_26_6 = (struct kan_int32_vector_2_t *) &shaped->max;
     min_26_6->x = origin_x + scaled_x_bearing_26_6;
-    min_26_6->y = origin_y + scaled_y_bearing_26_6;
+    min_26_6->y = origin_y - scaled_y_bearing_26_6;
     max_26_6->x = origin_x + scaled_x_bearing_26_6 + scaled_width_26_6;
-    max_26_6->y = origin_y + scaled_y_bearing_26_6 + scaled_height_26_6;
+    max_26_6->y = origin_y - scaled_y_bearing_26_6 - scaled_height_26_6;
 }
 
 static void shape_post_process_sequences (struct shape_context_t *context)

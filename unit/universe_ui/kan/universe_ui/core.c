@@ -1208,41 +1208,39 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
                                          struct kan_ui_node_drawable_t *drawable)
 {
     struct layout_temporary_data_t *data = drawable->temporary_data;
-    struct kan_ui_clip_rect_t children_clip_rect = drawable->clip_rect;
-
-    if (node->render.clip_children)
+    if (node->render.clip)
     {
-        struct kan_ui_clip_rect_t my_clip_rect = {
+        struct kan_ui_clip_rect_t my_rect = {
             .x = drawable->global_x,
             .y = drawable->global_y,
             .width = drawable->width,
             .height = drawable->height,
         };
 
-        children_clip_rect.x = KAN_MAX (drawable->clip_rect.x, my_clip_rect.x);
-        children_clip_rect.y = KAN_MAX (drawable->clip_rect.y, my_clip_rect.y);
+        struct kan_ui_clip_rect_t new_clip_rect = drawable->clip_rect;
+        new_clip_rect.x = KAN_MAX (drawable->clip_rect.x, my_rect.x);
+        new_clip_rect.y = KAN_MAX (drawable->clip_rect.y, my_rect.y);
 
-        children_clip_rect.width =
-            KAN_MIN (drawable->clip_rect.x + drawable->clip_rect.width, my_clip_rect.x + my_clip_rect.width) -
-            children_clip_rect.x;
+        new_clip_rect.width =
+            KAN_MIN (drawable->clip_rect.x + drawable->clip_rect.width, my_rect.x + my_rect.width) - new_clip_rect.x;
 
-        children_clip_rect.height =
-            KAN_MIN (drawable->clip_rect.y + drawable->clip_rect.height, my_clip_rect.y + my_clip_rect.height) -
-            children_clip_rect.y;
+        new_clip_rect.height =
+            KAN_MIN (drawable->clip_rect.y + drawable->clip_rect.height, my_rect.y + my_rect.height) - new_clip_rect.y;
+        drawable->clip_rect = new_clip_rect;
     }
 
     for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         struct layout_child_access_t *access = &data->sorted_children[index];
-        access->drawable->clip_rect = children_clip_rect;
+        access->drawable->clip_rect = drawable->clip_rect;
         access->drawable->global_x = drawable->global_x - node->render.scroll_x_px + access->drawable->local_x;
         access->drawable->global_y = drawable->global_y - node->render.scroll_y_px + access->drawable->local_y;
 
         access->drawable->fully_clipped_out =
-            access->drawable->global_x + access->drawable->width < children_clip_rect.x ||
-            access->drawable->global_x >= children_clip_rect.x + children_clip_rect.width ||
-            access->drawable->global_y + access->drawable->height < children_clip_rect.y ||
-            access->drawable->global_y >= children_clip_rect.y + children_clip_rect.height;
+            access->drawable->global_x + access->drawable->width < drawable->clip_rect.x ||
+            access->drawable->global_x >= drawable->clip_rect.x + drawable->clip_rect.width ||
+            access->drawable->global_y + access->drawable->height < drawable->clip_rect.y ||
+            access->drawable->global_y >= drawable->clip_rect.y + drawable->clip_rect.height;
 
         layout_render_finalize_pass (state, access->child, access->drawable);
 
@@ -3187,7 +3185,7 @@ void kan_ui_node_init (struct kan_ui_node_t *instance)
     instance->layout.layout = KAN_UI_LAYOUT_FRAME;
     instance->layout.padding = KAN_UI_RECT_PT (0.0f, 0.0f, 0.0f, 0.0f);
 
-    instance->render.clip_children = false;
+    instance->render.clip = false;
     instance->render.scroll_x_px = 0;
     instance->render.scroll_y_px = 0;
 }

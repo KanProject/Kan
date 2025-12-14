@@ -215,8 +215,6 @@ enum kan_ui_layout_t
     KAN_UI_LAYOUT_HORIZONTAL_CONTAINER,
 };
 
-// TODO: Rename nine patch to nine slice (more known name).
-
 struct kan_ui_node_layout_setup_t
 {
     enum kan_ui_layout_t layout;
@@ -227,7 +225,9 @@ struct kan_ui_node_render_setup_t
 {
     kan_instance_offset_t scroll_x_px;
     kan_instance_offset_t scroll_y_px;
-    bool clip_children;
+
+    /// \brief If true, use self bounds to clip self and all children.
+    bool clip;
 };
 
 struct kan_ui_node_t
@@ -303,8 +303,6 @@ struct kan_ui_draw_command_text_t
     /// \brief Used to calculate local time for text animation on GPU if any.
     /// \details Relative to `kan_ui_render_graph_singleton_t::animation_global_time_s`.
     float animation_start_time_s;
-
-    // TODO: Would surely require a little bit more fields later for correct spacing.
 };
 
 struct kan_ui_draw_command_custom_push_layout_t

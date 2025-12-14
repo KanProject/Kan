@@ -77,7 +77,7 @@ void ui_fragment_main (void)
     alias (palette, setup.palette[palette_index])
     alias (entry, image_entries.data[state.icon_index])
     
-    f2 atlas_uv = entry.uv_min + state.uv * (entry.uv_min - entry.uv_max);
+    f2 atlas_uv = entry.uv_min + state.uv * (entry.uv_max - entry.uv_min);
     f4 modifier_color = palette.color_main;
     
     if ((state.mark & cos_anim_flag) != 0u)
@@ -92,6 +92,6 @@ void ui_fragment_main (void)
         modifier_color = modifier_color * color_table.values[palette.color_table_multiplier_index];
     }
     
-    f4 color = sample (image_sampler, image_atlas, entry.page, atlas_uv) * modifier_color;    
+    f4 color = sample (image_sampler, image_atlas, entry.page, atlas_uv) * modifier_color;
     color_output.color = color;
 }

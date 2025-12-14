@@ -445,7 +445,6 @@ struct layout_temporary_data_t
     struct layout_child_access_t *sorted_children;
 
     enum kan_ui_layout_t cached_layout;
-    enum kan_ui_layout_flags_t cached_layout_flags;
 
     // Offsets is used to reduce amount of casts in calculations as coordinates are calculated into offsets either way.
 
@@ -541,7 +540,6 @@ static struct layout_temporary_data_t *layout_temporary_data_create (struct ui_l
     data->sorted_children = NULL;
 
     data->cached_layout = node->layout.layout;
-    data->cached_layout_flags = node->layout.flags;
 
     data->width_px = 0;
     data->height_px = 0;
@@ -635,7 +633,7 @@ static bool layout_base_pass (struct ui_layout_state_t *state,
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
 #if defined(KAN_WITH_ASSERT)
-        const bool short_circuit = 
+        const bool short_circuit =
 #endif
             layout_base_pass (state, access->child, access->drawable);
         KAN_ASSERT (!short_circuit)
@@ -651,18 +649,10 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
     struct layout_temporary_data_t *data = drawable->temporary_data;
     if (drawable->layout_dirt_level == KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
     {
-        kan_instance_offset_t baseline_left = data->cached_padding_left_px;
-        kan_instance_offset_t baseline_right = data->cached_padding_right_px;
-        kan_instance_offset_t baseline_top = data->cached_padding_top_px;
-        kan_instance_offset_t baseline_bottom = data->cached_padding_bottom_px;
-
-        if (data->cached_layout_flags & KAN_UI_LAYOUT_FLAG_COLLAPSE_OUTER_WHITESPACE)
-        {
-            baseline_left += data->compound_margin_left_px;
-            baseline_right += data->compound_margin_right_px;
-            baseline_top += data->compound_margin_top_px;
-            baseline_bottom += data->compound_margin_bottom_px;
-        }
+        const kan_instance_offset_t baseline_left = data->cached_padding_left_px + data->compound_margin_left_px;
+        const kan_instance_offset_t baseline_right = data->cached_padding_right_px + data->compound_margin_right_px;
+        const kan_instance_offset_t baseline_top = data->cached_padding_top_px + data->compound_margin_top_px;
+        const kan_instance_offset_t baseline_bottom = data->cached_padding_bottom_px + data->compound_margin_bottom_px;
 
         struct layout_temporary_data_t *previous_child_data = NULL;
         switch (data->cached_layout)
@@ -685,7 +675,7 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
 
                 child_data->compound_margin_left_px = child_data->cached_margin_left_px + baseline_left;
                 child_data->compound_margin_right_px = child_data->cached_margin_right_px + baseline_right;
-                child_data->compound_margin_top_px = data->cached_margin_top_px + previous_margin;
+                child_data->compound_margin_top_px = child_data->cached_margin_top_px + previous_margin;
 
                 if (previous_child_data)
                 {
@@ -718,7 +708,7 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
                 UI_COLLAPSE_MARGIN (child_data->cached_margin_top_px, baseline_top);
                 UI_COLLAPSE_MARGIN (child_data->cached_margin_bottom_px, baseline_bottom);
 
-                child_data->compound_margin_left_px = data->cached_margin_left_px + previous_margin;
+                child_data->compound_margin_left_px = child_data->cached_margin_left_px + previous_margin;
                 if (previous_child_data)
                 {
                     previous_child_data->compound_margin_right_px = child_data->compound_margin_left_px;
@@ -1063,7 +1053,7 @@ static void layout_position_pass (struct ui_layout_state_t *state,
             break;
 
         case KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT:
-            drawable->local_x += state->transient.ui->viewport_height - data->width_px;
+            drawable->local_x += state->transient.ui->viewport_width - data->width_px;
             break;
         }
 
@@ -1146,7 +1136,7 @@ static void layout_position_pass (struct ui_layout_state_t *state,
             struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
             cursor += child_data->cached_margin_top_px;
 
-            access->drawable->local_x = pad_left;
+            access->drawable->local_x = pad_left + child_data->cached_margin_left_px;
             access->drawable->local_y = cursor;
             cursor += child_data->height_px + child_data->cached_margin_bottom_px;
 
@@ -1156,11 +1146,14 @@ static void layout_position_pass (struct ui_layout_state_t *state,
                 break;
 
             case KAN_UI_HORIZONTAL_ALIGNMENT_CENTER:
-                access->drawable->local_x += available_width / 2 - child_data->width_px / 2;
+                access->drawable->local_x +=
+                    (available_width - child_data->cached_margin_left_px - child_data->cached_margin_right_px) / 2 -
+                    child_data->width_px / 2;
                 break;
 
             case KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT:
-                access->drawable->local_x += available_width - child_data->width_px;
+                access->drawable->local_x += available_width - child_data->cached_margin_left_px -
+                                             child_data->cached_margin_right_px - child_data->width_px;
                 break;
             }
         }
@@ -1178,7 +1171,7 @@ static void layout_position_pass (struct ui_layout_state_t *state,
             cursor += child_data->cached_margin_left_px;
 
             access->drawable->local_x = cursor;
-            access->drawable->local_y = pad_top;
+            access->drawable->local_y = pad_top + child_data->cached_margin_top_px;
             cursor += child_data->width_px + child_data->cached_margin_right_px;
 
             switch (access->child->element.vertical_alignment)
@@ -1187,11 +1180,14 @@ static void layout_position_pass (struct ui_layout_state_t *state,
                 break;
 
             case KAN_UI_VERTICAL_ALIGNMENT_CENTER:
-                access->drawable->local_y += available_height / 2 - child_data->height_px / 2;
+                access->drawable->local_y +=
+                    (available_height - child_data->cached_margin_top_px - child_data->cached_margin_bottom_px) / 2 -
+                    child_data->height_px / 2;
                 break;
 
             case KAN_UI_VERTICAL_ALIGNMENT_BOTTOM:
-                access->drawable->local_y += available_height - child_data->height_px;
+                access->drawable->local_y += available_height - child_data->cached_margin_top_px -
+                                             child_data->cached_margin_bottom_px - child_data->height_px;
                 break;
             }
         }
@@ -3189,7 +3185,6 @@ void kan_ui_node_init (struct kan_ui_node_t *instance)
     instance->local_element_order = 0;
 
     instance->layout.layout = KAN_UI_LAYOUT_FRAME;
-    instance->layout.flags = KAN_UI_LAYOUT_FLAG_NONE;
     instance->layout.padding = KAN_UI_RECT_PT (0.0f, 0.0f, 0.0f, 0.0f);
 
     instance->render.clip_children = false;

@@ -215,21 +215,11 @@ enum kan_ui_layout_t
     KAN_UI_LAYOUT_HORIZONTAL_CONTAINER,
 };
 
-enum kan_ui_layout_flags_t
-{
-    KAN_UI_LAYOUT_FLAG_NONE = 0u,
-    
-    /// \brief Collapsed outer whitespace while calculating margins for inner elements as if that whitespace was a part
-    ///        of the layout.
-    /// \details Primarily used when emulating complex layouts (like table) through basic ones (like containers) to
-    ///          avoid creating unnecessary whitespace between emulated layout and outer elements.
-    KAN_UI_LAYOUT_FLAG_COLLAPSE_OUTER_WHITESPACE = 1u << 0u,
-};
+// TODO: Rename nine patch to nine slice (more known name).
 
 struct kan_ui_node_layout_setup_t
 {
     enum kan_ui_layout_t layout;
-    enum kan_ui_layout_flags_t flags;
     struct kan_ui_rect_t padding;
 };
 
@@ -294,11 +284,14 @@ struct kan_ui_draw_command_image_t
 
 enum kan_ui_default_text_mark_flag_t
 {
+    KAN_UI_DEFAULT_TEXT_MARK_FLAG_NONE = 0u,
     KAN_UI_DEFAULT_TEXT_MARK_FLAG_OUTLINE = 1u << 8u,
     KAN_UI_DEFAULT_TEXT_MARK_FLAG_COS_ANIMATION = 1u << 9u,
     KAN_UI_DEFAULT_TEXT_MARK_FLAG_READING_ANIMATION = 1u << 10u,
     KAN_UI_DEFAULT_TEXT_MARK_FLAG_COLOR_TABLE = 1u << 11u,
 };
+
+#define KAN_UI_DEFAULT_TEXT_MAKE_MARK(PALETTE, FLAGS) (((PALETTE) & KAN_UI_DEFAULT_TEXT_MARK_PALETTE_MASK) | (FLAGS))
 
 struct kan_ui_draw_command_text_t
 {

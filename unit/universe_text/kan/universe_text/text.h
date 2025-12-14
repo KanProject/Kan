@@ -124,6 +124,7 @@ struct kan_text_shaping_unit_t
     /// \brief If `shaped`, tells whether it was `stable` when it was last shaped.
     bool shaped_as_stable;
 
+    int32_t shaped_primary_default_ascender;
     struct kan_int32_vector_2_t shaped_min;
     struct kan_int32_vector_2_t shaped_max;
 

@@ -116,18 +116,16 @@ enum kan_text_item_type_t
 };
 
 /// \brief Contains data for the text icon item.
+/// \details Icon item y bearing is equal to primary default `ascender * y_scale`.
 struct kan_text_item_icon_t
 {
     /// \brief Icon indices are passed to the user render code so it can choose the proper icon.
     uint32_t icon_index;
 
-    /// \brief Codepoint used to calculate proper extents for the icon. Special characters like 0x25A0 are advised.
-    uint32_t base_codepoint;
-
-    /// \brief Applies scale to the x size of the icon codepoint.
+    /// \brief Icon item width is primary default `(ascender - descender) * x_scale`.
     float x_scale;
 
-    /// \brief Applies scale to the y size of the icon codepoint.
+    /// \brief Icon item height is primary default `(ascender - descender) * y_scale`.
     float y_scale;
 };
 
@@ -184,6 +182,9 @@ struct kan_text_shaped_icon_instance_data_t
 /// \brief Contains shaped data for rendering the whole text object.
 struct kan_text_shaped_data_t
 {
+    /// \brief Ascender value for the shaped data of the font category that is considered primary.
+    int32_t primary_default_ascender;
+    
     struct kan_int32_vector_2_t min;
     struct kan_int32_vector_2_t max;
 
@@ -217,6 +218,7 @@ struct kan_font_library_category_t
 };
 
 /// \brief Creates new font library with given categories.
+/// \details Category order matters as first category with NULL style is treated as primary default category.
 TEXT_API kan_font_library_t kan_font_library_create (kan_render_context_t render_context,
                                                      kan_instance_size_t categories_count,
                                                      struct kan_font_library_category_t *categories);

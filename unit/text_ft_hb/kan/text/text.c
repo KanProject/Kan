@@ -358,7 +358,6 @@ struct text_icon_t
 {
     kan_interned_string_t style;
     uint32_t icon_index;
-    uint32_t base_codepoint;
     float x_scale;
     float y_scale;
 };
@@ -588,7 +587,6 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
             node->next = NULL;
             node->type = TEXT_NODE_TYPE_ICON;
             node->icon.icon_index = item->icon.icon_index;
-            node->icon.base_codepoint = item->icon.base_codepoint;
             node->icon.x_scale = item->icon.x_scale;
             node->icon.y_scale = item->icon.y_scale;
 
@@ -678,6 +676,7 @@ void kan_text_destroy (kan_text_t instance)
 
 void kan_text_shaped_data_init (struct kan_text_shaped_data_t *instance)
 {
+    instance->primary_default_ascender = 0;
     instance->min.x = 0;
     instance->min.y = 0;
     instance->max.x = 0;
@@ -769,6 +768,7 @@ struct font_library_t
     struct kan_stack_group_allocator_t allocator;
 
     kan_instance_size_t categories_count;
+    kan_instance_size_t primary_default_category_index;
     struct font_library_category_t categories[];
 };
 
@@ -847,13 +847,20 @@ kan_font_library_t kan_font_library_create (kan_render_context_t render_context,
     library->allocator_lock = kan_atomic_int_init (0);
     kan_stack_group_allocator_init (&library->allocator, font_library_allocation_group,
                                     KAN_TEXT_FT_HB_FONT_LIBRARY_STACK);
+
     library->categories_count = categories_count;
+    library->primary_default_category_index = KAN_INT_MAX (kan_instance_size_t);
 
     struct kan_font_library_category_t *source = categories;
     struct font_library_category_t *target = library->categories;
 
     for (kan_loop_size_t index = 0u; index < library->categories_count; ++index, ++source, ++target)
     {
+        if (library->primary_default_category_index == KAN_INT_MAX (kan_instance_size_t) && !source->style)
+        {
+            library->primary_default_category_index = (kan_instance_size_t) index;
+        }
+
         target->style = source->style;
         target->script_name = source->script;
         target->script = hb_script_from_string (source->script, -1);
@@ -906,6 +913,21 @@ kan_font_library_t kan_font_library_create (kan_render_context_t render_context,
         {
             target->variable_axis = NULL;
         }
+    }
+
+    if (library->primary_default_category_index < library->categories_count &&
+        !library->categories[library->primary_default_category_index].harfbuzz_face)
+    {
+        KAN_LOG (text, KAN_LOG_ERROR,
+                 "Failed to select primary default category for font library: harfbuzz face creation failed. Text "
+                 "render is likely to be broken.")
+        library->primary_default_category_index = KAN_INT_MAX (kan_instance_size_t);
+    }
+    else if (library->primary_default_category_index >= library->categories_count)
+    {
+        KAN_LOG (text, KAN_LOG_ERROR,
+                 "Failed to select primary default category for font library: no categories with NULL style. Text "
+                 "render is likely to be broken.")
     }
 
     return KAN_HANDLE_SET (kan_font_library_t, library);
@@ -995,7 +1017,26 @@ struct shape_context_t
     struct kan_dynamic_array_t line_breaks;
     struct kan_dynamic_array_t sequences;
     struct kan_dynamic_array_t render_delayed;
+
+    int32_t icon_base_width_26_6;
+    int32_t icon_base_height_26_6;
+    int32_t icon_base_y_offset_26_6;
 };
+
+static inline void shape_do_choose_category (struct shape_context_t *context, struct font_library_category_t *category)
+{
+    context->current_category = category;
+    context->harfbuzz_font = hb_font_create (category->harfbuzz_face);
+
+    if (category->variable_axis)
+    {
+        hb_font_set_var_coords_design (context->harfbuzz_font, category->variable_axis, category->variable_axis_count);
+    }
+
+    hb_font_set_scale (context->harfbuzz_font, TO_26_6 (context->request->font_size),
+                       TO_26_6 (context->request->font_size));
+    hb_font_make_immutable (context->harfbuzz_font);
+}
 
 static bool shape_choose_category (struct shape_context_t *context)
 {
@@ -1035,18 +1076,7 @@ static bool shape_choose_category (struct shape_context_t *context)
             continue;
         }
 
-        context->current_category = category;
-        context->harfbuzz_font = hb_font_create (category->harfbuzz_face);
-
-        if (category->variable_axis)
-        {
-            hb_font_set_var_coords_design (context->harfbuzz_font, category->variable_axis,
-                                           category->variable_axis_count);
-        }
-
-        hb_font_set_scale (context->harfbuzz_font, TO_26_6 (context->request->font_size),
-                           TO_26_6 (context->request->font_size));
-        hb_font_make_immutable (context->harfbuzz_font);
+        shape_do_choose_category (context, category);
         return true;
     }
 
@@ -1742,55 +1772,14 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
 
 static void shape_text_node_icon (struct shape_context_t *context, struct text_node_t *node)
 {
-    hb_direction_t harfbuzz_direction = HB_DIRECTION_LTR;
-    switch (context->request->orientation)
-    {
-    case KAN_TEXT_ORIENTATION_HORIZONTAL:
-        switch (context->request->reading_direction)
-        {
-        case KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT:
-            harfbuzz_direction = HB_DIRECTION_LTR;
-            break;
+    const int32_t width_26_6 = (int32_t) roundf ((float) context->icon_base_width_26_6 * node->icon.x_scale);
+    const int32_t height_26_6 = (int32_t) roundf ((float) context->icon_base_height_26_6 * node->icon.y_scale);
+    const int32_t offset_26_6 = (int32_t) roundf ((float) context->icon_base_y_offset_26_6 * node->icon.y_scale);
 
-        case KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT:
-            harfbuzz_direction = HB_DIRECTION_RTL;
-            break;
-        }
-
-        break;
-
-    case KAN_TEXT_ORIENTATION_VERTICAL:
-        harfbuzz_direction = HB_DIRECTION_TTB;
-        break;
-    }
-
-    hb_codepoint_t harfbuzz_glyph_index;
-    if (!hb_font_get_nominal_glyph (context->harfbuzz_font, node->icon.base_codepoint, &harfbuzz_glyph_index))
-    {
-        KAN_LOG (text, KAN_LOG_ERROR,
-                 "Cannot add icon as codepoint as it was not possible to query glyph index for codepoint %lu.",
-                 (unsigned long) node->icon.base_codepoint)
-        return;
-    }
-
-    hb_glyph_extents_t extents;
-    if (!hb_font_get_glyph_extents_for_origin (context->harfbuzz_font, harfbuzz_glyph_index, harfbuzz_direction,
-                                               &extents))
-    {
-        KAN_LOG (text, KAN_LOG_ERROR,
-                 "Cannot add icon as codepoint as it was not possible to query extents of codepoint %lu.",
-                 (unsigned long) node->icon.base_codepoint)
-        return;
-    }
-
-    const int32_t scaled_x_bearing_26_6 = (int32_t) roundf ((float) extents.x_bearing * node->icon.x_scale);
-    const int32_t scaled_y_bearing_26_6 = (int32_t) roundf ((float) extents.y_bearing * node->icon.y_scale);
-    const int32_t scaled_width_26_6 = (int32_t) roundf ((float) extents.width * node->icon.x_scale);
-    const int32_t scaled_height_26_6 = (int32_t) roundf ((float) extents.height * node->icon.y_scale);
     const int32_t length_26_6 =
-        context->request->orientation == KAN_TEXT_ORIENTATION_HORIZONTAL ? scaled_width_26_6 : scaled_height_26_6;
-
+        context->request->orientation == KAN_TEXT_ORIENTATION_HORIZONTAL ? width_26_6 : height_26_6;
     struct shape_sequence_t *last_sequence = NULL;
+
     if (context->sequences.size > 0u)
     {
         last_sequence = &((struct shape_sequence_t *) context->sequences.data)[context->sequences.size - 1u];
@@ -1808,6 +1797,28 @@ static void shape_text_node_icon (struct shape_context_t *context, struct text_n
         last_sequence->first_glyph_index = context->output->glyphs.size;
         last_sequence->first_icon_index = context->output->icons.size;
         last_sequence->length_26_6 = 0;
+
+        hb_direction_t harfbuzz_direction = HB_DIRECTION_LTR;
+        switch (context->request->orientation)
+        {
+        case KAN_TEXT_ORIENTATION_HORIZONTAL:
+            switch (context->request->reading_direction)
+            {
+            case KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT:
+                harfbuzz_direction = HB_DIRECTION_LTR;
+                break;
+
+            case KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT:
+                harfbuzz_direction = HB_DIRECTION_RTL;
+                break;
+            }
+
+            break;
+
+        case KAN_TEXT_ORIENTATION_VERTICAL:
+            harfbuzz_direction = HB_DIRECTION_TTB;
+            break;
+        }
 
         struct hb_font_extents_t font_extents;
         hb_font_get_extents_for_direction (context->harfbuzz_font, harfbuzz_direction, &font_extents);
@@ -1841,8 +1852,7 @@ static void shape_text_node_icon (struct shape_context_t *context, struct text_n
         }
         else
         {
-            origin_x = context->primary_axis_limit_26_6 - last_sequence->length_26_6 - scaled_width_26_6 -
-                       scaled_x_bearing_26_6;
+            origin_x = context->primary_axis_limit_26_6 - last_sequence->length_26_6 - width_26_6;
             origin_y = 0;
         }
 
@@ -1858,10 +1868,10 @@ static void shape_text_node_icon (struct shape_context_t *context, struct text_n
 
     struct kan_int32_vector_2_t *min_26_6 = (struct kan_int32_vector_2_t *) &shaped->min;
     struct kan_int32_vector_2_t *max_26_6 = (struct kan_int32_vector_2_t *) &shaped->max;
-    min_26_6->x = origin_x + scaled_x_bearing_26_6;
-    min_26_6->y = origin_y - scaled_y_bearing_26_6;
-    max_26_6->x = origin_x + scaled_x_bearing_26_6 + scaled_width_26_6;
-    max_26_6->y = origin_y - scaled_y_bearing_26_6 - scaled_height_26_6;
+    min_26_6->x = origin_x;
+    min_26_6->y = origin_y + offset_26_6;
+    max_26_6->x = origin_x + width_26_6;
+    max_26_6->y = origin_y + offset_26_6 + height_26_6;
 }
 
 static void shape_post_process_sequences (struct shape_context_t *context)
@@ -2036,6 +2046,42 @@ bool kan_font_library_shape (kan_font_library_t instance,
         .harfbuzz_buffer = hb_buffer_create (),
     };
 
+    if (context.library->primary_default_category_index < context.library->categories_count)
+    {
+        struct font_library_category_t *category =
+            &context.library->categories[context.library->primary_default_category_index];
+
+        context.script = category->script;
+        shape_do_choose_category (&context, category);
+        hb_direction_t harfbuzz_direction = HB_DIRECTION_LTR;
+
+        switch (request->orientation)
+        {
+        case KAN_TEXT_ORIENTATION_HORIZONTAL:
+            harfbuzz_direction = hb_script_get_horizontal_direction (category->script);
+            break;
+
+        case KAN_TEXT_ORIENTATION_VERTICAL:
+            harfbuzz_direction = HB_DIRECTION_TTB;
+            break;
+        }
+
+        struct hb_font_extents_t font_extents;
+        hb_font_get_extents_for_direction (context.harfbuzz_font, harfbuzz_direction, &font_extents);
+        output->primary_default_ascender = (int32_t) FROM_26_6 (font_extents.ascender);
+
+        context.icon_base_width_26_6 = font_extents.ascender - font_extents.descender;
+        context.icon_base_height_26_6 = font_extents.ascender - font_extents.descender;
+        context.icon_base_y_offset_26_6 = -font_extents.ascender;
+    }
+    else
+    {
+        output->primary_default_ascender = 0;
+        context.icon_base_width_26_6 = TO_26_6 (request->font_size);
+        context.icon_base_height_26_6 = TO_26_6 (request->font_size);
+        context.icon_base_y_offset_26_6 = -context.icon_base_height_26_6;
+    }
+
     kan_dynamic_array_init (&context.line_breaks, KAN_TEXT_FT_HB_FONT_SHAPE_LINE_BREAKS_INITIAL,
                             sizeof (struct line_break_t), alignof (struct line_break_t),
                             shaping_temporary_allocation_group);
@@ -2074,17 +2120,6 @@ bool kan_font_library_shape (kan_font_library_t instance,
             break;
 
         case TEXT_NODE_TYPE_ICON:
-            if (context.script != HB_SCRIPT_COMMON)
-            {
-                shape_reset_category (&context);
-            }
-
-            context.script = HB_SCRIPT_COMMON;
-            if (!shape_choose_category (&context))
-            {
-                return false;
-            }
-
             shape_text_node_icon (&context, text_node);
             break;
 

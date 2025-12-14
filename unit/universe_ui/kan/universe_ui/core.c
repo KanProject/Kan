@@ -2623,8 +2623,8 @@ static void execute_draw_text_command (struct ui_render_state_t *state,
                                                                             shaping_unit->shaped_unstable.icons.size;
 
     struct text_push_constant_layout_t push_constant;
-    push_constant.offset.x = (float) drawable->global_x - shaping_unit->shaped_min.x;
-    push_constant.offset.y = (float) drawable->global_y - shaping_unit->shaped_min.y;
+    push_constant.offset.x = (float) drawable->global_x;
+    push_constant.offset.y = (float) drawable->global_y + shaping_unit->shaped_primary_default_ascender;
 
     switch (shaping_unit->request.alignment)
     {

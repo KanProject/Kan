@@ -252,17 +252,19 @@ static void update_font_blob_usage (struct text_management_state_t *state,
         KAN_ASSERT (resource)
         loaded_library->selected_categories.size = 0u;
 
-        for (kan_loop_size_t category_index = 0u; category_index < resource->categories.size; ++category_index)
+        // We have to honor order in locale to make sure that font library categories order matches order of languages
+        // in locale resource to avoid unexpected behaviors.
+        for (kan_loop_size_t locale_language_index = 0u; locale_language_index < locale->resource.font_languages.size;
+             ++locale_language_index)
         {
-            const struct kan_resource_font_category_t *category =
-                &((struct kan_resource_font_category_t *) resource->categories.data)[category_index];
-            bool filtered_in = false;
-
-            for (kan_loop_size_t category_language_index = 0u;
-                 category_language_index < category->used_for_languages.size; ++category_language_index)
+            for (kan_loop_size_t category_index = 0u; category_index < resource->categories.size; ++category_index)
             {
-                for (kan_loop_size_t locale_language_index = 0u;
-                     locale_language_index < locale->resource.font_languages.size; ++locale_language_index)
+                const struct kan_resource_font_category_t *category =
+                    &((struct kan_resource_font_category_t *) resource->categories.data)[category_index];
+                bool filtered_in = false;
+
+                for (kan_loop_size_t category_language_index = 0u;
+                     category_language_index < category->used_for_languages.size; ++category_language_index)
                 {
                     if (((kan_interned_string_t *) category->used_for_languages.data)[category_language_index] ==
                         ((kan_interned_string_t *) locale->resource.font_languages.data)[locale_language_index])
@@ -272,52 +274,47 @@ static void update_font_blob_usage (struct text_management_state_t *state,
                     }
                 }
 
-                if (filtered_in)
+                if (!filtered_in)
                 {
-                    break;
-                }
-            }
-
-            if (!filtered_in)
-            {
-                continue;
-            }
-
-            kan_instance_size_t *spot = kan_dynamic_array_add_last (&loaded_library->selected_categories);
-            if (!spot)
-            {
-                kan_dynamic_array_set_capacity (&loaded_library->selected_categories,
-                                                KAN_MAX (1u, loaded_library->selected_categories.size * 2u));
-                spot = kan_dynamic_array_add_last (&loaded_library->selected_categories);
-            }
-
-            *spot = category_index;
-            for (kan_loop_size_t style_index = 0u; style_index < category->styles.size; ++style_index)
-            {
-                const struct kan_resource_font_style_t *style =
-                    &((struct kan_resource_font_style_t *) category->styles.data)[style_index];
-
-                KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_blob, font_blob_t, name, &style->font_data_file)
-                if (existing_blob)
-                {
-                    existing_blob->used_for_loading = true;
-                    if (!KAN_TYPED_ID_32_IS_VALID (existing_blob->loading) &&
-                        !KAN_TYPED_ID_32_IS_VALID (existing_blob->current))
-                    {
-                        font_blob_start_new_loading (state, provider, existing_blob);
-                    }
-
                     continue;
                 }
 
-                KAN_UMO_INDEXED_INSERT (new_blob, font_blob_t)
+                kan_instance_size_t *spot = kan_dynamic_array_add_last (&loaded_library->selected_categories);
+                if (!spot)
                 {
-                    new_blob->name = style->font_data_file;
-                    new_blob->current = KAN_TYPED_ID_32_SET_INVALID (kan_resource_third_party_blob_id_t);
-                    new_blob->loading = KAN_TYPED_ID_32_SET_INVALID (kan_resource_third_party_blob_id_t);
-                    new_blob->used_in_current = false;
-                    new_blob->used_for_loading = true;
-                    font_blob_start_new_loading (state, provider, new_blob);
+                    kan_dynamic_array_set_capacity (&loaded_library->selected_categories,
+                                                    KAN_MAX (1u, loaded_library->selected_categories.size * 2u));
+                    spot = kan_dynamic_array_add_last (&loaded_library->selected_categories);
+                }
+
+                *spot = category_index;
+                for (kan_loop_size_t style_index = 0u; style_index < category->styles.size; ++style_index)
+                {
+                    const struct kan_resource_font_style_t *style =
+                        &((struct kan_resource_font_style_t *) category->styles.data)[style_index];
+
+                    KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_blob, font_blob_t, name, &style->font_data_file)
+                    if (existing_blob)
+                    {
+                        existing_blob->used_for_loading = true;
+                        if (!KAN_TYPED_ID_32_IS_VALID (existing_blob->loading) &&
+                            !KAN_TYPED_ID_32_IS_VALID (existing_blob->current))
+                        {
+                            font_blob_start_new_loading (state, provider, existing_blob);
+                        }
+
+                        continue;
+                    }
+
+                    KAN_UMO_INDEXED_INSERT (new_blob, font_blob_t)
+                    {
+                        new_blob->name = style->font_data_file;
+                        new_blob->current = KAN_TYPED_ID_32_SET_INVALID (kan_resource_third_party_blob_id_t);
+                        new_blob->loading = KAN_TYPED_ID_32_SET_INVALID (kan_resource_third_party_blob_id_t);
+                        new_blob->used_in_current = false;
+                        new_blob->used_for_loading = true;
+                        font_blob_start_new_loading (state, provider, new_blob);
+                    }
                 }
             }
         }
@@ -878,6 +875,7 @@ static void shape_unit (struct text_shaping_state_t *state,
         return;
     }
 
+    unit->shaped_primary_default_ascender = shaped_data.primary_default_ascender;
     unit->shaped_min = shaped_data.min;
     unit->shaped_max = shaped_data.max;
 
@@ -1073,6 +1071,7 @@ void kan_text_shaping_unit_init (struct kan_text_shaping_unit_t *instance)
     instance->shaped = false;
     instance->shaped_as_stable = true;
 
+    instance->shaped_primary_default_ascender = 0;
     instance->shaped_min.x = 0;
     instance->shaped_min.y = 0;
     instance->shaped_max.x = 0;

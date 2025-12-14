@@ -233,7 +233,7 @@ enum atlas_entry_gpu_flags_t
 };
 
 KAN_REFLECTION_IGNORE
-enum atlas_entry_nine_patch_gpu_flags_t
+enum atlas_entry_nine_slice_gpu_flags_t
 {
     ATLAS_ENTRY_NINE_PATCH_GPU_FLAG_TILED_X = 1u << 0u,
     ATLAS_ENTRY_NINE_PATCH_GPU_FLAG_TILED_Y = 1u << 1u,
@@ -249,14 +249,14 @@ struct atlas_entry_gpu_data_t
     struct kan_float_vector_2_t uv_min;
     struct kan_float_vector_2_t uv_max;
 
-    /// \details Needed for nine patch.
+    /// \details Needed for nine slice.
     struct kan_float_vector_2_t pixel_size;
 
-    uint32_t nine_patch_flags;
-    float nine_patch_left;
-    float nine_patch_right;
-    float nine_patch_top;
-    float nine_patch_bottom;
+    uint32_t nine_slice_flags;
+    float nine_slice_left;
+    float nine_slice_right;
+    float nine_slice_top;
+    float nine_slice_bottom;
 
     uint32_t color_table_multiplier_index;
 };
@@ -376,29 +376,29 @@ static void load_atlas (struct render_foundation_atlas_management_state_t *state
                                                                                                                        \
         if (input->type == KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH)                                                   \
         {                                                                                                              \
-            uint32_t nine_patch_flags = 0u;                                                                            \
-            if (input->nine_patch.tiled_x)                                                                             \
+            uint32_t nine_slice_flags = 0u;                                                                            \
+            if (input->nine_slice.tiled_x)                                                                             \
             {                                                                                                          \
-                nine_patch_flags |= ATLAS_ENTRY_NINE_PATCH_GPU_FLAG_TILED_X;                                           \
+                nine_slice_flags |= ATLAS_ENTRY_NINE_PATCH_GPU_FLAG_TILED_X;                                           \
             }                                                                                                          \
                                                                                                                        \
-            if (input->nine_patch.tiled_y)                                                                             \
+            if (input->nine_slice.tiled_y)                                                                             \
             {                                                                                                          \
-                nine_patch_flags |= ATLAS_ENTRY_NINE_PATCH_GPU_FLAG_TILED_Y;                                           \
+                nine_slice_flags |= ATLAS_ENTRY_NINE_PATCH_GPU_FLAG_TILED_Y;                                           \
             }                                                                                                          \
                                                                                                                        \
-            output->nine_patch_flags = nine_patch_flags;                                                               \
-            output->nine_patch_left = (float) input->nine_patch.left;                                                  \
-            output->nine_patch_right = (float) input->nine_patch.right;                                                \
-            output->nine_patch_top = (float) input->nine_patch.top;                                                    \
-            output->nine_patch_bottom = (float) input->nine_patch.bottom;                                              \
+            output->nine_slice_flags = nine_slice_flags;                                                               \
+            output->nine_slice_left = (float) input->nine_slice.left;                                                  \
+            output->nine_slice_right = (float) input->nine_slice.right;                                                \
+            output->nine_slice_top = (float) input->nine_slice.top;                                                    \
+            output->nine_slice_bottom = (float) input->nine_slice.bottom;                                              \
         }                                                                                                              \
         else                                                                                                           \
         {                                                                                                              \
-            output->nine_patch_left = 0.0f;                                                                            \
-            output->nine_patch_right = 0.0f;                                                                           \
-            output->nine_patch_top = 0.0f;                                                                             \
-            output->nine_patch_bottom = 0.0f;                                                                          \
+            output->nine_slice_left = 0.0f;                                                                            \
+            output->nine_slice_right = 0.0f;                                                                           \
+            output->nine_slice_top = 0.0f;                                                                             \
+            output->nine_slice_bottom = 0.0f;                                                                          \
         }                                                                                                              \
                                                                                                                        \
         output->color_table_multiplier_index = (uint32_t) input->color_table_multiplier_index;                         \

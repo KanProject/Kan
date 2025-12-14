@@ -38,37 +38,37 @@ void ui_fragment_main (void)
     alias (entry, image_entries.data[state.index])
     f2 base_uv = state.uv;
     
-    if ((entry.flags & atlas_entry_flag_nine_patch) != 0u)
+    if ((entry.flags & atlas_entry_flag_nine_slice) != 0u)
     {
         f2 entry_space = f2 {0.0};
         f2 borders = f2 {
-            entry.nine_patch_left + entry.nine_patch_right, 
-            entry.nine_patch_top + entry.nine_patch_bottom};
+            entry.nine_slice_left + entry.nine_slice_right, 
+            entry.nine_slice_top + entry.nine_slice_bottom};
         f2 center_size = entry.pixel_size - borders;
         
         if (state.size.x > borders.x)
         {
-            if (state.pixel.x < entry.nine_patch_left)
+            if (state.pixel.x < entry.nine_slice_left)
             {
                 entry_space.x = state.pixel.x;
             }
-            else if (state.size.x - state.pixel.x < entry.nine_patch_right)
+            else if (state.size.x - state.pixel.x < entry.nine_slice_right)
             {
                 entry_space.x = entry.pixel_size.x - (state.size.x - state.pixel.x);
             }
-            else if ((entry.nine_patch_flags & atlas_entry_nine_patch_flag_tiled_x) != 0u)
+            else if ((entry.nine_slice_flags & atlas_entry_nine_slice_flag_tiled_x) != 0u)
             {
-                entry_space.x = entry.nine_patch_left + (state.pixel.x - entry.nine_patch_left) % center_size.x;
+                entry_space.x = entry.nine_slice_left + (state.pixel.x - entry.nine_slice_left) % center_size.x;
             }
             else
             {
-                f1 stretch_element = (state.pixel.x - entry.nine_patch_left) / (state.size.x - borders.x);
-                entry_space.x = entry.nine_patch_left + stretch_element * (entry.pixel_size.x - borders.x);
+                f1 stretch_element = (state.pixel.x - entry.nine_slice_left) / (state.size.x - borders.x);
+                entry_space.x = entry.nine_slice_left + stretch_element * (entry.pixel_size.x - borders.x);
             }
         }
         else
         {
-            f1 edge = state.size.x * entry.nine_patch_left / borders.x;
+            f1 edge = state.size.x * entry.nine_slice_left / borders.x;
             if (state.pixel.x < edge)
             {
                 entry_space.x = state.pixel.x;
@@ -81,27 +81,27 @@ void ui_fragment_main (void)
             
         if (state.size.y > borders.y)
         {
-            if (state.pixel.y < entry.nine_patch_top)
+            if (state.pixel.y < entry.nine_slice_top)
             {
                 entry_space.y = state.pixel.y;
             }
-            else if (state.size.y - state.pixel.y < entry.nine_patch_bottom)
+            else if (state.size.y - state.pixel.y < entry.nine_slice_bottom)
             {
                 entry_space.y = entry.pixel_size.y - (state.size.y - state.pixel.y);
             }
-            else if ((entry.nine_patch_flags & atlas_entry_nine_patch_flag_tiled_y) != 0u)
+            else if ((entry.nine_slice_flags & atlas_entry_nine_slice_flag_tiled_y) != 0u)
             {
-                entry_space.y = entry.nine_patch_top + (state.pixel.y - entry.nine_patch_top) % center_size.y;
+                entry_space.y = entry.nine_slice_top + (state.pixel.y - entry.nine_slice_top) % center_size.y;
             }
             else
             {
-                f1 stretch_element = (state.pixel.y - entry.nine_patch_top) / (state.size.y - borders.y);
-                entry_space.y = entry.nine_patch_top + stretch_element * (entry.pixel_size.y - borders.y);
+                f1 stretch_element = (state.pixel.y - entry.nine_slice_top) / (state.size.y - borders.y);
+                entry_space.y = entry.nine_slice_top + stretch_element * (entry.pixel_size.y - borders.y);
             }
         }
         else
         {
-            f1 edge = state.size.y * entry.nine_patch_top / borders.y;
+            f1 edge = state.size.y * entry.nine_slice_top / borders.y;
             if (state.pixel.y < edge)
             {
                 entry_space.y = state.pixel.y;

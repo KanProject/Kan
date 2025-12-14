@@ -18,7 +18,7 @@ enum kan_resource_atlas_image_type_t
     KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH,
 };
 
-struct kan_resource_atlas_image_nine_patch_t
+struct kan_resource_atlas_image_nine_slice_t
 {
     /// \brief If true, center is tiled horizontally instead of being stretched.
     bool tiled_x;
@@ -52,7 +52,7 @@ struct kan_resource_atlas_image_t
     {
         KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
         KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH)
-        struct kan_resource_atlas_image_nine_patch_t nine_patch;
+        struct kan_resource_atlas_image_nine_slice_t nine_slice;
     };
 
     /// \brief If not max value of kan_instance_size_t, then image color data should be multiplied by color table entry

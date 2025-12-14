@@ -483,7 +483,7 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
         break;                                                                                                         \
                                                                                                                        \
     case KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH:                                                                     \
-        (TARGET).nine_patch = (SOURCE).nine_patch;                                                                     \
+        (TARGET).nine_slice = (SOURCE).nine_slice;                                                                     \
         break;                                                                                                         \
     }                                                                                                                  \
                                                                                                                        \

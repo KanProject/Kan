@@ -23,7 +23,7 @@ struct kan_resource_atlas_image_header_t
     {
         KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
         KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH)
-        struct kan_resource_atlas_image_nine_patch_t nine_patch;
+        struct kan_resource_atlas_image_nine_slice_t nine_slice;
     };
 
     kan_instance_size_t color_table_multiplier_index;

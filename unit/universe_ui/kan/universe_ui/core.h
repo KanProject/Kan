@@ -234,6 +234,7 @@ struct kan_ui_node_t
 {
     kan_ui_node_id_t id;
     kan_ui_node_id_t parent_id;
+    bool event_on_laid_out;
 
     struct kan_ui_node_element_setup_t element;
 
@@ -247,6 +248,13 @@ struct kan_ui_node_t
 };
 
 UNIVERSE_UI_API void kan_ui_node_init (struct kan_ui_node_t *instance);
+
+/// \brief Event that is sent every time when layout calculations are done for the node with
+///        `kan_ui_node_t::event_on_laid_out` flag;
+struct kan_ui_node_laid_out_t
+{
+    kan_ui_node_id_t node_id;
+};
 
 struct kan_ui_clip_rect_t
 {

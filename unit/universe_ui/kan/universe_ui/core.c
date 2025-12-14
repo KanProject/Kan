@@ -1252,6 +1252,11 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
     // We should no longer use temporary data.
     drawable->temporary_data = NULL;
     drawable->layout_dirt_level = KAN_UI_LAYOUT_DIRT_LEVEL_NONE;
+
+    if (node->event_on_laid_out)
+    {
+        KAN_UMO_EVENT_INSERT (event, kan_ui_node_laid_out_t) { event->node_id = drawable->id; }
+    }
 }
 
 static void recalculate_layout (struct ui_layout_state_t *state, kan_ui_node_id_t root_id)
@@ -3166,6 +3171,7 @@ void kan_ui_node_init (struct kan_ui_node_t *instance)
 {
     instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     instance->parent_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->event_on_laid_out = false;
 
     instance->element.width_flags = KAN_UI_SIZE_FLAG_NONE;
     instance->element.height_flags = KAN_UI_SIZE_FLAG_NONE;

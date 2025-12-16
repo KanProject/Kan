@@ -14,6 +14,7 @@
 #include <kan/precise_time/precise_time.h>
 #include <kan/resource_pipeline/meta.h>
 #include <kan/test_expectation/test_expectation.h>
+#include <kan/test_routine/test_routine.h>
 #include <kan/universe/macro.h>
 #include <kan/universe_locale/locale.h>
 #include <kan/universe_render_foundation/program.h>
@@ -48,13 +49,11 @@ enum text_mark_flag_t
 struct text_effects_config_t
 {
     kan_interned_string_t text_material_instance_name;
-    kan_interned_string_t test_expectation;
 };
 
 APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API void text_effects_config_init (struct text_effects_config_t *instance)
 {
     instance->text_material_instance_name = NULL;
-    instance->test_expectation = NULL;
 }
 
 KAN_REFLECTION_STRUCT_META (text_effects_config_t)
@@ -70,13 +69,6 @@ KAN_REFLECTION_STRUCT_FIELD_META (text_effects_config_t, text_material_instance_
 APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API struct kan_resource_reference_meta_t
     text_effects_config_text_material_instance_name_reference_meta = {
         .type_name = "kan_resource_material_instance_t",
-        .flags = 0u,
-};
-
-KAN_REFLECTION_STRUCT_FIELD_META (text_effects_config_t, test_expectation)
-APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API struct kan_resource_reference_meta_t
-    text_effects_config_test_expectation_reference_meta = {
-        .type_name = "test_expectation_t",
         .flags = 0u,
 };
 
@@ -102,7 +94,6 @@ struct example_text_effects_singleton_t
 {
     kan_application_system_window_t window_handle;
     kan_render_surface_t window_surface;
-    kan_instance_size_t test_frames_count;
     kan_resource_usage_id_t config_usage_id;
     kan_render_material_instance_usage_id_t text_material_instance_usage_id;
 
@@ -120,10 +111,7 @@ struct example_text_effects_singleton_t
     kan_render_buffer_t glyph_index_buffer;
     kan_instance_size_t glyph_index_count;
 
-    kan_render_buffer_t test_read_back_buffer;
-    kan_render_read_back_status_t test_read_back_status;
     kan_render_frame_lifetime_buffer_allocator_t instanced_data_allocator;
-
     kan_render_pipeline_parameter_set_t text_shared_parameter_set;
     kan_render_image_t text_last_bound_atlas;
 };
@@ -133,7 +121,6 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API void example_text_effects_single
 {
     instance->window_handle = KAN_HANDLE_SET_INVALID (kan_application_system_window_t);
     instance->window_surface = KAN_HANDLE_SET_INVALID (kan_render_surface_t);
-    instance->test_frames_count = 0u;
     instance->config_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
     instance->text_material_instance_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
 
@@ -151,10 +138,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API void example_text_effects_single
     instance->glyph_index_buffer = KAN_HANDLE_SET_INVALID (kan_render_buffer_t);
     instance->glyph_index_count = 0u;
 
-    instance->test_read_back_buffer = KAN_HANDLE_SET_INVALID (kan_render_buffer_t);
-    instance->test_read_back_status = KAN_HANDLE_SET_INVALID (kan_render_read_back_status_t);
     instance->instanced_data_allocator = KAN_HANDLE_SET_INVALID (kan_render_frame_lifetime_buffer_allocator_t);
-
     instance->text_shared_parameter_set = KAN_HANDLE_SET_INVALID (kan_render_pipeline_parameter_set_t);
     instance->text_last_bound_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
 }
@@ -192,11 +176,6 @@ static void example_text_effects_singleton_initialize_object_buffers (struct exa
 APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API void example_text_effects_singleton_shutdown (
     struct example_text_effects_singleton_t *instance)
 {
-    if (KAN_HANDLE_IS_VALID (instance->test_read_back_buffer))
-    {
-        kan_render_buffer_destroy (instance->test_read_back_buffer);
-    }
-
     if (KAN_HANDLE_IS_VALID (instance->instanced_data_allocator))
     {
         kan_render_frame_lifetime_buffer_allocator_destroy (instance->instanced_data_allocator);
@@ -208,31 +187,10 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API void example_text_effects_single
     }
 }
 
-static inline bool check_is_test_mode (kan_context_system_t application_framework_system_handle)
-{
-    if (KAN_HANDLE_IS_VALID (application_framework_system_handle))
-    {
-        const kan_instance_size_t arguments_count =
-            kan_application_framework_system_get_arguments_count (application_framework_system_handle);
-        char **arguments = kan_application_framework_system_get_arguments (application_framework_system_handle);
-
-        for (kan_loop_size_t index = 1u; index < arguments_count; ++index)
-        {
-            if (strcmp (arguments[index], "--test") == 0)
-            {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
 struct text_effects_update_state_t
 {
     KAN_UM_GENERATE_STATE_QUERIES (text_effects_update)
     KAN_UM_BIND_STATE (text_effects_update, state)
-    bool test_mode;
 
     /// \details Used as hack to force-update showcase text on hot reload.
     bool just_deployed;
@@ -241,11 +199,6 @@ struct text_effects_update_state_t
 APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_DEPLOY (text_effects_update)
 {
     kan_static_interned_ids_ensure_initialized ();
-    kan_context_t context = kan_universe_get_context (universe);
-    kan_context_system_t application_framework_system_handle =
-        kan_context_query (context, KAN_CONTEXT_APPLICATION_FRAMEWORK_SYSTEM_NAME);
-
-    state->test_mode = check_is_test_mode (application_framework_system_handle);
     state->just_deployed = true;
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_TEXT_SHAPING_BEGIN_CHECKPOINT);
 }
@@ -667,9 +620,7 @@ struct text_effects_render_state_t
     KAN_UM_BIND_STATE (text_effects_render, state)
 
     kan_context_system_t application_system_handle;
-    kan_context_system_t application_framework_system_handle;
     kan_context_system_t render_backend_system_handle;
-    bool test_mode;
 
     kan_interned_string_t text_pass_name;
 };
@@ -680,10 +631,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_DEPLOY (text_effe
     kan_context_t context = kan_universe_get_context (universe);
 
     state->application_system_handle = kan_context_query (context, KAN_CONTEXT_APPLICATION_SYSTEM_NAME);
-    state->application_framework_system_handle =
-        kan_context_query (context, KAN_CONTEXT_APPLICATION_FRAMEWORK_SYSTEM_NAME);
     state->render_backend_system_handle = kan_context_query (context, KAN_CONTEXT_RENDER_BACKEND_SYSTEM_NAME);
-    state->test_mode = check_is_test_mode (state->application_framework_system_handle);
 
     // We do not use static strings here as we pass this as variables in different places.
     state->text_pass_name = kan_string_intern ("text");
@@ -693,6 +641,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_DEPLOY (text_effe
 static void try_render_frame (struct text_effects_render_state_t *state,
                               const struct kan_render_context_singleton_t *render_context,
                               const struct kan_render_graph_resource_management_singleton_t *render_resource_management,
+                              struct test_routine_singleton_t *test,
                               struct example_text_effects_singleton_t *singleton,
                               const struct text_effects_config_t *config)
 {
@@ -867,8 +816,8 @@ static void try_render_frame (struct text_effects_render_state_t *state,
     const kan_time_size_t current_time = kan_precise_time_get_elapsed_nanoseconds ();
     // Circle time every 100s.
     const float time_for_shader =
-        state->test_mode && !singleton->frame_checked ? 0.75f : 1e-9f * (float) (current_time % 100000000000lu);
-    const float read_start_time = state->test_mode && !singleton->frame_checked ? -15.0f : 0.0f;
+        test->test_mode_enabled && !singleton->frame_checked ? 0.75f : 1e-9f * (float) (current_time % 100000000000lu);
+    const float read_start_time = test->test_mode_enabled && !singleton->frame_checked ? -15.0f : 0.0f;
 
     // We use reversed depth everywhere in this example.
     struct text_push_constant_t push = {
@@ -1058,107 +1007,21 @@ static void try_render_frame (struct text_effects_render_state_t *state,
                                                             response->images[TEXT_EFFECTS_SCENE_IMAGE_COLOR], 0u,
                                                             surface_region, image_region, pass_instance);
 
-        if (state->test_mode && !singleton->frame_checked)
+        if (test->test_mode_enabled && !singleton->frame_checked)
         {
-            if (KAN_HANDLE_IS_VALID (singleton->test_read_back_status))
-            {
-                kan_render_read_back_status_destroy (singleton->test_read_back_status);
-            }
-
-            singleton->test_read_back_status =
+            kan_dynamic_array_set_capacity (&test->expectation_read_back_statuses, 1u);
+            *(kan_render_read_back_status_t *) kan_dynamic_array_add_last (&test->expectation_read_back_statuses) =
                 kan_render_request_read_back_from_image (response->images[TEXT_EFFECTS_SCENE_IMAGE_COLOR], 0u, 0u,
-                                                         singleton->test_read_back_buffer, 0u, pass_instance);
+                                                         test->expectation_read_back_buffer, 0u, pass_instance);
         }
 
         if (!singleton->frame_checked)
         {
-            KAN_LOG (application_framework_example_text_effects, KAN_LOG_INFO, "First frame to render index %u.",
-                     (unsigned) singleton->test_frames_count)
+            KAN_LOG (application_framework_example_text_effects, KAN_LOG_INFO, "Queued frame render successfully.")
         }
 
         singleton->frame_checked = true;
     }
-}
-
-static bool check_frame_read_back (struct text_effects_render_state_t *state,
-                                   struct example_text_effects_singleton_t *singleton,
-                                   const struct text_effects_config_t *root_config)
-{
-    if (kan_read_read_back_status_get (singleton->test_read_back_status) != KAN_RENDER_READ_BACK_STATE_FINISHED)
-    {
-        return false;
-    }
-
-    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED (expectation, test_expectation_t, &root_config->test_expectation)
-    if (!expectation)
-    {
-        return false;
-    }
-
-    int exit_code = 0;
-    KAN_LOG (application_framework_example_text_effects, KAN_LOG_INFO, "Shutting down in test mode...")
-
-    const uint8_t *read_back_data = kan_render_buffer_read (singleton->test_read_back_buffer);
-    struct kan_file_system_path_container_t output_path_container;
-    kan_file_system_path_container_copy_string (&output_path_container, "text_effects_test_result.png");
-
-    struct kan_image_raw_data_t frame_raw_data;
-    frame_raw_data.width = FIXED_WIDTH;
-    frame_raw_data.height = FIXED_HEIGHT;
-    frame_raw_data.data = (uint8_t *) read_back_data;
-    struct kan_stream_t *output_stream = kan_direct_file_stream_open_for_write (output_path_container.path, true);
-
-    if (output_stream)
-    {
-        if (!kan_image_save (output_stream, KAN_IMAGE_SAVE_FORMAT_PNG, &frame_raw_data))
-        {
-            KAN_LOG (application_framework_example_text_effects, KAN_LOG_ERROR, "Failed to write result.")
-            exit_code = 1;
-        }
-
-        output_stream->operations->close (output_stream);
-    }
-    else
-    {
-        KAN_LOG (application_framework_example_text_effects, KAN_LOG_ERROR, "Failed to open file to write result.")
-        exit_code = 1;
-    }
-
-    if (expectation->width != frame_raw_data.width || expectation->height != frame_raw_data.height)
-    {
-        KAN_LOG (application_framework_example_text_effects, KAN_LOG_ERROR,
-                 "Expectation size doesn't match with frame size.")
-        exit_code = 1;
-    }
-    else
-    {
-        const uint32_t *frame_data = (const uint32_t *) frame_raw_data.data;
-        const uint32_t *expectation_data = (const uint32_t *) expectation->rgba_data.data;
-
-        const kan_loop_size_t pixel_count = frame_raw_data.width * frame_raw_data.height;
-        kan_loop_size_t error_count = 0u;
-        // Not more than 1% of errors.
-        kan_loop_size_t max_error_count = pixel_count / 100u;
-
-        for (kan_loop_size_t pixel_index = 0u; pixel_index < pixel_count; ++pixel_index)
-        {
-            if (kan_are_colors_different (frame_data[pixel_index], expectation_data[pixel_index], 3u))
-            {
-                ++error_count;
-            }
-        }
-
-        if (error_count > max_error_count)
-        {
-            KAN_LOG (application_framework_example_text_effects, KAN_LOG_ERROR,
-                     "Frame and expectation have different data at view: different %.3f%%.",
-                     100.0f * (float) error_count / (float) pixel_count)
-            exit_code = 1;
-        }
-    }
-
-    kan_application_framework_system_request_exit (state->application_framework_system_handle, exit_code);
-    return true;
 }
 
 APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_effects_render)
@@ -1167,6 +1030,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
     KAN_UMI_SINGLETON_READ (render_graph, kan_render_graph_resource_management_singleton_t)
     KAN_UMI_SINGLETON_READ (program_singleton, kan_render_program_singleton_t)
     KAN_UMI_SINGLETON_READ (resource_provider, kan_resource_provider_singleton_t)
+    KAN_UMI_SINGLETON_WRITE (test, test_routine_singleton_t)
     KAN_UMI_SINGLETON_WRITE (singleton, example_text_effects_singleton_t)
 
     if (!KAN_HANDLE_IS_VALID (render_context->render_context))
@@ -1177,7 +1041,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
     if (!KAN_HANDLE_IS_VALID (singleton->window_handle))
     {
         enum kan_platform_window_flag_t flags = kan_render_get_required_window_flags ();
-        if (state->test_mode)
+        if (test->test_mode_enabled)
         {
             flags |= KAN_PLATFORM_WINDOW_FLAG_HIDDEN;
         }
@@ -1196,19 +1060,13 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
             kan_render_backend_system_create_surface (state->render_backend_system_handle, singleton->window_handle,
                                                       present_modes, KAN_STATIC_INTERNED_ID_GET (window_surface));
 
-        if (!KAN_HANDLE_IS_VALID (singleton->window_surface))
-        {
-            KAN_LOG (application_framework_example_text_effects, KAN_LOG_ERROR, "Failed to create surface.")
-            kan_application_framework_system_request_exit (state->application_framework_system_handle, 1);
-            return;
-        }
-
+        KAN_ASSERT (KAN_HANDLE_IS_VALID (singleton->window_surface))
         kan_application_system_window_raise (state->application_system_handle, singleton->window_handle);
     }
 
-    if (state->test_mode && !KAN_HANDLE_IS_VALID (singleton->test_read_back_buffer))
+    if (test->test_mode_enabled && !KAN_HANDLE_IS_VALID (test->expectation_read_back_buffer))
     {
-        singleton->test_read_back_buffer = kan_render_buffer_create (
+        test->expectation_read_back_buffer = kan_render_buffer_create (
             render_context->render_context, KAN_RENDER_BUFFER_TYPE_READ_BACK_STORAGE, FIXED_WIDTH * FIXED_HEIGHT * 4u,
             NULL, KAN_STATIC_INTERNED_ID_GET (test_read_back_buffer));
     }
@@ -1243,16 +1101,6 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
             }
         }
 
-        if (state->test_mode)
-        {
-            KAN_UMO_INDEXED_INSERT (expectation_usage, kan_resource_usage_t)
-            {
-                expectation_usage->usage_id = kan_next_resource_usage_id (resource_provider);
-                expectation_usage->type = KAN_STATIC_INTERNED_ID_GET (test_expectation_t);
-                expectation_usage->name = root_config->test_expectation;
-            }
-        }
-
         KAN_UML_EVENT_FETCH (material_instance_updated, kan_render_material_instance_updated_event_t)
         {
             // Destroy parameter sets on hot reload in order to create new ones during next render.
@@ -1268,25 +1116,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
 
         if (KAN_HANDLE_IS_VALID (render_context->render_context) && render_context->frame_scheduled)
         {
-            try_render_frame (state, render_context, render_graph, singleton, root_config);
-        }
-    }
-
-    ++singleton->test_frames_count;
-    if (state->test_mode)
-    {
-        if (singleton->frame_checked && root_config && check_frame_read_back (state, singleton, root_config))
-        {
-            return;
-        }
-
-        if (240u < singleton->test_frames_count)
-        {
-            KAN_LOG (application_framework_example_text_effects, KAN_LOG_INFO, "Shutting down in test mode...")
-            KAN_LOG (application_framework_example_text_effects, KAN_LOG_ERROR,
-                     "Time elapsed, but wasn't able to do any testing.")
-            kan_application_framework_system_request_exit (state->application_framework_system_handle, 1);
-            return;
+            try_render_frame (state, render_context, render_graph, test, singleton, root_config);
         }
     }
 }

@@ -184,7 +184,7 @@ struct kan_text_shaped_data_t
 {
     /// \brief Ascender value for the shaped data of the font category that is considered primary.
     int32_t primary_default_ascender;
-    
+
     struct kan_int32_vector_2_t min;
     struct kan_int32_vector_2_t max;
 

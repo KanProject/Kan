@@ -562,7 +562,7 @@ void kan_render_atlas_loaded_init (struct kan_render_atlas_loaded_t *instance)
                             alignof (kan_interned_string_t), kan_allocation_group_stack_get ());
 }
 
-kan_instance_size_t kan_render_atlas_loaded_query (struct kan_render_atlas_loaded_t *instance,
+kan_instance_size_t kan_render_atlas_loaded_query (const struct kan_render_atlas_loaded_t *instance,
                                                    kan_interned_string_t entry_name,
                                                    kan_interned_string_t locale_name)
 {

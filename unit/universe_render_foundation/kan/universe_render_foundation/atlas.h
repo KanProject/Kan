@@ -75,8 +75,10 @@ struct kan_render_atlas_loaded_t
 UNIVERSE_RENDER_FOUNDATION_API void kan_render_atlas_loaded_init (struct kan_render_atlas_loaded_t *instance);
 
 /// \details Returns maximum value of kan_instance_size_t when query has failed.
-UNIVERSE_RENDER_FOUNDATION_API kan_instance_size_t kan_render_atlas_loaded_query (
-    struct kan_render_atlas_loaded_t *instance, kan_interned_string_t entry_name, kan_interned_string_t locale_name);
+UNIVERSE_RENDER_FOUNDATION_API kan_instance_size_t
+kan_render_atlas_loaded_query (const struct kan_render_atlas_loaded_t *instance,
+                               kan_interned_string_t entry_name,
+                               kan_interned_string_t locale_name);
 
 UNIVERSE_RENDER_FOUNDATION_API void kan_render_atlas_loaded_shutdown (struct kan_render_atlas_loaded_t *instance);
 

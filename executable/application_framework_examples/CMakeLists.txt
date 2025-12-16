@@ -24,8 +24,8 @@ register_application_plugin (NAME base GROUP base)
 application_plugin_include (
         CONCRETE
         resource_locale render_pipeline_language resource_render_foundation resource_test_expectation resource_text
-        universe_locale universe_object universe_render_foundation universe_resource_provider universe_text
-        universe_trivial_scheduler)
+        resource_ui test_routine universe_locale universe_object universe_render_foundation universe_resource_provider
+        universe_text universe_trivial_scheduler universe_ui)
 
 # Normally, base plugins should not include build-only things like image parsing.
 # However, we need to save images for checking visual test results verification, therefore we them here.
@@ -77,6 +77,21 @@ application_program_use_as_test_in_packaged_mode (ARGUMENTS --test PROPERTIES TI
 
 register_application_variant (example_text_effects)
 application_variant_add_program (example_text_effects)
+application_variant_add_environment_tag (packaged)
+
+# Playground for testing UI during WIP.
+register_application_plugin (NAME example_ui_core_render GROUP example_ui_core_render)
+application_plugin_include (ABSTRACT CONCRETE application_framework_examples_ui_core_render)
+
+register_application_program (example_ui_core_render)
+application_program_set_configuration ("${CMAKE_CURRENT_SOURCE_DIR}/configuration/example_ui_core_render.rd")
+application_program_use_plugin_group (example_ui_core_render)
+application_program_use_as_test_in_development_mode (
+        ARGUMENTS --test --disable-auto-build PROPERTIES TIMEOUT 20 LABELS GRAPHICS)
+application_program_use_as_test_in_packaged_mode (ARGUMENTS --test PROPERTIES TIMEOUT 10 LABELS GRAPHICS)
+
+register_application_variant (example_ui_core_render)
+application_variant_add_program (example_ui_core_render)
 application_variant_add_environment_tag (packaged)
 
 application_generate ()

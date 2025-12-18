@@ -3078,8 +3078,11 @@ static struct resource_response_t execute_resource_request_internal (
                 response.entry->header.status = RESOURCE_STATUS_BUILDING;
                 response.entry->build.internal_next_build_task = RESOURCE_ENTRY_NEXT_BUILD_TASK_BUILD_START;
 
-                KAN_ATOMIC_INT_SCOPED_LOCK (&state->build_queue_lock)
-                add_to_build_queue_new_unsafe (state, response.entry);
+                if (response.entry->target->marked_for_build)
+                {
+                    KAN_ATOMIC_INT_SCOPED_LOCK (&state->build_queue_lock)
+                    add_to_build_queue_new_unsafe (state, response.entry);
+                }
             }
             else if (response.entry->target != primary_target)
             {

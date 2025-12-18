@@ -614,6 +614,17 @@ struct kan_color_linear_t
     float a;
 };
 
+/// \brief Convenience constructor function for kan_color_linear_t.
+static inline struct kan_color_linear_t kan_make_color_linear (float r, float g, float b, float a)
+{
+    struct kan_color_linear_t color;
+    color.r = r;
+    color.g = g;
+    color.b = b;
+    color.a = a;
+    return color;
+}
+
 /// \brief Helper structure for unpacked SRGB color space colors.
 struct kan_color_srgb_t
 {

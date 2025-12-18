@@ -3,16 +3,18 @@ page_width = 512
 page_height = 512
 
 border_size = 1
-border_linear_r = 0.0
-border_linear_g = 0.0
-border_linear_b = 0.0
-border_linear_a = 0.0
+border {
+    r = 0.0
+    g = 0.0
+    b = 0.0
+    a = 0.0
+}
 
 +entries {
     name = button_negative
     image {
         source = "colorless_button.png"
-        type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH
+        type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_SLICE
         nine_slice {
             tiled_x = 0
             tiled_y = 0
@@ -29,7 +31,7 @@ border_linear_a = 0.0
     name = button_positive
     image {
         source = "colorless_button.png"
-        type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH
+        type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_SLICE
         nine_slice {
             tiled_x = 0
             tiled_y = 0
@@ -46,7 +48,7 @@ border_linear_a = 0.0
     name = button_neutral
     image {
         source = "colorless_button.png"
-        type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH
+        type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_SLICE
         nine_slice {
             tiled_x = 0
             tiled_y = 0
@@ -63,7 +65,7 @@ border_linear_a = 0.0
     name = window
     image {
         source = "colorless_button.png"
-        type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH
+        type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_SLICE
         nine_slice {
             tiled_x = 0
             tiled_y = 0
@@ -87,7 +89,7 @@ border_linear_a = 0.0
     name = tiled_slice
     image {
         source = "tiled_slice.png"
-        type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH
+        type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_SLICE
         nine_slice {
             tiled_x = 1
             tiled_y = 1

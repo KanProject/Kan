@@ -260,8 +260,8 @@ static void build_playground_ui (struct ui_core_render_update_state_t *state,
         window_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
         window_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
 
-        window_node->element.width = KAN_UI_VALUE_WH (0.9f);
-        window_node->element.height = KAN_UI_VALUE_WH (0.3f);
+        window_node->element.width = KAN_UI_VALUE_VH (0.9f);
+        window_node->element.height = KAN_UI_VALUE_VH (0.3f);
 
         window_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
         window_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
@@ -424,8 +424,8 @@ static void build_playground_ui (struct ui_core_render_update_state_t *state,
                                 button_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
                             }
 
-                            button_node->element.width = KAN_UI_VALUE_WH (button_sizes[button % button_type_count]);
-                            button_node->element.height = KAN_UI_VALUE_WH (0.05f);
+                            button_node->element.width = KAN_UI_VALUE_VH (button_sizes[button % button_type_count]);
+                            button_node->element.height = KAN_UI_VALUE_VH (0.05f);
                             button_node->element.margin = KAN_UI_RECT_PT (16.0f, 16.0f, 16.0f, 16.0f);
 
                             button_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
@@ -497,8 +497,8 @@ static void build_playground_ui (struct ui_core_render_update_state_t *state,
                 status_node->id = kan_next_ui_node_id (ui);
                 status_node->parent_id = status_row_node->id;
 
-                status_node->element.width = KAN_UI_VALUE_WH (0.075f);
-                status_node->element.height = KAN_UI_VALUE_WH (0.075f);
+                status_node->element.width = KAN_UI_VALUE_VH (0.075f);
+                status_node->element.height = KAN_UI_VALUE_VH (0.075f);
                 status_node->element.margin = KAN_UI_RECT_PT (3.0f, 3.0f, 3.0f, 3.0f);
 
                 status_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
@@ -538,8 +538,8 @@ static void build_playground_ui (struct ui_core_render_update_state_t *state,
                 tiled_node->id = kan_next_ui_node_id (ui);
                 tiled_node->parent_id = tiled_column_node->id;
 
-                tiled_node->element.width = KAN_UI_VALUE_WH (widths[index]);
-                tiled_node->element.height = KAN_UI_VALUE_WH (heights[index]);
+                tiled_node->element.width = KAN_UI_VALUE_VH (widths[index]);
+                tiled_node->element.height = KAN_UI_VALUE_VH (heights[index]);
                 tiled_node->element.margin = KAN_UI_RECT_PT (3.0f, 3.0f, 32.0f, 32.0f);
 
                 tiled_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT;
@@ -612,10 +612,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_CORE_RENDER_API KAN_UM_MUTATOR_EXECUTE (ui_cor
         locale->selected_locale = kan_string_intern ("en");
 
         KAN_UMI_SINGLETON_WRITE (ui_render_graph, kan_ui_render_graph_singleton_t)
-        ui_render_graph->clear_color_r = 0.0f;
-        ui_render_graph->clear_color_g = 1.0f;
-        ui_render_graph->clear_color_b = 1.0f;
-        ui_render_graph->clear_color_a = 1.0f;
+        ui_render_graph->clear_color = kan_color_linear_to_srgb (kan_make_color_linear (0.0f, 1.0f, 1.0f, 1.0f));
 
         render_context->color_table_values_dirty = true;
         render_context->color_table_values.size = 0u;

@@ -580,11 +580,11 @@ static inline kan_instance_offset_t calculate_ui_coordinate (const struct kan_ui
         floating_value = coordinate.value;
         break;
 
-    case KAN_UI_WH:
+    case KAN_UI_VH:
         floating_value = coordinate.value * (float) ui->viewport_height;
         break;
 
-    case KAN_UI_WW:
+    case KAN_UI_VW:
         floating_value = coordinate.value * (float) ui->viewport_width;
         break;
     }
@@ -1233,8 +1233,14 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
     {
         struct layout_child_access_t *access = &data->sorted_children[index];
         access->drawable->clip_rect = drawable->clip_rect;
-        access->drawable->global_x = drawable->global_x - node->render.scroll_x_px + access->drawable->local_x;
-        access->drawable->global_y = drawable->global_y - node->render.scroll_y_px + access->drawable->local_y;
+
+        access->drawable->global_x = drawable->global_x -
+                                     calculate_ui_coordinate (state->transient.ui, node->render.scroll_x_px) +
+                                     access->drawable->local_x;
+
+        access->drawable->global_y = drawable->global_y -
+                                     calculate_ui_coordinate (state->transient.ui, node->render.scroll_y_px) +
+                                     access->drawable->local_y;
 
         access->drawable->fully_clipped_out =
             access->drawable->global_x + access->drawable->width < drawable->clip_rect.x ||
@@ -2008,10 +2014,10 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
         {
             .color =
                 {
-                    public->clear_color_r,
-                    public->clear_color_g,
-                    public->clear_color_b,
-                    public->clear_color_a,
+                    public->clear_color.r,
+                    public->clear_color.g,
+                    public->clear_color.b,
+                    public->clear_color.a,
                 },
         },
     };
@@ -3192,8 +3198,8 @@ void kan_ui_node_init (struct kan_ui_node_t *instance)
     instance->layout.padding = KAN_UI_RECT_PT (0.0f, 0.0f, 0.0f, 0.0f);
 
     instance->render.clip = false;
-    instance->render.scroll_x_px = 0;
-    instance->render.scroll_y_px = 0;
+    instance->render.scroll_x_px = KAN_UI_VALUE_PX (0.0f);
+    instance->render.scroll_y_px = KAN_UI_VALUE_PX (0.0f);
 }
 
 void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
@@ -3238,8 +3244,8 @@ void kan_ui_render_graph_singleton_init (struct kan_ui_render_graph_singleton_t 
     instance->animation_global_time_s = 0.0f;
     instance->animation_global_time_loop_s = 24.0f * 60.0f * 60.0f;
     instance->last_time_ns = KAN_INT_MAX (kan_time_size_t);
-    instance->clear_color_r = 0.0f;
-    instance->clear_color_g = 0.0f;
-    instance->clear_color_b = 0.0f;
-    instance->clear_color_a = 0.0f;
+    instance->clear_color.r = 0.0f;
+    instance->clear_color.g = 0.0f;
+    instance->clear_color.b = 0.0f;
+    instance->clear_color.a = 0.0f;
 }

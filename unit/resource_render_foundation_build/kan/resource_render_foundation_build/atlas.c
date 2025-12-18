@@ -72,10 +72,7 @@ void kan_resource_atlas_header_init (struct kan_resource_atlas_header_t *instanc
     instance->page_height = 2048u;
 
     instance->border_size = 1u;
-    instance->border_linear_r = 0.0f;
-    instance->border_linear_g = 0.0f;
-    instance->border_linear_b = 0.0f;
-    instance->border_linear_a = 0.0f;
+    instance->border = kan_make_color_linear (0.0f, 0.0f, 0.0f, 0.0f);
 
     kan_dynamic_array_init (&instance->entries, 0u, sizeof (struct kan_resource_atlas_entry_header_t),
                             alignof (struct kan_resource_atlas_entry_header_t), kan_allocation_group_stack_get ());
@@ -414,10 +411,10 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
         kan_dynamic_array_set_capacity (&output->data, output->page_count * page_offset);
         output->data.size = output->data.capacity;
 
-        const uint8_t border_r = (uint8_t) roundf (255.0f * kan_color_transfer_rgb_to_srgb (input->border_linear_r));
-        const uint8_t border_g = (uint8_t) roundf (255.0f * kan_color_transfer_rgb_to_srgb (input->border_linear_g));
-        const uint8_t border_b = (uint8_t) roundf (255.0f * kan_color_transfer_rgb_to_srgb (input->border_linear_b));
-        const uint8_t border_a = (uint8_t) roundf (255.0f * input->border_linear_a);
+        const uint8_t border_r = (uint8_t) roundf (255.0f * kan_color_transfer_rgb_to_srgb (input->border.r));
+        const uint8_t border_g = (uint8_t) roundf (255.0f * kan_color_transfer_rgb_to_srgb (input->border.g));
+        const uint8_t border_b = (uint8_t) roundf (255.0f * kan_color_transfer_rgb_to_srgb (input->border.b));
+        const uint8_t border_a = (uint8_t) roundf (255.0f * input->border.a);
 
         // Start by filling everything in the atlas with border color.
         for (kan_loop_size_t pixel_index = 0u; pixel_index < build_context.pages_needed * page_size; ++pixel_index)
@@ -482,7 +479,7 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
     case KAN_RESOURCE_ATLAS_IMAGE_TYPE_REGULAR:                                                                        \
         break;                                                                                                         \
                                                                                                                        \
-    case KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH:                                                                     \
+    case KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_SLICE:                                                                     \
         (TARGET).nine_slice = (SOURCE).nine_slice;                                                                     \
         break;                                                                                                         \
     }                                                                                                                  \

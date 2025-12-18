@@ -7,10 +7,19 @@
 #include <kan/container/interned_string.h>
 #include <kan/reflection/markup.h>
 
-// TODO: Docs.
+/// \file
+/// \brief This file stores runtime representation of ui bundle resource.
+///
+/// \par Overview
+/// \parblock
+/// UI bundle is a root resource that enumerates other resources needed to setup and render the UI along with some
+/// additional information for the setup. Bundle makes it possible to specify how UI looks on the world level by
+/// providing one resource name.
+/// \endparblock
 
 KAN_C_HEADER_BEGIN
 
+/// \brief Named set of images for rendering buttons.
 struct kan_resource_ui_button_style_t
 {
     kan_interned_string_t name;
@@ -18,8 +27,11 @@ struct kan_resource_ui_button_style_t
     kan_interned_string_t disabled_image;
     kan_interned_string_t hovered_image;
     kan_interned_string_t down_image;
+
+    // TODO: Rework later as focus styles when implementing focusable controls.
 };
 
+/// \brief Describes ui bundle resource.
 struct kan_resource_ui_bundle_t
 {
     /// \brief Pass name for UI render.

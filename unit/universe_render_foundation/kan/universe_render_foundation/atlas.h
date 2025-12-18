@@ -8,7 +8,27 @@
 #include <kan/threading/atomic.h>
 #include <kan/universe/universe.h>
 
-// TODO: Docs.
+/// \file
+/// \brief Provides API for interacting with render foundation texture atlas management implementation.
+///
+/// \par Definition
+/// \parblock
+/// Render foundation texture atlas management automatically loads and unloads texture atlases based on
+/// `kan_render_atlas_usage_t` instances. When texture atlas is loaded, `kan_render_atlas_loaded_t` instance is created
+/// with appropriate render image, entry array buffer and data to query entry index in the buffer through
+/// `kan_render_atlas_loaded_query`. When there is no more usages, `kan_render_atlas_loaded_t` is automatically deleted.
+///
+/// On the render pipeline code side, user should sample image using data from atlas entry array, where every entry
+/// has type `atlas_entry` from source file `atlas_entry.rpl`, and atlas entry array could be represented in bindings
+/// like that:
+///
+/// ```
+/// set_pass read_only_storage_buffer image_entries
+/// {
+///     atlas_entry... data;
+/// };
+/// ```
+/// \endparblock
 
 KAN_C_HEADER_BEGIN
 
@@ -23,6 +43,7 @@ KAN_C_HEADER_BEGIN
 
 KAN_TYPED_ID_32_DEFINE (kan_render_atlas_usage_id_t);
 
+/// \brief Used to inform atlas management that atlas needs to be loaded.
 struct kan_render_atlas_usage_t
 {
     /// \brief This usage unique id, must be generated from `kan_next_atlas_usage_id`.
@@ -53,12 +74,14 @@ static inline kan_render_atlas_usage_id_t kan_next_atlas_usage_id (
         (kan_id_32_t) kan_atomic_int_add ((struct kan_atomic_int_t *) &atlas_singleton->usage_id_counter, 1));
 }
 
+/// \brief Internal structure used primarily for querying entry indices.
 struct kan_render_atlas_loaded_entry_mapping_t
 {
     kan_interned_string_t entry_name;
     kan_instance_size_t match_start;
 };
 
+/// \brief Contains loaded atlas data: render image, entry buffer and mapping data.
 struct kan_render_atlas_loaded_t
 {
     kan_interned_string_t name;
@@ -74,7 +97,9 @@ struct kan_render_atlas_loaded_t
 
 UNIVERSE_RENDER_FOUNDATION_API void kan_render_atlas_loaded_init (struct kan_render_atlas_loaded_t *instance);
 
+/// \brief Used to query atlas entry index by its name and current locale name.
 /// \details Returns maximum value of kan_instance_size_t when query has failed.
+///          Utilizes binary search and therefore should be fairly fast, but caching is still advised.
 UNIVERSE_RENDER_FOUNDATION_API kan_instance_size_t
 kan_render_atlas_loaded_query (const struct kan_render_atlas_loaded_t *instance,
                                kan_interned_string_t entry_name,

@@ -228,15 +228,15 @@ static inline bool is_image_compatible_with_atlas (kan_render_image_t image,
 KAN_REFLECTION_IGNORE
 enum atlas_entry_gpu_flags_t
 {
-    ATLAS_ENTRY_GPU_FLAG_NINE_PATCH = 1u << 0u,
+    ATLAS_ENTRY_GPU_FLAG_NINE_SLICE = 1u << 0u,
     ATLAS_ENTRY_GPU_FLAG_COLOR_MULTIPLIER = 1u << 1u,
 };
 
 KAN_REFLECTION_IGNORE
 enum atlas_entry_nine_slice_gpu_flags_t
 {
-    ATLAS_ENTRY_NINE_PATCH_GPU_FLAG_TILED_X = 1u << 0u,
-    ATLAS_ENTRY_NINE_PATCH_GPU_FLAG_TILED_Y = 1u << 1u,
+    ATLAS_ENTRY_NINE_SLICE_GPU_FLAG_TILED_X = 1u << 0u,
+    ATLAS_ENTRY_NINE_SLICE_GPU_FLAG_TILED_Y = 1u << 1u,
 };
 
 /// \details Must be in sync with `atlas_entry` in `atlas_entry.rpl`.
@@ -353,8 +353,8 @@ static void load_atlas (struct render_foundation_atlas_management_state_t *state
         case KAN_RESOURCE_ATLAS_IMAGE_TYPE_REGULAR:                                                                    \
             break;                                                                                                     \
                                                                                                                        \
-        case KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH:                                                                 \
-            entry_flags |= ATLAS_ENTRY_GPU_FLAG_NINE_PATCH;                                                            \
+        case KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_SLICE:                                                                 \
+            entry_flags |= ATLAS_ENTRY_GPU_FLAG_NINE_SLICE;                                                            \
             break;                                                                                                     \
         }                                                                                                              \
                                                                                                                        \
@@ -374,17 +374,17 @@ static void load_atlas (struct render_foundation_atlas_management_state_t *state
         output->pixel_size.x = (float) input->width;                                                                   \
         output->pixel_size.y = (float) input->height;                                                                  \
                                                                                                                        \
-        if (input->type == KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_PATCH)                                                   \
+        if (input->type == KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_SLICE)                                                   \
         {                                                                                                              \
             uint32_t nine_slice_flags = 0u;                                                                            \
             if (input->nine_slice.tiled_x)                                                                             \
             {                                                                                                          \
-                nine_slice_flags |= ATLAS_ENTRY_NINE_PATCH_GPU_FLAG_TILED_X;                                           \
+                nine_slice_flags |= ATLAS_ENTRY_NINE_SLICE_GPU_FLAG_TILED_X;                                           \
             }                                                                                                          \
                                                                                                                        \
             if (input->nine_slice.tiled_y)                                                                             \
             {                                                                                                          \
-                nine_slice_flags |= ATLAS_ENTRY_NINE_PATCH_GPU_FLAG_TILED_Y;                                           \
+                nine_slice_flags |= ATLAS_ENTRY_NINE_SLICE_GPU_FLAG_TILED_Y;                                           \
             }                                                                                                          \
                                                                                                                        \
             output->nine_slice_flags = nine_slice_flags;                                                               \

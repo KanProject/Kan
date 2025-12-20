@@ -39,7 +39,7 @@
 /// \parblock
 /// UI is build from hierarchical nodes that are used to define how element layout should behave. Nodes have various
 /// properties that tell the system how to lay them out and how to lay their children. Nodes without parents are treated
-/// as children of the viewport root and viewport root always lays out their children according to 
+/// as children of the viewport root and viewport root always lays out their children according to
 /// `KAN_UI_LAYOUT_FRAME`. Most of the node fields are observed for changes, therefore editing `kan_ui_node_t` will
 /// automatically trigger appropriate hierarchy sub-tree recalculation. However, it means that opening node records for
 /// update or write is quite costly and should be avoided unless necessary.
@@ -178,7 +178,7 @@ UNIVERSE_UI_API void kan_ui_bundle_singleton_init (struct kan_ui_bundle_singleto
 UNIVERSE_UI_API void kan_ui_bundle_singleton_shutdown (struct kan_ui_bundle_singleton_t *instance);
 
 /// \brief Event that is being sent when `kan_ui_bundle_singleton_t` available data is updated.
-struct kan_ui_bundle_updated_event_t
+struct kan_ui_bundle_updated_t
 {
     kan_instance_size_t stub;
 };
@@ -211,6 +211,32 @@ struct kan_ui_coordinate_t
 #define KAN_UI_VALUE_PX(VALUE) KAN_UI_VALUE_BUILD (KAN_UI_PX, VALUE)
 #define KAN_UI_VALUE_VH(VALUE) KAN_UI_VALUE_BUILD (KAN_UI_VH, VALUE)
 #define KAN_UI_VALUE_VW(VALUE) KAN_UI_VALUE_BUILD (KAN_UI_VW, VALUE)
+
+static inline kan_instance_offset_t kan_ui_calculate_coordinate (const struct kan_ui_singleton_t *ui,
+                                                                 struct kan_ui_coordinate_t coordinate)
+{
+    float floating_value = 0.0f;
+    switch (coordinate.type)
+    {
+    case KAN_UI_PT:
+        floating_value = coordinate.value * ui->scale;
+        break;
+
+    case KAN_UI_PX:
+        floating_value = coordinate.value;
+        break;
+
+    case KAN_UI_VH:
+        floating_value = coordinate.value * (float) ui->viewport_height;
+        break;
+
+    case KAN_UI_VW:
+        floating_value = coordinate.value * (float) ui->viewport_width;
+        break;
+    }
+
+    return (kan_instance_offset_t) roundf (floating_value);
+}
 
 /// \brief Represents rect that consists of UI coordinates.
 struct kan_ui_rect_t
@@ -497,6 +523,10 @@ struct kan_ui_node_drawable_t
 
     /// \brief True if fully clipped out and can never be visible.
     bool fully_clipped_out;
+
+    /// \brief True if some post-layout pre-render logic has decided that visuals are broken and we need to
+    ///        skip rendering this drawable for one frame in order to avoid glitchy visual representation.
+    bool skip_render_once;
 
     /// \brief Clip rect that should be used to render this element.
     struct kan_ui_clip_rect_t clip_rect;

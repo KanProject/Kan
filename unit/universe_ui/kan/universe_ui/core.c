@@ -11,7 +11,6 @@
 #include <kan/universe_render_foundation/program.h>
 #include <kan/universe_render_foundation/render_graph.h>
 #include <kan/universe_resource_provider/provider.h>
-#include <kan/universe_text/text.h>
 #include <kan/universe_ui/core.h>
 
 KAN_LOG_DEFINE_CATEGORY (ui_layout);
@@ -56,14 +55,14 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_n
     .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"parent_id"}},
 };
 
-struct kan_ui_node_element_on_insert_event_t
+struct kan_ui_node_on_insert_event_t
 {
     kan_ui_node_id_t id;
 };
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
 UNIVERSE_UI_API struct kan_repository_meta_automatic_on_insert_event_t kan_ui_node_on_insert_event = {
-    .event_type = "kan_ui_node_element_on_insert_event_t",
+    .event_type = "kan_ui_node_on_insert_event_t",
     .copy_outs_count = 1u,
     .copy_outs =
         (struct kan_repository_copy_out_t[]) {
@@ -74,14 +73,14 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_on_insert_event_t kan_ui_no
         },
 };
 
-struct kan_ui_node_element_on_change_event_t
+struct kan_ui_node_on_change_event_t
 {
     kan_ui_node_id_t id;
 };
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
-UNIVERSE_UI_API struct kan_repository_meta_automatic_on_change_event_t kan_ui_node_element_on_change_event = {
-    .event_type = "kan_ui_node_element_on_change_event_t",
+UNIVERSE_UI_API struct kan_repository_meta_automatic_on_change_event_t kan_ui_node_on_change_event = {
+    .event_type = "kan_ui_node_on_change_event_t",
     .observed_fields_count = 1u,
     .observed_fields =
         (struct kan_repository_field_path_t[]) {
@@ -174,7 +173,7 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_on_change_event_t kan_ui_no
         },
 };
 
-struct kan_ui_node_element_on_delete_event_t
+struct kan_ui_node_on_delete_event_t
 {
     kan_ui_node_id_t id;
     kan_ui_node_id_t parent_id;
@@ -182,7 +181,7 @@ struct kan_ui_node_element_on_delete_event_t
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
 UNIVERSE_UI_API struct kan_repository_meta_automatic_on_delete_event_t kan_ui_node_on_delete_event = {
-    .event_type = "kan_ui_node_element_on_delete_event_t",
+    .event_type = "kan_ui_node_on_delete_event_t",
     .copy_outs_count = 2u,
     .copy_outs =
         (struct kan_repository_copy_out_t[]) {
@@ -566,32 +565,6 @@ static struct layout_temporary_data_t *layout_temporary_data_create (struct ui_l
     return data;
 }
 
-static inline kan_instance_offset_t calculate_ui_coordinate (const struct kan_ui_singleton_t *ui,
-                                                             struct kan_ui_coordinate_t coordinate)
-{
-    float floating_value = 0.0f;
-    switch (coordinate.type)
-    {
-    case KAN_UI_PT:
-        floating_value = coordinate.value * ui->scale;
-        break;
-
-    case KAN_UI_PX:
-        floating_value = coordinate.value;
-        break;
-
-    case KAN_UI_VH:
-        floating_value = coordinate.value * (float) ui->viewport_height;
-        break;
-
-    case KAN_UI_VW:
-        floating_value = coordinate.value * (float) ui->viewport_width;
-        break;
-    }
-
-    return (kan_instance_offset_t) roundf (floating_value);
-}
-
 #define UI_COLLAPSE_MARGIN(FIELD, BASELINE) (FIELD) = KAN_MAX ((FIELD) - (BASELINE), 0)
 
 /// \details Returns true when short circuit mode detected and we can go to render finalize pass right away.
@@ -616,18 +589,18 @@ static bool layout_base_pass (struct ui_layout_state_t *state,
         return short_circuit;
     }
 
-    data->width_px = calculate_ui_coordinate (state->transient.ui, node->element.width);
-    data->height_px = calculate_ui_coordinate (state->transient.ui, node->element.height);
+    data->width_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.width);
+    data->height_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.height);
 
-    data->cached_margin_left_px = calculate_ui_coordinate (state->transient.ui, node->element.margin.left);
-    data->cached_margin_right_px = calculate_ui_coordinate (state->transient.ui, node->element.margin.right);
-    data->cached_margin_top_px = calculate_ui_coordinate (state->transient.ui, node->element.margin.top);
-    data->cached_margin_bottom_px = calculate_ui_coordinate (state->transient.ui, node->element.margin.bottom);
+    data->cached_margin_left_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.margin.left);
+    data->cached_margin_right_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.margin.right);
+    data->cached_margin_top_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.margin.top);
+    data->cached_margin_bottom_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.margin.bottom);
 
-    data->cached_padding_left_px = calculate_ui_coordinate (state->transient.ui, node->layout.padding.left);
-    data->cached_padding_right_px = calculate_ui_coordinate (state->transient.ui, node->layout.padding.right);
-    data->cached_padding_top_px = calculate_ui_coordinate (state->transient.ui, node->layout.padding.top);
-    data->cached_padding_bottom_px = calculate_ui_coordinate (state->transient.ui, node->layout.padding.bottom);
+    data->cached_padding_left_px = kan_ui_calculate_coordinate (state->transient.ui, node->layout.padding.left);
+    data->cached_padding_right_px = kan_ui_calculate_coordinate (state->transient.ui, node->layout.padding.right);
+    data->cached_padding_top_px = kan_ui_calculate_coordinate (state->transient.ui, node->layout.padding.top);
+    data->cached_padding_bottom_px = kan_ui_calculate_coordinate (state->transient.ui, node->layout.padding.bottom);
 
     for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
@@ -1040,8 +1013,8 @@ static void layout_position_pass (struct ui_layout_state_t *state,
     if (!KAN_TYPED_ID_32_IS_VALID (node->parent_id))
     {
         // Child of root frame, align accordingly.
-        drawable->local_x = calculate_ui_coordinate (state->transient.ui, node->element.frame_offset_x);
-        drawable->local_y = calculate_ui_coordinate (state->transient.ui, node->element.frame_offset_y);
+        drawable->local_x = kan_ui_calculate_coordinate (state->transient.ui, node->element.frame_offset_x);
+        drawable->local_y = kan_ui_calculate_coordinate (state->transient.ui, node->element.frame_offset_y);
 
         switch (node->element.horizontal_alignment)
         {
@@ -1091,7 +1064,7 @@ static void layout_position_pass (struct ui_layout_state_t *state,
             struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
 
             access->drawable->local_x =
-                pad_left + calculate_ui_coordinate (state->transient.ui, access->child->element.frame_offset_x);
+                pad_left + kan_ui_calculate_coordinate (state->transient.ui, access->child->element.frame_offset_x);
 
             switch (access->child->element.horizontal_alignment)
             {
@@ -1108,7 +1081,7 @@ static void layout_position_pass (struct ui_layout_state_t *state,
             }
 
             access->drawable->local_y =
-                pad_top + calculate_ui_coordinate (state->transient.ui, access->child->element.frame_offset_y);
+                pad_top + kan_ui_calculate_coordinate (state->transient.ui, access->child->element.frame_offset_y);
 
             switch (access->child->element.vertical_alignment)
             {
@@ -1235,11 +1208,11 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
         access->drawable->clip_rect = drawable->clip_rect;
 
         access->drawable->global_x = drawable->global_x -
-                                     calculate_ui_coordinate (state->transient.ui, node->render.scroll_x_px) +
+                                     kan_ui_calculate_coordinate (state->transient.ui, node->render.scroll_x_px) +
                                      access->drawable->local_x;
 
         access->drawable->global_y = drawable->global_y -
-                                     calculate_ui_coordinate (state->transient.ui, node->render.scroll_y_px) +
+                                     kan_ui_calculate_coordinate (state->transient.ui, node->render.scroll_y_px) +
                                      access->drawable->local_y;
 
         access->drawable->fully_clipped_out =
@@ -1322,7 +1295,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_layout)
 
     {
         KAN_CPU_SCOPED_STATIC_SECTION (ui_layout_node_lifetime_events)
-        KAN_UML_EVENT_FETCH (node_on_insert, kan_ui_node_element_on_insert_event_t)
+        KAN_UML_EVENT_FETCH (node_on_insert, kan_ui_node_on_insert_event_t)
         {
             state->transient.reorder_required = true;
             KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &node_on_insert->id)
@@ -1357,7 +1330,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_layout)
             }
         }
 
-        KAN_UML_EVENT_FETCH (node_on_delete, kan_ui_node_element_on_delete_event_t)
+        KAN_UML_EVENT_FETCH (node_on_delete, kan_ui_node_on_delete_event_t)
         {
             state->transient.reorder_required = true;
             KAN_UMI_VALUE_READ_OPTIONAL (parent, kan_ui_node_t, id, &node_on_delete->parent_id)
@@ -1387,7 +1360,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_layout)
 
     {
         KAN_CPU_SCOPED_STATIC_SECTION (ui_layout_node_change_main_events)
-        KAN_UML_EVENT_FETCH (node_on_element, kan_ui_node_element_on_change_event_t)
+        KAN_UML_EVENT_FETCH (node_on_element, kan_ui_node_on_change_event_t)
         {
             KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &node_on_element->id)
             if (node)
@@ -1726,12 +1699,12 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
     public->available_bundle.text_sdf_material_instance = resource->text_sdf_material_instance;
     public->available_bundle.text_icon_material_instance = resource->text_icon_material_instance;
 
-    public->available_bundle.button_styles.size = 0u;
-    kan_dynamic_array_set_capacity (&public->available_bundle.button_styles, resource->button_styles.size);
-    public->available_bundle.button_styles.size = resource->button_styles.size;
+    public->available_bundle.interactable_styles.size = 0u;
+    kan_dynamic_array_set_capacity (&public->available_bundle.interactable_styles, resource->interactable_styles.size);
+    public->available_bundle.interactable_styles.size = resource->interactable_styles.size;
 
-    memcpy (public->available_bundle.button_styles.data, resource->button_styles.data,
-            sizeof (struct kan_resource_ui_button_style_t) * resource->button_styles.size);
+    memcpy (public->available_bundle.interactable_styles.data, resource->interactable_styles.data,
+            sizeof (struct kan_resource_ui_interactable_style_t) * resource->interactable_styles.size);
 
     // Remove usages of old available data.
 
@@ -1781,7 +1754,7 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
     KAN_UM_ACCESS_DELETE (main_usage);
     private->main_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
 
-    KAN_UMO_EVENT_INSERT (updated_event, kan_ui_bundle_updated_event_t) { updated_event->stub = 0u; }
+    KAN_UMO_EVENT_INSERT (updated_event, kan_ui_bundle_updated_t) { updated_event->stub = 0u; }
     KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG, "Advanced bundle \"%s\" state to ready.", public->bundle_name)
 }
 
@@ -2635,7 +2608,7 @@ static void execute_draw_text_command (struct ui_render_state_t *state,
 
     struct text_push_constant_layout_t push_constant;
     push_constant.offset.x = (float) drawable->global_x;
-    push_constant.offset.y = (float) drawable->global_y + shaping_unit->shaped_primary_default_ascender;
+    push_constant.offset.y = (float) drawable->global_y;
 
     switch (shaping_unit->request.alignment)
     {
@@ -2643,12 +2616,11 @@ static void execute_draw_text_command (struct ui_render_state_t *state,
         break;
 
     case KAN_TEXT_SHAPING_ALIGNMENT_CENTER:
-        push_constant.offset.x +=
-            0.5f * (float) drawable->width - 0.5f * (float) shaping_unit->request.primary_axis_limit;
+        push_constant.offset.x += 0.5f * (float) drawable->width - 0.5f * (float) shaping_unit->shaped_primary_size;
         break;
 
     case KAN_TEXT_SHAPING_ALIGNMENT_RIGHT:
-        push_constant.offset.x += (float) drawable->width - (float) shaping_unit->request.primary_axis_limit;
+        push_constant.offset.x += (float) drawable->width - (float) shaping_unit->shaped_primary_size;
         break;
     }
 
@@ -2952,10 +2924,20 @@ static void process_draw_command (struct ui_render_state_t *state,
     }
 }
 
+static void clear_skip_render_once_flags (struct ui_render_state_t *state)
+{
+    KAN_CPU_SCOPED_STATIC_SECTION (clear_skip_render_once_flags)
+    KAN_UML_SIGNAL_UPDATE (drawable, kan_ui_node_drawable_t, skip_render_once, true)
+    {
+        drawable->skip_render_once = false;
+    }
+}
+
 UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_render_private_singleton_t)
     KAN_UMI_SINGLETON_READ (bundle, kan_ui_bundle_singleton_t)
+    CUSHION_DEFER { clear_skip_render_once_flags (state); }
 
     if (!bundle->available)
     {
@@ -2966,7 +2948,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
     // We need to check all the updates before checking frame: for the rare cases when frame was not scheduled,
     // but the bound resources were changed and must be unbound,
 
-    KAN_UML_EVENT_FETCH (bundle_updated_event, kan_ui_bundle_updated_event_t)
+    KAN_UML_EVENT_FETCH (bundle_updated_event, kan_ui_bundle_updated_t)
     {
         if (KAN_HANDLE_IS_VALID (private->pass_parameter_set))
         {
@@ -3037,7 +3019,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
 
         struct kan_render_parameter_update_description_t updates[] = {
             {
-                .binding = private->binding_image_atlas,
+                .binding = private->binding_glyph_sdf_atlas,
                 .image_binding =
                     {
                         .image = text_shaping->font_library_sdf_atlas,
@@ -3132,7 +3114,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
 
     KAN_UML_INTERVAL_ASCENDING_READ (node, kan_ui_node_drawable_t, draw_index, NULL, NULL)
     {
-        if (node->fully_clipped_out)
+        if (node->fully_clipped_out || node->skip_render_once)
         {
             continue;
         }
@@ -3207,15 +3189,17 @@ void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
     instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     instance->draw_index = 0u;
 
-    instance->main_draw_command.type = KAN_UI_DRAW_COMMAND_NONE;
-    kan_dynamic_array_init (&instance->additional_draw_commands, 0u, sizeof (struct kan_ui_draw_command_data_t),
-                            alignof (struct kan_ui_draw_command_data_t), kan_allocation_group_stack_get ());
+    instance->fully_clipped_out = false;
+    instance->skip_render_once = false;
 
     instance->clip_rect.x = 0.0f;
     instance->clip_rect.y = 0.0f;
     instance->clip_rect.width = 0.0f;
     instance->clip_rect.height = 0.0f;
-    instance->fully_clipped_out = false;
+
+    instance->main_draw_command.type = KAN_UI_DRAW_COMMAND_NONE;
+    kan_dynamic_array_init (&instance->additional_draw_commands, 0u, sizeof (struct kan_ui_draw_command_data_t),
+                            alignof (struct kan_ui_draw_command_data_t), kan_allocation_group_stack_get ());
 
     instance->local_x = 0;
     instance->local_y = 0;

@@ -47,11 +47,11 @@ void kan_resource_ui_bundle_init (struct kan_resource_ui_bundle_t *instance)
     instance->text_sdf_material_instance = NULL;
     instance->text_icon_material_instance = NULL;
 
-    kan_dynamic_array_init (&instance->button_styles, 0u, sizeof (struct kan_resource_ui_button_style_t),
-                            alignof (struct kan_resource_ui_button_style_t), kan_allocation_group_stack_get ());
+    kan_dynamic_array_init (&instance->interactable_styles, 0u, sizeof (struct kan_resource_ui_interactable_style_t),
+                            alignof (struct kan_resource_ui_interactable_style_t), kan_allocation_group_stack_get ());
 }
 
 void kan_resource_ui_bundle_shutdown (struct kan_resource_ui_bundle_t *instance)
 {
-    kan_dynamic_array_shutdown (&instance->button_styles);
+    kan_dynamic_array_shutdown (&instance->interactable_styles);
 }

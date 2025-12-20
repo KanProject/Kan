@@ -1,4 +1,4 @@
-register_concrete (application_framework_examples_ui_core_render)
+register_concrete (application_framework_examples_ui_render)
 concrete_include (PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 concrete_sources (GLOB "*.c")
 

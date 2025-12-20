@@ -676,11 +676,8 @@ void kan_text_destroy (kan_text_t instance)
 
 void kan_text_shaped_data_init (struct kan_text_shaped_data_t *instance)
 {
-    instance->primary_default_ascender = 0;
-    instance->min.x = 0;
-    instance->min.y = 0;
-    instance->max.x = 0;
-    instance->max.y = 0;
+    instance->typographic_primary_size = 0u;
+    instance->typographic_secondary_size = 0u;
 
     kan_dynamic_array_init (&instance->glyphs, 0u, sizeof (struct kan_text_shaped_glyph_instance_data_t),
                             alignof (struct kan_text_shaped_glyph_instance_data_t), kan_allocation_group_stack_get ());
@@ -1018,6 +1015,8 @@ struct shape_context_t
     struct kan_dynamic_array_t sequences;
     struct kan_dynamic_array_t render_delayed;
 
+    int32_t primary_default_ascender_26_6;
+    int32_t primary_default_descender_26_6;
     int32_t icon_base_width_26_6;
     int32_t icon_base_height_26_6;
     int32_t icon_base_y_offset_26_6;
@@ -1876,11 +1875,19 @@ static void shape_text_node_icon (struct shape_context_t *context, struct text_n
 
 static void shape_post_process_sequences (struct shape_context_t *context)
 {
-    context->output->min.x = 0;
-    context->output->min.y = 0;
-    context->output->max.x = 0;
-    context->output->max.y = 0;
-    int32_t baseline_26_6 = 0;
+    context->output->typographic_primary_size = context->request->primary_axis_limit;
+    context->output->typographic_secondary_size = 0u;
+
+#if KAN_TEXT_FT_HB_ROUND_OFFSETS_TO_PIXELS > 0u
+#    define MASK_FRACT (64u - 1u)
+#    define MASK_TRUNC ~MASK_FRACT
+#    define ROUND_GAP(VARIABLE) VARIABLE = (VARIABLE & MASK_TRUNC) + ((VARIABLE & MASK_FRACT) > 0u ? 64u : 0u);
+#else
+#    define ROUND_GAP(VARIABLE)
+#endif
+
+    int32_t baseline_26_6 = context->primary_default_ascender_26_6;
+    ROUND_GAP (baseline_26_6);
 
     for (kan_loop_size_t sequence_index = 0u; sequence_index < context->sequences.size; ++sequence_index)
     {
@@ -1924,6 +1931,7 @@ static void shape_post_process_sequences (struct shape_context_t *context)
             }
         }
 
+        ROUND_GAP (alignment_offset_26_6);
         kan_loop_size_t glyph_limit = context->output->glyphs.size;
         kan_loop_size_t icon_limit = context->output->icons.size;
 
@@ -1964,11 +1972,6 @@ static void shape_post_process_sequences (struct shape_context_t *context)
             glyph->min.y = FROM_26_6 (min_26_6->y);
             glyph->max.x = FROM_26_6 (max_26_6->x);
             glyph->max.y = FROM_26_6 (max_26_6->y);
-
-            context->output->min.x = KAN_MIN (context->output->min.x, (int32_t) glyph->min.x);
-            context->output->min.y = KAN_MIN (context->output->min.y, (int32_t) glyph->min.y);
-            context->output->max.x = KAN_MAX (context->output->max.x, (int32_t) glyph->max.x);
-            context->output->max.y = KAN_MAX (context->output->max.y, (int32_t) glyph->max.y);
         }
 
         for (kan_loop_size_t icon_index = sequence->first_icon_index; icon_index < icon_limit; ++icon_index)
@@ -1999,14 +2002,18 @@ static void shape_post_process_sequences (struct shape_context_t *context)
             icon->min.y = roundf (FROM_26_6 (min_26_6->y));
             icon->max.x = roundf (FROM_26_6 (max_26_6->x));
             icon->max.y = roundf (FROM_26_6 (max_26_6->y));
+        }
 
-            context->output->min.x = KAN_MIN (context->output->min.x, (int32_t) icon->min.x);
-            context->output->min.y = KAN_MIN (context->output->min.y, (int32_t) icon->min.y);
-            context->output->max.x = KAN_MAX (context->output->max.x, (int32_t) icon->max.x);
-            context->output->max.y = KAN_MAX (context->output->max.y, (int32_t) icon->max.y);
+        if (sequence_index == context->sequences.size - 1u)
+        {
+            int32_t descender_gap = context->primary_default_descender_26_6;
+            ROUND_GAP (descender_gap);
+            context->output->typographic_secondary_size =
+                (kan_instance_size_t) roundf (FROM_26_6 (baseline_26_6 - descender_gap));
         }
 
         baseline_26_6 += sequence->biggest_line_space_26_6;
+        ROUND_GAP (baseline_26_6);
     }
 }
 
@@ -2068,7 +2075,8 @@ bool kan_font_library_shape (kan_font_library_t instance,
 
         struct hb_font_extents_t font_extents;
         hb_font_get_extents_for_direction (context.harfbuzz_font, harfbuzz_direction, &font_extents);
-        output->primary_default_ascender = (int32_t) FROM_26_6 (font_extents.ascender);
+        context.primary_default_ascender_26_6 = font_extents.ascender;
+        context.primary_default_descender_26_6 = font_extents.descender;
 
         context.icon_base_width_26_6 = font_extents.ascender - font_extents.descender;
         context.icon_base_height_26_6 = font_extents.ascender - font_extents.descender;
@@ -2076,7 +2084,8 @@ bool kan_font_library_shape (kan_font_library_t instance,
     }
     else
     {
-        output->primary_default_ascender = 0;
+        context.primary_default_ascender_26_6 = TO_26_6 (request->font_size);
+        context.primary_default_descender_26_6 = 0;
         context.icon_base_width_26_6 = TO_26_6 (request->font_size);
         context.icon_base_height_26_6 = TO_26_6 (request->font_size);
         context.icon_base_y_offset_26_6 = -context.icon_base_height_26_6;

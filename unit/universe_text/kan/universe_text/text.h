@@ -110,6 +110,8 @@ struct kan_text_shaping_unit_t
     /// \brief Shaping request. Text inside is owner by the shaping unit.
     /// \warning `reading_direction` field is automatically reset to the appropriate value from locale when shaping is
     ///          started, therefore it doesn't matter which value user sets there.
+    /// \warning If `primary_axis_limit` is zero, it is treated as "do not shape" configuration. It is useful for the
+    ///          cases when full shaping configuration will be prepared later, for example during laying out UI.
     struct kan_text_shaping_request_t request;
 
     /// \brief Whether this text should be shaped as stable text.
@@ -124,9 +126,8 @@ struct kan_text_shaping_unit_t
     /// \brief If `shaped`, tells whether it was `stable` when it was last shaped.
     bool shaped_as_stable;
 
-    int32_t shaped_primary_default_ascender;
-    struct kan_int32_vector_2_t shaped_min;
-    struct kan_int32_vector_2_t shaped_max;
+    kan_instance_size_t shaped_primary_size;
+    kan_instance_size_t shaped_secondary_size;
 
     union
     {
@@ -143,5 +144,11 @@ struct kan_text_shaping_unit_t
 UNIVERSE_TEXT_API void kan_text_shaping_unit_init (struct kan_text_shaping_unit_t *instance);
 
 UNIVERSE_TEXT_API void kan_text_shaping_unit_shutdown (struct kan_text_shaping_unit_t *instance);
+
+/// \brief Event that is sent when text unit shaping is executed.
+struct kan_text_shaped_t
+{
+    kan_text_shaping_unit_id_t id;
+};
 
 KAN_C_HEADER_END

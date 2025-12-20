@@ -839,19 +839,11 @@ static void shape_unit (struct text_shaping_state_t *state,
                         kan_render_context_t render_context)
 {
     unit->dirty = false;
-    bool shaped_successfully = false;
-
-    CUSHION_DEFER
+    if (unit->request.primary_axis_limit == 0u)
     {
-        if (shaped_successfully)
-        {
-            unit->shaped = true;
-            unit->shaped_as_stable = unit->stable;
-        }
-        else
-        {
-            shaping_unit_on_failed (unit);
-        }
+        // Silent failure that is actually an expected skip by the docs.
+        shaping_unit_on_failed (unit);
+        return;
     }
 
     switch (locale->resource.preferred_direction)
@@ -872,12 +864,12 @@ static void shape_unit (struct text_shaping_state_t *state,
     {
         kan_text_shaped_data_shutdown (&shaped_data);
         KAN_LOG (text_shaping, KAN_LOG_ERROR, "Failed to execute text shaping due to errors in backend.")
+        shaping_unit_on_failed (unit);
         return;
     }
 
-    unit->shaped_primary_default_ascender = shaped_data.primary_default_ascender;
-    unit->shaped_min = shaped_data.min;
-    unit->shaped_max = shaped_data.max;
+    unit->shaped_primary_size = shaped_data.typographic_primary_size;
+    unit->shaped_secondary_size = shaped_data.typographic_secondary_size;
 
     if (unit->stable)
     {
@@ -944,7 +936,6 @@ static void shape_unit (struct text_shaping_state_t *state,
         }
 
         kan_text_shaped_data_shutdown (&shaped_data);
-        shaped_successfully = true;
     }
     else
     {
@@ -952,8 +943,11 @@ static void shape_unit (struct text_shaping_state_t *state,
         // On purpose: just copy pointers and go, do not shutdown shaped data on stack.
         unit->shaped_unstable.glyphs = shaped_data.glyphs;
         unit->shaped_unstable.icons = shaped_data.icons;
-        shaped_successfully = true;
     }
+
+    unit->shaped = true;
+    unit->shaped_as_stable = unit->stable;
+    KAN_UMO_EVENT_INSERT (event, kan_text_shaped_t) { event->id = unit->id; }
 }
 
 UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
@@ -1063,7 +1057,7 @@ void kan_text_shaping_unit_init (struct kan_text_shaping_unit_t *instance)
     instance->request.orientation = KAN_TEXT_ORIENTATION_HORIZONTAL;
     instance->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
     instance->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT;
-    instance->request.primary_axis_limit = 200u;
+    instance->request.primary_axis_limit = 0u;
     instance->request.text = KAN_HANDLE_SET_INVALID (kan_text_t);
 
     instance->stable = true;
@@ -1071,11 +1065,8 @@ void kan_text_shaping_unit_init (struct kan_text_shaping_unit_t *instance)
     instance->shaped = false;
     instance->shaped_as_stable = true;
 
-    instance->shaped_primary_default_ascender = 0;
-    instance->shaped_min.x = 0;
-    instance->shaped_min.y = 0;
-    instance->shaped_max.x = 0;
-    instance->shaped_max.y = 0;
+    instance->shaped_primary_size = 0u;
+    instance->shaped_secondary_size = 0u;
 
     instance->shaped_stable.glyphs_count = 0u;
     instance->shaped_stable.icons_count = 0u;

@@ -255,6 +255,12 @@ TEST_ROUTINE_API KAN_UM_MUTATOR_EXECUTE (test_routine)
                                  (unsigned long) index, 100.0f * (float) error_count / (float) pixel_count)
                         exit_code = 1;
                     }
+                    else
+                    {
+                        KAN_LOG (application_framework_example_test_routine, KAN_LOG_INFO,
+                                 "Frame and expectation difference at view %lu is %.3f%%.", (unsigned long) index,
+                                 100.0f * (float) error_count / (float) pixel_count)
+                    }
                 }
 
                 kan_application_framework_system_request_exit (state->application_framework_system_handle, exit_code);

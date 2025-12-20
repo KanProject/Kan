@@ -32,6 +32,8 @@ set (KAN_TEXT_FT_HB_FONT_SHAPED_GLYPHS_INITIAL "64" CACHE STRING
         "Initial capacity for shaped glyphs array in shaped data.")
 set (KAN_TEXT_FT_HB_FONT_SHAPED_ICONS_MIN "4" CACHE STRING
         "Minimum capacity for shaped icons array in shaped data if icons are present in text.")
+set (KAN_TEXT_FT_HB_ROUND_OFFSETS_TO_PIXELS "1" CACHE STRING
+        "If not zero, line gaps and alignment offsets will be rounded to pixel size with the goal of clearer visuals.")
 
 concrete_compile_definitions (
         PRIVATE
@@ -47,7 +49,8 @@ concrete_compile_definitions (
         KAN_TEXT_FT_HB_FONT_SHAPE_SEQUENCES_INITIAL=${KAN_TEXT_FT_HB_FONT_SHAPE_SEQUENCES_INITIAL}
         KAN_TEXT_FT_HB_FONT_SHAPE_DELAYED_RENDER_BASE=${KAN_TEXT_FT_HB_FONT_SHAPE_DELAYED_RENDER_BASE}
         KAN_TEXT_FT_HB_FONT_SHAPED_GLYPHS_INITIAL=${KAN_TEXT_FT_HB_FONT_SHAPED_GLYPHS_INITIAL}
-        KAN_TEXT_FT_HB_FONT_SHAPED_ICONS_MIN=${KAN_TEXT_FT_HB_FONT_SHAPED_ICONS_MIN})
+        KAN_TEXT_FT_HB_FONT_SHAPED_ICONS_MIN=${KAN_TEXT_FT_HB_FONT_SHAPED_ICONS_MIN}
+        KAN_TEXT_FT_HB_ROUND_OFFSETS_TO_PIXELS=${KAN_TEXT_FT_HB_ROUND_OFFSETS_TO_PIXELS})
 
 option (KAN_TEXT_FT_HB_PROFILE_MEMORY "Whether memory profiling is enabled for freetype and harfbuzz." ON)
 if (KAN_TEXT_FT_HB_PROFILE_MEMORY)

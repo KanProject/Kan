@@ -182,11 +182,11 @@ struct kan_text_shaped_icon_instance_data_t
 /// \brief Contains shaped data for rendering the whole text object.
 struct kan_text_shaped_data_t
 {
-    /// \brief Ascender value for the shaped data of the font category that is considered primary.
-    int32_t primary_default_ascender;
+    /// \brief Size on the primary direction.
+    kan_instance_size_t typographic_primary_size;
 
-    struct kan_int32_vector_2_t min;
-    struct kan_int32_vector_2_t max;
+    /// \brief Size on the secondary direction.
+    kan_instance_size_t typographic_secondary_size;
 
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_text_shaped_glyph_instance_data_t)
     struct kan_dynamic_array_t glyphs;
@@ -254,7 +254,7 @@ enum kan_text_shaping_alignment_t
 struct kan_text_shaping_request_t
 {
     /// \brief Font size for calculating glyph sizes for shaping.
-    uint32_t font_size;
+    kan_instance_size_t font_size;
 
     /// \brief Glyph render format for all glyphs in the text.
     enum kan_font_glyph_render_format_t render_format;

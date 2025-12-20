@@ -953,20 +953,17 @@ static void try_render_frame (struct text_effects_render_state_t *state,
             const kan_instance_size_t glyphs_count =
                 unit->shaped_as_stable ? unit->shaped_stable.glyphs_count : unit->shaped_unstable.glyphs.size;
 
-            push.offset_and_time.x -= unit->shaped_min.x;
-            push.offset_and_time.y -= unit->shaped_min.y;
-
             switch (unit->request.alignment)
             {
             case KAN_TEXT_SHAPING_ALIGNMENT_LEFT:
                 break;
 
             case KAN_TEXT_SHAPING_ALIGNMENT_CENTER:
-                push.offset_and_time.x -= ((float) unit->request.primary_axis_limit) * 0.5f;
+                push.offset_and_time.x -= ((float) unit->shaped_primary_size) * 0.5f;
                 break;
 
             case KAN_TEXT_SHAPING_ALIGNMENT_RIGHT:
-                push.offset_and_time.x -= (unit->shaped_max.x - unit->shaped_min.x);
+                push.offset_and_time.x -= (float) unit->shaped_primary_size;
                 break;
             }
 

@@ -752,8 +752,8 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
         push_data.projection_view =
             kan_orthographic_projection (0.0f, (float) TEST_WIDTH, (float) TEST_HEIGHT, 0.0f, 0.01f, 5000.0f);
 
-        push_data.element_offset.x = 100.0f - (float) shaped_data.min.x;
-        push_data.element_offset.y = 100.0f - (float) shaped_data.min.y;
+        push_data.element_offset.x = 100.0f;
+        push_data.element_offset.y = 100.0f;
         push_data.element_offset.z = 0.0f;
         push_data.element_offset.w = 0.0f;
         kan_render_pass_instance_push_constant (text_instance, &push_data);

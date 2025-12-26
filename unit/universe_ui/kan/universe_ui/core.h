@@ -92,6 +92,12 @@ KAN_C_HEADER_BEGIN
 /// \brief Group that is used to add all ui core mutators: both layout and render ones.
 #define KAN_UI_CORE_MUTATOR_GROUP "ui_core"
 
+/// \brief Checkpoint, after which ui ui time update mutators are executed.
+#define KAN_UI_TIME_BEGIN_CHECKPOINT "ui_time_begin"
+
+/// \brief Checkpoint, that is hit after all ui time update mutators have finished execution.
+#define KAN_UI_TIME_END_CHECKPOINT "ui_time_end"
+
 /// \brief Checkpoint, after which ui layout calculation mutators are executed.
 #define KAN_UI_LAYOUT_BEGIN_CHECKPOINT "ui_layout_begin"
 
@@ -131,6 +137,16 @@ struct kan_ui_singleton_t
 
     kan_instance_offset_t viewport_width;
     kan_instance_offset_t viewport_height;
+
+    /// \brief Global time for UI gpu-based animations.
+    /// \details Calculated inside render graph mutator by manually appending delta's.
+    float animation_global_time_s;
+
+    /// \brief Global time for UI animations loops back to zero when it becomes higher than this value.
+    float animation_global_time_loop_s;
+
+    /// \brief Use to calculate deltas for `animation_global_time_s`.
+    kan_time_size_t last_time_ns;
 };
 
 UNIVERSE_UI_API void kan_ui_singleton_init (struct kan_ui_singleton_t *instance);
@@ -416,12 +432,20 @@ enum kan_ui_draw_command_t
 struct kan_ui_draw_command_image_t
 {
     /// \brief Image entry index in UI atlas.
-    uint32_t image_record_index;
+    uint32_t record_index;
 
-    /// \brief Additional 32-bit mark that will be passed through instanced data and can be used for custom effects if
-    ///        user overrides default UI material.
-    uint32_t ui_mark;
+    /// \brief True if image can be overridden by control logic, for example focusable visuals.
+    /// \details It is advised to leave it at `false` unless you know that control-specific image replacement should be
+    ///          used for this element.
+    bool allow_override;
 };
+
+/// \brief Syntax sugar drop-in initializer for image draw commands.
+#define KAN_UI_IMAGE_COMMAND_DEFAULT(INDEX)                                                                            \
+    ((struct kan_ui_draw_command_image_t) {                                                                            \
+        .record_index = (INDEX),                                                                                       \
+        .allow_override = false,                                                                                       \
+    })
 
 /// \brief If default text pipeline is used, it is possible select one of up to 255 palette entries for the color when
 ///        passed as mark in style while creating text object by masking palette index under this mask.
@@ -456,10 +480,6 @@ struct kan_ui_draw_command_text_t
     /// \brief Shaping unit that should be drawn when ready.
     kan_text_shaping_unit_id_t shaping_unit;
 
-    /// \brief Additional 32-bit mark, that will be passed through push constants for the text as a whole.
-    /// \warning Not the same mark as default text above, this one is different and intended for user custom pipelines!
-    uint32_t ui_mark;
-
     /// \brief Used to calculate local time for text animation on GPU if any animation is used.
     /// \details Relative to `kan_ui_render_graph_singleton_t::animation_global_time_s`.
     float animation_start_time_s;
@@ -470,6 +490,9 @@ struct kan_ui_draw_command_custom_push_layout_t
 {
     struct kan_float_vector_2_t offset;
     struct kan_float_vector_2_t size;
+
+    uint32_t ui_mark;
+    uint32_t unused_padding[3u];
 };
 
 /// \brief Contains data for UI custom draw command.
@@ -485,9 +508,22 @@ struct kan_ui_draw_command_custom_t
     kan_render_pipeline_parameter_set_t shared_set;
 };
 
+/// \brief UI mark flags that are supported in default pipelines and are used to pass information from controls.
+enum kan_ui_default_mark_flag_t
+{
+    KAN_UI_DEFAULT_MARK_FLAG_HOVERED = 1u << 0u,
+    KAN_UI_DEFAULT_MARK_FLAG_DOWN = 1u << 1u,
+};
+
 /// \brief Describes one draw command for the UI render.
 struct kan_ui_draw_command_data_t
 {
+    /// \brief Additional 32-bit mark that will be passed through instanced data and is used to tell more info about
+    ///        the element and its state.
+    /// \warning Not the same mark as text marks in text command, this one is intended for passing additional state info
+    ///          like hover or mouse down.
+    uint32_t ui_mark;
+
     enum kan_ui_draw_command_t type;
     union
     {
@@ -577,16 +613,6 @@ struct kan_ui_render_graph_singleton_t
 
     /// \brief Render image which can be presented on surface after `final_pass_instance`.
     kan_render_image_t final_image;
-
-    /// \brief Global time for UI gpu-based animations.
-    /// \details Calculated inside render graph mutator by manually appending delta's.
-    float animation_global_time_s;
-
-    /// \brief Global time for UI animations loops back to zero when it becomes higher than this value.
-    float animation_global_time_loop_s;
-
-    /// \brief Use to calculate deltas for `animation_global_time_s`.
-    kan_time_size_t last_time_ns;
 
     /// \brief Clear color for UI viewport render target image.
     struct kan_color_srgb_t clear_color;

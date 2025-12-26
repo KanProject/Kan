@@ -19,5 +19,5 @@ scheduler_name = "trivial"
         text_shaping,
         ui_controls,
         ui_core,
-        ui_example_render
+        ui_example_interaction
 }

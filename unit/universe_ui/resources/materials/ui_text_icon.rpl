@@ -26,6 +26,8 @@ instanced_attribute_container instanced
 struct palette_entry
 {
     f4 color_main;
+    f4 color_hovered;
+    f4 color_down;
     f4 cos_anim_color;
     u1 color_table_multiplier_index;
 };
@@ -39,16 +41,17 @@ set_material read_only_storage_buffer setup
 
 state_container state
 {
-    u3 meta;
+    u4 meta;
     alias (icon_index, meta.x)
     alias (mark, meta.y)
     alias (read_index, meta.z)
+    alias (ui_mark, meta.w)
     f2 uv;
 };
 
 void ui_vertex_main (void)
 {
-    state.meta = instanced.meta;
+    state.meta = u4 {instanced.meta, push.ui_mark};
     state.uv =  vertex.position;
     f2 position = instanced.min + vertex.position * (instanced.max - instanced.min);
     vertex_stage_output_position (pass_view_data.projection_view * f4 {push.offset + position, 0.5, 1.0});
@@ -85,6 +88,16 @@ void ui_fragment_main (void)
        f1 phase = 2.0 * pi() * fract_f1 (push.local_time / setup.cos_anim_period);
        f1 modifier = cos_f1(phase) * 0.5 + 0.5;
        modifier_color = mix_f4 (palette.cos_anim_color, modifier_color, f4 {modifier});
+    }
+    
+    if ((state.ui_mark & ui_mark_default_flag_hovered) != 0u)
+    {
+        modifier_color = palette.color_hovered;
+    }
+    
+    if ((state.ui_mark & ui_mark_default_flag_down) != 0u)
+    {
+        modifier_color = palette.color_down;
     }
     
     if ((state.mark & color_table_flag) != 0u)

@@ -33,12 +33,12 @@ material = ui_text_glyph_sdf
     +parameters {
         name = color_hovered
         type = KAN_RPL_META_VARIABLE_TYPE_F4
-        value_f4 { x = 0.8 y = 0.8 z = 0.8 w = 1.0 }
+        value_f4 { x = 0.7 y = 0.7 z = 0.7 w = 1.0 }
     }
     +parameters {
         name = color_down
         type = KAN_RPL_META_VARIABLE_TYPE_F4
-        value_f4 { x = 0.5 y = 0.5 z = 0.5 w = 1.0 }
+        value_f4 { x = 0.9 y = 0.9 z = 0.9 w = 1.0 }
     }
     +parameters {
         name = color_table_multiplier_index

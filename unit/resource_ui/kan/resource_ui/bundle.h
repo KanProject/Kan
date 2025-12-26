@@ -19,14 +19,16 @@
 
 KAN_C_HEADER_BEGIN
 
-/// \brief Named set of images for rendering interactable elements.
-struct kan_resource_ui_interactable_style_t
+/// \brief Named style for rendering interactable hit box nodes.
+struct kan_resource_ui_hit_box_interaction_style_t
 {
     kan_interned_string_t name;
-    kan_interned_string_t enabled_image;
-    kan_interned_string_t disabled_image;
+    kan_interned_string_t regular_image;
     kan_interned_string_t hovered_image;
     kan_interned_string_t down_image;
+
+    /// \brief For how much time hit box should be rendered as down after being pressed.
+    float down_state_s;
 };
 
 /// \brief Describes ui bundle resource.
@@ -47,8 +49,8 @@ struct kan_resource_ui_bundle_t
     /// \brief Material instance used for rendering text icons.
     kan_interned_string_t text_icon_material_instance;
 
-    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_ui_interactable_style_t)
-    struct kan_dynamic_array_t interactable_styles;
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_ui_hit_box_interaction_style_t)
+    struct kan_dynamic_array_t hit_box_interaction_styles;
 };
 
 RESOURCE_UI_API void kan_resource_ui_bundle_init (struct kan_resource_ui_bundle_t *instance);

@@ -21,6 +21,7 @@ KAN_LOG_DEFINE_CATEGORY (ui_render);
 KAN_USE_STATIC_INTERNED_IDS
 KAN_USE_STATIC_CPU_SECTIONS
 
+KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_time)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_layout)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_bundle_management)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_render_graph)
@@ -202,6 +203,38 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_n
     .child_type_name = "kan_ui_node_drawable_t",
     .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
 };
+
+struct ui_time_state_t
+{
+    KAN_UM_GENERATE_STATE_QUERIES (ui_time)
+    KAN_UM_BIND_STATE (ui_time, state)
+};
+
+UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_time)
+{
+    kan_static_interned_ids_ensure_initialized ();
+    kan_cpu_static_sections_ensure_initialized ();
+
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_FRAME_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_TIME_BEGIN_CHECKPOINT);
+    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_TIME_END_CHECKPOINT);
+    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_LAYOUT_BEGIN_CHECKPOINT);
+}
+
+UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_time)
+{
+    KAN_UMI_SINGLETON_WRITE (public, kan_ui_singleton_t)
+    if (public->last_time_ns != KAN_INT_MAX (kan_time_size_t))
+    {
+        const kan_time_size_t delta_ns = kan_precise_time_get_elapsed_nanoseconds () - public->last_time_ns;
+        const float delta_s = 1e-9f * (float) delta_ns;
+
+        public->animation_global_time_s =
+            fmodf (public->animation_global_time_s + delta_s, public->animation_global_time_loop_s);
+    }
+
+    public->last_time_ns = kan_precise_time_get_elapsed_nanoseconds ();
+}
 
 /// \details Currently, we use very simplistic invalidation algorithm: we find topmost node in hierarchy that cannot
 ///          be affected by the change (for example, does not use "fit children" size flag), form array of that nodes
@@ -1699,12 +1732,13 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
     public->available_bundle.text_sdf_material_instance = resource->text_sdf_material_instance;
     public->available_bundle.text_icon_material_instance = resource->text_icon_material_instance;
 
-    public->available_bundle.interactable_styles.size = 0u;
-    kan_dynamic_array_set_capacity (&public->available_bundle.interactable_styles, resource->interactable_styles.size);
-    public->available_bundle.interactable_styles.size = resource->interactable_styles.size;
+    public->available_bundle.hit_box_interaction_styles.size = 0u;
+    kan_dynamic_array_set_capacity (&public->available_bundle.hit_box_interaction_styles,
+                                    resource->hit_box_interaction_styles.size);
+    public->available_bundle.hit_box_interaction_styles.size = resource->hit_box_interaction_styles.size;
 
-    memcpy (public->available_bundle.interactable_styles.data, resource->interactable_styles.data,
-            sizeof (struct kan_resource_ui_interactable_style_t) * resource->interactable_styles.size);
+    memcpy (public->available_bundle.hit_box_interaction_styles.data, resource->hit_box_interaction_styles.data,
+            sizeof (struct kan_resource_ui_hit_box_interaction_style_t) * resource->hit_box_interaction_styles.size);
 
     // Remove usages of old available data.
 
@@ -1862,6 +1896,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_render_graph)
     kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_FRAME_END_CHECKPOINT);
     kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_LAYOUT_END_CHECKPOINT);
     kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_TIME_END_CHECKPOINT);
     kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_RENDER_GRAPH_BEGIN_CHECKPOINT);
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_RENDER_GRAPH_END_CHECKPOINT);
 }
@@ -1875,18 +1910,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
     public->final_pass_instance = KAN_HANDLE_SET_INVALID (kan_render_pass_instance_t);
     public->final_image = KAN_HANDLE_SET_INVALID (kan_render_image_t);
 
-    if (public->last_time_ns != KAN_INT_MAX (kan_time_size_t))
-    {
-        const kan_time_size_t delta_ns = kan_precise_time_get_elapsed_nanoseconds () - public->last_time_ns;
-        const float delta_s = 1e-9f * (float) delta_ns;
-
-        public->animation_global_time_s =
-            fmodf (public->animation_global_time_s + delta_s, public->animation_global_time_loop_s);
-    }
-
-    public->last_time_ns = kan_precise_time_get_elapsed_nanoseconds ();
     KAN_UMI_SINGLETON_READ (render_context, kan_render_context_singleton_t)
-
     if (!render_context->frame_scheduled)
     {
         return;
@@ -2100,6 +2124,7 @@ struct image_instanced_data_t
 KAN_REFLECTION_IGNORE
 struct ui_render_transient_state_t
 {
+    const struct kan_ui_singleton_t *ui;
     struct ui_render_private_singleton_t *private;
     const struct kan_ui_render_graph_singleton_t *ui_render_graph;
 
@@ -2624,13 +2649,12 @@ static void execute_draw_text_command (struct ui_render_state_t *state,
         break;
     }
 
-    push_constant.local_time =
-        state->transient.ui_render_graph->animation_global_time_s - command->text.animation_start_time_s;
-    push_constant.ui_mark = command->text.ui_mark;
+    push_constant.local_time = state->transient.ui->animation_global_time_s - command->text.animation_start_time_s;
+    push_constant.ui_mark = command->ui_mark;
 
     while (push_constant.local_time < 0.0f)
     {
-        push_constant.local_time += state->transient.ui_render_graph->animation_global_time_loop_s;
+        push_constant.local_time += state->transient.ui->animation_global_time_loop_s;
     }
 
     if (glyph_count > 0u)
@@ -2860,6 +2884,7 @@ static void execute_draw_custom_command (struct ui_render_state_t *state,
         push.size.y = (float) drawable->global_y;
         push.offset.x = (float) drawable->width;
         push.offset.y = (float) drawable->height;
+        push.ui_mark = command->ui_mark;
         kan_render_pass_instance_push_constant (pass_instance, &push);
 
         kan_render_pass_instance_draw (pass_instance, 0u, sizeof (ui_rect_indices) / sizeof (ui_rect_indices[0u]), 0u,
@@ -2879,6 +2904,12 @@ static void process_draw_command (struct ui_render_state_t *state,
 
     case KAN_UI_DRAW_COMMAND_IMAGE:
     {
+        if (command->image.record_index == KAN_INT_MAX (uint32_t))
+        {
+            // Command is not yet initialized with image index, skip it.
+            break;
+        }
+
         if (!state->transient.image_bulk_slice_begin)
         {
             allocate_new_image_bulk_region (state);
@@ -2903,8 +2934,8 @@ static void process_draw_command (struct ui_render_state_t *state,
         data->size.x = (float) drawable->width;
         data->size.y = (float) drawable->height;
 
-        data->image_index = command->image.image_record_index;
-        data->ui_mark = command->image.ui_mark;
+        data->image_index = command->image.record_index;
+        data->ui_mark = command->ui_mark;
         break;
     }
 
@@ -2953,6 +2984,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
         if (KAN_HANDLE_IS_VALID (private->pass_parameter_set))
         {
             kan_render_pipeline_parameter_set_destroy (private->pass_parameter_set);
+            private->pass_parameter_set = KAN_HANDLE_SET_INVALID (kan_render_pipeline_parameter_set_t);
         }
 
         private->used_pass_name = NULL;
@@ -2966,6 +2998,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
             if (KAN_HANDLE_IS_VALID (private->pass_parameter_set))
             {
                 kan_render_pipeline_parameter_set_destroy (private->pass_parameter_set);
+                private->pass_parameter_set = KAN_HANDLE_SET_INVALID (kan_render_pipeline_parameter_set_t);
             }
 
             private->used_pass_name = NULL;
@@ -3097,6 +3130,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
     pass_view_data->projection_view = kan_orthographic_projection (0.0f, (float) ui->viewport_width,
                                                                    (float) ui->viewport_height, 0.0f, 0.01f, 100.0f);
 
+    state->transient.ui = ui;
     state->transient.private = private;
     state->transient.ui_render_graph = ui_render_graph;
 
@@ -3140,6 +3174,9 @@ void kan_ui_singleton_init (struct kan_ui_singleton_t *instance)
     instance->scale = 1.0f;
     instance->viewport_width = 0;
     instance->viewport_height = 0;
+    instance->animation_global_time_s = 0.0f;
+    instance->animation_global_time_loop_s = 24.0f * 60.0f * 60.0f;
+    instance->last_time_ns = KAN_INT_MAX (kan_time_size_t);
 }
 
 void kan_ui_bundle_singleton_init (struct kan_ui_bundle_singleton_t *instance)
@@ -3197,7 +3234,9 @@ void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
     instance->clip_rect.width = 0.0f;
     instance->clip_rect.height = 0.0f;
 
+    instance->main_draw_command.ui_mark = 0u;
     instance->main_draw_command.type = KAN_UI_DRAW_COMMAND_NONE;
+
     kan_dynamic_array_init (&instance->additional_draw_commands, 0u, sizeof (struct kan_ui_draw_command_data_t),
                             alignof (struct kan_ui_draw_command_data_t), kan_allocation_group_stack_get ());
 
@@ -3225,9 +3264,6 @@ void kan_ui_render_graph_singleton_init (struct kan_ui_render_graph_singleton_t 
     instance->allocation = NULL;
     instance->final_pass_instance = KAN_HANDLE_SET_INVALID (kan_render_pass_instance_t);
     instance->final_image = KAN_HANDLE_SET_INVALID (kan_render_image_t);
-    instance->animation_global_time_s = 0.0f;
-    instance->animation_global_time_loop_s = 24.0f * 60.0f * 60.0f;
-    instance->last_time_ns = KAN_INT_MAX (kan_time_size_t);
     instance->clear_color.r = 0.0f;
     instance->clear_color.g = 0.0f;
     instance->clear_color.b = 0.0f;

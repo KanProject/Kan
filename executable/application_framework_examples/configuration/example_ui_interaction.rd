@@ -13,6 +13,6 @@ ${ENABLED_SYSTEMS}
     }
 }
 
-log_name = example_ui_render
-program_world = "example/ui_render"
+log_name = example_ui_interaction
+program_world = "example/ui_interaction"
 ${AUTO_BUILD_SUFFIX}

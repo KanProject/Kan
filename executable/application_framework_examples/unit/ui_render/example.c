@@ -21,10 +21,10 @@
 KAN_LOG_DEFINE_CATEGORY (application_framework_example_ui_render);
 KAN_USE_STATIC_INTERNED_IDS
 
-#define KAN_ui_render_MUTATOR_GROUP "ui_render"
-KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_render_update)
-KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_render_post_render)
-APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_GROUP_META (ui_render, KAN_ui_render_MUTATOR_GROUP);
+#define KAN_UI_RENDER_MUTATOR_GROUP "ui_example_render"
+KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_example_render_update)
+KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_example_render_post_render)
+APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_GROUP_META (ui_render, KAN_UI_RENDER_MUTATOR_GROUP);
 
 #define TEST_WIDTH 1600u
 #define TEST_HEIGHT 800u
@@ -46,10 +46,10 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API void example_ui_render_singleton_in
     instance->rendered_once = false;
 }
 
-struct ui_render_update_state_t
+struct ui_example_render_update_state_t
 {
-    KAN_UM_GENERATE_STATE_QUERIES (ui_render_update)
-    KAN_UM_BIND_STATE (ui_render_update, state)
+    KAN_UM_GENERATE_STATE_QUERIES (ui_example_render_update)
+    KAN_UM_BIND_STATE (ui_example_render_update, state)
 
     /// \details Used as hack to force-update showcase ui behavior on hot reload.
     bool just_deployed;
@@ -59,7 +59,7 @@ struct ui_render_update_state_t
     kan_context_system_t render_backend_system_handle;
 };
 
-APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_DEPLOY (ui_render_update)
+APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_DEPLOY (ui_example_render_update)
 {
     kan_static_interned_ids_ensure_initialized ();
     state->just_deployed = true;
@@ -71,11 +71,12 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_DEPLOY (ui_render_up
     state->render_backend_system_handle = kan_context_query (context, KAN_CONTEXT_RENDER_BACKEND_SYSTEM_NAME);
 
     kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_TIME_END_CHECKPOINT);
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_TEXT_SHAPING_BEGIN_CHECKPOINT);
-    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_CONTROLS_PRE_LAYOUT_BEGIN_CHECKPOINT);
+    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_CONTROLS_INPUT_BEGIN_CHECKPOINT);
 }
 
-static void build_playground_ui (struct ui_render_update_state_t *state,
+static void build_playground_ui (struct ui_example_render_update_state_t *state,
                                  struct example_ui_render_singleton_t *singleton)
 {
     KAN_UMI_SINGLETON_READ (text_shaping, kan_text_shaping_singleton_t)
@@ -171,7 +172,7 @@ static void build_playground_ui (struct ui_render_update_state_t *state,
         {
             window_drawable->id = window_node->id;
             window_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_IMAGE;
-            window_drawable->main_draw_command.image.image_record_index = image_window;
+            window_drawable->main_draw_command.image = KAN_UI_IMAGE_COMMAND_DEFAULT (image_window);
         }
 
         KAN_UMO_INDEXED_INSERT (top_text_node, kan_ui_node_t)
@@ -190,7 +191,6 @@ static void build_playground_ui (struct ui_render_update_state_t *state,
                 top_text_drawable->id = top_text_node->id;
                 top_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                 top_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                top_text_drawable->main_draw_command.text.ui_mark = 0u;
                 top_text_drawable->main_draw_command.text.animation_start_time_s = 0.0f;
             }
 
@@ -220,7 +220,6 @@ static void build_playground_ui (struct ui_render_update_state_t *state,
                 remark_text_drawable->id = remark_text_node->id;
                 remark_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                 remark_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                remark_text_drawable->main_draw_command.text.ui_mark = 0u;
                 remark_text_drawable->main_draw_command.text.animation_start_time_s = 0.0f;
             }
 
@@ -332,7 +331,6 @@ static void build_playground_ui (struct ui_render_update_state_t *state,
                 icons_test_text_drawable->id = icons_test_text_node->id;
                 icons_test_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                 icons_test_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                icons_test_text_drawable->main_draw_command.text.ui_mark = 0u;
                 icons_test_text_drawable->main_draw_command.text.animation_start_time_s = 0.0f;
             }
 
@@ -362,7 +360,6 @@ static void build_playground_ui (struct ui_render_update_state_t *state,
                 bottom_text_drawable->id = bottom_text_node->id;
                 bottom_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                 bottom_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                bottom_text_drawable->main_draw_command.text.ui_mark = 0u;
                 bottom_text_drawable->main_draw_command.text.animation_start_time_s = 0.0f;
             }
 
@@ -430,8 +427,8 @@ static void build_playground_ui (struct ui_render_update_state_t *state,
                             {
                                 button_drawable->id = button_node->id;
                                 button_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_IMAGE;
-                                button_drawable->main_draw_command.image.image_record_index =
-                                    button_images[button % button_type_count];
+                                button_drawable->main_draw_command.image =
+                                    KAN_UI_IMAGE_COMMAND_DEFAULT (button_images[button % button_type_count]);
                             }
 
                             KAN_UMO_INDEXED_INSERT (button_text_node, kan_ui_node_t)
@@ -451,7 +448,6 @@ static void build_playground_ui (struct ui_render_update_state_t *state,
                                     button_text_drawable->id = button_text_node->id;
                                     button_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                                     button_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                                    button_text_drawable->main_draw_command.text.ui_mark = 0u;
                                     button_text_drawable->main_draw_command.text.animation_start_time_s = 0.0f;
                                 }
 
@@ -503,7 +499,7 @@ static void build_playground_ui (struct ui_render_update_state_t *state,
                 {
                     status_drawable->id = status_node->id;
                     status_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_IMAGE;
-                    status_drawable->main_draw_command.image.image_record_index = image_shield;
+                    status_drawable->main_draw_command.image = KAN_UI_IMAGE_COMMAND_DEFAULT (image_shield);
                 }
             }
         }
@@ -544,7 +540,7 @@ static void build_playground_ui (struct ui_render_update_state_t *state,
                 {
                     tiled_drawable->id = tiled_node->id;
                     tiled_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_IMAGE;
-                    tiled_drawable->main_draw_command.image.image_record_index = image_tiled_slice;
+                    tiled_drawable->main_draw_command.image = KAN_UI_IMAGE_COMMAND_DEFAULT (image_tiled_slice);
                 }
             }
         }
@@ -553,7 +549,7 @@ static void build_playground_ui (struct ui_render_update_state_t *state,
     singleton->should_rebuild = false;
 }
 
-APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_EXECUTE (ui_render_update)
+APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_EXECUTE (ui_example_render_update)
 {
     // Write access just to write color table values once, okay for the example.
     KAN_UMI_SINGLETON_WRITE (render_context, kan_render_context_singleton_t)
@@ -616,20 +612,9 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_EXECUTE (ui_render_u
         struct kan_color_linear_t *color_positive = kan_dynamic_array_add_last (&render_context->color_table_values);
         struct kan_color_linear_t *color_neutral = kan_dynamic_array_add_last (&render_context->color_table_values);
 
-        color_negative->r = 0.8f;
-        color_negative->g = 0.0f;
-        color_negative->b = 0.0f;
-        color_negative->a = 1.0f;
-
-        color_positive->r = 0.8f;
-        color_positive->g = 0.8f;
-        color_positive->b = 0.0f;
-        color_positive->a = 1.0f;
-
-        color_neutral->r = 0.0f;
-        color_neutral->g = 0.8f;
-        color_neutral->b = 0.8f;
-        color_neutral->a = 1.0f;
+        *color_negative = kan_make_color_linear (0.8f, 0.0f, 0.0f, 1.0);
+        *color_positive = kan_make_color_linear (0.8f, 0.8f, 0.0f, 1.0f);
+        *color_neutral = kan_make_color_linear (0.0f, 0.8f, 0.8f, 1.0f);
     }
 
     if (test->test_mode_enabled && !KAN_HANDLE_IS_VALID (test->expectation_read_back_buffer))
@@ -669,14 +654,14 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_EXECUTE (ui_render_u
     }
 }
 
-struct ui_render_post_render_state_t
+struct ui_example_render_post_render_state_t
 {
-    KAN_UM_GENERATE_STATE_QUERIES (ui_render_post_render)
-    KAN_UM_BIND_STATE (ui_render_post_render, state)
+    KAN_UM_GENERATE_STATE_QUERIES (ui_example_render_post_render)
+    KAN_UM_BIND_STATE (ui_example_render_post_render, state)
     kan_context_system_t application_system_handle;
 };
 
-APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_DEPLOY (ui_render_post_render)
+APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_DEPLOY (ui_example_render_post_render)
 {
     kan_static_interned_ids_ensure_initialized ();
     kan_context_t context = kan_universe_get_context (universe);
@@ -684,7 +669,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_DEPLOY (ui_render_po
     kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_RENDER_END_CHECKPOINT);
 }
 
-APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_EXECUTE (ui_render_post_render)
+APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_EXECUTE (ui_example_render_post_render)
 {
     KAN_UMI_SINGLETON_READ (ui_render_graph, kan_ui_render_graph_singleton_t)
     KAN_UMI_SINGLETON_READ (resource_provider, kan_resource_provider_singleton_t)

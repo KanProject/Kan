@@ -35,3 +35,7 @@ setting color_output_color_blend_operation block 0 = "add";
 setting color_output_source_alpha_blend_factor block 0 = "source_alpha";
 setting color_output_destination_alpha_blend_factor block 0 = "one_minus_source_alpha";
 setting color_output_alpha_blend_operation block 0 = "add";
+
+// Default ui element mark constants.
+constant ui_mark_default_flag_hovered = 1u << 0u;
+constant ui_mark_default_flag_down = 1u << 1u;

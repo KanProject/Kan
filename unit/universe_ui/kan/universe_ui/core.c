@@ -2955,20 +2955,10 @@ static void process_draw_command (struct ui_render_state_t *state,
     }
 }
 
-static void clear_skip_render_once_flags (struct ui_render_state_t *state)
-{
-    KAN_CPU_SCOPED_STATIC_SECTION (clear_skip_render_once_flags)
-    KAN_UML_SIGNAL_UPDATE (drawable, kan_ui_node_drawable_t, skip_render_once, true)
-    {
-        drawable->skip_render_once = false;
-    }
-}
-
 UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_render_private_singleton_t)
     KAN_UMI_SINGLETON_READ (bundle, kan_ui_bundle_singleton_t)
-    CUSHION_DEFER { clear_skip_render_once_flags (state); }
 
     if (!bundle->available)
     {
@@ -3148,7 +3138,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
 
     KAN_UML_INTERVAL_ASCENDING_READ (node, kan_ui_node_drawable_t, draw_index, NULL, NULL)
     {
-        if (node->fully_clipped_out || node->skip_render_once)
+        if (node->fully_clipped_out || node->hidden)
         {
             continue;
         }
@@ -3227,7 +3217,7 @@ void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
     instance->draw_index = 0u;
 
     instance->fully_clipped_out = false;
-    instance->skip_render_once = false;
+    instance->hidden = false;
 
     instance->clip_rect.x = 0.0f;
     instance->clip_rect.y = 0.0f;

@@ -560,9 +560,11 @@ struct kan_ui_node_drawable_t
     /// \brief True if fully clipped out and can never be visible.
     bool fully_clipped_out;
 
-    /// \brief True if some post-layout pre-render logic has decided that visuals are broken and we need to
-    ///        skip rendering this drawable for one frame in order to avoid glitchy visual representation.
-    bool skip_render_once;
+    /// \brief If true, drawable will not be rendered.
+    /// \details Does not affect children. Mostly intended to be used by controls for temporary hide/show logic.
+    ///          For the high level ui node management logic, it is advised to just delete nodes that should not
+    ///          be visible, for example HUD elements that are only shown when user clicks on some button.
+    bool hidden;
 
     /// \brief Clip rect that should be used to render this element.
     struct kan_ui_clip_rect_t clip_rect;

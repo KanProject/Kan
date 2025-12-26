@@ -710,6 +710,9 @@ static void sync_ui_size_from_text_secondary (struct ui_controls_pre_layout_stat
             break;
         }
     }
+
+    KAN_UMI_VALUE_UPDATE_REQUIRED (drawable, kan_ui_node_drawable_t, id, &node->id)
+    drawable->hidden = false;
 }
 
 UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_pre_layout)
@@ -815,7 +818,8 @@ static void text_behavior_post_laid_out (struct ui_controls_post_layout_state_t 
 
     if (shaping_unit->dirty && text_behavior->sync_ui_size_from_text_secondary)
     {
-        drawable->skip_render_once = true;
+        // Will be shown again once
+        drawable->hidden = true;
     }
 }
 

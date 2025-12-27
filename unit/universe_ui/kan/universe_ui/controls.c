@@ -293,7 +293,7 @@ static inline void use_hit_box_interaction_visuals (struct ui_controls_input_sta
 }
 
 static uint32_t query_image (struct ui_controls_input_state_t *state,
-                             struct kan_ui_bundle_singleton_t *bundle,
+                             const struct kan_ui_bundle_singleton_t *bundle,
                              kan_interned_string_t name)
 {
     KAN_UMI_SINGLETON_READ (locale, kan_locale_singleton_t)
@@ -333,7 +333,7 @@ static inline enum hit_box_interaction_flags_t calculate_hit_box_interaction_fla
 }
 
 static inline uint32_t select_image_for_hit_box_interaction (struct ui_controls_input_state_t *state,
-                                                             struct kan_ui_bundle_singleton_t *bundle,
+                                                             const struct kan_ui_bundle_singleton_t *bundle,
                                                              kan_interned_string_t style_name,
                                                              enum hit_box_interaction_flags_t flags)
 {
@@ -367,7 +367,7 @@ static inline uint32_t select_image_for_hit_box_interaction (struct ui_controls_
 }
 
 static void update_interacted_scroll_line_visibility (struct ui_controls_input_state_t *state,
-                                                      struct kan_ui_input_singleton_t *public,
+                                                      const struct kan_ui_input_singleton_t *public,
                                                       struct kan_ui_node_scroll_line_state_t *line_state,
                                                       const struct kan_ui_node_scroll_behavior_t *behavior,
                                                       bool interacted_with_hit_box)
@@ -388,14 +388,10 @@ static void update_interacted_scroll_line_visibility (struct ui_controls_input_s
         }
     }
 
-    if (interacted_with_hit_box || KAN_TYPED_ID_32_IS_EQUAL (line_state->id, public->mouse_button_down_on_id))
+    if (behavior->lines_always_visible || interacted_with_hit_box ||
+        KAN_TYPED_ID_32_IS_EQUAL (line_state->id, public->mouse_button_down_on_id))
     {
         line_state->visible_until_s = FLT_MAX;
-        return;
-    }
-
-    if (behavior->lines_always_visible)
-    {
         return;
     }
 
@@ -404,14 +400,15 @@ static void update_interacted_scroll_line_visibility (struct ui_controls_input_s
 }
 
 static void apply_hit_box_interaction_visuals (struct ui_controls_input_state_t *state,
-                                               struct kan_ui_input_singleton_t *public,
-                                               struct kan_ui_bundle_singleton_t *bundle,
+                                               const struct kan_ui_input_singleton_t *public,
+                                               const struct kan_ui_bundle_singleton_t *bundle,
                                                const struct kan_ui_node_hit_box_t *hit_box,
                                                bool force_not_down)
 {
     KAN_ASSERT (hit_box->interactable)
     const enum hit_box_interaction_flags_t flags =
         calculate_hit_box_interaction_flags (state, public, hit_box->id, force_not_down);
+
     const uint32_t image_index =
         select_image_for_hit_box_interaction (state, bundle, hit_box->interactable_style, flags);
     uint32_t ui_mark_flags = 0u;
@@ -443,7 +440,7 @@ static void apply_hit_box_interaction_visuals (struct ui_controls_input_state_t 
 }
 
 static void update_scroll_horizontal_knob (struct ui_controls_input_state_t *state,
-                                           struct kan_ui_node_scroll_behavior_t *behavior,
+                                           const struct kan_ui_node_scroll_behavior_t *behavior,
                                            const struct kan_ui_node_drawable_t *main_drawable,
                                            const struct kan_ui_node_drawable_t *container_drawable,
                                            float scroll_value_px)
@@ -464,7 +461,7 @@ static void update_scroll_horizontal_knob (struct ui_controls_input_state_t *sta
 }
 
 static void update_scroll_vertical_knob (struct ui_controls_input_state_t *state,
-                                         struct kan_ui_node_scroll_behavior_t *behavior,
+                                         const struct kan_ui_node_scroll_behavior_t *behavior,
                                          const struct kan_ui_node_drawable_t *main_drawable,
                                          const struct kan_ui_node_drawable_t *container_drawable,
                                          float scroll_value_px)
@@ -517,7 +514,7 @@ static inline void update_vertical_scroll_absolute (struct ui_controls_input_sta
 
 static void ensure_scroll_is_in_limits (struct ui_controls_input_state_t *state,
                                         const struct kan_ui_singleton_t *ui,
-                                        struct kan_ui_node_scroll_behavior_t *behavior)
+                                        const struct kan_ui_node_scroll_behavior_t *behavior)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (main_drawable, kan_ui_node_drawable_t, id, &behavior->id)
     KAN_UMI_VALUE_UPDATE_OPTIONAL (container_node, kan_ui_node_t, id, &behavior->container_id)
@@ -632,7 +629,7 @@ static void process_scroll_behavior_insertion (struct ui_controls_input_state_t 
 
 static void prolong_hit_box_down_visuals (struct ui_controls_input_state_t *state,
                                           struct kan_ui_input_singleton_t *public,
-                                          struct kan_ui_bundle_singleton_t *bundle,
+                                          const struct kan_ui_bundle_singleton_t *bundle,
                                           const struct kan_ui_node_hit_box_t *hit_box)
 {
     const struct kan_resource_ui_hit_box_interaction_style_t *selected_style = NULL;
@@ -678,7 +675,7 @@ static void prolong_hit_box_down_visuals (struct ui_controls_input_state_t *stat
 static void apply_scroll_relative_input (struct ui_controls_input_state_t *state,
                                          struct kan_ui_input_singleton_t *public,
                                          const struct kan_ui_singleton_t *ui,
-                                         struct kan_ui_node_scroll_behavior_t *behavior,
+                                         const struct kan_ui_node_scroll_behavior_t *behavior,
                                          float delta_x_px,
                                          float delta_y_px,
                                          bool allow_y_to_x)
@@ -731,7 +728,7 @@ static void apply_scroll_relative_input (struct ui_controls_input_state_t *state
 static void apply_scroll_absolute_horizontal (struct ui_controls_input_state_t *state,
                                               struct kan_ui_input_singleton_t *public,
                                               const struct kan_ui_singleton_t *ui,
-                                              struct kan_ui_node_scroll_behavior_t *behavior,
+                                              const struct kan_ui_node_scroll_behavior_t *behavior,
                                               struct kan_ui_node_scroll_line_state_t *line_state,
                                               float value_px)
 {
@@ -760,7 +757,7 @@ static void apply_scroll_absolute_horizontal (struct ui_controls_input_state_t *
 static void apply_scroll_absolute_vertical (struct ui_controls_input_state_t *state,
                                             struct kan_ui_input_singleton_t *public,
                                             const struct kan_ui_singleton_t *ui,
-                                            struct kan_ui_node_scroll_behavior_t *behavior,
+                                            const struct kan_ui_node_scroll_behavior_t *behavior,
                                             struct kan_ui_node_scroll_line_state_t *line_state,
                                             float value_px)
 {
@@ -792,7 +789,7 @@ static void place_scroll_line_knob_at_press (struct ui_controls_input_state_t *s
                                              const struct kan_ui_singleton_t *ui,
                                              struct kan_ui_node_scroll_line_state_t *line_state)
 {
-    KAN_UMI_VALUE_UPDATE_REQUIRED (behavior, kan_ui_node_scroll_behavior_t, id, &line_state->behavior_id)
+    KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_scroll_behavior_t, id, &line_state->behavior_id)
     KAN_UMI_VALUE_READ_OPTIONAL (container_drawable, kan_ui_node_drawable_t, id, &behavior->container_id)
     KAN_UMI_VALUE_READ_OPTIONAL (line_drawable, kan_ui_node_drawable_t, id, &line_state->id)
 
@@ -871,7 +868,7 @@ static void on_press_begin_internal (struct ui_controls_input_state_t *state,
                     {
                         private->press_knob_offset = knob_drawable->height / 2;
                     }
-                    
+
                     break;
                 }
             }
@@ -889,8 +886,8 @@ static void on_press_motion_internal (struct ui_controls_input_state_t *state,
                                       const struct kan_ui_singleton_t *ui)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    KAN_UMI_VALUE_READ_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id,
-                                 &public->mouse_button_down_on_id)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id,
+                                   &public->mouse_button_down_on_id)
 
     if (scroll_line_state)
     {
@@ -910,7 +907,7 @@ static void on_press_end_internal (struct ui_controls_input_state_t *state,
 static void process_events (struct ui_controls_input_state_t *state,
                             struct kan_ui_input_singleton_t *public,
                             const struct kan_ui_singleton_t *ui,
-                            struct kan_ui_bundle_singleton_t *bundle,
+                            const struct kan_ui_bundle_singleton_t *bundle,
                             bool visuals_changed,
                             bool hit_boxes_changed)
 {
@@ -1212,9 +1209,9 @@ static void process_events (struct ui_controls_input_state_t *state,
 }
 
 static void clear_old_down_marks (struct ui_controls_input_state_t *state,
-                                  struct kan_ui_singleton_t *ui,
-                                  struct kan_ui_input_singleton_t *public,
-                                  struct kan_ui_bundle_singleton_t *bundle)
+                                  const struct kan_ui_singleton_t *ui,
+                                  const struct kan_ui_input_singleton_t *public,
+                                  const struct kan_ui_bundle_singleton_t *bundle)
 {
     KAN_UML_SEQUENCE_DELETE (down_mark, kan_ui_node_down_mark_t)
     {
@@ -1233,9 +1230,7 @@ static void clear_old_down_marks (struct ui_controls_input_state_t *state,
     }
 }
 
-static void update_scroll_line_visibility (struct ui_controls_input_state_t *state,
-                                           struct kan_ui_singleton_t *ui,
-                                           struct kan_ui_input_singleton_t *public)
+static void update_scroll_line_visibility (struct ui_controls_input_state_t *state, const struct kan_ui_singleton_t *ui)
 {
     // We should not have many scroll lines at once, therefore plain iteration should be fine,
     // but we'll add profiler section just in case.
@@ -1338,7 +1333,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_input)
 
     process_events (state, public, ui, bundle, visuals_changed, hit_boxes_changed);
     clear_old_down_marks (state, ui, public, bundle);
-    update_scroll_line_visibility (state, ui, public);
+    update_scroll_line_visibility (state, ui);
 }
 
 struct ui_controls_pre_layout_state_t

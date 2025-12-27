@@ -73,3 +73,19 @@ border {
         }
     }
 }
+
++entries {
+    name = scroll_line_background
+    image {
+        source = "colorless_dark_alpha.png"
+        type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_SLICE
+        nine_slice {
+            tiled_x = 0
+            tiled_y = 0
+            left = 16
+            right = 16
+            top = 16
+            bottom = 16
+        }
+    }
+}

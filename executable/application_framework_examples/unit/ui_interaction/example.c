@@ -100,6 +100,9 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
     const kan_instance_size_t image_window =
         kan_render_atlas_loaded_query (atlas, KAN_STATIC_INTERNED_ID_GET (window), NULL);
 
+    const kan_instance_size_t image_scroll_line =
+        kan_render_atlas_loaded_query (atlas, KAN_STATIC_INTERNED_ID_GET (scroll_line_background), NULL);
+
     // Clear old ones if any.
     const kan_ui_node_id_t no_parent_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     KAN_UML_VALUE_DELETE (ui_root, kan_ui_node_t, parent_id, &no_parent_id) { KAN_UM_ACCESS_DELETE (ui_root); }
@@ -254,40 +257,134 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
             window_hit_box->interactable = false;
         }
 
-        const char *big_text =
-            "Robert Guiscard also referred to as Robert de Hauteville, was a Norman adventurer remembered for "
-            "his conquest of southern Italy and Sicily in the 11th century.\n"
-            "\n"
-            "Robert was born into the Hauteville family in Normandy, the sixth son of Tancred de Hauteville "
-            "and his wife Fressenda. He inherited the County of Apulia and Calabria from his brother in 1057, "
-            "and in 1059 he was made Duke of Apulia and Calabria and Lord of Sicily by Pope Nicholas II. He "
-            "was also briefly Prince of Benevento (1078–1081), before returning the title to the papacy.\n";
-
-        KAN_UMO_INDEXED_INSERT (inner_text_node, kan_ui_node_t)
+        KAN_UMO_INDEXED_INSERT (scroll_outer_node, kan_ui_node_t)
         {
-            inner_text_node->id = kan_next_ui_node_id (ui);
-            inner_text_node->parent_id = center_window_node->id;
+            scroll_outer_node->id = kan_next_ui_node_id (ui);
+            scroll_outer_node->parent_id = center_window_node->id;
 
-            inner_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-            inner_text_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
-            inner_text_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
+            scroll_outer_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;
+            scroll_outer_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;
+            scroll_outer_node->local_element_order = 0;
+            scroll_outer_node->layout.layout = KAN_UI_LAYOUT_FRAME;
+            scroll_outer_node->render.clip = true;
 
-            ADD_TEXT_SHAPING_UNIT (node_text, KAN_TEXT_SHAPING_ALIGNMENT_CENTER, big_text)
-            KAN_UMO_INDEXED_INSERT (inner_text_drawable, kan_ui_node_drawable_t)
+            KAN_UMO_INDEXED_INSERT (scroll_outer_hit_box, kan_ui_node_hit_box_t)
             {
-                inner_text_drawable->id = inner_text_node->id;
-                inner_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
-                inner_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                inner_text_drawable->main_draw_command.text.animation_start_time_s = 0.0f;
+                scroll_outer_hit_box->id = scroll_outer_node->id;
+                scroll_outer_hit_box->interactable = false;
             }
 
-            KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
+            const kan_ui_node_id_t container_id = kan_next_ui_node_id (ui);
+            const kan_ui_node_id_t line_id = kan_next_ui_node_id (ui);
+            const kan_ui_node_id_t knob_id = kan_next_ui_node_id (ui);
+
+            KAN_UMO_INDEXED_INSERT (scroll_behavior, kan_ui_node_scroll_behavior_t)
             {
-                text_behavior->id = inner_text_node->id;
-                text_behavior->shaping_unit = node_text_id;
-                text_behavior->font_size = KAN_UI_VALUE_PX (36.0f);
-                text_behavior->sync_text_limit_from_ui = true;
-                text_behavior->sync_ui_size_from_text_secondary = true;
+                scroll_behavior->id = scroll_outer_node->id;
+                scroll_behavior->container_id = container_id;
+                scroll_behavior->vertical_line_id = line_id;
+                scroll_behavior->vertical_knob_id = knob_id;
+                scroll_behavior->horizontal = false;
+                scroll_behavior->vertical = true;
+            }
+
+            KAN_UMO_INDEXED_INSERT (scroll_container_node, kan_ui_node_t)
+            {
+                scroll_container_node->id = container_id;
+                scroll_container_node->parent_id = scroll_outer_node->id;
+
+                scroll_container_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;
+                scroll_container_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW | KAN_UI_SIZE_FLAG_FIT_CHILDREN;
+                scroll_container_node->local_element_order = 0;
+                scroll_container_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;
+
+                const char *big_text =
+                    "Robert Guiscard also referred to as Robert de Hauteville, was a Norman adventurer remembered for "
+                    "his conquest of southern Italy and Sicily in the 11th century.\n"
+                    "\n"
+                    "Robert was born into the Hauteville family in Normandy, the sixth son of Tancred de Hauteville "
+                    "and his wife Fressenda. He inherited the County of Apulia and Calabria from his brother in 1057, "
+                    "and in 1059 he was made Duke of Apulia and Calabria and Lord of Sicily by Pope Nicholas II. He "
+                    "was also briefly Prince of Benevento (1078–1081), before returning the title to the papacy.\n";
+
+                KAN_UMO_INDEXED_INSERT (inner_text_node, kan_ui_node_t)
+                {
+                    inner_text_node->id = kan_next_ui_node_id (ui);
+                    inner_text_node->parent_id = scroll_container_node->id;
+
+                    inner_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
+                    inner_text_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
+                    inner_text_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
+
+                    ADD_TEXT_SHAPING_UNIT (node_text, KAN_TEXT_SHAPING_ALIGNMENT_CENTER, big_text)
+                    KAN_UMO_INDEXED_INSERT (inner_text_drawable, kan_ui_node_drawable_t)
+                    {
+                        inner_text_drawable->id = inner_text_node->id;
+                        inner_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
+                        inner_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
+                        inner_text_drawable->main_draw_command.text.animation_start_time_s = 0.0f;
+                    }
+
+                    KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
+                    {
+                        text_behavior->id = inner_text_node->id;
+                        text_behavior->shaping_unit = node_text_id;
+                        text_behavior->font_size = KAN_UI_VALUE_PX (36.0f);
+                        text_behavior->sync_text_limit_from_ui = true;
+                        text_behavior->sync_ui_size_from_text_secondary = true;
+                    }
+                }
+            }
+
+            KAN_UMO_INDEXED_INSERT (scroll_line, kan_ui_node_t)
+            {
+                scroll_line->id = line_id;
+                scroll_line->parent_id = scroll_outer_node->id;
+
+                scroll_line->element.width = KAN_UI_VALUE_PT (32.0f);
+                scroll_line->element.height_flags = KAN_UI_SIZE_FLAG_GROW;
+                scroll_line->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT;
+                scroll_line->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_TOP;
+
+                scroll_line->local_element_order = 1000;
+                scroll_line->layout.layout = KAN_UI_LAYOUT_FRAME;
+
+                KAN_UMO_INDEXED_INSERT (line_drawable, kan_ui_node_drawable_t)
+                {
+                    line_drawable->id = scroll_line->id;
+                    line_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_IMAGE;
+                    line_drawable->main_draw_command.image = KAN_UI_IMAGE_COMMAND_DEFAULT (image_scroll_line);
+                }
+
+                KAN_UMO_INDEXED_INSERT (hit_box, kan_ui_node_hit_box_t)
+                {
+                    hit_box->id = scroll_line->id;
+                    hit_box->interactable = true;
+                    hit_box->scroll_passthrough = true;
+
+                    hit_box->interactable_style = KAN_STATIC_INTERNED_ID_GET (default);
+                    kan_dynamic_array_set_capacity (&hit_box->propagate_interaction_visuals, 1u);
+
+                    *(kan_ui_node_id_t *) kan_dynamic_array_add_last (&hit_box->propagate_interaction_visuals) =
+                        knob_id;
+                }
+
+                KAN_UMO_INDEXED_INSERT (scroll_knob, kan_ui_node_t)
+                {
+                    scroll_knob->id = knob_id;
+                    scroll_knob->parent_id = scroll_line->id;
+
+                    scroll_knob->element.width_flags = KAN_UI_SIZE_FLAG_GROW;
+                    scroll_knob->element.height = KAN_UI_VALUE_PT (64.0f);
+
+                    KAN_UMO_INDEXED_INSERT (knob_drawable, kan_ui_node_drawable_t)
+                    {
+                        knob_drawable->id = scroll_knob->id;
+                        knob_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_IMAGE;
+                        knob_drawable->main_draw_command.image = KAN_UI_IMAGE_COMMAND_DEFAULT (image_button);
+                        knob_drawable->main_draw_command.image.allow_override = true;
+                    }
+                }
             }
         }
     }

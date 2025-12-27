@@ -139,8 +139,10 @@ struct kan_ui_singleton_t
     kan_instance_offset_t viewport_height;
 
     /// \brief Global time for UI gpu-based animations.
-    /// \details Calculated inside render graph mutator by manually appending delta's.
     float animation_global_time_s;
+
+    /// \brief Delta time for UI animations and for delta time bound input.
+    float animation_delta_time_s;
 
     /// \brief Global time for UI animations loops back to zero when it becomes higher than this value.
     float animation_global_time_loop_s;
@@ -228,8 +230,8 @@ struct kan_ui_coordinate_t
 #define KAN_UI_VALUE_VH(VALUE) KAN_UI_VALUE_BUILD (KAN_UI_VH, VALUE)
 #define KAN_UI_VALUE_VW(VALUE) KAN_UI_VALUE_BUILD (KAN_UI_VW, VALUE)
 
-static inline kan_instance_offset_t kan_ui_calculate_coordinate (const struct kan_ui_singleton_t *ui,
-                                                                 struct kan_ui_coordinate_t coordinate)
+static inline float kan_ui_calculate_coordinate_floating (const struct kan_ui_singleton_t *ui,
+                                                          struct kan_ui_coordinate_t coordinate)
 {
     float floating_value = 0.0f;
     switch (coordinate.type)
@@ -251,7 +253,44 @@ static inline kan_instance_offset_t kan_ui_calculate_coordinate (const struct ka
         break;
     }
 
-    return (kan_instance_offset_t) roundf (floating_value);
+    return floating_value;
+}
+
+static inline kan_instance_offset_t kan_ui_calculate_coordinate (const struct kan_ui_singleton_t *ui,
+                                                                 struct kan_ui_coordinate_t coordinate)
+{
+    return (kan_instance_offset_t) roundf (kan_ui_calculate_coordinate_floating (ui, coordinate));
+}
+
+static inline struct kan_ui_coordinate_t kan_ui_coordinate_from_pixels (const struct kan_ui_singleton_t *ui,
+                                                                        enum kan_ui_coordinate_type_t type,
+                                                                        float pixels)
+{
+    struct kan_ui_coordinate_t result = {
+        .type = type,
+        .value = 0.0f,
+    };
+
+    switch (type)
+    {
+    case KAN_UI_PT:
+        result.value = pixels / ui->scale;
+        break;
+
+    case KAN_UI_PX:
+        result.value = pixels;
+        break;
+
+    case KAN_UI_VH:
+        result.value = pixels / (float) ui->viewport_height;
+        break;
+
+    case KAN_UI_VW:
+        result.value = pixels / (float) ui->viewport_width;
+        break;
+    }
+
+    return result;
 }
 
 /// \brief Represents rect that consists of UI coordinates.
@@ -365,10 +404,10 @@ struct kan_ui_node_layout_setup_t
 struct kan_ui_node_render_setup_t
 {
     /// \brief Makes it possible to offset child elements by X to simulate scroll.
-    struct kan_ui_coordinate_t scroll_x_px;
+    struct kan_ui_coordinate_t scroll_x;
 
     /// \brief Makes it possible to offset child elements by Y to simulate scroll.
-    struct kan_ui_coordinate_t scroll_y_px;
+    struct kan_ui_coordinate_t scroll_y;
 
     /// \brief If true, use self bounds to clip self and all children.
     bool clip;

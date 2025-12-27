@@ -501,8 +501,8 @@ bool kan_platform_application_fetch_next_event (struct kan_platform_application_
             output->mouse_wheel.window_id = KAN_TYPED_ID_32_SET (kan_platform_window_id_t, event.wheel.windowID);
             output->mouse_wheel.wheel_x = event.wheel.x;
             output->mouse_wheel.wheel_y = event.wheel.y;
-            output->mouse_wheel.window_x = event.wheel.x;
-            output->mouse_wheel.window_y = event.wheel.y;
+            output->mouse_wheel.window_x = event.wheel.mouse_x;
+            output->mouse_wheel.window_y = event.wheel.mouse_y;
             return true;
 
         case SDL_EVENT_CLIPBOARD_UPDATE:

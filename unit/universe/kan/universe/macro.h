@@ -78,6 +78,10 @@
 ///   won't be closed on scope exit.
 ///
 /// - KAN_UM_ACCESS_DELETE should be used to delete record to which access points if it is supported by the access.
+///
+/// - KAN_UM_ACCESS_CLOSE_IMMEDIATELY should be used to close access to the record right away, without waiting for the
+///   scope exit. It is useful in rare cases where function complexity makes it difficult to just pass pointers and
+///   introduces a lot of internal queries.
 /// \endparblock
 ///
 /// \par Queries
@@ -208,6 +212,17 @@ KAN_C_HEADER_BEGIN
         *(typeof_unqual (NAME) *) &NAME = NULL
 #endif
 
+#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
+#    define KAN_UM_ACCESS_CLOSE_IMMEDIATELY(NAME) *(typeof_unqual (NAME) *) &NAME = NULL
+#else
+#    define KAN_UM_ACCESS_CLOSE_IMMEDIATELY(NAME)                                                                      \
+        if (NAME)                                                                                                      \
+        {                                                                                                              \
+            KAN_SNIPPET_CLOSE_ACCESS_##NAME;                                                                           \
+            *(typeof_unqual (NAME) *) &NAME = NULL;                                                                    \
+        }
+#endif
+
 #define KAN_UM_INTERNAL_STATE_FIELD(QUERY_TYPE, FIELD_NAME)                                                            \
     CUSHION_STATEMENT_ACCUMULATOR_PUSH (universe_queries, unique, optional) { struct QUERY_TYPE FIELD_NAME; }
 
@@ -292,6 +307,8 @@ KAN_C_HEADER_BEGIN
             if (NAME)                                                                                                  \
             {                                                                                                          \
                 KAN_UM_INTERNAL_ACCESS_DEFER (NAME, kan_repository_indexed_sequence_##ACCESS##_access_close)           \
+                CUSHION_SNIPPET (KAN_SNIPPET_CLOSE_ACCESS_##NAME,                                                      \
+                                 kan_repository_indexed_sequence_##ACCESS##_access_close (&NAME##_access))             \
                 CUSHION_SNIPPET (KAN_SNIPPET_DELETE_ACCESS_##NAME,                                                     \
                                  kan_repository_indexed_sequence_##ACCESS##_access_delete (&NAME##_access))            \
                                                                                                                        \
@@ -371,6 +388,8 @@ KAN_C_HEADER_BEGIN
             if (NAME)                                                                                                  \
             {                                                                                                          \
                 KAN_UM_INTERNAL_ACCESS_DEFER (NAME, kan_repository_indexed_value_##ACCESS_TYPE##_access_close)         \
+                CUSHION_SNIPPET (KAN_SNIPPET_CLOSE_ACCESS_##NAME,                                                      \
+                                 kan_repository_indexed_value_##ACCESS_TYPE##_access_close (&NAME##_access))           \
                 CUSHION_SNIPPET (KAN_SNIPPET_DELETE_ACCESS_##NAME,                                                     \
                                  kan_repository_indexed_value_##ACCESS_TYPE##_access_delete (&NAME##_access))          \
                                                                                                                        \
@@ -488,6 +507,8 @@ KAN_C_HEADER_BEGIN
     KAN_ASSERT (NAME); /* Require macro expects that there is always one value. */                                     \
     KAN_UM_INTERNAL_ACCESS_DEFER (NAME, kan_repository_indexed_value_##ACCESS_TYPE##_access_close)                     \
                                                                                                                        \
+    CUSHION_SNIPPET (KAN_SNIPPET_CLOSE_ACCESS_##NAME,                                                                  \
+                     kan_repository_indexed_value_##ACCESS_TYPE##_access_close (&NAME##_access))                       \
     CUSHION_SNIPPET (KAN_SNIPPET_DELETE_ACCESS_##NAME,                                                                 \
                      kan_repository_indexed_value_##ACCESS_TYPE##_access_delete (&NAME##_access))                      \
                                                                                                                        \
@@ -585,6 +606,8 @@ KAN_C_HEADER_BEGIN
     QUALIFIER struct TYPE *const NAME = kan_repository_indexed_value_##ACCESS_TYPE##_access_resolve (&NAME##_access);  \
     KAN_UM_INTERNAL_ACCESS_DEFER (NAME, kan_repository_indexed_value_##ACCESS_TYPE##_access_close)                     \
                                                                                                                        \
+    CUSHION_SNIPPET (KAN_SNIPPET_CLOSE_ACCESS_##NAME,                                                                  \
+                     kan_repository_indexed_value_##ACCESS_TYPE##_access_close (&NAME##_access))                       \
     CUSHION_SNIPPET (KAN_SNIPPET_DELETE_ACCESS_##NAME,                                                                 \
                      kan_repository_indexed_value_##ACCESS_TYPE##_access_delete (&NAME##_access))                      \
                                                                                                                        \
@@ -693,6 +716,8 @@ KAN_C_HEADER_BEGIN
             if (NAME)                                                                                                  \
             {                                                                                                          \
                 KAN_UM_INTERNAL_ACCESS_DEFER (NAME, kan_repository_indexed_signal_##ACCESS##_access_close)             \
+                CUSHION_SNIPPET (KAN_SNIPPET_CLOSE_ACCESS_##NAME,                                                      \
+                                 kan_repository_indexed_signal_##ACCESS##_access_close (&NAME##_access))               \
                 CUSHION_SNIPPET (KAN_SNIPPET_DELETE_ACCESS_##NAME,                                                     \
                                  kan_repository_indexed_signal_##ACCESS##_access_delete (&NAME##_access))              \
                                                                                                                        \
@@ -780,6 +805,8 @@ KAN_C_HEADER_BEGIN
             if (NAME)                                                                                                  \
             {                                                                                                          \
                 KAN_UM_INTERNAL_ACCESS_DEFER (NAME, kan_repository_indexed_interval_##ACCESS##_access_close)           \
+                CUSHION_SNIPPET (KAN_SNIPPET_CLOSE_ACCESS_##NAME,                                                      \
+                                 kan_repository_indexed_interval_##ACCESS##_access_close (&NAME##_access))             \
                 CUSHION_SNIPPET (KAN_SNIPPET_DELETE_ACCESS_##NAME,                                                     \
                                  kan_repository_indexed_interval_##ACCESS##_access_delete (&NAME##_access))            \
                                                                                                                        \

@@ -231,6 +231,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_time)
 
         public->animation_global_time_s =
             fmodf (public->animation_global_time_s + delta_s, public->animation_global_time_loop_s);
+        public->animation_delta_time_s = delta_s;
     }
 
     public->last_time_ns = kan_precise_time_get_elapsed_nanoseconds ();
@@ -1241,11 +1242,11 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
         access->drawable->clip_rect = drawable->clip_rect;
 
         access->drawable->global_x = drawable->global_x -
-                                     kan_ui_calculate_coordinate (state->transient.ui, node->render.scroll_x_px) +
+                                     kan_ui_calculate_coordinate (state->transient.ui, node->render.scroll_x) +
                                      access->drawable->local_x;
 
         access->drawable->global_y = drawable->global_y -
-                                     kan_ui_calculate_coordinate (state->transient.ui, node->render.scroll_y_px) +
+                                     kan_ui_calculate_coordinate (state->transient.ui, node->render.scroll_y) +
                                      access->drawable->local_y;
 
         access->drawable->fully_clipped_out =
@@ -3165,6 +3166,7 @@ void kan_ui_singleton_init (struct kan_ui_singleton_t *instance)
     instance->viewport_width = 0;
     instance->viewport_height = 0;
     instance->animation_global_time_s = 0.0f;
+    instance->animation_delta_time_s = 0.0f;
     instance->animation_global_time_loop_s = 24.0f * 60.0f * 60.0f;
     instance->last_time_ns = KAN_INT_MAX (kan_time_size_t);
 }
@@ -3207,8 +3209,8 @@ void kan_ui_node_init (struct kan_ui_node_t *instance)
     instance->layout.padding = KAN_UI_RECT_PT (0.0f, 0.0f, 0.0f, 0.0f);
 
     instance->render.clip = false;
-    instance->render.scroll_x_px = KAN_UI_VALUE_PX (0.0f);
-    instance->render.scroll_y_px = KAN_UI_VALUE_PX (0.0f);
+    instance->render.scroll_x = KAN_UI_VALUE_PX (0.0f);
+    instance->render.scroll_y = KAN_UI_VALUE_PX (0.0f);
 }
 
 void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)

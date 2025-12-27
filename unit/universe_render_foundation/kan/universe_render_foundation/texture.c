@@ -664,20 +664,12 @@ UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_EXECUTE (render_foundation_texture
 
     KAN_UML_RESOURCE_LOADED_EVENT_FETCH (data_loaded_event, kan_resource_texture_data_t)
     {
-        kan_interned_string_t texture_name = NULL;
-        {
-            KAN_UMI_VALUE_UPDATE_OPTIONAL (data_usage, render_foundation_texture_data_usage_t, data_name,
-                                           &data_loaded_event->name)
+        KAN_UMI_VALUE_READ_OPTIONAL (data_usage, render_foundation_texture_data_usage_t, data_name,
+                                     &data_loaded_event->name)
 
-            if (data_usage)
-            {
-                texture_name = data_usage->texture_name;
-            }
-        }
-
-        if (texture_name)
+        if (data_usage && data_usage->texture_name)
         {
-            KAN_UMI_VALUE_UPDATE_OPTIONAL (texture, render_foundation_texture_t, name, &texture_name)
+            KAN_UMI_VALUE_UPDATE_OPTIONAL (texture, render_foundation_texture_t, name, &data_usage->texture_name)
             if (texture && texture->state_frame_id != resource_provider->logic_deduplication_frame_id)
             {
                 switch (texture->state)
@@ -692,6 +684,7 @@ UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_EXECUTE (render_foundation_texture
                     break;
 
                 case RENDER_FOUNDATION_TEXTURE_STATE_WAITING_DATA:
+                    KAN_UM_ACCESS_CLOSE_IMMEDIATELY (data_usage);
                     advance_from_waiting_data_state (state, resource_provider, texture);
                     break;
                 }

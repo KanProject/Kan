@@ -63,6 +63,8 @@ struct kan_ui_node_hit_box_t
     kan_ui_node_id_t id;
 
     bool interactable;
+    bool scroll_passthrough;
+
     kan_interned_string_t interactable_style;
     uint32_t mouse_button_down_flags;
 
@@ -132,5 +134,31 @@ struct kan_ui_node_text_behavior_t
 };
 
 UNIVERSE_UI_API void kan_ui_node_text_behavior_init (struct kan_ui_node_text_behavior_t *instance);
+
+struct kan_ui_node_scroll_behavior_t
+{
+    kan_ui_node_id_t id;
+    kan_ui_node_id_t container_id;
+
+    kan_ui_node_id_t horizontal_line_id;
+    kan_ui_node_id_t horizontal_knob_id;
+
+    kan_ui_node_id_t vertical_line_id;
+    kan_ui_node_id_t vertical_knob_id;
+
+    bool horizontal;
+    bool vertical;
+
+    enum kan_ui_coordinate_type_t offset_coordinate_type_x;
+    enum kan_ui_coordinate_type_t offset_coordinate_type_y;
+
+    struct kan_ui_coordinate_t mouse_speed_x;
+    struct kan_ui_coordinate_t mouse_speed_y;
+
+    bool lines_always_visible;
+    float line_visibility_s;
+};
+
+UNIVERSE_UI_API void kan_ui_node_scroll_behavior_init (struct kan_ui_node_scroll_behavior_t *instance);
 
 KAN_C_HEADER_END

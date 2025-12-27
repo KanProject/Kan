@@ -20,6 +20,12 @@ KAN_C_HEADER_BEGIN
 #define KAN_PI CGLM_PI
 #define KAN_PI_2 CGLM_PI_2
 
+/// \brief Tolerance that can be used for generic floating point comparison.
+#define KAN_FLOATING_TOLERANCE 1e-10f
+
+/// \brief Checks if two floating points are almost equal using `KAN_FLOATING_TOLERANCE`.
+#define KAN_FLOATING_IS_NEAR(A, B) (((A) - (B)) >= -KAN_FLOATING_TOLERANCE && ((A) - (B)) <= KAN_FLOATING_TOLERANCE)
+
 /// \brief 2 dimensional uint32 vector type.
 struct kan_uint32_vector_2_t
 {

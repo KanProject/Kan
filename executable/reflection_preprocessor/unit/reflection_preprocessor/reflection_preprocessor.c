@@ -1698,6 +1698,9 @@ static inline enum parse_status_t process_struct_field (struct struct_reflection
     kan_trivial_string_buffer_append_char_sequence (&global.bootstrap_section, name_begin,
                                                     (kan_instance_size_t) (name_end - name_begin));
     kan_trivial_string_buffer_append_string (&global.bootstrap_section, "),\n");
+    kan_trivial_string_buffer_append_string (&global.bootstrap_section, "        .is_const = ");
+    kan_trivial_string_buffer_append_string (&global.bootstrap_section, type->is_const ? "true" : "false");
+    kan_trivial_string_buffer_append_string (&global.bootstrap_section, ",\n");
 
     if (array_size_begin)
     {
@@ -2396,11 +2399,16 @@ static inline void finish_function_generation (struct function_reflection_contex
         kan_trivial_string_buffer_append_string (&global.bootstrap_section, context->name);
         kan_trivial_string_buffer_append_string (&global.bootstrap_section, "_return_type");
         kan_trivial_string_buffer_append_string (&global.bootstrap_section, "),\n");
+        kan_trivial_string_buffer_append_string (&global.bootstrap_section, "        .is_const = ");
+        kan_trivial_string_buffer_append_string (&global.bootstrap_section,
+                                                 return_type_info->is_const ? "true" : "false");
+        kan_trivial_string_buffer_append_string (&global.bootstrap_section, ",\n");
         function_argument_bootstrap_archetype_commons (return_type_info, "            ");
     }
     else
     {
         kan_trivial_string_buffer_append_string (&global.bootstrap_section, "            .size = 0u,\n");
+        kan_trivial_string_buffer_append_string (&global.bootstrap_section, "            .is_const = false,\n");
         kan_trivial_string_buffer_append_string (&global.bootstrap_section,
                                                  "            .archetype = KAN_REFLECTION_ARCHETYPE_SIGNED_INT,\n");
     }
@@ -2499,6 +2507,9 @@ static inline enum parse_status_t process_function_argument (struct function_ref
     kan_trivial_string_buffer_append_char_sequence (&global.bootstrap_section, argument_type_begin,
                                                     (kan_instance_size_t) (argument_type_end - argument_type_begin));
     kan_trivial_string_buffer_append_string (&global.bootstrap_section, "),\n");
+    kan_trivial_string_buffer_append_string (&global.bootstrap_section, "        .is_const = ");
+    kan_trivial_string_buffer_append_string (&global.bootstrap_section, type->is_const ? "true" : "false");
+    kan_trivial_string_buffer_append_string (&global.bootstrap_section, ",\n");
 
     function_argument_bootstrap_archetype_commons (type, "        ");
     kan_trivial_string_buffer_append_string (&global.bootstrap_section, "    };\n\n");

@@ -267,6 +267,7 @@ struct indexed_field_baked_data_t
 {
     uint32_t absolute_offset;
     uint16_t offset_in_buffer;
+    bool is_const;
     uint8_t size;
     uint8_t size_with_padding;
 };
@@ -2699,6 +2700,7 @@ static void indexed_field_baked_data_init (struct indexed_field_baked_data_t *da
 {
     data->absolute_offset = 0u;
     data->offset_in_buffer = 0u;
+    data->is_const = false;
     data->size = 0u;
     data->size_with_padding = 0u;
 }
@@ -2732,6 +2734,7 @@ static inline kan_memory_size_t indexed_field_baked_data_extract_unsigned_from_r
 static inline kan_memory_size_t indexed_field_baked_data_extract_unsigned_from_buffer (
     struct indexed_field_baked_data_t *data, void *buffer_memory)
 {
+    KAN_ASSERT (!data->is_const) // We should not need to do that for const data.
     return indexed_field_baked_data_extract_unsigned_from_pointer (
         data, (const uint8_t *) buffer_memory + data->offset_in_buffer);
 }
@@ -2851,6 +2854,7 @@ static inline kan_memory_size_t indexed_field_baked_data_extract_and_convert_uns
 static inline kan_memory_size_t indexed_field_baked_data_extract_and_convert_unsigned_from_buffer (
     struct indexed_field_baked_data_t *data, enum kan_reflection_archetype_t archetype, void *buffer_memory)
 {
+    KAN_ASSERT (!data->is_const) // We should not need to do that for const data.
     return indexed_field_baked_data_extract_and_convert_unsigned_from_pointer (
         data, archetype, (const uint8_t *) buffer_memory + data->offset_in_buffer);
 }
@@ -2946,6 +2950,7 @@ static inline void indexed_field_baked_data_extract_and_convert_floating_array_f
     void *buffer_memory,
     kan_floating_t *output)
 {
+    KAN_ASSERT (!data->is_const) // We should not need to do that for const data.
     indexed_field_baked_data_extract_and_convert_floating_array_from_pointer (
         data, archetype, array_size, (const uint8_t *) buffer_memory + data->offset_in_buffer, output);
 }
@@ -2983,6 +2988,7 @@ static bool indexed_field_baked_data_bake_from_reflection (struct indexed_field_
         data->absolute_offset = (uint32_t) absolute_offset;
         data->size = (uint8_t) field->size;
         data->size_with_padding = (uint8_t) size_with_padding;
+        data->is_const = field->is_const;
 
         if (array_size_output_for_multi_value)
         {
@@ -3008,6 +3014,13 @@ static bool indexed_field_baked_data_bake_from_reflection (struct indexed_field_
 static bool indexed_field_baked_data_bake_from_buffer (struct indexed_field_baked_data_t *data,
                                                        struct observation_buffer_definition_t *buffer)
 {
+    if (data->is_const)
+    {
+        // If const, then should not participate in buffer anyway.
+        data->offset_in_buffer = 0u;
+        return true;
+    }
+
     kan_instance_size_t buffer_offset = 0u;
     const kan_instance_size_t field_begin = data->absolute_offset;
     const kan_instance_size_t field_end = field_begin + data->size;
@@ -4980,7 +4993,7 @@ static void indexed_storage_perform_maintenance (struct indexed_storage_node_t *
                 else
                 {
                     const kan_hash_t old_hash =
-                        (kan_hash_t) storage->dirty_records->observation_buffer_memory ?
+                        !value_index->baked.is_const && (kan_hash_t) storage->dirty_records->observation_buffer_memory ?
                             indexed_field_baked_data_extract_unsigned_from_buffer (
                                 &value_index->baked, storage->dirty_records->observation_buffer_memory) :
                             indexed_field_baked_data_extract_unsigned_from_record (&value_index->baked, node->record);
@@ -5002,7 +5015,8 @@ static void indexed_storage_perform_maintenance (struct indexed_storage_node_t *
                 else
                 {
                     const kan_memory_size_t old_value =
-                        (kan_memory_size_t) storage->dirty_records->observation_buffer_memory ?
+                        !signal_index->baked.is_const &&
+                                (kan_memory_size_t) storage->dirty_records->observation_buffer_memory ?
                             indexed_field_baked_data_extract_unsigned_from_buffer (
                                 &signal_index->baked, storage->dirty_records->observation_buffer_memory) :
                             indexed_field_baked_data_extract_unsigned_from_record (&signal_index->baked, node->record);
@@ -5028,7 +5042,8 @@ static void indexed_storage_perform_maintenance (struct indexed_storage_node_t *
                 else
                 {
                     const kan_memory_size_t converted_value =
-                        (kan_memory_size_t) storage->dirty_records->observation_buffer_memory ?
+                        !interval_index->baked.is_const &&
+                                (kan_memory_size_t) storage->dirty_records->observation_buffer_memory ?
                             indexed_field_baked_data_extract_and_convert_unsigned_from_buffer (
                                 &interval_index->baked, interval_index->baked_archetype,
                                 storage->dirty_records->observation_buffer_memory) :
@@ -5064,7 +5079,7 @@ static void indexed_storage_perform_maintenance (struct indexed_storage_node_t *
                         }
                     }
                 }
-                else if (storage->dirty_records->observation_buffer_memory)
+                else if (!space_index->baked_min.is_const && storage->dirty_records->observation_buffer_memory)
                 {
                     space_index_delete_by_buffer (space_index, storage->dirty_records->observation_buffer_memory,
                                                   storage->dirty_records->source_node, &storage->temporary_allocator);
@@ -7425,15 +7440,16 @@ static struct space_index_t *indexed_storage_find_or_create_space_index (struct 
 #endif
 
     if (!bake_min_result || !bake_max_result || !archetypes_match || !counts_match || !adequate_count ||
-        !min_no_intersection || !max_no_intersection)
+        !min_no_intersection || !max_no_intersection || baked_min.is_const != baked_max.is_const)
     {
-        KAN_LOG (repository, KAN_LOG_ERROR,
-                 "Failed to create space index. Min baked: %s. Max baked: %s. Archetypes match: %s. Counts match: %s. "
-                 "Count is not zero and supported by space tree: %s. Min does not intersect with single value indices: "
-                 "%s. Max does not intersect with single value indices: %s. Path to min field:",
-                 bake_min_result ? "yes" : "no", bake_max_result ? "yes" : "no", archetypes_match ? "yes" : "no",
-                 counts_match ? "yes" : "no", adequate_count ? "yes" : "no", min_no_intersection ? "yes" : "no",
-                 max_no_intersection ? "yes" : "no")
+        KAN_LOG (
+            repository, KAN_LOG_ERROR,
+            "Failed to create space index. Min baked: %s%s. Max baked: %s%s. Archetypes match: %s. Counts match: %s. "
+            "Count is not zero and supported by space tree: %s. Min does not intersect with single value indices: "
+            "%s. Max does not intersect with single value indices: %s. Path to min field:",
+            bake_min_result ? "yes" : "no", baked_min.is_const ? ", const" : "", bake_max_result ? "yes" : "no",
+            baked_max.is_const ? ", const" : "", archetypes_match ? "yes" : "no", counts_match ? "yes" : "no",
+            adequate_count ? "yes" : "no", min_no_intersection ? "yes" : "no", max_no_intersection ? "yes" : "no")
 
         for (kan_loop_size_t path_element_index = 0u; path_element_index < min_path.reflection_path_length;
              ++path_element_index)
@@ -8978,6 +8994,22 @@ static void extract_observation_chunks_from_on_change_events (
                     continue;
                 }
 
+                if (field->is_const)
+                {
+                    KAN_LOG (repository, KAN_LOG_ERROR,
+                             "Unable to observe field from struct \"%s\" for automatic on change event: field at path "
+                             "is already const, it should never be changed. Path:",
+                             observed_struct->name)
+
+                    for (kan_loop_size_t path_element_index = 0u; path_element_index < path->reflection_path_length;
+                         ++path_element_index)
+                    {
+                        KAN_LOG (repository, KAN_LOG_ERROR, "    - \"%s\"", path->reflection_path[path_element_index])
+                    }
+
+                    continue;
+                }
+
 #if defined(KAN_REPOSITORY_VALIDATION_ENABLED)
                 if (!validation_field_is_observable (repository->registry, field->archetype, field->name,
                                                      &field->archetype_struct))
@@ -9082,37 +9114,59 @@ static void extract_observation_chunks_from_indices (struct indexed_storage_node
             *first = node;                                                                                             \
             *last = node;                                                                                              \
         }                                                                                                              \
-                                                                                                                       \
-        *event_flag <<= 1u;                                                                                            \
-        KAN_ASSERT (*event_flag > 0u)                                                                                  \
     }
 
     struct value_index_t *value_index = storage->first_value_index;
     while (value_index)
     {
-        HELPER_ADD_NODE_FOR (value_index->baked)
+        if (!value_index->baked.is_const)
+        {
+            HELPER_ADD_NODE_FOR (value_index->baked)
+            *event_flag <<= 1u;
+            KAN_ASSERT (*event_flag > 0u)
+        }
+
         value_index = value_index->next;
     }
 
     struct signal_index_t *signal_index = storage->first_signal_index;
     while (signal_index)
     {
-        HELPER_ADD_NODE_FOR (signal_index->baked)
+        if (!signal_index->baked.is_const)
+        {
+            HELPER_ADD_NODE_FOR (signal_index->baked)
+            *event_flag <<= 1u;
+            KAN_ASSERT (*event_flag > 0u)
+        }
+
         signal_index = signal_index->next;
     }
 
     struct interval_index_t *interval_index = storage->first_interval_index;
     while (interval_index)
     {
-        HELPER_ADD_NODE_FOR (interval_index->baked)
+        if (!interval_index->baked.is_const)
+        {
+            HELPER_ADD_NODE_FOR (interval_index->baked)
+            *event_flag <<= 1u;
+            KAN_ASSERT (*event_flag > 0u)
+        }
+
         interval_index = interval_index->next;
     }
 
     struct space_index_t *space_index = storage->first_space_index;
     while (space_index)
     {
-        HELPER_ADD_NODE_FOR (space_index->baked_min)
-        HELPER_ADD_NODE_FOR (space_index->baked_max)
+        KAN_ASSERT (space_index->baked_min.is_const == space_index->baked_max.is_const)
+        if (!space_index->baked_min.is_const)
+        {
+            HELPER_ADD_NODE_FOR (space_index->baked_min)
+            HELPER_ADD_NODE_FOR (space_index->baked_max)
+            *event_flag <<= 1u;
+            KAN_ASSERT (*event_flag > 0u)
+        }
+
         space_index = space_index->next;
     }
 
@@ -9144,9 +9198,17 @@ static void prepare_indices (struct indexed_storage_node_t *storage, kan_reposit
             HELPER_FILL_INDEX (value)
         }
 
-        value_index->observation_flags = *event_flag;
-        *event_flag <<= 1u;
-        KAN_ASSERT (*event_flag > 0u)
+        if (value_index->baked.is_const)
+        {
+            value_index->observation_flags = 0u;
+        }
+        else
+        {
+            value_index->observation_flags = *event_flag;
+            *event_flag <<= 1u;
+            KAN_ASSERT (*event_flag > 0u)
+        }
+
         value_index = value_index->next;
     }
 
@@ -9165,9 +9227,17 @@ static void prepare_indices (struct indexed_storage_node_t *storage, kan_reposit
             signal_index->initial_fill_executed = true;
         }
 
-        signal_index->observation_flags = *event_flag;
-        *event_flag <<= 1u;
-        KAN_ASSERT (*event_flag > 0u)
+        if (signal_index->baked.is_const)
+        {
+            signal_index->observation_flags = 0u;
+        }
+        else
+        {
+            signal_index->observation_flags = *event_flag;
+            *event_flag <<= 1u;
+            KAN_ASSERT (*event_flag > 0u)
+        }
+
         signal_index = signal_index->next;
     }
 
@@ -9185,9 +9255,17 @@ static void prepare_indices (struct indexed_storage_node_t *storage, kan_reposit
             HELPER_FILL_INDEX (interval)
         }
 
-        interval_index->observation_flags = *event_flag;
-        *event_flag <<= 1u;
-        KAN_ASSERT (*event_flag > 0u)
+        if (interval_index->baked.is_const)
+        {
+            interval_index->observation_flags = 0u;
+        }
+        else
+        {
+            interval_index->observation_flags = *event_flag;
+            *event_flag <<= 1u;
+            KAN_ASSERT (*event_flag > 0u)
+        }
+
         interval_index = interval_index->next;
     }
 
@@ -9210,9 +9288,18 @@ static void prepare_indices (struct indexed_storage_node_t *storage, kan_reposit
             space_index->initial_fill_executed = true;
         }
 
-        space_index->observation_flags = *event_flag;
-        *event_flag <<= 1u;
-        KAN_ASSERT (*event_flag > 0u)
+        KAN_ASSERT (space_index->baked_min.is_const == space_index->baked_max.is_const)
+        if (space_index->baked_min.is_const)
+        {
+            space_index->observation_flags = 0u;
+        }
+        else
+        {
+            space_index->observation_flags = *event_flag;
+            *event_flag <<= 1u;
+            KAN_ASSERT (*event_flag > 0u)
+        }
+
         space_index = space_index->next;
     }
 
@@ -9258,6 +9345,7 @@ static void prepare_indexed_storage (kan_functor_user_data_t user_data)
                                               &temporary_allocator, data->storage->automation_allocation_group);
 
     prepare_indices (data->storage, &building_event_flag);
+    KAN_ASSERT (extraction_event_flag == building_event_flag)
     kan_stack_group_allocator_shutdown (&temporary_allocator);
 }
 

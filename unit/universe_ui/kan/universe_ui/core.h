@@ -316,6 +316,7 @@ struct kan_ui_rect_t
 #define KAN_UI_RECT_VW(LEFT, RIGHT, TOP, BOTTOM) KAN_UI_RECT_BUILD (KAN_UI_VALUE_VW, LEFT, RIGHT, TOP, BOTTOM)
 
 /// \brief Flags that alter the behavior of the UI node size calculation.
+KAN_REFLECTION_FLAGS
 enum kan_ui_size_flags_t
 {
     /// \brief When no flags are set, size is treated as fixed.
@@ -334,7 +335,7 @@ enum kan_ui_size_flags_t
 /// \brief Specifies how node is aligned horizontally unless its parent layout orders children along X axis.
 enum kan_ui_horizontal_alignment_t
 {
-    KAN_UI_HORIZONTAL_ALIGNMENT_LEFT,
+    KAN_UI_HORIZONTAL_ALIGNMENT_LEFT = 0u,
     KAN_UI_HORIZONTAL_ALIGNMENT_CENTER,
     KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT,
 };
@@ -342,7 +343,7 @@ enum kan_ui_horizontal_alignment_t
 /// \brief Specifies how node is aligned vertically unless its parent layout orders children along Y axis.
 enum kan_ui_vertical_alignment_t
 {
-    KAN_UI_VERTICAL_ALIGNMENT_TOP,
+    KAN_UI_VERTICAL_ALIGNMENT_TOP = 0u,
     KAN_UI_VERTICAL_ALIGNMENT_CENTER,
     KAN_UI_VERTICAL_ALIGNMENT_BOTTOM,
 };
@@ -416,8 +417,8 @@ struct kan_ui_node_render_setup_t
 /// \brief Node is a building block of UI elements hierarchy and used to define anything that is added to the ui.
 struct kan_ui_node_t
 {
-    kan_ui_node_id_t id;
-    kan_ui_node_id_t parent_id;
+    kan_immutable kan_ui_node_id_t id;
+    kan_immutable kan_ui_node_id_t parent_id;
 
     /// \brief If true, `kan_ui_node_laid_out_t` will be sent every time this node is laid out due to dirty status.
     bool event_on_laid_out;
@@ -548,6 +549,7 @@ struct kan_ui_draw_command_custom_t
 };
 
 /// \brief UI mark flags that are supported in default pipelines and are used to pass information from controls.
+KAN_REFLECTION_FLAGS
 enum kan_ui_default_mark_flag_t
 {
     KAN_UI_DEFAULT_MARK_FLAG_HOVERED = 1u << 0u,
@@ -591,7 +593,7 @@ enum kan_ui_layout_dirt_level_t
 /// \brief Accompanies UI node and stores draw commands, laid out coordinates and layout transient data.
 struct kan_ui_node_drawable_t
 {
-    kan_ui_node_id_t id;
+    kan_immutable kan_ui_node_id_t id;
 
     /// \brief Internal index that is used to sort draw commands.
     kan_instance_size_t draw_index;

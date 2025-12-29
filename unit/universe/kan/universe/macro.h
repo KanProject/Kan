@@ -90,7 +90,7 @@
 ///
 /// - KAN_UMI_SINGLETON_READ and KAN_UMI_SINGLETON_WRITE are provided for singleton access.
 ///
-/// - KAN_UMO_INDEXED_INSERT is provided for indexed insertion query.
+/// - KAN_UMO_INDEXED_INSERT and KAN_UMI_INDEXED_INSERT are provided for indexed insertion query.
 ///
 /// - KAN_UML_(SEQUENCE|VALUE|SIGNAL|INTERVAL_ASCENDING|INTERVAL_DESCENDING)_(READ|UPDATE|DELETE|WRITE) are loop based
 ///   wrappers for listed types of queries with listed access patterns.
@@ -105,7 +105,9 @@
 ///   one result or no result from the query, which is validated using assert. When there is no result, query record
 ///   variable is set to NULL.
 ///
-/// - KAN_UMO_EVENT_INSERT is provided for event insertion.
+/// - KAN_UMO_EVENT_INSERT and KAN_UMO_EVENT_INSERT_INIT are provided for event insertion. KAN_UMO_EVENT_INSERT_INIT is
+///   a special syntax sugar that treats subsequent block as initializer block and not a code block. It simplifies
+///   sending an event and makes it possible to avoid explicitly naming event variable.
 ///
 /// - KAN_UML_EVENT_FETCH is provided for fetching events of given type.
 /// \endparblock
@@ -285,6 +287,24 @@ KAN_C_HEADER_BEGIN
                 __CUSHION_WRAPPED__                                                                                    \
             }                                                                                                          \
         }
+#endif
+
+#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
+#    define KAN_UMI_INDEXED_INSERT(NAME, TYPE)                                                                         \
+        /* Highlight-autocomplete replacement. */                                                                      \
+        struct TYPE *NAME = NULL;
+#else
+#    define KAN_UMI_INDEXED_INSERT(NAME, TYPE)                                                                         \
+        KAN_UM_INTERNAL_STATE_FIELD (kan_repository_indexed_insert_query_t,                                            \
+                                     insert__##__CUSHION_EVALUATED_ARGUMENT__ (TYPE))                                  \
+                                                                                                                       \
+        struct kan_repository_indexed_insertion_package_t NAME##_package =                                             \
+            kan_repository_indexed_insert_query_execute (                                                              \
+                &KAN_UM_STATE_PATH->insert__##__CUSHION_EVALUATED_ARGUMENT__ (TYPE));                                  \
+                                                                                                                       \
+        struct TYPE *NAME = kan_repository_indexed_insertion_package_get (&NAME##_package);                            \
+        KAN_ASSERT (NAME)                                                                                              \
+        CUSHION_DEFER { kan_repository_indexed_insertion_package_submit (&NAME##_package); }
 #endif
 
 #define KAN_UM_INTERNAL_SEQUENCE(NAME, TYPE, ACCESS, QUALIFIER)                                                        \
@@ -973,6 +993,31 @@ KAN_C_HEADER_BEGIN
             {                                                                                                          \
                 CUSHION_DEFER { kan_repository_event_insertion_package_submit (&NAME##_package); }                     \
                 __CUSHION_WRAPPED__                                                                                    \
+            }                                                                                                          \
+        }
+#endif
+
+#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
+#    define KAN_UMO_EVENT_INSERT_INIT(TYPE)                                                                            \
+        /* Highlight-autocomplete replacement. Uses max int instead of NULL to confuse error highlight. */             \
+        *(struct TYPE *) KAN_INT_MAX (kan_memory_size_t) = (struct TYPE)
+#else
+#    define KAN_UMO_EVENT_INSERT_INIT(TYPE)                                                                            \
+        {                                                                                                              \
+            KAN_UM_INTERNAL_STATE_FIELD (kan_repository_event_insert_query_t,                                          \
+                                         insert__##__CUSHION_EVALUATED_ARGUMENT__ (TYPE))                              \
+                                                                                                                       \
+            struct kan_repository_event_insertion_package_t kan_umos_unnamed_event_package =                           \
+                kan_repository_event_insert_query_execute (                                                            \
+                    &KAN_UM_STATE_PATH->insert__##__CUSHION_EVALUATED_ARGUMENT__ (TYPE));                              \
+                                                                                                                       \
+            struct TYPE *const kan_umos_unnamed_event =                                                                \
+                kan_repository_event_insertion_package_get (&kan_umos_unnamed_event_package);                          \
+                                                                                                                       \
+            if (kan_umos_unnamed_event)                                                                                \
+            {                                                                                                          \
+                *kan_umos_unnamed_event = (struct TYPE) {__CUSHION_WRAPPED__};                                         \
+                kan_repository_event_insertion_package_submit (&kan_umos_unnamed_event_package);                       \
             }                                                                                                          \
         }
 #endif

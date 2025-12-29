@@ -17,7 +17,8 @@
 /// instances. Render foundation checks all usages and loads only the mip intervals that are advised by at least one
 /// usage. When texture is loaded, `kan_render_texture_loaded_t` instance is created with appropriate render image.
 /// When there is no more usages, `kan_render_texture_loaded_t` is automatically deleted. When mip requirements change
-/// or texture data changes (due to hot reload, for example), `kan_render_texture_loaded_t` is automatically updated.
+/// due to insertion or deletion of usages or texture data changes (due to hot reload, for example), 
+/// `kan_render_texture_loaded_t` is automatically updated.
 /// \endparblock
 
 KAN_C_HEADER_BEGIN
@@ -37,23 +38,21 @@ KAN_TYPED_ID_32_DEFINE (kan_render_texture_usage_id_t);
 /// \details When there is not enough memory, mips are allowed to be unloaded to save memory, therefore fields have
 ///          "advised" in their names. Also, different usages might require different mips and loaded texture will
 ///          contain all of them.
-/// \warning Just like low level resource usages, texture usages are never intended to be changed, only deleted and
-///          inserted. The reasons are the same as for resource usages.
 struct kan_render_texture_usage_t
 {
     /// \brief This usage unique id, must be generated from `kan_next_texture_usage_id`.
-    kan_render_texture_usage_id_t usage_id;
+    kan_immutable kan_render_texture_usage_id_t usage_id;
 
     /// \brief Name of the texture asset to be loaded.
-    kan_interned_string_t name;
+    kan_immutable kan_interned_string_t name;
 
     /// \brief Index of the best mip that is advised to be loaded.
     /// \details For example, when there is no usages that advise mip 0, it won't be loaded.
-    uint8_t best_advised_mip;
+    kan_immutable uint8_t best_advised_mip;
 
     /// \brief Index of the worst mip that is advised to be loaded.
     /// \details For example, if we know that mips 2 and 3 are never needed, we can save memory and do not load them.
-    uint8_t worst_advised_mip;
+    kan_immutable uint8_t worst_advised_mip;
 };
 
 UNIVERSE_RENDER_FOUNDATION_API void kan_render_texture_usage_init (struct kan_render_texture_usage_t *instance);
@@ -81,7 +80,7 @@ static inline kan_render_texture_usage_id_t kan_next_texture_usage_id (
 ///          1, 2 and 3, image would have 3 mips and image mip 0 will be the texture mip 1 and so on.
 struct kan_render_texture_loaded_t
 {
-    kan_interned_string_t name;
+    kan_immutable kan_interned_string_t name;
     kan_render_image_t image;
 };
 

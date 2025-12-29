@@ -249,7 +249,7 @@ static void schedule_frame (struct render_foundation_frame_schedule_state_t *sta
             render_context->color_table_buffer = kan_render_buffer_create (
                 render_context->render_context, KAN_RENDER_BUFFER_TYPE_STORAGE, data_size,
                 render_context->color_table_values.data, KAN_STATIC_INTERNED_ID_GET (color_table));
-            KAN_UMO_EVENT_INSERT (updated_event, kan_render_color_table_buffer_updated_t) { updated_event->stub = 0u; }
+            KAN_UMO_EVENT_INSERT_INIT (kan_render_color_table_buffer_updated_t) {.stub = 0u};
         }
         else
         {

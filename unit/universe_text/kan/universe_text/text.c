@@ -568,7 +568,7 @@ static void advance_font_libraries_from_waiting_blobs (struct text_management_st
         }
     }
 
-    KAN_UMO_EVENT_INSERT (event, font_libraries_loaded_event_t) { event->stub = 0u; }
+    KAN_UMO_EVENT_INSERT_INIT (font_libraries_loaded_event_t) {.stub = 0u};
     private->font_library_loading_state = FONT_LIBRARY_LOADING_STATE_READY;
     KAN_LOG (text_management, KAN_LOG_DEBUG, "Advanced font library loading to ready state.")
 }
@@ -947,7 +947,7 @@ static void shape_unit (struct text_shaping_state_t *state,
 
     unit->shaped = true;
     unit->shaped_as_stable = unit->stable;
-    KAN_UMO_EVENT_INSERT (event, kan_text_shaped_t) { event->id = unit->id; }
+    KAN_UMO_EVENT_INSERT_INIT (kan_text_shaped_t) {.id = unit->id};
 }
 
 UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)

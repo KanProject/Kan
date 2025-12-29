@@ -105,7 +105,7 @@ struct kan_text_shaped_unstable_data_t
 ///          text uploading should be managed manually by the user, for example through frame lifetime allocator.
 struct kan_text_shaping_unit_t
 {
-    kan_text_shaping_unit_id_t id;
+    kan_immutable kan_text_shaping_unit_id_t id;
 
     /// \brief Shaping request. Text inside is owner by the shaping unit.
     /// \warning `reading_direction` field is automatically reset to the appropriate value from locale when shaping is

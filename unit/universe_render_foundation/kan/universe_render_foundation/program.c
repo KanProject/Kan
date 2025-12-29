@@ -527,10 +527,7 @@ static void load_pass (struct render_foundation_program_core_management_state_t 
         }
     }
 
-    KAN_UMO_EVENT_INSERT (updated_event, kan_render_foundation_pass_updated_event_t)
-    {
-        updated_event->name = pass->name;
-    }
+    KAN_UMO_EVENT_INSERT_INIT (kan_render_foundation_pass_updated_event_t) {.name = pass->name};
 }
 
 #define HELPER_ACKNOWLEDGE_POSSIBLE_BLOCK_DURING_HOT_RELOAD(RESOURCE)                                                  \
@@ -1392,7 +1389,7 @@ static void load_material (struct render_foundation_program_core_management_stat
 
     kan_rpl_meta_set_bindings_shutdown (&loaded->set_shared_bindings);
     kan_rpl_meta_set_bindings_init_copy (&loaded->set_shared_bindings, &resource->set_shared);
-    KAN_UMO_EVENT_INSERT (updated_event, kan_render_material_updated_event_t) { updated_event->name = material->name; }
+    KAN_UMO_EVENT_INSERT_INIT (kan_render_material_updated_event_t) {.name = material->name};
 }
 
 static void advance_material_from_waiting_state (struct render_foundation_program_core_management_state_t *state,
@@ -2107,7 +2104,7 @@ static void load_material_instance (struct render_foundation_material_instance_m
         }
     }
 
-    KAN_UMO_EVENT_INSERT (updated_event, kan_render_material_instance_updated_event_t) { updated_event->name = name; }
+    KAN_UMO_EVENT_INSERT_INIT (kan_render_material_instance_updated_event_t) {.name = name};
 }
 
 static void advance_material_instance_from_waiting_dependencies_state (

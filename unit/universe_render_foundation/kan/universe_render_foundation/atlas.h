@@ -47,10 +47,10 @@ KAN_TYPED_ID_32_DEFINE (kan_render_atlas_usage_id_t);
 struct kan_render_atlas_usage_t
 {
     /// \brief This usage unique id, must be generated from `kan_next_atlas_usage_id`.
-    kan_render_atlas_usage_id_t usage_id;
+    kan_immutable kan_render_atlas_usage_id_t usage_id;
 
     /// \brief Name of the atlas asset to be loaded.
-    kan_interned_string_t name;
+    kan_immutable kan_interned_string_t name;
 };
 
 /// \brief Singleton for atlas management, primary used to assign atlas usage ids.
@@ -84,7 +84,7 @@ struct kan_render_atlas_loaded_entry_mapping_t
 /// \brief Contains loaded atlas data: render image, entry buffer and mapping data.
 struct kan_render_atlas_loaded_t
 {
-    kan_interned_string_t name;
+    kan_immutable kan_interned_string_t name;
     kan_render_image_t image;
     kan_render_buffer_t entry_buffer;
 

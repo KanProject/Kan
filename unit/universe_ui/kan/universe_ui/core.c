@@ -1268,7 +1268,7 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
 
     if (node->event_on_laid_out)
     {
-        KAN_UMO_EVENT_INSERT (event, kan_ui_node_laid_out_t) { event->node_id = drawable->id; }
+        KAN_UMO_EVENT_INSERT_INIT (kan_ui_node_laid_out_t) {.node_id = drawable->id};
     }
 }
 
@@ -1789,7 +1789,7 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
     KAN_UM_ACCESS_DELETE (main_usage);
     private->main_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
 
-    KAN_UMO_EVENT_INSERT (updated_event, kan_ui_bundle_updated_t) { updated_event->stub = 0u; }
+    KAN_UMO_EVENT_INSERT_INIT (kan_ui_bundle_updated_t) {.stub = 0u};
     KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG, "Advanced bundle \"%s\" state to ready.", public->bundle_name)
 }
 

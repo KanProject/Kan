@@ -241,7 +241,7 @@ TEST_UNIVERSE_API KAN_UM_MUTATOR_EXECUTE (delete_objects_and_fire_event)
 
     if (deleted_count > 0u)
     {
-        KAN_UMO_EVENT_INSERT (event, manual_event_t) { event->some_data = 1u; }
+        KAN_UMO_EVENT_INSERT_INIT (manual_event_t) {.some_data = 1u};
     }
 }
 

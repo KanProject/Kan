@@ -34,7 +34,7 @@ struct example_ui_render_singleton_t
     kan_application_system_window_t window_handle;
     kan_render_surface_t window_surface;
     bool should_rebuild;
-    bool rendered_once;
+    kan_instance_size_t rendered_frames;
 };
 
 APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API void example_ui_render_singleton_init (
@@ -43,7 +43,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API void example_ui_render_singleton_in
     instance->window_handle = KAN_HANDLE_SET_INVALID (kan_application_system_window_t);
     instance->window_surface = KAN_HANDLE_SET_INVALID (kan_render_surface_t);
     instance->should_rebuild = false;
-    instance->rendered_once = false;
+    instance->rendered_frames = 0u;
 }
 
 struct ui_example_render_update_state_t
@@ -692,7 +692,8 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_EXECUTE (ui_example_
         kan_render_backend_system_present_image_on_surface (singleton->window_surface, ui_render_graph->final_image, 0u,
                                                             region, region, ui_render_graph->final_pass_instance);
 
-        if (singleton->rendered_once && test->test_mode_enabled && test->expectation_read_back_statuses.size == 0u)
+        if (singleton->rendered_frames >= 5u && test->test_mode_enabled &&
+            test->expectation_read_back_statuses.size == 0u)
         {
             kan_dynamic_array_set_capacity (&test->expectation_read_back_statuses, 1u);
             *(kan_render_read_back_status_t *) kan_dynamic_array_add_last (&test->expectation_read_back_statuses) =
@@ -701,8 +702,8 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_EXECUTE (ui_example_
                                                          ui_render_graph->final_pass_instance);
         }
 
-        // We'd like to capture the second frame, not first one,
-        // as text-height-to-ui sync will only be applied on second frame and onward.
-        singleton->rendered_once = true;
+        // We don't want to capture first available frames, as proper text shaping and positioning might not be ready
+        // by that time, therefore text would be invisible and test will fail.
+        ++singleton->rendered_frames;
     }
 }

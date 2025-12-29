@@ -445,7 +445,7 @@ static void load_atlas (struct render_foundation_atlas_management_state_t *state
 #undef AT_INDEX
     }
 
-    KAN_UMO_EVENT_INSERT (updated_event, kan_render_atlas_updated_event_t) { updated_event->name = loaded->name; }
+    KAN_UMO_EVENT_INSERT_INIT (kan_render_atlas_updated_event_t) {.name = loaded->name};
 }
 
 static void advance_from_waiting_state (struct render_foundation_atlas_management_state_t *state,

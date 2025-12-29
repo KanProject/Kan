@@ -49,7 +49,7 @@ struct kan_locale_selection_updated_t
 /// \brief Stores information about loaded locale setup.
 struct kan_locale_t
 {
-    kan_interned_string_t name;
+    kan_immutable kan_interned_string_t name;
     struct kan_resource_locale_t resource;
 };
 

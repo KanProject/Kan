@@ -162,7 +162,7 @@ static void advance_locale_from_waiting_state (struct locale_management_state_t 
         }
     }
 
-    KAN_UMO_EVENT_INSERT (updated_event, kan_locale_updated_t) { updated_event->name = locale->name; }
+    KAN_UMO_EVENT_INSERT_INIT (kan_locale_updated_t) {.name = locale->name};
     KAN_ASSERT (public->locale_counter > 0u)
     --public->locale_counter;
     KAN_LOG (locale, KAN_LOG_DEBUG, "Advanced locale \"%s\" state to ready.", locale->name)

@@ -1,5 +1,5 @@
 #include <kan/universe/macro.h>
-#include <kan/universe_transform/universe_transform.h>
+#include <kan/universe_transform/transform.h>
 
 #define TRANSFORM_COMPONENT_META(DIMENSIONS, DIMENSIONS_STRING)                                                        \
     KAN_REFLECTION_STRUCT_META (kan_transform_##DIMENSIONS##_component_t)                                              \
@@ -52,23 +52,6 @@ TRANSFORM_COMPONENT_INIT (3)
 TRANSFORM_INVALIDATOR_FUNCTION (2)
 TRANSFORM_INVALIDATOR_FUNCTION (3)
 #undef TRANSFORM_INVALIDATOR_FUNCTION
-
-#define TRANSFORM_SET_PARENT_OBJECT_ID(TRANSFORM_DIMENSION)                                                            \
-    void kan_transform_##TRANSFORM_DIMENSION##_component_set_parent_object_id (                                        \
-        struct kan_transform_##TRANSFORM_DIMENSION##_queries_t *queries,                                               \
-        struct kan_transform_##TRANSFORM_DIMENSION##_component_t *component,                                           \
-        kan_universe_object_id_t parent_object_id)                                                                     \
-    {                                                                                                                  \
-        component->parent_object_id = parent_object_id;                                                                \
-        kan_atomic_int_lock (&component->global_lock);                                                                 \
-        component->global_dirty = true;                                                                                \
-        kan_transform_##TRANSFORM_DIMENSION##_invalidate_children_global (queries, component);                         \
-        kan_atomic_int_unlock (&component->global_lock);                                                               \
-    }
-
-TRANSFORM_SET_PARENT_OBJECT_ID (2)
-TRANSFORM_SET_PARENT_OBJECT_ID (3)
-#undef TRANSFORM_SET_PARENT_OBJECT_ID
 
 #define TRANSFORM_GET_GLOBAL(TRANSFORM_DIMENSION, MATRIX_DIMENSION, MULTIPLIER)                                        \
     struct kan_transform_##TRANSFORM_DIMENSION##_t kan_transform_##TRANSFORM_DIMENSION##_component_get_global (        \

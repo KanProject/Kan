@@ -564,7 +564,7 @@ static void load_texture_into_image (struct render_foundation_texture_management
 
     texture->loaded_best_mip = texture->requested_best_mip;
     texture->loaded_worst_mip = texture->requested_worst_mip;
-    KAN_UMO_EVENT_INSERT (updated_event, kan_render_texture_updated_event_t) { updated_event->name = texture->name; }
+    KAN_UMO_EVENT_INSERT_INIT (kan_render_texture_updated_event_t) {.name = texture->name};
 }
 
 static void advance_from_waiting_data_state (struct render_foundation_texture_management_state_t *state,

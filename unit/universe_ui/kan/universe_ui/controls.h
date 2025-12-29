@@ -55,25 +55,22 @@ struct kan_ui_input_singleton_t
 
 UNIVERSE_UI_API void kan_ui_input_singleton_init (struct kan_ui_input_singleton_t *instance);
 
-/// \details Fields in this structure are not expected to be edited by the user in any case. They're expected to be
-///          filled at UI creation time and never changed later. If changes are needed, node should be deleted and
-///          added back.
 struct kan_ui_node_hit_box_t
 {
-    kan_ui_node_id_t id;
+    kan_immutable kan_ui_node_id_t id;
 
-    bool interactable;
-    bool scroll_passthrough;
+    kan_immutable bool interactable;
+    kan_immutable bool scroll_passthrough;
 
-    kan_interned_string_t interactable_style;
-    uint32_t mouse_button_down_flags;
+    kan_immutable kan_interned_string_t interactable_style;
+    kan_immutable uint32_t mouse_button_down_flags;
 
     /// \brief Marks and styles will be propagated to these node drawables as well.
     /// \details Must always be children of the hit box node, otherwise visual mistakes may occur. This rule is used
     ///          for code simplification, because it is difficult to come up with scenarios when it is needed outside
     ///          of hit box children.
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (kan_ui_node_id_t)
-    struct kan_dynamic_array_t propagate_interaction_visuals;
+    kan_immutable struct kan_dynamic_array_t propagate_interaction_visuals;
 };
 
 UNIVERSE_UI_API void kan_ui_node_hit_box_init (struct kan_ui_node_hit_box_t *instance);
@@ -112,51 +109,51 @@ struct kan_ui_press_end_t
 
 /// \invariant Should be inserted in the same frame as connected ui node.
 ///            Appending to an existent node is not supported.
-/// \invariant Shaping unit should also be inserted in the same frame. Shaping unit id edition is not supported.
+/// \invariant Shaping unit should also be inserted in the same frame or earlier, but not after that frame.
 struct kan_ui_node_text_behavior_t
 {
-    kan_ui_node_id_t id;
-    kan_text_shaping_unit_id_t shaping_unit;
+    kan_immutable kan_ui_node_id_t id;
+    kan_immutable kan_text_shaping_unit_id_t shaping_unit;
 
     /// \brief Font size that will be applied to the shaping unit text.
     /// \warning UI coordinate calculation result should be actual font size, not expect pixel height! Therefore, using
     ///          KAN_UI_PX is treated as specifying the size directly.
-    struct kan_ui_coordinate_t font_size;
+    kan_immutable struct kan_ui_coordinate_t font_size;
 
     /// \brief If true, appropriate element size will be used as limit for text shaping unit.
     /// \details Width is used for horizontal text and height for vertical text.
-    bool sync_text_limit_from_ui;
+    kan_immutable bool sync_text_limit_from_ui;
 
     /// \brief If true, text secondary direction size will be applied to the element size.
     /// \details For horizontal text, text height is applied to the element.
     ///          For vertical text, text width is applied to the element.
-    bool sync_ui_size_from_text_secondary;
+    kan_immutable bool sync_ui_size_from_text_secondary;
 };
 
 UNIVERSE_UI_API void kan_ui_node_text_behavior_init (struct kan_ui_node_text_behavior_t *instance);
 
 struct kan_ui_node_scroll_behavior_t
 {
-    kan_ui_node_id_t id;
-    kan_ui_node_id_t container_id;
+    kan_immutable kan_ui_node_id_t id;
+    kan_immutable kan_ui_node_id_t container_id;
 
-    kan_ui_node_id_t horizontal_line_id;
-    kan_ui_node_id_t horizontal_knob_id;
+    kan_immutable kan_ui_node_id_t horizontal_line_id;
+    kan_immutable kan_ui_node_id_t horizontal_knob_id;
 
-    kan_ui_node_id_t vertical_line_id;
-    kan_ui_node_id_t vertical_knob_id;
+    kan_immutable kan_ui_node_id_t vertical_line_id;
+    kan_immutable kan_ui_node_id_t vertical_knob_id;
 
-    bool horizontal;
-    bool vertical;
+    kan_immutable bool horizontal;
+    kan_immutable bool vertical;
 
-    enum kan_ui_coordinate_type_t offset_coordinate_type_x;
-    enum kan_ui_coordinate_type_t offset_coordinate_type_y;
+    kan_immutable enum kan_ui_coordinate_type_t offset_coordinate_type_x;
+    kan_immutable enum kan_ui_coordinate_type_t offset_coordinate_type_y;
 
-    struct kan_ui_coordinate_t mouse_speed_x;
-    struct kan_ui_coordinate_t mouse_speed_y;
+    kan_immutable struct kan_ui_coordinate_t mouse_speed_x;
+    kan_immutable struct kan_ui_coordinate_t mouse_speed_y;
 
-    bool lines_always_visible;
-    float line_visibility_s;
+    kan_immutable bool lines_always_visible;
+    kan_immutable float line_visibility_s;
 };
 
 UNIVERSE_UI_API void kan_ui_node_scroll_behavior_init (struct kan_ui_node_scroll_behavior_t *instance);

@@ -8,7 +8,7 @@
 #include <kan/context/update_system.h>
 #include <kan/testing/testing.h>
 #include <kan/universe/macro.h>
-#include <kan/universe_transform/universe_transform.h>
+#include <kan/universe_transform/transform.h>
 #include <kan/universe_trivial_scheduler/universe_trivial_scheduler.h>
 
 struct test_utility_queries_2_t
@@ -103,21 +103,6 @@ TEST_UTILITY_SET_TRANSFORM (global, 2)
 TEST_UTILITY_SET_TRANSFORM (global, 3)
 #undef TEST_UTILITY_SET_TRANSFORM
 
-#define TEST_UTILITY_SET_PARENT(DIMENSIONS)                                                                            \
-    static inline void set_transform_parent_##DIMENSIONS (struct test_utility_queries_##DIMENSIONS##_t *queries,       \
-                                                          kan_universe_object_id_t object_id,                          \
-                                                          kan_universe_object_id_t new_parent_object_id)               \
-    {                                                                                                                  \
-        KAN_UM_BIND_STATE (test_utility_queries_##DIMENSIONS, queries)                                                 \
-        KAN_UMI_VALUE_UPDATE_REQUIRED (component, kan_transform_##DIMENSIONS##_component_t, object_id, &object_id)     \
-        kan_transform_##DIMENSIONS##_component_set_parent_object_id (&queries->inner_queries, component,               \
-                                                                     new_parent_object_id);                            \
-    }
-
-TEST_UTILITY_SET_PARENT (2)
-TEST_UTILITY_SET_PARENT (3)
-#undef TEST_UTILITY_SET_PARENT
-
 static kan_context_t create_context (void)
 {
     kan_context_t context =
@@ -190,13 +175,7 @@ TEST_UNIVERSE_TRANSFORM_API KAN_UM_MUTATOR_EXECUTE (test_global_2)
         .scale = {2.0f, 2.0f},
     };
 
-    const struct kan_transform_2_t expected_global_transform_other_parent_3 = {
-        .location = {27.0f, -5.0f},
-        .rotation = KAN_PI * 0.5f,
-        .scale = {3.0f, 3.0f},
-    };
-
-    const struct kan_transform_2_t transform_global_change_4 = {
+    const struct kan_transform_2_t transform_global_change_2 = {
         .location = {0.0f, 10.0f},
         .rotation = 0.0f,
         .scale = {2.0f, 2.0f},
@@ -240,13 +219,7 @@ TEST_UNIVERSE_TRANSFORM_API KAN_UM_MUTATOR_EXECUTE (test_global_2)
     KAN_TEST_CHECK (                                                                                                   \
         check_transform_global_##DIMENSIONS (&state->utility, transform_ids[3u], expected_global_transform_changed_3)) \
                                                                                                                        \
-    set_transform_parent_##DIMENSIONS (&state->utility, transform_ids[3u], transform_ids[4u]);                         \
-    KAN_TEST_CHECK (check_transform_global_##DIMENSIONS (&state->utility, transform_ids[3u],                           \
-                                                         expected_global_transform_other_parent_3))                    \
-    KAN_TEST_CHECK (check_transform_global_##DIMENSIONS (&state->utility, transform_ids[3u],                           \
-                                                         expected_global_transform_other_parent_3))                    \
-                                                                                                                       \
-    set_transform_global_##DIMENSIONS (&state->utility, transform_ids[4u], transform_global_change_4);                 \
+    set_transform_global_##DIMENSIONS (&state->utility, transform_ids[2u], transform_global_change_2);                 \
     KAN_TEST_CHECK (check_transform_global_##DIMENSIONS (&state->utility, transform_ids[3u],                           \
                                                          expected_global_transform_changed_again_3))                   \
     KAN_TEST_CHECK (check_transform_global_##DIMENSIONS (&state->utility, transform_ids[3u],                           \
@@ -316,13 +289,7 @@ TEST_UNIVERSE_TRANSFORM_API KAN_UM_MUTATOR_EXECUTE (test_global_3)
         .scale = {2.0f, 2.0f, 4.0f},
     };
 
-    const struct kan_transform_3_t expected_global_transform_other_parent_3 = {
-        .location = {12.0f, 4.0f, -12.0f},
-        .rotation = kan_make_quaternion_from_euler (KAN_PI * 0.5f, 0.0f, 0.0f),
-        .scale = {3.0f, 3.0f, 6.0f},
-    };
-
-    const struct kan_transform_3_t transform_global_change_4 = {
+    const struct kan_transform_3_t transform_global_change_2 = {
         .location = {0.0f, 10.0f, 6.0f},
         .rotation = kan_make_float_vector_4_t (0.0f, 0.0f, 0.0f, 1.0f),
         .scale = {2.0f, 2.0f, 2.0f},

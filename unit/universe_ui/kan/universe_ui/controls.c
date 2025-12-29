@@ -945,15 +945,13 @@ static void process_events (struct ui_controls_input_state_t *state,
 
                 if (public->press_filtered_in)
                 {
-                    KAN_UMO_EVENT_INSERT (press_end_event, kan_ui_press_end_t)
-                    {
-                        press_end_event->node_id = public->mouse_button_down_on_id;
-                        press_end_event->mouse_button_down_inclusive_flags = public->mouse_button_down_inclusive_flags;
-
-                        press_end_event->continuous_press = false;
-                        press_end_event->at_x = public->last_mouse_x;
-                        press_end_event->at_y = public->last_mouse_y;
-                    }
+                    KAN_UMO_EVENT_INSERT_INIT (kan_ui_press_end_t) {
+                        .node_id = public->mouse_button_down_on_id,
+                        .mouse_button_down_inclusive_flags = public->mouse_button_down_inclusive_flags,
+                        .continuous_press = false,
+                        .at_x = public->last_mouse_x,
+                        .at_y = public->last_mouse_y,
+                    };
 
                     on_press_end_internal (state, public, ui, NULL, false);
                 }
@@ -1008,15 +1006,14 @@ static void process_events (struct ui_controls_input_state_t *state,
                 {
                     if (public->press_filtered_in)
                     {
-                        KAN_UMO_EVENT_INSERT (multi_click_event, kan_ui_multi_click_t)
-                        {
-                            multi_click_event->node_id = public->mouse_button_down_on_id;
-                            multi_click_event->multi_click_button = event->mouse_button.button;
-                            multi_click_event->click_count = event->mouse_button.clicks;
-                            multi_click_event->mouse_button_down_flags = public->mouse_button_down_flags;
-                            multi_click_event->at_x = public->last_mouse_x;
-                            multi_click_event->at_y = public->last_mouse_y;
-                        }
+                        KAN_UMO_EVENT_INSERT_INIT (kan_ui_multi_click_t) {
+                            .node_id = public->mouse_button_down_on_id,
+                            .multi_click_button = event->mouse_button.button,
+                            .click_count = event->mouse_button.clicks,
+                            .mouse_button_down_flags = public->mouse_button_down_flags,
+                            .at_x = public->last_mouse_x,
+                            .at_y = public->last_mouse_y,
+                        };
 
                         if (element)
                         {
@@ -1033,13 +1030,12 @@ static void process_events (struct ui_controls_input_state_t *state,
                 }
                 else if (new_press && public->press_filtered_in)
                 {
-                    KAN_UMO_EVENT_INSERT (press_begin_event, kan_ui_press_begin_t)
-                    {
-                        press_begin_event->node_id = public->mouse_button_down_on_id;
-                        press_begin_event->mouse_button_down_flags = public->mouse_button_down_flags;
-                        press_begin_event->at_x = public->last_mouse_x;
-                        press_begin_event->at_y = public->last_mouse_y;
-                    }
+                    KAN_UMO_EVENT_INSERT_INIT (kan_ui_press_begin_t) {
+                        .node_id = public->mouse_button_down_on_id,
+                        .mouse_button_down_flags = public->mouse_button_down_flags,
+                        .at_x = public->last_mouse_x,
+                        .at_y = public->last_mouse_y,
+                    };
 
                     on_press_begin_internal (state, public, ui);
                 }
@@ -1075,16 +1071,13 @@ static void process_events (struct ui_controls_input_state_t *state,
                             element ? element->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
                         const bool continuous = KAN_TYPED_ID_32_IS_EQUAL (end_node_id, public->mouse_button_down_on_id);
 
-                        KAN_UMO_EVENT_INSERT (press_end_event, kan_ui_press_end_t)
-                        {
-                            press_end_event->node_id = public->mouse_button_down_on_id;
-                            press_end_event->mouse_button_down_inclusive_flags =
-                                public->mouse_button_down_inclusive_flags;
-
-                            press_end_event->continuous_press = continuous;
-                            press_end_event->at_x = public->last_mouse_x;
-                            press_end_event->at_y = public->last_mouse_y;
-                        }
+                        KAN_UMO_EVENT_INSERT_INIT (kan_ui_press_end_t) {
+                            .node_id = public->mouse_button_down_on_id,
+                            .mouse_button_down_inclusive_flags = public->mouse_button_down_inclusive_flags,
+                            .continuous_press = continuous,
+                            .at_x = public->last_mouse_x,
+                            .at_y = public->last_mouse_y,
+                        };
 
                         on_press_end_internal (state, public, ui, element, continuous);
                         if (element)

@@ -115,7 +115,7 @@ struct kan_render_foundation_pass_attachment_t
 /// \brief Represents loaded and successfully created render pass.
 struct kan_render_foundation_pass_loaded_t
 {
-    kan_interned_string_t name;
+    kan_immutable kan_interned_string_t name;
     enum kan_render_pass_type_t type;
     kan_render_pass_t pass;
 
@@ -162,7 +162,7 @@ UNIVERSE_RENDER_FOUNDATION_API void kan_render_material_pipeline_shutdown (
 struct kan_render_material_loaded_t
 {
     /// \brief Material resource name.
-    kan_interned_string_t name;
+    kan_immutable kan_interned_string_t name;
 
     /// \brief Array with currently instanced pipelines for existing passes.
     /// \details It is advised to cache pipeline handles in separate render cache record in the order that is
@@ -222,23 +222,21 @@ struct kan_render_material_instance_updated_event_t
 };
 
 /// \brief Used to inform program management that material instance needs to be loaded.
-/// \warning Just like low level resource usages, material instance usages are never intended to be changed,
-///          only deleted and inserted. The reasons are the same as for resource usages.
 struct kan_render_material_instance_usage_t
 {
     /// \brief This usage unique id, must be generated from `kan_next_material_instance_usage_id`.
-    kan_render_material_instance_usage_id_t usage_id;
+    kan_immutable kan_render_material_instance_usage_id_t usage_id;
 
     /// \brief Name of the material instance asset to be loaded.
-    kan_interned_string_t name;
+    kan_immutable kan_interned_string_t name;
 
     /// \brief Index of the best mip that is advised to be loaded for material textures.
     /// \details For example, when there is no usages that advise mip 0, it won't be loaded.
-    uint8_t best_advised_mip;
+    kan_immutable uint8_t best_advised_mip;
 
     /// \brief Index of the worst mip that is advised to be loaded for material textures.
     /// \details For example, if we know that mips 2 and 3 are never needed, we can save memory and do not load them.
-    uint8_t worst_advised_mip;
+    kan_immutable uint8_t worst_advised_mip;
 };
 
 UNIVERSE_RENDER_FOUNDATION_API void kan_render_material_instance_usage_init (
@@ -275,7 +273,7 @@ UNIVERSE_RENDER_FOUNDATION_API void kan_render_material_instance_bound_buffer_sh
 ///\brief Contains material instance loaded data: its material parameter set and variants.
 struct kan_render_material_instance_loaded_t
 {
-    kan_interned_string_t name;
+    kan_immutable kan_interned_string_t name;
     kan_interned_string_t material_name;
 
     /// \brief Built parameter set for material set with data from this material instance.

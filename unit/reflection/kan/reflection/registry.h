@@ -168,7 +168,10 @@ struct kan_reflection_field_t
     kan_interned_string_t name;
     kan_instance_size_t offset;
     kan_instance_size_t size;
+
+    /// \brief True if either `const` or `kan_immutable` qualified.
     bool is_const;
+
     enum kan_reflection_archetype_t archetype;
 
     union
@@ -211,7 +214,9 @@ struct kan_reflection_return_type_t
     /// \warning Special case: if size is zero, then return type is void.
     kan_instance_size_t size;
 
+    /// \brief True if either `const` or `kan_immutable` qualified.
     bool is_const;
+
     enum kan_reflection_archetype_t archetype;
 
     union
@@ -229,7 +234,10 @@ struct kan_reflection_argument_t
 {
     kan_interned_string_t name;
     kan_instance_size_t size;
+
+    /// \brief True if either `const` or `kan_immutable` qualified.
     bool is_const;
+
     enum kan_reflection_archetype_t archetype;
 
     union

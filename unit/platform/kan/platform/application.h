@@ -211,6 +211,7 @@ struct kan_platform_display_mode_t
 };
 
 /// \brief Enumerates supported window flags.
+KAN_REFLECTION_FLAGS
 enum kan_platform_window_flag_t
 {
     KAN_PLATFORM_WINDOW_FLAG_FULLSCREEN = 1u << 0u,

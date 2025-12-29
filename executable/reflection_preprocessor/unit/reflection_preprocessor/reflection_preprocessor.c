@@ -590,7 +590,8 @@ static inline void re2c_yyrestore (void)
  identifier = [A-Za-z_][A-Za-z0-9_]*;
 
  type_prefix =
-     (@const_marker "const" separator+)? ((@struct_marker "struct" separator+) | (@enum_marker "enum" separator+))?;
+     (@const_marker ("const" | "kan_immutable") separator+)?
+     ((@struct_marker "struct" separator+) | (@enum_marker "enum" separator+))?;
  type_pointer_suffix = (@pointer_begin separator* "*"+ separator* @pointer_end);
  type = type_prefix @type_name_begin identifier @type_name_end (type_pointer_suffix | (separator+));
 

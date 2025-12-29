@@ -30,6 +30,7 @@ RESOURCE_PIPELINE_API kan_allocation_group_t kan_resource_log_get_allocation_gro
 /// \details We use different flags for meta and log as meta flags should provide the most obvious defaults for the
 ///          user and log flags should be mergeable through bitwise or in a logical way, which results in logical
 ///          conflicts in some cases.
+KAN_REFLECTION_FLAGS
 enum kan_resource_reference_flags_t
 {
     /// \brief Enabled if none of the actual references has KAN_RESOURCE_REFERENCE_META_PLATFORM_OPTIONAL flag.

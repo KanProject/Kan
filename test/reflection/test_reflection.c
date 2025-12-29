@@ -1989,7 +1989,7 @@ KAN_TEST_CASE (generated_reflection)
     const struct kan_reflection_struct_t *a_bit_of_everything_data =
         kan_reflection_registry_query_struct (registry, kan_string_intern ("a_bit_of_everything_t"));
     KAN_TEST_ASSERT (a_bit_of_everything_data)
-    KAN_TEST_ASSERT (a_bit_of_everything_data->fields_count == 17u)
+    KAN_TEST_ASSERT (a_bit_of_everything_data->fields_count == 18u)
 
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[0u].name == kan_string_intern ("some_enum"))
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[0u].size == sizeof (int))
@@ -2093,6 +2093,10 @@ KAN_TEST_CASE (generated_reflection)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[16u].name == kan_string_intern ("const_field"))
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[16u].is_const == true)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[16u].archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT)
+
+    KAN_TEST_CHECK (a_bit_of_everything_data->fields[17u].name == kan_string_intern ("immutable_field"))
+    KAN_TEST_CHECK (a_bit_of_everything_data->fields[17u].is_const == true)
+    KAN_TEST_CHECK (a_bit_of_everything_data->fields[17u].archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT)
 
     struct kan_reflection_struct_field_meta_iterator_t iterator = kan_reflection_registry_query_struct_field_meta (
         registry, kan_string_intern ("first_component_t"), kan_string_intern ("position"),

@@ -187,37 +187,40 @@ void hb_free_impl (void *ptr) { free (ptr); }
 //    Linux very troublesome as TARGET_SONAME_FILE generator expression is not available for them, but soname suffixes
 //    are still appended.
 
-kan_unicode_codepoint_t kan_text_utf8_next (const uint8_t **iterator)
+kan_unicode_codepoint_t kan_text_utf8_next (const uint8_t **iterator, const uint8_t *boundary)
 {
+    if (*iterator >= boundary)
+    {
+        return 0u;
+    }
+
     // Implementation is based upon hb_utf8_t::next from harfbuzz, which is based upon U8_NEXT from ICU. Oh, well. :)
-    // However, our implementation is not as safe as the ones above, because we do not require end pointer and therefore
-    // do not have proper string end check to catch malformed utf8.
     kan_unicode_codepoint_t value = **iterator;
     ++*iterator;
 
-    if (value <= 0x7Fu)
+    if (value <= 0x7F)
     {
         return value;
     }
 
 #define IS_IN_RANGE(LEFT, RIGHT) ((kan_unicode_codepoint_t) (value - LEFT) <= (kan_unicode_codepoint_t) (RIGHT - LEFT))
-    if (IS_IN_RANGE (0xC2u, 0xDFu)) /* Two-byte */
+    if (IS_IN_RANGE (0xC2, 0xDF)) /* Two-byte */
     {
         unsigned int t1;
-        if ((t1 = (*iterator)[0u] - 0x80u) <= 0x3Fu)
+        if (boundary - *iterator >= 1 && (t1 = (*iterator)[0u] - 0x80) <= 0x3F)
         {
-            value = ((value & 0x1Fu) << 6u) | t1;
+            value = ((value & 0x1F) << 6u) | t1;
             ++*iterator;
             return value;
         }
     }
-    else if (IS_IN_RANGE (0xE0u, 0xEFu)) /* Three-byte */
+    else if (IS_IN_RANGE (0xE0, 0xEF)) /* Three-byte */
     {
         unsigned int t1, t2;
-        if ((t1 = (*iterator)[0u] - 0x80u) <= 0x3Fu && (t2 = (*iterator)[1u] - 0x80u) <= 0x3Fu)
+        if (boundary - *iterator >= 2 && (t1 = (*iterator)[0u] - 0x80) <= 0x3F && (t2 = (*iterator)[1u] - 0x80) <= 0x3F)
         {
             value = ((value & 0xFu) << 12u) | (t1 << 6u) | t2;
-            if (value < 0x0800u || IS_IN_RANGE (0xD800u, 0xDFFFu))
+            if (value < 0x0800 || IS_IN_RANGE (0xD800, 0xDFFF))
             {
                 return 0u;
             }
@@ -226,14 +229,14 @@ kan_unicode_codepoint_t kan_text_utf8_next (const uint8_t **iterator)
             return value;
         }
     }
-    else if (IS_IN_RANGE (0xF0u, 0xF4u)) /* Four-byte */
+    else if (IS_IN_RANGE (0xF0, 0xF4)) /* Four-byte */
     {
         unsigned int t1, t2, t3;
-        if ((t1 = (*iterator)[0u] - 0x80u) <= 0x3Fu && (t2 = (*iterator)[1u] - 0x80u) <= 0x3Fu &&
-            (t3 = (*iterator)[2u] - 0x80u) <= 0x3Fu)
+        if (boundary - *iterator >= 3 && (t1 = (*iterator)[0u] - 0x80) <= 0x3F &&
+            (t2 = (*iterator)[1u] - 0x80) <= 0x3F && (t3 = (*iterator)[2u] - 0x80) <= 0x3F)
         {
-            value = ((value & 0x7u) << 18u) | (t1 << 12u) | (t2 << 6u) | t3;
-            if (!IS_IN_RANGE (0x10000u, 0x10FFFFu))
+            value = ((value & 0x7) << 18u) | (t1 << 12u) | (t2 << 6u) | t3;
+            if (!IS_IN_RANGE (0x10000, 0x10FFFF))
             {
                 return 0u;
             }
@@ -247,29 +250,54 @@ kan_unicode_codepoint_t kan_text_utf8_next (const uint8_t **iterator)
     return 0u;
 }
 
-static inline kan_instance_size_t calculate_codepoint_length_in_utf8 (kan_unicode_codepoint_t codepoint)
+const uint8_t *kan_text_utf8_find_previous (const uint8_t *from, const uint8_t *boundary)
 {
-    if (codepoint < 0x7F)
+    // Implementation is based upon hb_utf8_t::next from harfbuzz, which is based upon U8_NEXT from ICU. Oh, well. :)
+    const uint8_t *start = from - 1u;
+
+    while (true)
     {
-        return 1u;
-    }
-    else if (codepoint <= 0x7FF)
-    {
-        return 2u;
-    }
-    else if (codepoint <= 0xD7FF || (0xE000 <= codepoint && codepoint <= 0xFFFF))
-    {
-        return 3u;
-    }
-    else if (0xFFFF < codepoint && codepoint <= 0x10FFFF)
-    {
-        return 4u;
+        if (start < boundary)
+        {
+            return NULL;
+        }
+
+        if ((*start & 0xC0) != 0x80)
+        {
+            break;
+        }
+
+        --start;
+        if (from - start > 4)
+        {
+            return NULL;
+        }
     }
 
-    return 0u;
+    // Do codepoint length validity check.
+#define CHECK_RANGE(LEFT, RIGHT) ((*start - (LEFT)) <= ((RIGHT) - (LEFT)))
+
+    switch (from - start)
+    {
+    case 4u:
+        return CHECK_RANGE (0xF0, 0xF4) ? start : NULL;
+
+    case 3u:
+        return CHECK_RANGE (0xE0, 0xEF) ? start : NULL;
+
+    case 2u:
+        return CHECK_RANGE (0xC2, 0xDF) ? start : NULL;
+
+    case 1u:
+        return CHECK_RANGE (0x00, 0x7F) ? start : NULL;
+
+    default:
+        return NULL;
+    }
+#undef CHECK_RANGE
 }
 
-struct kan_text_utf8_result_t kan_text_codepoint_to_utf8 (kan_unicode_codepoint_t codepoint)
+struct kan_text_utf8_result_t kan_text_utf32_to_utf8 (kan_unicode_codepoint_t codepoint)
 {
     struct kan_text_utf8_result_t result;
     result.length = 0u;
@@ -308,11 +336,15 @@ struct line_break_iterator_context_t
 {
     const uint8_t *text_begin;
     const uint8_t *text_iterator;
+    const uint8_t *text_end;
     bool whitespace_sequence;
 };
 
-#define LINE_BREAK_ITERATOR_CONTEXT_INIT(TEXT)                                                                         \
-    (struct line_break_iterator_context_t) { .text_begin = TEXT, .text_iterator = TEXT, .whitespace_sequence = false, }
+#define LINE_BREAK_ITERATOR_CONTEXT_INIT(TEXT, LENGTH)                                                                 \
+    (struct line_break_iterator_context_t)                                                                             \
+    {                                                                                                                  \
+        .text_begin = TEXT, .text_iterator = TEXT, .text_end = TEXT + LENGTH, .whitespace_sequence = false,            \
+    }
 
 static inline bool line_break_iterator_next (struct line_break_iterator_context_t *context,
                                              kan_instance_size_t *output_cluster,
@@ -333,7 +365,7 @@ static inline bool line_break_iterator_next (struct line_break_iterator_context_
     while (true)
     {
         const kan_instance_size_t cluster = (kan_instance_size_t) (context->text_iterator - context->text_begin);
-        const kan_unicode_codepoint_t codepoint = kan_text_utf8_next (&context->text_iterator);
+        const kan_unicode_codepoint_t codepoint = kan_text_utf8_next (&context->text_iterator, context->text_end);
 
         if (!codepoint)
         {
@@ -443,81 +475,40 @@ struct text_create_context_t
     struct text_node_t *first_node;
     struct text_node_t *last_node;
     hb_script_t current_script;
-    kan_instance_size_t first_uncommited_glyphs_index;
-    kan_instance_size_t first_uncommited_glyphs_offset;
+    kan_instance_size_t first_uncommited_utf8_index;
+    kan_instance_size_t first_uncommited_utf8_offset;
 };
 
-static inline void text_commit_trailing_glyphs (struct text_create_context_t *context,
-                                                kan_instance_size_t items_count,
-                                                struct kan_text_item_t *items,
-                                                kan_instance_size_t current_index,
-                                                kan_instance_size_t current_start,
-                                                kan_instance_size_t current_end)
+static inline void text_commit_trailing_utf8 (struct text_create_context_t *context,
+                                              kan_instance_size_t items_count,
+                                              struct kan_text_item_t *items,
+                                              kan_instance_size_t current_index,
+                                              kan_instance_size_t current_start,
+                                              kan_instance_size_t current_end)
 {
     kan_instance_size_t data_length = 0u;
-    if (context->first_uncommited_glyphs_index != KAN_INT_MAX (kan_instance_size_t))
+    if (context->first_uncommited_utf8_index != KAN_INT_MAX (kan_instance_size_t))
     {
-        for (kan_loop_size_t uncommited_index = context->first_uncommited_glyphs_index;
-             uncommited_index < current_index; ++uncommited_index)
+        for (kan_loop_size_t uncommited_index = context->first_uncommited_utf8_index; uncommited_index < current_index;
+             ++uncommited_index)
         {
             struct kan_text_item_t *uncommited_item = &items[uncommited_index];
-            const kan_instance_size_t from_offset = uncommited_index == context->first_uncommited_glyphs_index ?
-                                                        context->first_uncommited_glyphs_offset :
-                                                        0u;
+            KAN_ASSERT (uncommited_item->type == KAN_TEXT_ITEM_UTF8)
 
-            switch (uncommited_item->type)
-            {
-            case KAN_TEXT_ITEM_EMPTY:
-                // Do nothing.
-                break;
+            const kan_instance_size_t from_offset =
+                uncommited_index == context->first_uncommited_utf8_index ? context->first_uncommited_utf8_offset : 0u;
 
-            case KAN_TEXT_ITEM_UTF8:
-                data_length += (kan_instance_size_t) strlen (uncommited_item->utf8 + from_offset);
-                break;
-
-            case KAN_TEXT_ITEM_UTF32:
-            {
-                const kan_unicode_codepoint_t *codepoint = uncommited_item->utf32 + from_offset;
-                while (*codepoint)
-                {
-                    data_length += calculate_codepoint_length_in_utf8 (*codepoint);
-                    ++codepoint;
-                }
-
-                break;
-            }
-
-            case KAN_TEXT_ITEM_STYLE:
-            case KAN_TEXT_ITEM_ICON:
-                KAN_ASSERT (false)
-                break;
-            }
+            const kan_instance_size_t length = (kan_instance_size_t) strlen (uncommited_item->utf8);
+            data_length += length - from_offset;
         }
     }
 
     if (current_index != items_count)
     {
         struct kan_text_item_t *current_item = &items[current_index];
-        switch (current_item->type)
+        if (current_item->type == KAN_TEXT_ITEM_UTF8)
         {
-        case KAN_TEXT_ITEM_EMPTY:
-            break;
-
-        case KAN_TEXT_ITEM_UTF8:
             data_length += current_end - current_start;
-            break;
-
-        case KAN_TEXT_ITEM_UTF32:
-            for (kan_loop_size_t index = current_start; index < current_end; ++index)
-            {
-                data_length += calculate_codepoint_length_in_utf8 (current_item->utf32[index]);
-            }
-
-            break;
-
-        case KAN_TEXT_ITEM_ICON:
-        case KAN_TEXT_ITEM_STYLE:
-            break;
         }
     }
 
@@ -533,110 +524,32 @@ static inline void text_commit_trailing_glyphs (struct text_create_context_t *co
     node->utf8.length = data_length;
     kan_instance_size_t write_offset = 0u;
 
-    if (context->first_uncommited_glyphs_index != KAN_INT_MAX (kan_instance_size_t))
+    if (context->first_uncommited_utf8_index != KAN_INT_MAX (kan_instance_size_t))
     {
-        for (kan_loop_size_t uncommited_index = context->first_uncommited_glyphs_index;
-             uncommited_index < current_index; ++uncommited_index)
+        for (kan_loop_size_t uncommited_index = context->first_uncommited_utf8_index; uncommited_index < current_index;
+             ++uncommited_index)
         {
             struct kan_text_item_t *uncommited_item = &items[uncommited_index];
-            const kan_instance_size_t from_offset = uncommited_index == context->first_uncommited_glyphs_index ?
-                                                        context->first_uncommited_glyphs_offset :
-                                                        0u;
+            KAN_ASSERT (uncommited_item->type == KAN_TEXT_ITEM_UTF8)
 
-            switch (uncommited_item->type)
-            {
-            case KAN_TEXT_ITEM_EMPTY:
-                // Do nothing.
-                break;
+            const kan_instance_size_t from_offset =
+                uncommited_index == context->first_uncommited_utf8_index ? context->first_uncommited_utf8_offset : 0u;
 
-            case KAN_TEXT_ITEM_UTF8:
-            {
-                const kan_instance_size_t length = (kan_instance_size_t) strlen (uncommited_item->utf8 + from_offset);
-                memcpy (node->utf8.data + write_offset, uncommited_item->utf8 + from_offset, length);
-                write_offset += length;
-                break;
-            }
-
-            case KAN_TEXT_ITEM_UTF32:
-            {
-                const kan_unicode_codepoint_t *codepoint = uncommited_item->utf32 + from_offset;
-                while (*codepoint)
-                {
-                    const struct kan_text_utf8_result_t result = kan_text_codepoint_to_utf8 (*codepoint);
-                    switch (result.length)
-                    {
-                    // Intentional fallthrough below.
-                    case 4u:
-                        node->utf8.data[write_offset + 3u] = result.data[3u];
-                    case 3u:
-                        node->utf8.data[write_offset + 2u] = result.data[2u];
-                    case 2u:
-                        node->utf8.data[write_offset + 1u] = result.data[1u];
-                    case 1u:
-                        node->utf8.data[write_offset] = result.data[0u];
-                    case 0u:
-                        // Erred codepoint, just skip.
-                        break;
-                    }
-
-                    write_offset += result.length;
-                    ++codepoint;
-                }
-
-                break;
-            }
-
-            case KAN_TEXT_ITEM_STYLE:
-            case KAN_TEXT_ITEM_ICON:
-                KAN_ASSERT (false)
-                break;
-            }
+            const kan_instance_size_t length = (kan_instance_size_t) strlen (uncommited_item->utf8);
+            memcpy (node->utf8.data + write_offset, uncommited_item->utf8 + from_offset, length - from_offset);
+            write_offset += length - from_offset;
         }
 
-        context->first_uncommited_glyphs_index = KAN_INT_MAX (kan_instance_size_t);
+        context->first_uncommited_utf8_index = KAN_INT_MAX (kan_instance_size_t);
     }
 
     if (current_index != items_count && current_start != current_end)
     {
         struct kan_text_item_t *current_item = &items[current_index];
-        switch (current_item->type)
+        if (current_item->type == KAN_TEXT_ITEM_UTF8)
         {
-        case KAN_TEXT_ITEM_EMPTY:
-            break;
-
-        case KAN_TEXT_ITEM_UTF8:
             memcpy (node->utf8.data + write_offset, current_item->utf8 + current_start, current_end - current_start);
             write_offset += current_end - current_start;
-            break;
-
-        case KAN_TEXT_ITEM_UTF32:
-            for (kan_loop_size_t index = current_start; index < current_end; ++index)
-            {
-                const struct kan_text_utf8_result_t result = kan_text_codepoint_to_utf8 (current_item->utf32[index]);
-                switch (result.length)
-                {
-                // Intentional fallthrough below.
-                case 4u:
-                    node->utf8.data[write_offset + 3u] = result.data[3u];
-                case 3u:
-                    node->utf8.data[write_offset + 2u] = result.data[2u];
-                case 2u:
-                    node->utf8.data[write_offset + 1u] = result.data[1u];
-                case 1u:
-                    node->utf8.data[write_offset] = result.data[0u];
-                case 0u:
-                    // Erred codepoint, just skip.
-                    break;
-                }
-
-                write_offset += result.length;
-            }
-
-            break;
-
-        case KAN_TEXT_ITEM_ICON:
-        case KAN_TEXT_ITEM_STYLE:
-            break;
         }
     }
 
@@ -661,8 +574,8 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
         .first_node = NULL,
         .last_node = NULL,
         .current_script = HB_SCRIPT_UNKNOWN,
-        .first_uncommited_glyphs_index = KAN_INT_MAX (kan_instance_size_t),
-        .first_uncommited_glyphs_offset = 0u,
+        .first_uncommited_utf8_index = KAN_INT_MAX (kan_instance_size_t),
+        .first_uncommited_utf8_offset = 0u,
     };
 
     kan_interned_string_t style = NULL;
@@ -678,46 +591,25 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
             break;
 
         case KAN_TEXT_ITEM_UTF8:
-        case KAN_TEXT_ITEM_UTF32:
         {
             const uint8_t *utf8 = (uint8_t *) item->utf8;
-            kan_unicode_codepoint_t codepoint;
+            const uint8_t *utf8_end = utf8 + strlen (item->utf8);
+            kan_unicode_codepoint_t codepoint = 0u;
             kan_instance_size_t uncommited_from = 0u;
-            kan_instance_size_t current_codepoint_source_index = KAN_INT_MAX (kan_instance_size_t);
 
             while (true)
             {
-                if (item->type == KAN_TEXT_ITEM_UTF8)
-                {
-                    current_codepoint_source_index = (kan_instance_size_t) (utf8 - (uint8_t *) item->utf8);
-                    codepoint = kan_text_utf8_next (&utf8);
-                }
-                else
-                {
-                    ++current_codepoint_source_index;
-                    codepoint = item->utf32[current_codepoint_source_index];
-                }
-
-                if (!codepoint)
+                const kan_instance_size_t pre_step_offset = (kan_instance_size_t) (utf8 - (uint8_t *) item->utf8);
+                if (!(codepoint = kan_text_utf8_next (&utf8, utf8_end)))
                 {
                     break;
                 }
 
                 if (codepoint == KAN_TEXT_BIDI_CUSTOM_BREAK_VALUE)
                 {
-                    text_commit_trailing_glyphs (&context, items_count, items, index, uncommited_from,
-                                                 current_codepoint_source_index);
-
+                    text_commit_trailing_utf8 (&context, items_count, items, index, uncommited_from, pre_step_offset);
                     // Uncommited from current offset, skip break character.
-                    if (item->type == KAN_TEXT_ITEM_UTF8)
-                    {
-                        uncommited_from = (kan_instance_size_t) (utf8 - (uint8_t *) item->utf8);
-                    }
-                    else
-                    {
-                        uncommited_from = current_codepoint_source_index + 1u;
-                    }
-
+                    uncommited_from = (kan_instance_size_t) (utf8 - (uint8_t *) item->utf8);
                     context.current_script = HB_SCRIPT_UNKNOWN;
                     continue;
                 }
@@ -746,9 +638,9 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
 
                         default:
                         {
-                            text_commit_trailing_glyphs (&context, items_count, items, index, uncommited_from,
-                                                         current_codepoint_source_index);
-                            uncommited_from = current_codepoint_source_index;
+                            text_commit_trailing_utf8 (&context, items_count, items, index, uncommited_from,
+                                                       pre_step_offset);
+                            uncommited_from = pre_step_offset;
                             break;
                         }
                         }
@@ -759,13 +651,13 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
                 }
             }
 
-            KAN_ASSERT (context.first_uncommited_glyphs_index == KAN_INT_MAX (kan_instance_size_t) ||
+            KAN_ASSERT (context.first_uncommited_utf8_index == KAN_INT_MAX (kan_instance_size_t) ||
                         uncommited_from == 0u)
 
-            if (context.first_uncommited_glyphs_index == KAN_INT_MAX (kan_instance_size_t))
+            if (context.first_uncommited_utf8_index == KAN_INT_MAX (kan_instance_size_t))
             {
-                context.first_uncommited_glyphs_index = index;
-                context.first_uncommited_glyphs_offset = uncommited_from;
+                context.first_uncommited_utf8_index = index;
+                context.first_uncommited_utf8_offset = uncommited_from;
             }
 
             break;
@@ -773,9 +665,9 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
 
         case KAN_TEXT_ITEM_ICON:
         {
-            if (context.first_uncommited_glyphs_index != KAN_INT_MAX (kan_instance_size_t))
+            if (context.first_uncommited_utf8_index != KAN_INT_MAX (kan_instance_size_t))
             {
-                text_commit_trailing_glyphs (&context, items_count, items, index, 0u, 0u);
+                text_commit_trailing_utf8 (&context, items_count, items, index, 0u, 0u);
                 context.current_script = HB_SCRIPT_UNKNOWN;
             }
 
@@ -811,9 +703,9 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
             style = item->style.style;
             mark = item->style.mark;
 
-            if (context.first_uncommited_glyphs_index != KAN_INT_MAX (kan_instance_size_t))
+            if (context.first_uncommited_utf8_index != KAN_INT_MAX (kan_instance_size_t))
             {
-                text_commit_trailing_glyphs (&context, items_count, items, index, 0u, 0u);
+                text_commit_trailing_utf8 (&context, items_count, items, index, 0u, 0u);
                 context.current_script = HB_SCRIPT_UNKNOWN;
             }
 
@@ -840,9 +732,9 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
         }
     }
 
-    if (context.first_uncommited_glyphs_index != KAN_INT_MAX (kan_instance_size_t))
+    if (context.first_uncommited_utf8_index != KAN_INT_MAX (kan_instance_size_t))
     {
-        text_commit_trailing_glyphs (&context, items_count, items, items_count, 0u, 0u);
+        text_commit_trailing_utf8 (&context, items_count, items, items_count, 0u, 0u);
     }
 
     return KAN_HANDLE_SET (kan_text_t, context.first_node);
@@ -1699,7 +1591,7 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
     if (can_break)
     {
         struct line_break_iterator_context_t line_break_context =
-            LINE_BREAK_ITERATOR_CONTEXT_INIT ((uint8_t *) node->utf8.data);
+            LINE_BREAK_ITERATOR_CONTEXT_INIT ((uint8_t *) node->utf8.data, node->utf8.length);
 
         while (true)
         {
@@ -1738,7 +1630,7 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
     hb_buffer_set_script (context->harfbuzz_buffer, node->utf8.script);
     hb_buffer_set_direction (context->harfbuzz_buffer, harfbuzz_direction);
     hb_buffer_set_cluster_level (context->harfbuzz_buffer, HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS);
-    hb_buffer_add_utf8 (context->harfbuzz_buffer, node->utf8.data, -1, 0u, -1);
+    hb_buffer_add_utf8 (context->harfbuzz_buffer, node->utf8.data, node->utf8.length, 0u, node->utf8.length);
     hb_shape (context->harfbuzz_font, context->harfbuzz_buffer, NULL, 0u);
     CUSHION_DEFER { hb_buffer_clear_contents (context->harfbuzz_buffer); }
 
@@ -2405,8 +2297,9 @@ bool kan_font_library_precache (kan_font_library_t instance, struct kan_text_pre
     KAN_ATOMIC_INT_SCOPED_LOCK_WRITE (&selected_category->glyphs_read_write_lock)
     kan_unicode_codepoint_t codepoint;
     const uint8_t *utf8 = (uint8_t *) request->utf8;
+    const uint8_t *utf8_end = utf8 + strlen (request->utf8);
 
-    while ((codepoint = kan_text_utf8_next (&utf8)))
+    while ((codepoint = kan_text_utf8_next (&utf8, utf8_end)))
     {
         if (codepoint == KAN_TEXT_BIDI_CUSTOM_BREAK_VALUE)
         {

@@ -70,7 +70,13 @@ typedef uint32_t kan_unicode_codepoint_t;
 
 /// \brief Returns next unicode codepoint or 0 when iteration ended or text is malformed.
 /// \param iterator Pointer to pointer that is used as string iterator and modified by this function.
-TEXT_API kan_unicode_codepoint_t kan_text_utf8_next (const uint8_t **iterator);
+/// \param boundary Used as text-end mark and this function will return error if boundary interrupts codepoint.
+TEXT_API kan_unicode_codepoint_t kan_text_utf8_next (const uint8_t **iterator, const uint8_t *boundary);
+
+/// \brief Returns pointer to the previous codepoint seen from given current codepoint. Returns `NULL` on error.
+/// \param from Pointer to the current codepoint for which we're searching previous one.
+/// \param boundary Used as text-start mark and this function will return error if boundary interrupts codepoint.
+TEXT_API const uint8_t *kan_text_utf8_find_previous (const uint8_t *from, const uint8_t *boundary);
 
 /// \brief Result container for `kan_text_codepoint_to_utf8`.
 struct kan_text_utf8_result_t
@@ -80,7 +86,7 @@ struct kan_text_utf8_result_t
 };
 
 /// \brief Converts unicode codepoint to utf8. Result has zero length if error has occurred.
-TEXT_API struct kan_text_utf8_result_t kan_text_codepoint_to_utf8 (kan_unicode_codepoint_t codepoint);
+TEXT_API struct kan_text_utf8_result_t kan_text_utf32_to_utf8 (kan_unicode_codepoint_t codepoint);
 
 /// \brief Custom break character for the simplified manual bidi.
 /// \details We do not perform full scale bidi for utf8 text fragments. Instead, neutral characters are assigned to
@@ -117,10 +123,6 @@ enum kan_text_item_type_t
 
     /// \brief Used to append utf8 text slice as null terminated string.
     KAN_TEXT_ITEM_UTF8,
-
-    /// \brief Used to append utf32 (raw codepoints) text slice as null terminated string.
-    /// \details Expected to be internally compressed back into utf8.
-    KAN_TEXT_ITEM_UTF32,
 
     /// \brief Used to insert glyph-sized icon into the text represented by icon index.
     KAN_TEXT_ITEM_ICON,

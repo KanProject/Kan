@@ -72,6 +72,16 @@ typedef uint32_t kan_unicode_codepoint_t;
 /// \param iterator Pointer to pointer that is used as string iterator and modified by this function.
 TEXT_API kan_unicode_codepoint_t kan_text_utf8_next (const uint8_t **iterator);
 
+/// \brief Result container for `kan_text_codepoint_to_utf8`.
+struct kan_text_utf8_result_t
+{
+    kan_instance_size_t length;
+    char data[4u];
+};
+
+/// \brief Converts unicode codepoint to utf8. Result has zero length if error has occurred.
+TEXT_API struct kan_text_utf8_result_t kan_text_codepoint_to_utf8 (kan_unicode_codepoint_t codepoint);
+
 /// \brief Custom break character for the simplified manual bidi.
 /// \details We do not perform full scale bidi for utf8 text fragments. Instead, neutral characters are assigned to
 ///          the script of the previous non-neutral character or to the next non-neutral character if there is
@@ -107,6 +117,10 @@ enum kan_text_item_type_t
 
     /// \brief Used to append utf8 text slice as null terminated string.
     KAN_TEXT_ITEM_UTF8,
+
+    /// \brief Used to append utf32 (raw codepoints) text slice as null terminated string.
+    /// \details Expected to be internally compressed back into utf8.
+    KAN_TEXT_ITEM_UTF32,
 
     /// \brief Used to insert glyph-sized icon into the text represented by icon index.
     KAN_TEXT_ITEM_ICON,
@@ -146,6 +160,7 @@ struct kan_text_item_t
     union
     {
         const char *utf8;
+        const kan_unicode_codepoint_t *utf32;
         struct kan_text_item_icon_t icon;
         struct kan_text_item_style_t style;
     };
@@ -276,6 +291,11 @@ struct kan_text_shaping_request_t
     /// \details Shaping algorithm tries as hard as possible to fit text data into this limit,
     ///          introducing line breaks whenever possible.
     kan_instance_size_t primary_axis_limit;
+
+    /// \brief True if line/column breaks are allowed.
+    /// \details When breaks are not allowed, primary axis limit is still used for alignment
+    ///          if shaped text primary size is less than limit.
+    bool allow_breaks;
 
     /// \brief Text object to be shaped into data for rendering.
     kan_text_t text;

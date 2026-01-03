@@ -1058,6 +1058,7 @@ void kan_text_shaping_unit_init (struct kan_text_shaping_unit_t *instance)
     instance->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
     instance->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT;
     instance->request.primary_axis_limit = 0u;
+    instance->request.allow_breaks = true;
     instance->request.text = KAN_HANDLE_SET_INVALID (kan_text_t);
 
     instance->stable = true;

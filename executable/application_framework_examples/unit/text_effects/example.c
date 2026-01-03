@@ -278,6 +278,7 @@ static void update_showcase_text (struct kan_text_shaping_unit_t *text)
     text->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
     text->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER;
     text->request.primary_axis_limit = FIXED_WIDTH - 100u;
+    text->request.allow_breaks = true;
 
     struct kan_text_item_t text_items[] = {
         {
@@ -462,6 +463,7 @@ static void update_reading_text (struct kan_text_shaping_unit_t *text)
     text->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
     text->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT;
     text->request.primary_axis_limit = FIXED_WIDTH - 100u;
+    text->request.allow_breaks = true;
 
     struct kan_text_item_t text_items[] = {
         {
@@ -509,6 +511,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
             unit->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
             unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT;
             unit->request.primary_axis_limit = 425u;
+            unit->request.allow_breaks = true;
 
             struct kan_text_item_t text_items[] = {
                 {
@@ -547,6 +550,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
             unit->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
             unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER;
             unit->request.primary_axis_limit = 425u;
+            unit->request.allow_breaks = true;
             update_dirty_text (singleton, unit);
         }
     }
@@ -570,6 +574,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
             unit->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
             unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_RIGHT;
             unit->request.primary_axis_limit = 425u;
+            unit->request.allow_breaks = true;
             update_unstable_text (unit);
         }
     }

@@ -17,7 +17,7 @@
 /// instances. Render foundation checks all usages and loads only the mip intervals that are advised by at least one
 /// usage. When texture is loaded, `kan_render_texture_loaded_t` instance is created with appropriate render image.
 /// When there is no more usages, `kan_render_texture_loaded_t` is automatically deleted. When mip requirements change
-/// due to insertion or deletion of usages or texture data changes (due to hot reload, for example), 
+/// due to insertion or deletion of usages or texture data changes (due to hot reload, for example),
 /// `kan_render_texture_loaded_t` is automatically updated.
 /// \endparblock
 

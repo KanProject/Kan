@@ -582,6 +582,20 @@ struct kan_ui_draw_command_data_t
     };
 };
 
+/// \brief Internal data that is cached for simpler layout partial recalculation.
+/// \details Some data like grow size and compound margins can only be calculated by checking the whole hierarchy.
+///          However, when we know that upper-level hierarchy didn't change, it is much easier and much more logical
+///          to use cached values during partial recalculation.
+struct kan_ui_layout_cached_t
+{
+    kan_instance_offset_t grow_width;
+    kan_instance_offset_t grow_height;
+    kan_instance_offset_t compound_margin_left;
+    kan_instance_offset_t compound_margin_right;
+    kan_instance_offset_t compound_margin_top;
+    kan_instance_offset_t compound_margin_bottom;
+};
+
 /// \brief Internal enum for deciding how much we need to recalculate in layout update.
 enum kan_ui_layout_dirt_level_t
 {
@@ -625,12 +639,11 @@ struct kan_ui_node_drawable_t
     kan_instance_offset_t height;
     kan_instance_offset_t global_x;
     kan_instance_offset_t global_y;
+    kan_instance_offset_t draw_offset_x;
+    kan_instance_offset_t draw_offset_y;
 
-    /// \brief Grow width is cached for simpler layout partial recalculation.
-    kan_instance_offset_t cached_grow_width;
-
-    /// \brief Grow height is cached for simpler layout partial recalculation.
-    kan_instance_offset_t cached_grow_height;
+    /// \brief Internal data that is cached for simpler layout partial recalculation.
+    struct kan_ui_layout_cached_t cached;
 
     /// \brief Internal data pointer during layout recalculation.
     KAN_REFLECTION_IGNORE

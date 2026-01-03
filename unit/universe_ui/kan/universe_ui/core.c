@@ -499,17 +499,6 @@ struct layout_temporary_data_t
     kan_instance_offset_t cached_padding_right_px;
     kan_instance_offset_t cached_padding_top_px;
     kan_instance_offset_t cached_padding_bottom_px;
-
-    // Compound margins are calculated as "real distances to nearest element or border" in layout_whitespace_pass and
-    // are used for properly collapsing outer margins when layout requests it through flag. However, keep in mind that
-    // compound margins are calculated between elements in the same layout, there are not designed to add padding
-    // between elements of two sibling layouts if that padding didn't exist between those sibling layout nodes. They
-    // are only designed to get rid of unnecessary additional paddings in between.
-
-    kan_instance_offset_t compound_margin_left_px;
-    kan_instance_offset_t compound_margin_right_px;
-    kan_instance_offset_t compound_margin_top_px;
-    kan_instance_offset_t compound_margin_bottom_px;
 };
 
 static inline void read_and_sort_children_into (struct ui_layout_state_t *state,
@@ -590,11 +579,6 @@ static struct layout_temporary_data_t *layout_temporary_data_create (struct ui_l
     data->cached_padding_top_px = 0;
     data->cached_padding_bottom_px = 0;
 
-    data->compound_margin_left_px = 0;
-    data->compound_margin_right_px = 0;
-    data->compound_margin_top_px = 0;
-    data->compound_margin_bottom_px = 0;
-
     read_and_sort_children_into (state, node->id, &data->sorted_children_count, &data->sorted_children);
     return data;
 }
@@ -654,90 +638,137 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
                                     struct kan_ui_node_drawable_t *drawable)
 {
     struct layout_temporary_data_t *data = drawable->temporary_data;
-    if (drawable->layout_dirt_level == KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
+
+    // Short-circuit for non-full updates -- just go to the children.
+    if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
     {
-        const kan_instance_offset_t baseline_left = data->cached_padding_left_px + data->compound_margin_left_px;
-        const kan_instance_offset_t baseline_right = data->cached_padding_right_px + data->compound_margin_right_px;
-        const kan_instance_offset_t baseline_top = data->cached_padding_top_px + data->compound_margin_top_px;
-        const kan_instance_offset_t baseline_bottom = data->cached_padding_bottom_px + data->compound_margin_bottom_px;
-
-        struct layout_temporary_data_t *previous_child_data = NULL;
-        switch (data->cached_layout)
+        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
-        case KAN_UI_LAYOUT_FRAME:
-            // No margins for frames.
-            break;
-
-        case KAN_UI_LAYOUT_VERTICAL_CONTAINER:
-        {
-            kan_instance_offset_t previous_margin = baseline_top;
-            for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
-            {
-                const struct layout_child_access_t *access = &data->sorted_children[index];
-                struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
-
-                UI_COLLAPSE_MARGIN (child_data->cached_margin_left_px, baseline_left);
-                UI_COLLAPSE_MARGIN (child_data->cached_margin_right_px, baseline_right);
-                UI_COLLAPSE_MARGIN (child_data->cached_margin_top_px, previous_margin);
-
-                child_data->compound_margin_left_px = child_data->cached_margin_left_px + baseline_left;
-                child_data->compound_margin_right_px = child_data->cached_margin_right_px + baseline_right;
-                child_data->compound_margin_top_px = child_data->cached_margin_top_px + previous_margin;
-
-                if (previous_child_data)
-                {
-                    previous_child_data->compound_margin_bottom_px = child_data->compound_margin_top_px;
-                }
-
-                previous_margin = child_data->cached_margin_bottom_px;
-                previous_child_data = child_data;
-            }
-
-            if (previous_child_data)
-            {
-                UI_COLLAPSE_MARGIN (previous_child_data->cached_margin_bottom_px, baseline_bottom);
-                previous_child_data->compound_margin_bottom_px =
-                    previous_child_data->cached_margin_bottom_px + baseline_bottom;
-            }
-
-            break;
+            const struct layout_child_access_t *access = &data->sorted_children[index];
+            layout_whitespace_pass (state, access->child, access->drawable);
         }
 
-        case KAN_UI_LAYOUT_HORIZONTAL_CONTAINER:
+        return;
+    }
+
+    // Compound margins are calculated as "real distances to nearest element or border" in here and are used for
+    // properly collapsing outer margins for complex layout transitive relations. However, keep in mind that compound
+    // margins are calculated between elements in the same layout, there are not designed to add padding between
+    // elements of two sibling layouts if that padding didn't exist between those sibling layout nodes. They are only
+    // designed to get rid of unnecessary additional paddings in between.
+
+    const kan_instance_offset_t baseline_left = data->cached_padding_left_px + drawable->cached.compound_margin_left;
+    const kan_instance_offset_t baseline_right = data->cached_padding_right_px + drawable->cached.compound_margin_right;
+    const kan_instance_offset_t baseline_top = data->cached_padding_top_px + drawable->cached.compound_margin_top;
+    const kan_instance_offset_t baseline_bottom =
+        data->cached_padding_bottom_px + drawable->cached.compound_margin_bottom;
+
+    struct kan_ui_node_drawable_t *previous_child = NULL;
+    struct layout_temporary_data_t *previous_child_data = NULL;
+
+    switch (data->cached_layout)
+    {
+    case KAN_UI_LAYOUT_FRAME:
+    {
+        // Frame layout has no margins, but we still need to propagate outer margins to the children.
+        // For example, frame layout can be used to position internal scrollable vertical container and it its scroll
+        // lines: despite the fact that container is inside frame, we'd like its internal elements to know about outer
+        // margins and avoid introducing unnecessary whitespace inside that container.
+        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
-            kan_instance_offset_t previous_margin = baseline_left;
-            for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+            const struct layout_child_access_t *access = &data->sorted_children[index];
+            struct kan_ui_node_drawable_t *child = access->drawable;
+            struct layout_temporary_data_t *child_data = child->temporary_data;
+
+            UI_COLLAPSE_MARGIN (child_data->cached_margin_left_px, baseline_left);
+            UI_COLLAPSE_MARGIN (child_data->cached_margin_right_px, baseline_right);
+            UI_COLLAPSE_MARGIN (child_data->cached_margin_top_px, baseline_top);
+            UI_COLLAPSE_MARGIN (child_data->cached_margin_bottom_px, baseline_bottom);
+
+            child->cached.compound_margin_left = child_data->cached_margin_left_px + baseline_left;
+            child->cached.compound_margin_right = child_data->cached_margin_right_px + baseline_right;
+            child->cached.compound_margin_top = child_data->cached_margin_top_px + baseline_top;
+            child->cached.compound_margin_bottom = child_data->cached_margin_bottom_px + baseline_bottom;
+
+            previous_child = child;
+            previous_child_data = child_data;
+        }
+
+        break;
+    }
+
+    case KAN_UI_LAYOUT_VERTICAL_CONTAINER:
+    {
+        kan_instance_offset_t previous_margin = baseline_top;
+        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        {
+            const struct layout_child_access_t *access = &data->sorted_children[index];
+            struct kan_ui_node_drawable_t *child = access->drawable;
+            struct layout_temporary_data_t *child_data = child->temporary_data;
+
+            UI_COLLAPSE_MARGIN (child_data->cached_margin_left_px, baseline_left);
+            UI_COLLAPSE_MARGIN (child_data->cached_margin_right_px, baseline_right);
+            UI_COLLAPSE_MARGIN (child_data->cached_margin_top_px, previous_margin);
+
+            child->cached.compound_margin_left = child_data->cached_margin_left_px + baseline_left;
+            child->cached.compound_margin_right = child_data->cached_margin_right_px + baseline_right;
+            child->cached.compound_margin_top = child_data->cached_margin_top_px + previous_margin;
+
+            if (previous_child)
             {
-                const struct layout_child_access_t *access = &data->sorted_children[index];
-                struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
-
-                UI_COLLAPSE_MARGIN (child_data->cached_margin_left_px, previous_margin);
-                UI_COLLAPSE_MARGIN (child_data->cached_margin_top_px, baseline_top);
-                UI_COLLAPSE_MARGIN (child_data->cached_margin_bottom_px, baseline_bottom);
-
-                child_data->compound_margin_left_px = child_data->cached_margin_left_px + previous_margin;
-                if (previous_child_data)
-                {
-                    previous_child_data->compound_margin_right_px = child_data->compound_margin_left_px;
-                }
-
-                child_data->compound_margin_top_px = child_data->cached_margin_top_px + baseline_top;
-                child_data->compound_margin_bottom_px = child_data->cached_margin_bottom_px + baseline_bottom;
-
-                previous_margin = child_data->cached_margin_right_px;
-                previous_child_data = child_data;
+                previous_child->cached.compound_margin_bottom = child->cached.compound_margin_top;
             }
 
-            if (previous_child_data)
+            previous_margin = child_data->cached_margin_bottom_px;
+            previous_child = child;
+            previous_child_data = child_data;
+        }
+
+        if (previous_child_data)
+        {
+            UI_COLLAPSE_MARGIN (previous_child_data->cached_margin_bottom_px, baseline_bottom);
+            previous_child->cached.compound_margin_bottom =
+                previous_child_data->cached_margin_bottom_px + baseline_bottom;
+        }
+
+        break;
+    }
+
+    case KAN_UI_LAYOUT_HORIZONTAL_CONTAINER:
+    {
+        kan_instance_offset_t previous_margin = baseline_left;
+        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        {
+            const struct layout_child_access_t *access = &data->sorted_children[index];
+            struct kan_ui_node_drawable_t *child = access->drawable;
+            struct layout_temporary_data_t *child_data = child->temporary_data;
+
+            UI_COLLAPSE_MARGIN (child_data->cached_margin_left_px, previous_margin);
+            UI_COLLAPSE_MARGIN (child_data->cached_margin_top_px, baseline_top);
+            UI_COLLAPSE_MARGIN (child_data->cached_margin_bottom_px, baseline_bottom);
+
+            child->cached.compound_margin_left = child_data->cached_margin_left_px + previous_margin;
+            if (previous_child)
             {
-                UI_COLLAPSE_MARGIN (previous_child_data->cached_margin_right_px, baseline_right);
-                previous_child_data->compound_margin_right_px =
-                    previous_child_data->cached_margin_right_px + baseline_right;
+                previous_child->cached.compound_margin_right = child->cached.compound_margin_left;
             }
 
-            break;
+            child->cached.compound_margin_top = child_data->cached_margin_top_px + baseline_top;
+            child->cached.compound_margin_bottom = child_data->cached_margin_bottom_px + baseline_bottom;
+
+            previous_margin = child_data->cached_margin_right_px;
+            previous_child = child;
+            previous_child_data = child_data;
         }
+
+        if (previous_child_data)
+        {
+            UI_COLLAPSE_MARGIN (previous_child_data->cached_margin_right_px, baseline_right);
+            previous_child->cached.compound_margin_right = previous_child_data->cached_margin_right_px + baseline_right;
         }
+
+        break;
+    }
     }
 
     for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
@@ -846,12 +877,12 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
         // When root, need to grow itself from cached growth.
         if (node->element.width_flags & KAN_UI_SIZE_FLAG_GROW)
         {
-            data->width_px += drawable->cached_grow_width;
+            data->width_px += drawable->cached.grow_width;
         }
 
         if (node->element.height_flags & KAN_UI_SIZE_FLAG_GROW)
         {
-            data->height_px += drawable->cached_grow_height;
+            data->height_px += drawable->cached.grow_height;
         }
     }
 
@@ -863,8 +894,8 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
         struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
-        access->drawable->cached_grow_width = 0;
-        access->drawable->cached_grow_height = 0;
+        access->drawable->cached.grow_width = 0;
+        access->drawable->cached.grow_height = 0;
 
         if (access->child->element.width_flags & KAN_UI_SIZE_FLAG_GROW)
         {
@@ -925,7 +956,7 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
 
                 if (child_data->width_px < width_available)
                 {
-                    access->drawable->cached_grow_width = width_available - child_data->width_px;
+                    access->drawable->cached.grow_width = width_available - child_data->width_px;
                     child_data->width_px = width_available;
                 }
             }
@@ -951,7 +982,7 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
 
                 if (child_data->height_px < height_available)
                 {
-                    access->drawable->cached_grow_height = height_available - child_data->height_px;
+                    access->drawable->cached.grow_height = height_available - child_data->height_px;
                     child_data->height_px = height_available;
                 }
             }
@@ -1005,7 +1036,7 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
             {                                                                                                          \
                 struct layout_temporary_data_t *receiver_data = receiver->access->drawable->temporary_data;            \
                 receiver_data->AXIS_NAME##_px += give_every;                                                           \
-                receiver->access->drawable->cached_grow_##AXIS_NAME += give_every;                                     \
+                receiver->access->drawable->cached.grow_##AXIS_NAME += give_every;                                     \
                 receiver = receiver->next;                                                                             \
             }                                                                                                          \
                                                                                                                        \
@@ -2633,8 +2664,8 @@ static void execute_draw_text_command (struct ui_render_state_t *state,
                                                                             shaping_unit->shaped_unstable.icons.size;
 
     struct text_push_constant_layout_t push_constant;
-    push_constant.offset.x = (float) drawable->global_x;
-    push_constant.offset.y = (float) drawable->global_y;
+    push_constant.offset.x = (float) (drawable->global_x + drawable->draw_offset_x);
+    push_constant.offset.y = (float) (drawable->global_y + drawable->draw_offset_y);
 
     switch (shaping_unit->request.alignment)
     {
@@ -2881,8 +2912,8 @@ static void execute_draw_custom_command (struct ui_render_state_t *state,
                                              &state->transient.private->ui_rect_vertices, NULL);
 
         struct kan_ui_draw_command_custom_push_layout_t push;
-        push.size.x = (float) drawable->global_x;
-        push.size.y = (float) drawable->global_y;
+        push.size.x = (float) (drawable->global_x + drawable->draw_offset_x);
+        push.size.y = (float) (drawable->global_y + drawable->draw_offset_y);
         push.offset.x = (float) drawable->width;
         push.offset.y = (float) drawable->height;
         push.ui_mark = command->ui_mark;
@@ -2930,8 +2961,8 @@ static void process_draw_command (struct ui_render_state_t *state,
         struct image_instanced_data_t *data = state->transient.image_bulk_next;
         ++state->transient.image_bulk_next;
 
-        data->offset.x = (float) drawable->global_x;
-        data->offset.y = (float) drawable->global_y;
+        data->offset.x = (float) (drawable->global_x + drawable->draw_offset_x);
+        data->offset.y = (float) (drawable->global_y + drawable->draw_offset_y);
         data->size.x = (float) drawable->width;
         data->size.y = (float) drawable->height;
 
@@ -3238,9 +3269,15 @@ void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
     instance->height = 0;
     instance->global_x = 0;
     instance->global_y = 0;
+    instance->draw_offset_x = 0;
+    instance->draw_offset_y = 0;
 
-    instance->cached_grow_width = 0;
-    instance->cached_grow_height = 0;
+    instance->cached.grow_width = 0;
+    instance->cached.grow_height = 0;
+    instance->cached.compound_margin_left = 0;
+    instance->cached.compound_margin_right = 0;
+    instance->cached.compound_margin_top = 0;
+    instance->cached.compound_margin_bottom = 0;
 
     instance->temporary_data = NULL;
     instance->layout_dirt_level = KAN_UI_LAYOUT_DIRT_LEVEL_NONE;

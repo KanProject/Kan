@@ -2961,10 +2961,19 @@ static void process_draw_command (struct ui_render_state_t *state,
         struct image_instanced_data_t *data = state->transient.image_bulk_next;
         ++state->transient.image_bulk_next;
 
-        data->offset.x = (float) (drawable->global_x + drawable->draw_offset_x);
-        data->offset.y = (float) (drawable->global_y + drawable->draw_offset_y);
-        data->size.x = (float) drawable->width;
-        data->size.y = (float) drawable->height;
+        kan_instance_offset_t x = drawable->global_x + drawable->draw_offset_x;
+        kan_instance_offset_t y = drawable->global_y + drawable->draw_offset_y;
+
+        if (command->image.custom_rect)
+        {
+            x += command->image.custom_x_offset;
+            y += command->image.custom_y_offset;
+        }
+
+        data->offset.x = (float) x;
+        data->offset.y = (float) y;
+        data->size.x = (float) (command->image.custom_rect ? command->image.custom_width : drawable->width);
+        data->size.y = (float) (command->image.custom_rect ? command->image.custom_height : drawable->height);
 
         data->image_index = command->image.record_index;
         data->ui_mark = command->ui_mark;

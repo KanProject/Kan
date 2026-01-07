@@ -478,6 +478,12 @@ struct kan_ui_draw_command_image_t
     /// \details It is advised to leave it at `false` unless you know that control-specific image replacement should be
     ///          used for this element.
     bool allow_override;
+
+    bool custom_rect;
+    kan_instance_offset_t custom_x_offset;
+    kan_instance_offset_t custom_y_offset;
+    kan_instance_offset_t custom_width;
+    kan_instance_offset_t custom_height;
 };
 
 /// \brief Syntax sugar drop-in initializer for image draw commands.
@@ -485,6 +491,11 @@ struct kan_ui_draw_command_image_t
     ((struct kan_ui_draw_command_image_t) {                                                                            \
         .record_index = (INDEX),                                                                                       \
         .allow_override = false,                                                                                       \
+        .custom_rect = false,                                                                                          \
+        .custom_x_offset = 0,                                                                                          \
+        .custom_y_offset = 0,                                                                                          \
+        .custom_width = 0,                                                                                             \
+        .custom_height = 0,                                                                                            \
     })
 
 /// \brief If default text pipeline is used, it is possible select one of up to 255 palette entries for the color when

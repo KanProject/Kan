@@ -196,6 +196,59 @@ struct kan_text_shaped_icon_instance_data_t
     uint32_t read_index;
 };
 
+/// \brief Contains information about one visual cluster for the text edition logic.
+/// \details Cluster is a one or more glyphs that form one visual letter that is perceived by the user as one letter in
+///          most cases. It is important nail down how clusters interact with text editing operations:
+///          - Clusters are used to calculate cursor visual and data positions.
+///          - Text input is applied at data position and has nothing to do with clusters.
+///          - Backspace and Delete keys are applied at data position and operate on codepoint level.
+///            They can modify multi-codepoint clusters by removing overlay glyphs from them that way and it is an
+///            expected text editing behavior.
+///          - Selection operates by converting pointer positions to data positions and then treating codepoints between
+///            these data positions as selected. It is expected as any other behavior would break when bidi is present.
+///          - Left/Right arrow keys operate purely on cluster level and move cursor between clusters when on horizontal
+///            orientation is used.
+///          - Top/Down arrow keys operate by changing sequence and then matching old visual cursor positions as pointer
+///            position in order to select proper cluster when horizontal orientation is used.
+struct kan_text_shaped_edition_cluster_data_t
+{
+    kan_instance_offset_t visual_min;
+    kan_instance_offset_t visual_max;
+    kan_instance_offset_t visual_cursor_position;
+
+    /// \brief Used to mark cluster that have inverted (right-to-left or bottom-to-top) behavior for pointer-to-cursor
+    ///        calculation logic.
+    /// \details When pointer is not inverted, pointing to the left side of the cluster places cursor before this
+    ///          cluster (logically, after previous cluster) and pointing to the right side of cluster places cursor
+    ///          after this cluster according to this cluster pointer position. When pointer inverted, this logic is
+    ///          inverted, however "previous cluster" is then cluster in next array index due to that inversion as well.
+    bool invert_pointer;
+
+    /// \brief Index of byte from which codepoints that form this cluster start if all strings passed into text during
+    ///        creation are treated as one continuous string.
+    /// \details Shaping-level logic has no info about original text items as they were merged or separated during text
+    ///          object creation. Therefore, cluster data start index is computed as if all input strings were merged
+    ///          into one string, which is usually the case for text edition and therefore is fine.
+    kan_instance_size_t start_at_codepoint;
+};
+
+/// \brief Contains data about one shaped sequence -- line or column -- needed for editing that text sequence.
+struct kan_text_shaped_edition_sequence_data_t
+{
+    kan_instance_offset_t baseline;
+    kan_instance_offset_t ascender;
+    kan_instance_offset_t descender;
+
+    /// \brief List of clusters in that line/column sequence.
+    /// \details Ordered by their appearance: left-to-right for horizontal and top-to-down for vertical.
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_text_shaped_edition_cluster_data_t)
+    struct kan_dynamic_array_t clusters;
+};
+
+TEXT_API void kan_text_shaped_edition_sequence_data_init (struct kan_text_shaped_edition_sequence_data_t *instance);
+
+TEXT_API void kan_text_shaped_edition_sequence_data_shutdown (struct kan_text_shaped_edition_sequence_data_t *instance);
+
 /// \brief Contains shaped data for rendering the whole text object.
 struct kan_text_shaped_data_t
 {
@@ -210,6 +263,10 @@ struct kan_text_shaped_data_t
 
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_text_shaped_icon_instance_data_t)
     struct kan_dynamic_array_t icons;
+
+    /// \warning Non-empty only if `kan_text_shaping_request_t::generate_edition_markup` is true.
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_text_shaped_edition_sequence_data_t)
+    struct kan_dynamic_array_t edition_sequences;
 };
 
 TEXT_API void kan_text_shaped_data_init (struct kan_text_shaped_data_t *instance);
@@ -298,6 +355,9 @@ struct kan_text_shaping_request_t
     /// \details When breaks are not allowed, primary axis limit is still used for alignment
     ///          if shaped text primary size is less than limit.
     bool allow_breaks;
+
+    /// \brief If true, then additional markup needed for text edition implementation will be generated as well.
+    bool generate_edition_markup;
 
     /// \brief Text object to be shaped into data for rendering.
     kan_text_t text;

@@ -126,6 +126,8 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
         NAME##_unit->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;                             \
         NAME##_unit->request.alignment = ALIGNMENT;                                                                    \
         NAME##_unit->request.primary_axis_limit = 0u;                                                                  \
+        NAME##_unit->request.allow_breaks = true;                                                                      \
+        NAME##_unit->request.generate_edition_markup = false;                                                          \
                                                                                                                        \
         struct kan_text_item_t text_items[] = {                                                                        \
             {                                                                                                          \
@@ -252,6 +254,7 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                 icons_test_text_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER;
                 icons_test_text_unit->request.primary_axis_limit = 0u;
                 icons_test_text_unit->request.allow_breaks = true;
+                icons_test_text_unit->request.generate_edition_markup = false;
 
                 struct kan_text_item_t text_items[] = {
                     {

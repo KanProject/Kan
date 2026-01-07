@@ -764,6 +764,21 @@ void kan_text_destroy (kan_text_t instance)
     }
 }
 
+void kan_text_shaped_edition_sequence_data_init (struct kan_text_shaped_edition_sequence_data_t *instance)
+{
+    instance->baseline = 0;
+    instance->ascender = 0;
+    instance->descender = 0;
+
+    kan_dynamic_array_init (&instance->clusters, 0u, sizeof (struct kan_text_shaped_edition_cluster_data_t),
+                            alignof (struct kan_text_shaped_edition_cluster_data_t), kan_allocation_group_stack_get ());
+}
+
+void kan_text_shaped_edition_sequence_data_shutdown (struct kan_text_shaped_edition_sequence_data_t *instance)
+{
+    kan_dynamic_array_shutdown (&instance->clusters);
+}
+
 void kan_text_shaped_data_init (struct kan_text_shaped_data_t *instance)
 {
     instance->typographic_primary_size = 0u;
@@ -773,12 +788,16 @@ void kan_text_shaped_data_init (struct kan_text_shaped_data_t *instance)
                             alignof (struct kan_text_shaped_glyph_instance_data_t), kan_allocation_group_stack_get ());
     kan_dynamic_array_init (&instance->icons, 0u, sizeof (struct kan_text_shaped_icon_instance_data_t),
                             alignof (struct kan_text_shaped_icon_instance_data_t), kan_allocation_group_stack_get ());
+    kan_dynamic_array_init (&instance->edition_sequences, 0u, sizeof (struct kan_text_shaped_edition_sequence_data_t),
+                            alignof (struct kan_text_shaped_edition_sequence_data_t),
+                            kan_allocation_group_stack_get ());
 }
 
 void kan_text_shaped_data_shutdown (struct kan_text_shaped_data_t *instance)
 {
     kan_dynamic_array_shutdown (&instance->glyphs);
     kan_dynamic_array_shutdown (&instance->icons);
+    KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->edition_sequences, kan_text_shaped_edition_sequence_data)
 }
 
 struct font_rendered_glyph_node_t
@@ -1076,6 +1095,8 @@ struct shape_sequence_t
     kan_instance_size_t first_icon_index;
     int32_t length_26_6;
     int32_t biggest_line_space_26_6;
+    int32_t biggest_ascender_26_6;
+    int32_t biggest_descender_26_6;
 };
 
 struct shape_render_delayed_reminder_t
@@ -1290,10 +1311,14 @@ static inline bool shape_extract_render_data_for_glyph_concurrently (
 }
 
 static inline void shape_append_to_sequence (struct shape_context_t *context,
-                                             struct shape_sequence_t *last_sequence,
                                              const hb_glyph_info_t *glyph_info,
-                                             const hb_glyph_position_t *glyph_position)
+                                             const hb_glyph_position_t *glyph_position,
+                                             hb_direction_t harfbuzz_direction)
 {
+    KAN_ASSERT (context->sequences.size > 0u)
+    struct shape_sequence_t *last_sequence =
+        &((struct shape_sequence_t *) context->sequences.data)[context->sequences.size - 1u];
+
     // After shaping data in glyph info is not an actual unicode codepoint, but glyph index in font.
     const kan_instance_size_t glyph_index = (kan_instance_size_t) glyph_info->codepoint;
 
@@ -1310,7 +1335,9 @@ static inline void shape_append_to_sequence (struct shape_context_t *context,
     }
 
     shaped->mark = context->mark;
-    if (context->last_read_cluster != (kan_instance_size_t) glyph_info->cluster)
+    const bool new_cluster = context->last_read_cluster != (kan_instance_size_t) glyph_info->cluster;
+
+    if (new_cluster)
     {
         ++context->last_read_index;
         context->last_read_cluster = glyph_info->cluster;
@@ -1368,6 +1395,104 @@ static inline void shape_append_to_sequence (struct shape_context_t *context,
 
         render_delayed->font_glyph_index = glyph_index;
         render_delayed->shaped_glyph_index = context->output->glyphs.size - 1u;
+    }
+
+    if (context->request->generate_edition_markup)
+    {
+        // Pad edition sequences if needed.
+        if (context->output->edition_sequences.size < context->sequences.size)
+        {
+            kan_dynamic_array_set_capacity (&context->output->edition_sequences, context->sequences.capacity);
+            kan_allocation_group_stack_push (context->output->edition_sequences.allocation_group);
+
+            while (context->output->edition_sequences.size < context->sequences.size)
+            {
+                struct kan_text_shaped_edition_sequence_data_t *new_sequence =
+                    kan_dynamic_array_add_last (&context->output->edition_sequences);
+                kan_text_shaped_edition_sequence_data_init (new_sequence);
+            }
+
+            kan_allocation_group_stack_pop ();
+        }
+
+        KAN_ASSERT (context->output->edition_sequences.size > 0u)
+        struct kan_text_shaped_edition_sequence_data_t *last_edition =
+            &((struct kan_text_shaped_edition_sequence_data_t *)
+                  context->output->edition_sequences.data)[context->output->edition_sequences.size - 1u];
+        struct kan_text_shaped_edition_cluster_data_t *cluster;
+
+        if (new_cluster)
+        {
+            cluster = kan_dynamic_array_add_last (&last_edition->clusters);
+            if (!cluster)
+            {
+                kan_dynamic_array_set_capacity (
+                    &last_edition->clusters,
+                    KAN_MAX (KAN_TEXT_FT_HB_FONT_SHAPED_EDITION_CLUSTERS_MIN, last_edition->clusters.size * 2u));
+                cluster = kan_dynamic_array_add_last (&last_edition->clusters);
+            }
+
+            switch (context->request->orientation)
+            {
+            case KAN_TEXT_ORIENTATION_HORIZONTAL:
+                cluster->visual_min = origin_x;
+                cluster->visual_max = origin_x;
+                break;
+
+            case KAN_TEXT_ORIENTATION_VERTICAL:
+                cluster->visual_min = origin_y;
+                cluster->visual_max = origin_y;
+                break;
+            }
+
+            cluster->visual_cursor_position =
+                context->forward_string_processing ? last_sequence->length_26_6 : -last_sequence->length_26_6;
+
+            cluster->invert_pointer = harfbuzz_direction == HB_DIRECTION_RTL || harfbuzz_direction == HB_DIRECTION_BTT;
+            cluster->start_at_codepoint = glyph_info->cluster;
+        }
+        else
+        {
+            KAN_ASSERT (last_edition->clusters.size > 0u)
+            cluster = &((struct kan_text_shaped_edition_cluster_data_t *)
+                            last_edition->clusters.data)[last_edition->clusters.size - 1u];
+        }
+
+        struct hb_glyph_extents_t extents;
+        if (!hb_font_get_glyph_extents_for_origin (context->harfbuzz_font, glyph_info->codepoint, harfbuzz_direction,
+                                                   &extents))
+        {
+            KAN_LOG (text, KAN_LOG_ERROR, "Failed to get glyph extents for glyph at index %lu.\n",
+                     (unsigned long) glyph_info->codepoint)
+            return;
+        }
+
+        kan_instance_offset_t min = 0;
+        kan_instance_offset_t max = 0;
+
+        switch (context->request->orientation)
+        {
+        case KAN_TEXT_ORIENTATION_HORIZONTAL:
+            cluster->visual_min = origin_x + extents.x_bearing;
+            cluster->visual_max = origin_x + extents.x_bearing + extents.width;
+            break;
+
+        case KAN_TEXT_ORIENTATION_VERTICAL:
+            cluster->visual_min = origin_y - extents.y_bearing;
+            cluster->visual_max = origin_y + extents.height - extents.y_bearing;
+            break;
+        }
+
+        if (new_cluster)
+        {
+            cluster->visual_min = min;
+            cluster->visual_max = min;
+        }
+        else
+        {
+            cluster->visual_min = KAN_MIN (cluster->visual_min, min);
+            cluster->visual_max = KAN_MAX (cluster->visual_max, max);
+        }
     }
 }
 
@@ -1654,12 +1779,17 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
     last_sequence->first_glyph_index = context->output->glyphs.size;                                                   \
     last_sequence->first_icon_index = context->output->icons.size;                                                     \
     last_sequence->length_26_6 = 0;                                                                                    \
-    last_sequence->biggest_line_space_26_6 = line_space_26_6
+    last_sequence->biggest_line_space_26_6 = line_space_26_6;                                                          \
+    last_sequence->biggest_ascender_26_6 = font_extents.ascender;                                                      \
+    last_sequence->biggest_descender_26_6 = font_extents.descender
 
     if (context->sequences.size > 0u)
     {
         last_sequence = &((struct shape_sequence_t *) context->sequences.data)[context->sequences.size - 1u];
         last_sequence->biggest_line_space_26_6 = KAN_MAX (last_sequence->biggest_line_space_26_6, line_space_26_6);
+        last_sequence->biggest_ascender_26_6 = KAN_MAX (last_sequence->biggest_ascender_26_6, font_extents.ascender);
+        // Descenders are negative, therefore KAN_MIN selects the bigger absolute descender.
+        last_sequence->biggest_descender_26_6 = KAN_MIN (last_sequence->biggest_descender_26_6, font_extents.descender);
     }
     else
     {
@@ -1747,7 +1877,8 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
             {
                 for (kan_loop_size_t index = next_unprocessed_glyph_index; index < grab_until; ++index)
                 {
-                    shape_append_to_sequence (context, last_sequence, glyph_infos + index, glyph_positions + index);
+                    shape_append_to_sequence (context, glyph_infos + index, glyph_positions + index,
+                                              harfbuzz_direction);
                 }
             }
             else
@@ -1755,7 +1886,8 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
                 // Use the same type for index to make underflow predictable.
                 for (kan_instance_size_t index = next_unprocessed_glyph_index; index != grab_until; --index)
                 {
-                    shape_append_to_sequence (context, last_sequence, glyph_infos + index, glyph_positions + index);
+                    shape_append_to_sequence (context, glyph_infos + index, glyph_positions + index,
+                                              harfbuzz_direction);
                 }
             }
 
@@ -1806,14 +1938,14 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
         {
             for (kan_loop_size_t index = 0u; index < glyph_count; ++index)
             {
-                shape_append_to_sequence (context, last_sequence, glyph_infos + index, glyph_positions + index);
+                shape_append_to_sequence (context, glyph_infos + index, glyph_positions + index, harfbuzz_direction);
             }
         }
         else
         {
             for (kan_loop_size_t index = glyph_count - 1u; index != KAN_INT_MAX (kan_loop_size_t); --index)
             {
-                shape_append_to_sequence (context, last_sequence, glyph_infos + index, glyph_positions + index);
+                shape_append_to_sequence (context, glyph_infos + index, glyph_positions + index, harfbuzz_direction);
             }
         }
 
@@ -1915,6 +2047,8 @@ static void shape_text_node_icon (struct shape_context_t *context, struct text_n
         hb_font_get_extents_for_direction (context->harfbuzz_font, harfbuzz_direction, &font_extents);
         const int32_t line_space_26_6 = font_extents.ascender - font_extents.descender + font_extents.line_gap;
         last_sequence->biggest_line_space_26_6 = line_space_26_6;
+        last_sequence->biggest_ascender_26_6 = font_extents.ascender;
+        last_sequence->biggest_descender_26_6 = font_extents.descender;
     }
 
     struct kan_text_shaped_icon_instance_data_t *shaped = kan_dynamic_array_add_last (&context->output->icons);
@@ -2102,6 +2236,52 @@ static void shape_post_process_sequences (struct shape_context_t *context)
             icon->min.y = roundf (FROM_26_6 (min_26_6->y));
             icon->max.x = roundf (FROM_26_6 (max_26_6->x));
             icon->max.y = roundf (FROM_26_6 (max_26_6->y));
+        }
+
+        if (context->output->edition_sequences.size > sequence_index)
+        {
+            struct kan_text_shaped_edition_sequence_data_t *edition_sequence =
+                &((struct kan_text_shaped_edition_sequence_data_t *)
+                      context->output->edition_sequences.data)[sequence_index];
+
+            edition_sequence->baseline = (kan_instance_offset_t) roundf (FROM_26_6 (baseline_26_6));
+            edition_sequence->ascender = (kan_instance_offset_t) roundf (FROM_26_6 (sequence->biggest_ascender_26_6));
+            edition_sequence->descender = (kan_instance_offset_t) roundf (FROM_26_6 (sequence->biggest_descender_26_6));
+
+            for (kan_loop_size_t cluster_index = 0u; cluster_index < edition_sequence->clusters.size; ++cluster_index)
+            {
+                struct kan_text_shaped_edition_cluster_data_t *cluster =
+                    &((struct kan_text_shaped_edition_cluster_data_t *) edition_sequence->clusters.data)[cluster_index];
+
+                cluster->visual_min += alignment_offset_26_6;
+                cluster->visual_max += alignment_offset_26_6;
+                cluster->visual_cursor_position += alignment_offset_26_6;
+
+                cluster->visual_min = (kan_instance_offset_t) roundf (FROM_26_6 (cluster->visual_min));
+                cluster->visual_max = (kan_instance_offset_t) roundf (FROM_26_6 (cluster->visual_max));
+                cluster->visual_cursor_position =
+                    (kan_instance_offset_t) roundf (FROM_26_6 (cluster->visual_cursor_position));
+            }
+
+            // Mirror cluster data if reversed processing was used.
+            if (!context->forward_string_processing && edition_sequence->clusters.size > 0u)
+            {
+                for (kan_loop_size_t cluster_index = 0u;
+                     cluster_index < edition_sequence->clusters.size - cluster_index - 1u; ++cluster_index)
+                {
+                    struct kan_text_shaped_edition_cluster_data_t *left =
+                        &((struct kan_text_shaped_edition_cluster_data_t *)
+                              edition_sequence->clusters.data)[cluster_index];
+
+                    struct kan_text_shaped_edition_cluster_data_t *right =
+                        &((struct kan_text_shaped_edition_cluster_data_t *)
+                              edition_sequence->clusters.data)[edition_sequence->clusters.size - cluster_index - 1u];
+
+                    struct kan_text_shaped_edition_cluster_data_t temp = *right;
+                    *right = *left;
+                    *left = temp;
+                }
+            }
         }
 
         if (sequence_index == context->sequences.size - 1u)

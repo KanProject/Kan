@@ -825,6 +825,7 @@ KAN_TEST_CASE (english_left)
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT,
         .primary_axis_limit = 600u,
         .allow_breaks = true,
+        .generate_edition_markup = false,
         .text = text,
     };
 
@@ -861,6 +862,7 @@ KAN_TEST_CASE (english_center)
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER,
         .primary_axis_limit = 600u,
         .allow_breaks = true,
+        .generate_edition_markup = false,
         .text = text,
     };
 
@@ -897,6 +899,7 @@ KAN_TEST_CASE (english_right)
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_RIGHT,
         .primary_axis_limit = 600u,
         .allow_breaks = true,
+        .generate_edition_markup = false,
         .text = text,
     };
 
@@ -927,6 +930,7 @@ KAN_TEST_CASE (english_vertical)
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT,
         .primary_axis_limit = 600u,
         .allow_breaks = true,
+        .generate_edition_markup = false,
         .text = text,
     };
 
@@ -1007,6 +1011,7 @@ KAN_TEST_CASE (english_styles)
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT,
         .primary_axis_limit = 600u,
         .allow_breaks = true,
+        .generate_edition_markup = false,
         .text = text,
     };
 
@@ -1090,6 +1095,7 @@ KAN_TEST_CASE (russian)
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT,
         .primary_axis_limit = 600u,
         .allow_breaks = true,
+        .generate_edition_markup = false,
         .text = text,
     };
 
@@ -1123,6 +1129,7 @@ KAN_TEST_CASE (persian)
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_RIGHT,
         .primary_axis_limit = 600u,
         .allow_breaks = true,
+        .generate_edition_markup = false,
         .text = text,
     };
 
@@ -1154,6 +1161,7 @@ KAN_TEST_CASE (ltr_inside_rtl)
         .reading_direction = KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT,
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_RIGHT,
         .allow_breaks = true,
+        .generate_edition_markup = false,
         .primary_axis_limit = 600u,
         .text = text,
     };
@@ -1192,6 +1200,7 @@ KAN_TEST_CASE (ltr_3_langs)
         .reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER,
         .allow_breaks = true,
+        .generate_edition_markup = false,
         .primary_axis_limit = 600u,
         .text = text,
     };

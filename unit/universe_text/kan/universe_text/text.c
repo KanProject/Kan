@@ -823,6 +823,16 @@ static inline void shaping_unit_clean_shaped_data (struct kan_text_shaping_unit_
         kan_dynamic_array_shutdown (&unit->shaped_unstable.glyphs);
         kan_dynamic_array_shutdown (&unit->shaped_unstable.icons);
     }
+
+    for (kan_loop_size_t index = 0u; index < unit->shaped_edition_sequences.size; ++index)
+    {
+        struct kan_text_shaped_edition_sequence_data_t *data =
+            &((struct kan_text_shaped_edition_sequence_data_t *) unit->shaped_edition_sequences.data)[index];
+        kan_text_shaped_edition_sequence_data_shutdown (data);
+    }
+
+    unit->shaped_edition_sequences.size = 0u;
+    kan_dynamic_array_set_capacity (&unit->shaped_edition_sequences, 0u);
 }
 
 static void shaping_unit_on_failed (struct kan_text_shaping_unit_t *unit)
@@ -858,7 +868,9 @@ static void shape_unit (struct text_shaping_state_t *state,
     }
 
     struct kan_text_shaped_data_t shaped_data;
+    kan_allocation_group_stack_push (unit->allocation_group);
     kan_text_shaped_data_init (&shaped_data);
+    kan_allocation_group_stack_pop ();
 
     if (!kan_font_library_shape (font_library, &unit->request, &shaped_data))
     {
@@ -935,6 +947,9 @@ static void shape_unit (struct text_shaping_state_t *state,
             }
         }
 
+        KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (unit->shaped_edition_sequences,
+                                                    kan_text_shaped_edition_sequence_data)
+        kan_dynamic_array_init_move (&unit->shaped_edition_sequences, &shaped_data.edition_sequences);
         kan_text_shaped_data_shutdown (&shaped_data);
     }
     else
@@ -943,6 +958,10 @@ static void shape_unit (struct text_shaping_state_t *state,
         // On purpose: just copy pointers and go, do not shutdown shaped data on stack.
         unit->shaped_unstable.glyphs = shaped_data.glyphs;
         unit->shaped_unstable.icons = shaped_data.icons;
+
+        KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (unit->shaped_edition_sequences,
+                                                    kan_text_shaped_edition_sequence_data)
+        unit->shaped_edition_sequences = shaped_data.edition_sequences;
     }
 
     unit->shaped = true;
@@ -1059,6 +1078,7 @@ void kan_text_shaping_unit_init (struct kan_text_shaping_unit_t *instance)
     instance->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT;
     instance->request.primary_axis_limit = 0u;
     instance->request.allow_breaks = true;
+    instance->request.generate_edition_markup = false;
     instance->request.text = KAN_HANDLE_SET_INVALID (kan_text_t);
 
     instance->stable = true;
@@ -1073,6 +1093,11 @@ void kan_text_shaping_unit_init (struct kan_text_shaping_unit_t *instance)
     instance->shaped_stable.icons_count = 0u;
     instance->shaped_stable.glyphs = KAN_HANDLE_SET_INVALID (kan_render_buffer_t);
     instance->shaped_stable.icons = KAN_HANDLE_SET_INVALID (kan_render_buffer_t);
+
+    kan_dynamic_array_init (
+        &instance->shaped_edition_sequences, 0u, sizeof (struct kan_text_shaped_edition_sequence_data_t),
+        alignof (struct kan_text_shaped_edition_sequence_data_t), kan_allocation_group_stack_get ());
+    instance->allocation_group = kan_allocation_group_stack_get ();
 }
 
 void kan_text_shaping_unit_shutdown (struct kan_text_shaping_unit_t *instance)
@@ -1083,4 +1108,6 @@ void kan_text_shaping_unit_shutdown (struct kan_text_shaping_unit_t *instance)
     }
 
     shaping_unit_clean_shaped_data (instance);
+    KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->shaped_edition_sequences,
+                                                kan_text_shaped_edition_sequence_data)
 }

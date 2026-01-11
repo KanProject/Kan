@@ -13,6 +13,6 @@ ${ENABLED_SYSTEMS}
     }
 }
 
-log_name = example_deferred_render
+log_name = example_text_effects
 program_world = "example/text_effects"
 ${AUTO_BUILD_SUFFIX}

@@ -16,10 +16,10 @@ while (<>)
 sub print_frame_time
 {
     my @time = @_;
-    printf ("    50%%: %.2f ms.\n", 0.000001 * @time[0.50 * $#time]);
-    printf ("    75%%: %.2f ms.\n", 0.000001 * @time[0.75 * $#time]);
-    printf ("    90%%: %.2f ms.\n", 0.000001 * @time[0.90 * $#time]);
-    printf ("    99%%: %.2f ms.\n", 0.000001 * @time[0.99 * $#time]);
+    printf ("    50%%: %.5f ms.\n", 0.000001 * @time[0.50 * $#time]);
+    printf ("    75%%: %.5f ms.\n", 0.000001 * @time[0.75 * $#time]);
+    printf ("    90%%: %.5f ms.\n", 0.000001 * @time[0.90 * $#time]);
+    printf ("    99%%: %.5f ms.\n", 0.000001 * @time[0.99 * $#time]);
 
     # We consider everything that is 3x times higher than 99% a hitch.
     my $hitch_time = 3.0 * @time[0.99 * $#time];

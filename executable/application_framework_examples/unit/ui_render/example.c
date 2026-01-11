@@ -193,13 +193,12 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                 top_text_drawable->id = top_text_node->id;
                 top_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                 top_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                top_text_drawable->main_draw_command.text.animation_start_time_s = 0.0f;
             }
 
             KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
             {
                 text_behavior->id = top_text_node->id;
-                text_behavior->shaping_unit = node_text_id;
+                text_behavior->shaping_unit_id = node_text_id;
                 text_behavior->font_size = KAN_UI_VALUE_PX (24.0f);
                 text_behavior->sync_text_limit_from_ui = true;
                 text_behavior->sync_ui_size_from_text_secondary = true;
@@ -222,13 +221,12 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                 remark_text_drawable->id = remark_text_node->id;
                 remark_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                 remark_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                remark_text_drawable->main_draw_command.text.animation_start_time_s = 0.0f;
             }
 
             KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
             {
                 text_behavior->id = remark_text_node->id;
-                text_behavior->shaping_unit = node_text_id;
+                text_behavior->shaping_unit_id = node_text_id;
                 text_behavior->font_size = KAN_UI_VALUE_PX (24.0f);
                 text_behavior->sync_text_limit_from_ui = true;
                 text_behavior->sync_ui_size_from_text_secondary = true;
@@ -335,13 +333,12 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                 icons_test_text_drawable->id = icons_test_text_node->id;
                 icons_test_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                 icons_test_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                icons_test_text_drawable->main_draw_command.text.animation_start_time_s = 0.0f;
             }
 
             KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
             {
                 text_behavior->id = icons_test_text_node->id;
-                text_behavior->shaping_unit = node_text_id;
+                text_behavior->shaping_unit_id = node_text_id;
                 text_behavior->font_size = KAN_UI_VALUE_PX (24.0f);
                 text_behavior->sync_text_limit_from_ui = true;
                 text_behavior->sync_ui_size_from_text_secondary = true;
@@ -364,13 +361,12 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                 bottom_text_drawable->id = bottom_text_node->id;
                 bottom_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                 bottom_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                bottom_text_drawable->main_draw_command.text.animation_start_time_s = 0.0f;
             }
 
             KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
             {
                 text_behavior->id = bottom_text_node->id;
-                text_behavior->shaping_unit = node_text_id;
+                text_behavior->shaping_unit_id = node_text_id;
                 text_behavior->font_size = KAN_UI_VALUE_PX (24.0f);
                 text_behavior->sync_text_limit_from_ui = true;
                 text_behavior->sync_ui_size_from_text_secondary = true;
@@ -452,13 +448,12 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                                     button_text_drawable->id = button_text_node->id;
                                     button_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                                     button_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                                    button_text_drawable->main_draw_command.text.animation_start_time_s = 0.0f;
                                 }
 
                                 KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
                                 {
                                     text_behavior->id = button_text_node->id;
-                                    text_behavior->shaping_unit = node_text_id;
+                                    text_behavior->shaping_unit_id = node_text_id;
                                     text_behavior->font_size = KAN_UI_VALUE_PX (24.0f);
                                     text_behavior->sync_text_limit_from_ui = true;
                                     text_behavior->sync_ui_size_from_text_secondary = true;

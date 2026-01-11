@@ -1,5 +1,5 @@
 //! kan_resource_material_header_t
-sources = "ui_text_icon.rpl"
+sources = "ui_mark_common.rpl", "ui_text_common.rpl", "ui_text_icon.rpl"
 
 +passes {
     name = ui_default

@@ -89,3 +89,35 @@ border {
         }
     }
 }
+
++entries {
+    name = text_edit_regular
+    image {
+        source = "text_edit_regular.png"
+        type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_SLICE
+        nine_slice {
+            tiled_x = 0
+            tiled_y = 0
+            left = 16
+            right = 16
+            top = 16
+            bottom = 16
+        }
+    }
+}
+
++entries {
+    name = text_edit_selected
+    image {
+        source = "text_edit_selected.png"
+        type = KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_SLICE
+        nine_slice {
+            tiled_x = 0
+            tiled_y = 0
+            left = 16
+            right = 16
+            top = 16
+            bottom = 16
+        }
+    }
+}

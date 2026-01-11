@@ -530,10 +530,6 @@ struct kan_ui_draw_command_text_t
 {
     /// \brief Shaping unit that should be drawn when ready.
     kan_text_shaping_unit_id_t shaping_unit;
-
-    /// \brief Used to calculate local time for text animation on GPU if any animation is used.
-    /// \details Relative to `kan_ui_render_graph_singleton_t::animation_global_time_s`.
-    float animation_start_time_s;
 };
 
 /// \brief Describes push constant layout data for custom draw command.
@@ -544,6 +540,9 @@ struct kan_ui_draw_command_custom_push_layout_t
 
     uint32_t ui_mark;
     uint32_t unused_padding[3u];
+
+    float local_time;
+    float unused_padding_2[3u];
 };
 
 /// \brief Contains data for UI custom draw command.
@@ -559,13 +558,25 @@ struct kan_ui_draw_command_custom_t
     kan_render_pipeline_parameter_set_t shared_set;
 };
 
+/// \brief If default draw pipelines are used, it is possible select one of up to 255 palette entries for configuring
+///        how rendered primitive should interact with different mark flags.
+#define KAN_UI_DEFAULT_COMMAND_MARK_PALETTE_MASK 0x000000ff
+
 /// \brief UI mark flags that are supported in default pipelines and are used to pass information from controls.
 KAN_REFLECTION_FLAGS
-enum kan_ui_default_mark_flag_t
+enum kan_ui_default_command_mark_flag_t
 {
-    KAN_UI_DEFAULT_MARK_FLAG_HOVERED = 1u << 0u,
-    KAN_UI_DEFAULT_MARK_FLAG_DOWN = 1u << 1u,
+    KAN_UI_DEFAULT_MARK_FLAG_NONE = 0u,
+    KAN_UI_DEFAULT_MARK_FLAG_HOVERED = 1u << 8u,
+    KAN_UI_DEFAULT_MARK_FLAG_DOWN = 1u << 9u,
+    
+    /// \brief Used for blinking primitives like text cursors.
+    KAN_UI_DEFAULT_MARK_FLAG_BLINK = 1u << 10u,
 };
+
+/// \brief Helper for building marks for the ui draw pipelines for draw commands.
+#define KAN_UI_DEFAULT_COMMAND_MAKE_MARK(PALETTE, FLAGS)                                                               \
+    (((PALETTE) & KAN_UI_DEFAULT_COMMAND_MARK_PALETTE_MASK) | (FLAGS))
 
 /// \brief Describes one draw command for the UI render.
 struct kan_ui_draw_command_data_t
@@ -575,6 +586,10 @@ struct kan_ui_draw_command_data_t
     /// \warning Not the same mark as text marks in text command, this one is intended for passing additional state info
     ///          like hover or mouse down.
     uint32_t ui_mark;
+
+    /// \brief Used to calculate local time for primitive animation on GPU if any animation is used.
+    /// \details Relative to `kan_ui_render_graph_singleton_t::animation_global_time_s`.
+    float animation_start_time_s;
 
     enum kan_ui_draw_command_t type;
     union

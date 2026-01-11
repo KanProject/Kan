@@ -1,3 +1,7 @@
+#define _CRT_SECURE_NO_WARNINGS __CUSHION_PRESERVE__
+
+#include <string.h>
+
 #include <kan/context/all_system_names.h>
 #include <kan/log/logging.h>
 #include <kan/precise_time/precise_time.h>
@@ -31,7 +35,7 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_n
 KAN_REFLECTION_STRUCT_META (kan_ui_node_text_behavior_t)
 UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t
     kan_ui_node_text_behavior_shaping_unit_cascade_deletion = {
-        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"shaping_unit"}},
+        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"shaping_unit_id"}},
         .child_type_name = "kan_text_shaping_unit_t",
         .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
 };
@@ -66,6 +70,31 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_on_insert_event_t kan_ui_no
     .event_type = "kan_ui_node_hit_box_on_insert_event_t",
     .copy_outs_count = 1u,
     .copy_outs =
+        (struct kan_repository_copy_out_t[]) {
+            {
+                .source_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+                .target_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+            },
+        },
+};
+
+struct kan_ui_node_hit_box_on_style_change_event_t
+{
+    kan_ui_node_id_t id;
+};
+
+KAN_REFLECTION_STRUCT_META (kan_ui_node_hit_box_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_on_change_event_t kan_ui_node_hit_box_on_style_change_event = {
+    .event_type = "kan_ui_node_hit_box_on_style_change_event_t",
+    .observed_fields_count = 1u,
+    .observed_fields =
+        (struct kan_repository_field_path_t[]) {
+            {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"interactable_style"}},
+        },
+    .unchanged_copy_outs_count = 0u,
+    .unchanged_copy_outs = NULL,
+    .changed_copy_outs_count = 1u,
+    .changed_copy_outs =
         (struct kan_repository_copy_out_t[]) {
             {
                 .source_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
@@ -110,6 +139,25 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_on_insert_event_t kan_ui_no
         },
 };
 
+struct kan_ui_node_line_edit_behavior_on_insert_event_t
+{
+    kan_ui_node_id_t id;
+};
+
+KAN_REFLECTION_STRUCT_META (kan_ui_node_line_edit_behavior_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_on_insert_event_t kan_ui_node_line_edit_behavior_on_insert_event =
+    {
+        .event_type = "kan_ui_node_line_edit_behavior_on_insert_event_t",
+        .copy_outs_count = 1u,
+        .copy_outs =
+            (struct kan_repository_copy_out_t[]) {
+                {
+                    .source_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+                    .target_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+                },
+            },
+};
+
 enum kan_ui_node_scroll_line_class_t
 {
     KAN_UI_NODE_SCROLL_LINE_CLASS_HORIZONTAL = 0u,
@@ -144,11 +192,22 @@ UNIVERSE_UI_API void kan_ui_node_scroll_line_state_init (struct kan_ui_node_scro
 struct ui_controls_input_private_singleton_t
 {
     kan_instance_offset_t press_knob_offset;
+
+    // TODO: Refactor to some common id for input reading behaviors to avoid code complexity later?
+    kan_ui_node_id_t selected_line_edit_id;
+    
+    kan_instance_size_t line_edit_press_start_content_location;
+    bool line_edit_selected_this_press;
+    bool line_edit_press_moved;
 };
 
 UNIVERSE_UI_API void ui_controls_input_private_singleton_init (struct ui_controls_input_private_singleton_t *instance)
 {
     instance->press_knob_offset = 0;
+    instance->selected_line_edit_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->line_edit_press_start_content_location = KAN_INT_MAX (kan_instance_size_t);
+    instance->line_edit_selected_this_press = false;
+    instance->line_edit_press_moved = false;
 }
 
 struct ui_controls_input_state_t
@@ -627,6 +686,88 @@ static void process_scroll_behavior_insertion (struct ui_controls_input_state_t 
     }
 }
 
+static void process_line_edit_behavior_lifetime (struct ui_controls_input_state_t *state,
+                                                 struct kan_ui_input_singleton_t *public)
+{
+    KAN_UML_EVENT_FETCH (line_edit_behavior_inserted_event, kan_ui_node_line_edit_behavior_on_insert_event_t)
+    {
+        KAN_UMI_VALUE_READ_OPTIONAL (behavior, kan_ui_node_line_edit_behavior_t, id,
+                                     &line_edit_behavior_inserted_event->id)
+
+        if (!behavior)
+        {
+            continue;
+        }
+
+        KAN_UMI_VALUE_UPDATE_REQUIRED (hit_box, kan_ui_node_hit_box_t, id, &behavior->id)
+        hit_box->interactable_style = behavior->interactable_style_regular;
+
+        KAN_UMI_VALUE_UPDATE_REQUIRED (text_node, kan_ui_node_t, id, &behavior->text_id)
+        text_node->event_on_laid_out = true;
+
+#if defined(KAN_WITH_ASSERT)
+        KAN_UMI_VALUE_READ_REQUIRED (text_behavior, kan_ui_node_text_behavior_t, id, &behavior->text_id)
+        KAN_ASSERT (KAN_TYPED_ID_32_IS_EQUAL (text_behavior->shaping_unit_id, behavior->shaping_unit_id))
+#endif
+
+        KAN_UMI_VALUE_UPDATE_REQUIRED (shaping_unit, kan_text_shaping_unit_t, id, &behavior->shaping_unit_id)
+        shaping_unit->request.allow_breaks = false;
+        shaping_unit->request.generate_edition_markup = true;
+        shaping_unit->dirty = true;
+        shaping_unit->stable = true;
+    }
+
+    // Edge case: properly manage text listener lifetime when selected line edit was deleted from ui.
+    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
+
+    if (KAN_TYPED_ID_32_IS_VALID (private->selected_line_edit_id))
+    {
+        KAN_UMI_VALUE_READ_OPTIONAL (behavior, kan_ui_node_line_edit_behavior_t, id, &private->selected_line_edit_id)
+        if (!behavior)
+        {
+            private->selected_line_edit_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+            if (KAN_HANDLE_IS_VALID (public->linked_window_handle))
+            {
+                kan_application_window_remove_text_listener (state->application_system_handle,
+                                                             public->linked_window_handle);
+            }
+        }
+    }
+}
+
+static void clear_line_edit_selection_visuals (struct ui_controls_input_state_t *state,
+                                               struct kan_ui_node_line_edit_behavior_t *behavior)
+{
+    behavior->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
+    behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
+    behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
+    behavior->text_visuals_dirty = true;
+
+    KAN_UMI_VALUE_UPDATE_REQUIRED (hit_box, kan_ui_node_hit_box_t, id, &behavior->id)
+    hit_box->interactable_style = behavior->interactable_style_regular;
+}
+
+static void process_line_edit_content_dirty_outer (struct ui_controls_input_state_t *state)
+{
+    // If we got here, then line edit content was changed from outside.
+    // It means that we should reset anything related to the edition, including line edit element selection.
+    // Dirty flag is not cleared as we also need to apply regular on-content-dirty routine.
+    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
+
+    KAN_UML_SIGNAL_UPDATE (behavior, kan_ui_node_line_edit_behavior_t, content_dirty, true)
+    {
+        behavior->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
+        behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
+        behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
+
+        if (KAN_TYPED_ID_32_IS_EQUAL (private->selected_line_edit_id, behavior->id))
+        {
+            private->selected_line_edit_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+            clear_line_edit_selection_visuals (state, behavior);
+        }
+    }
+}
+
 static void prolong_hit_box_down_visuals (struct ui_controls_input_state_t *state,
                                           struct kan_ui_input_singleton_t *public,
                                           const struct kan_ui_bundle_singleton_t *bundle,
@@ -826,6 +967,159 @@ static void place_scroll_line_knob_at_press (struct ui_controls_input_state_t *s
     }
 }
 
+static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_controls_input_state_t *state,
+                                                                      kan_ui_node_id_t container_node_id,
+                                                                      kan_text_shaping_unit_id_t shaping_unit_id,
+                                                                      kan_instance_offset_t global_x,
+                                                                      kan_instance_offset_t global_y)
+{
+    KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &container_node_id)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (shaping_unit, kan_text_shaping_unit_t, id, &shaping_unit_id)
+
+    if (!drawable || !shaping_unit || !shaping_unit->shaped || shaping_unit->shaped_edition_sequences.size == 0u)
+    {
+        return KAN_INT_MAX (kan_instance_size_t);
+    }
+
+    const kan_instance_offset_t local_x = global_x - drawable->global_x - drawable->draw_offset_x;
+    const kan_instance_offset_t local_y = global_y - drawable->global_y - drawable->draw_offset_y;
+
+    kan_instance_offset_t primary_coordinate = 0;
+    kan_instance_offset_t secondary_coordinate = 0;
+
+    switch (shaping_unit->request.orientation)
+    {
+    case KAN_TEXT_ORIENTATION_HORIZONTAL:
+        primary_coordinate = local_x;
+        secondary_coordinate = local_y;
+        break;
+
+    case KAN_TEXT_ORIENTATION_VERTICAL:
+        primary_coordinate = local_y;
+        secondary_coordinate = local_x;
+        break;
+    }
+
+    // Sequence selection grabs first sequence that is not higher that secondary coordinate or last available sequence.
+    // Sequences without clusters are excluded. It is the most logical and useful sequence selection method as things
+    // like mouse pointer can travel anywhere.
+    const struct kan_text_shaped_edition_sequence_data_t *selected_sequence = NULL;
+
+    for (kan_loop_size_t index = 0u; index < shaping_unit->shaped_edition_sequences.size; ++index)
+    {
+        const struct kan_text_shaped_edition_sequence_data_t *sequence =
+            &((struct kan_text_shaped_edition_sequence_data_t *) shaping_unit->shaped_edition_sequences.data)[index];
+
+        if (sequence->clusters.size == 0u)
+        {
+            continue;
+        }
+
+        selected_sequence = sequence;
+        if (secondary_coordinate < sequence->baseline - sequence->descender)
+        {
+            break;
+        }
+    }
+
+    if (!selected_sequence)
+    {
+        return KAN_INT_MAX (kan_instance_size_t);
+    }
+
+    for (kan_loop_size_t index = 0u; index < selected_sequence->clusters.size; ++index)
+    {
+        const struct kan_text_shaped_edition_cluster_data_t *cluster =
+            &((struct kan_text_shaped_edition_cluster_data_t *) selected_sequence->clusters.data)[index];
+
+        const bool inside = primary_coordinate >= cluster->visual_min && primary_coordinate < cluster->visual_max;
+        const bool left_half = primary_coordinate <= (cluster->visual_min + cluster->visual_max) / 2;
+
+        if (!cluster->invert_pointer)
+        {
+            if (left_half)
+            {
+                return cluster->start_at_index;
+            }
+            else if (inside)
+            {
+                // Return content offset right after this cluster. Be aware of possible bidi.
+                for (kan_loop_size_t next_index = index + 1u; next_index < selected_sequence->clusters.size;
+                     ++next_index)
+                {
+                    const struct kan_text_shaped_edition_cluster_data_t *next_cluster = &(
+                        (struct kan_text_shaped_edition_cluster_data_t *) selected_sequence->clusters.data)[next_index];
+
+                    if (!next_cluster->invert_pointer)
+                    {
+                        return next_cluster->start_at_index;
+                    }
+                }
+
+                return selected_sequence->end_at_index;
+            }
+        }
+        else
+        {
+            if (left_half)
+            {
+                // Return content offset right after this cluster. Be aware of possible bidi.
+                for (kan_loop_size_t previous_index = index - 1u;
+                     /* It is the right check due to overflow. */
+                     previous_index < selected_sequence->clusters.size; --previous_index)
+                {
+                    const struct kan_text_shaped_edition_cluster_data_t *previous_cluster =
+                        &((struct kan_text_shaped_edition_cluster_data_t *)
+                              selected_sequence->clusters.data)[previous_index];
+
+                    if (previous_cluster->invert_pointer)
+                    {
+                        return previous_cluster->start_at_index;
+                    }
+                }
+
+                return selected_sequence->end_at_index;
+            }
+            else if (inside)
+            {
+                return cluster->start_at_index;
+            }
+        }
+    }
+
+    // Didn't match any cluster fully, decide position using information about the last cluster.
+    const struct kan_text_shaped_edition_cluster_data_t *last_cluster =
+        &((struct kan_text_shaped_edition_cluster_data_t *)
+              selected_sequence->clusters.data)[selected_sequence->clusters.size - 1u];
+
+    if (last_cluster->invert_pointer)
+    {
+        // In case of inverted, it is actually a valid beginning of the sequence.
+        return last_cluster->start_at_index;
+    }
+    else
+    {
+        return selected_sequence->end_at_index;
+    }
+}
+
+static inline void deselect_line_edit_behavior (struct ui_controls_input_state_t *state,
+                                                struct kan_ui_input_singleton_t *public,
+                                                struct ui_controls_input_private_singleton_t *private)
+{
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (behavior, kan_ui_node_line_edit_behavior_t, id, &private->selected_line_edit_id)
+    if (behavior)
+    {
+        clear_line_edit_selection_visuals (state, behavior);
+    }
+
+    private->selected_line_edit_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    if (KAN_HANDLE_IS_VALID (public->linked_window_handle))
+    {
+        kan_application_window_remove_text_listener (state->application_system_handle, public->linked_window_handle);
+    }
+}
+
 static void on_press_begin_internal (struct ui_controls_input_state_t *state,
                                      struct kan_ui_input_singleton_t *public,
                                      const struct kan_ui_singleton_t *ui)
@@ -879,6 +1173,49 @@ static void on_press_begin_internal (struct ui_controls_input_state_t *state,
             place_scroll_line_knob_at_press (state, public, private, ui, scroll_line_state);
         }
     }
+
+    if (KAN_TYPED_ID_32_IS_VALID (private->selected_line_edit_id) &&
+        !KAN_TYPED_ID_32_IS_EQUAL (private->selected_line_edit_id, public->mouse_button_down_on_id))
+    {
+        deselect_line_edit_behavior (state, public, private);
+    }
+
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
+                                   &public->mouse_button_down_on_id)
+
+    if (line_edit_behavior && !line_edit_behavior->content_dirty)
+    {
+        private->line_edit_selected_this_press =
+            !KAN_TYPED_ID_32_IS_EQUAL (private->selected_line_edit_id, line_edit_behavior->id);
+
+        private->selected_line_edit_id = line_edit_behavior->id;
+        private->line_edit_press_moved = false;
+
+        KAN_UMI_VALUE_UPDATE_REQUIRED (hit_box, kan_ui_node_hit_box_t, id, &line_edit_behavior->id)
+        hit_box->interactable_style = line_edit_behavior->interactable_style_selected;
+
+        if (!line_edit_behavior->content_dirty)
+        {
+            private->line_edit_press_start_content_location = calculate_content_position_on_shaped_text (
+                state, line_edit_behavior->text_id, line_edit_behavior->shaping_unit_id, public->last_mouse_x,
+                public->last_mouse_y);
+        }
+        else
+        {
+            private->line_edit_press_start_content_location = KAN_INT_MAX (kan_instance_size_t);
+        }
+    }
+}
+
+static void on_press_begin_filtered_out_internal (struct ui_controls_input_state_t *state,
+                                                  struct kan_ui_input_singleton_t *public,
+                                                  const struct kan_ui_singleton_t *ui)
+{
+    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
+    if (KAN_TYPED_ID_32_IS_VALID (private->selected_line_edit_id))
+    {
+        deselect_line_edit_behavior (state, public, private);
+    }
 }
 
 static void on_press_motion_internal (struct ui_controls_input_state_t *state,
@@ -893,15 +1230,66 @@ static void on_press_motion_internal (struct ui_controls_input_state_t *state,
     {
         place_scroll_line_knob_at_press (state, public, private, ui, scroll_line_state);
     }
+
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
+                                   &private->selected_line_edit_id)
+
+    if (line_edit_behavior)
+    {
+        private->line_edit_press_moved = true;
+        const kan_instance_size_t current_content_location = calculate_content_position_on_shaped_text (
+            state, line_edit_behavior->text_id, line_edit_behavior->shaping_unit_id, public->last_mouse_x,
+            public->last_mouse_y);
+
+        line_edit_behavior->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
+        line_edit_behavior->selection_content_min =
+            KAN_MIN (private->line_edit_press_start_content_location, current_content_location);
+
+        line_edit_behavior->selection_content_max =
+            KAN_MAX (private->line_edit_press_start_content_location, current_content_location);
+        line_edit_behavior->text_visuals_dirty = true;
+    }
 }
 
 static void on_press_end_internal (struct ui_controls_input_state_t *state,
                                    struct kan_ui_input_singleton_t *public,
                                    const struct kan_ui_singleton_t *ui,
-                                   const struct kan_ui_node_hit_box_t *on_hit_box,
                                    bool continuous)
 {
-    // Nothing for now, expected to get some logic later.
+    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
+                                   &private->selected_line_edit_id)
+
+    if (line_edit_behavior)
+    {
+        // We only have press end logic when no movement has happened during press.
+        if (!private->line_edit_press_moved)
+        {
+            // If we've selected line edit with this press, then select everything in the content.
+            if (private->line_edit_selected_this_press)
+            {
+                line_edit_behavior->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
+                line_edit_behavior->selection_content_min = 0u;
+                line_edit_behavior->selection_content_max = line_edit_behavior->content_utf8.size;
+                line_edit_behavior->text_visuals_dirty = true;
+            }
+            else
+            {
+                line_edit_behavior->cursor_content_location = calculate_content_position_on_shaped_text (
+                    state, line_edit_behavior->text_id, line_edit_behavior->shaping_unit_id, public->last_mouse_x,
+                    public->last_mouse_y);
+
+                line_edit_behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
+                line_edit_behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
+                line_edit_behavior->text_visuals_dirty = true;
+            }
+        }
+
+        if (private->line_edit_selected_this_press && KAN_HANDLE_IS_VALID (public->linked_window_handle))
+        {
+            kan_application_window_add_text_listener (state->application_system_handle, public->linked_window_handle);
+        }
+    }
 }
 
 static void process_events (struct ui_controls_input_state_t *state,
@@ -937,7 +1325,7 @@ static void process_events (struct ui_controls_input_state_t *state,
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_WINDOW_FOCUS_LOST:
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_WINDOW_ENTER_FULLSCREEN:
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_WINDOW_LEAVE_FULLSCREEN:
-            if (KAN_TYPED_ID_32_IS_EQUAL (event->window.id, public->window_filter))
+            if (KAN_TYPED_ID_32_IS_EQUAL (event->window.id, public->linked_window_id))
             {
                 mouse_hit_box_update = INPUT_HIT_BOX_MOUSE_UPDATE_MODE_RESET;
                 // Also end press just in case.
@@ -953,7 +1341,7 @@ static void process_events (struct ui_controls_input_state_t *state,
                         .at_y = public->last_mouse_y,
                     };
 
-                    on_press_end_internal (state, public, ui, NULL, false);
+                    on_press_end_internal (state, public, ui, false);
                 }
 
                 public->mouse_button_down_inclusive_flags = 0u;
@@ -964,7 +1352,7 @@ static void process_events (struct ui_controls_input_state_t *state,
             break;
 
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_MOUSE_MOTION:
-            if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_motion.window_id, public->window_filter))
+            if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_motion.window_id, public->linked_window_id))
             {
                 mouse_hit_box_update = INPUT_HIT_BOX_MOUSE_UPDATE_MODE_EXECUTE;
                 public->last_mouse_x = (kan_instance_offset_t) event->mouse_motion.window_x;
@@ -979,7 +1367,7 @@ static void process_events (struct ui_controls_input_state_t *state,
             break;
 
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_MOUSE_BUTTON_DOWN:
-            if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_button.window_id, public->window_filter))
+            if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_button.window_id, public->linked_window_id))
             {
                 public->last_mouse_x = (kan_instance_offset_t) event->mouse_button.window_x;
                 public->last_mouse_y = (kan_instance_offset_t) event->mouse_button.window_y;
@@ -1036,20 +1424,33 @@ static void process_events (struct ui_controls_input_state_t *state,
                         .at_x = public->last_mouse_x,
                         .at_y = public->last_mouse_y,
                     };
-
-                    on_press_begin_internal (state, public, ui);
                 }
 
                 if (element)
                 {
                     kan_repository_indexed_sequence_read_access_close (&element_access);
                 }
+
+                // We process press internally after closing access to the hit box as
+                // it might be needed to modify hit box while processing the press.
+                if (!multi_click && new_press)
+                {
+                    if (public->press_filtered_in)
+                    {
+                        on_press_begin_internal (state, public, ui);
+                    }
+                    else
+                    {
+                        // Special callback for the cases when we need to reset press-based selection.
+                        on_press_begin_filtered_out_internal (state, public, ui);
+                    }
+                }
             }
 
             break;
 
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_MOUSE_BUTTON_UP:
-            if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_button.window_id, public->window_filter))
+            if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_button.window_id, public->linked_window_id))
             {
                 public->last_mouse_x = (kan_instance_offset_t) event->mouse_button.window_x;
                 public->last_mouse_y = (kan_instance_offset_t) event->mouse_button.window_y;
@@ -1079,11 +1480,14 @@ static void process_events (struct ui_controls_input_state_t *state,
                             .at_y = public->last_mouse_y,
                         };
 
-                        on_press_end_internal (state, public, ui, element, continuous);
                         if (element)
                         {
                             kan_repository_indexed_sequence_read_access_close (&element_access);
                         }
+
+                        // We process press internally after closing access to the hit box as
+                        // it might be needed to modify hit box while processing the press.
+                        on_press_end_internal (state, public, ui, continuous);
                     }
 
                     public->mouse_button_down_inclusive_flags = 0u;
@@ -1096,7 +1500,7 @@ static void process_events (struct ui_controls_input_state_t *state,
 
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_MOUSE_WHEEL:
         {
-            if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_wheel.window_id, public->window_filter))
+            if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_wheel.window_id, public->linked_window_id))
             {
                 public->last_mouse_x = (kan_instance_offset_t) event->mouse_wheel.window_x;
                 public->last_mouse_y = (kan_instance_offset_t) event->mouse_wheel.window_y;
@@ -1123,11 +1527,24 @@ static void process_events (struct ui_controls_input_state_t *state,
                     }
 
                     kan_repository_indexed_sequence_read_access_close (&element_access);
+                    
+                    // If mouse wheel input was passed to scroll behavior, deselect line edit so the user won't
+                    // unexpectedly input anything into it.
+                    if (scroll_behaviour)
+                    {
+                        KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
+                        if (KAN_TYPED_ID_32_IS_VALID (private->selected_line_edit_id))
+                        {
+                            deselect_line_edit_behavior (state, public, private);
+                        }
+                    }
                 }
             }
 
             break;
         }
+
+            // TODO: Process key down and text input for line edit.
 
         default:
             // Do not care about other event types.
@@ -1197,6 +1614,54 @@ static void process_events (struct ui_controls_input_state_t *state,
         if (hit_box)
         {
             prolong_hit_box_down_visuals (state, public, bundle, hit_box);
+        }
+    }
+}
+
+static void process_line_edit_content_dirty_inner (struct ui_controls_input_state_t *state)
+{
+    KAN_UML_SIGNAL_UPDATE (behavior, kan_ui_node_line_edit_behavior_t, content_dirty, true)
+    {
+        KAN_UMI_VALUE_UPDATE_REQUIRED (shaping_unit, kan_text_shaping_unit_t, id, &behavior->shaping_unit_id)
+        struct kan_text_item_t text_items[] = {
+            {
+                .type = KAN_TEXT_ITEM_STYLE,
+                .style =
+                    {
+                        .style = behavior->content_style,
+                        .mark = behavior->content_mark,
+                    },
+            },
+            {
+                .type = KAN_TEXT_ITEM_UTF8,
+                .utf8 = (const char *) behavior->content_utf8.data,
+            },
+        };
+
+        if (KAN_HANDLE_IS_VALID (shaping_unit->request.text))
+        {
+            kan_text_destroy (shaping_unit->request.text);
+        }
+
+        // Recreating text that way is not very effective, but text line edit should not be a bottleneck for us anyway.
+        shaping_unit->request.text = kan_text_create (sizeof (text_items) / sizeof (text_items[0u]), text_items);
+        shaping_unit->dirty = true;
+
+        behavior->content_dirty = false;
+        behavior->text_visuals_dirty = true;
+    }
+}
+
+static void process_interactable_style_changes (struct ui_controls_input_state_t *state,
+                                                const struct kan_ui_input_singleton_t *public,
+                                                const struct kan_ui_bundle_singleton_t *bundle)
+{
+    KAN_UML_EVENT_FETCH (changed_event, kan_ui_node_hit_box_on_style_change_event_t)
+    {
+        KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &changed_event->id)
+        if (hit_box && hit_box->interactable)
+        {
+            apply_hit_box_interaction_visuals (state, public, bundle, hit_box, false);
         }
     }
 }
@@ -1305,6 +1770,9 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_input)
     }
 
     process_scroll_behavior_insertion (state, ui);
+    process_line_edit_behavior_lifetime (state, public);
+    process_line_edit_content_dirty_outer (state);
+
     KAN_UML_EVENT_FETCH (laid_out_event, kan_ui_node_laid_out_t)
     {
         KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &laid_out_event->node_id)
@@ -1325,6 +1793,9 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_input)
     }
 
     process_events (state, public, ui, bundle, visuals_changed, hit_boxes_changed);
+    process_line_edit_content_dirty_inner (state);
+
+    process_interactable_style_changes (state, public, bundle);
     clear_old_down_marks (state, ui, public, bundle);
     update_scroll_line_visibility (state, ui);
 }
@@ -1349,7 +1820,7 @@ static void sync_ui_size_from_text_secondary (struct ui_controls_pre_layout_stat
                                               struct kan_ui_node_t *node,
                                               const struct kan_ui_node_text_behavior_t *text_behavior)
 {
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (shaping_unit, kan_text_shaping_unit_t, id, &text_behavior->shaping_unit)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (shaping_unit, kan_text_shaping_unit_t, id, &text_behavior->shaping_unit_id)
     if (!shaping_unit)
     {
         return;
@@ -1394,7 +1865,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_pre_layout)
 
     KAN_UML_EVENT_FETCH (text_shaped, kan_text_shaped_t)
     {
-        KAN_UMI_VALUE_READ_OPTIONAL (text_behavior, kan_ui_node_text_behavior_t, shaping_unit, &text_shaped->id)
+        KAN_UMI_VALUE_READ_OPTIONAL (text_behavior, kan_ui_node_text_behavior_t, shaping_unit_id, &text_shaped->id)
         if (!text_behavior)
         {
             continue;
@@ -1430,7 +1901,7 @@ static void text_behavior_post_laid_out (struct ui_controls_post_layout_state_t 
                                          struct kan_ui_node_drawable_t *drawable,
                                          const struct kan_ui_node_text_behavior_t *text_behavior)
 {
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (shaping_unit, kan_text_shaping_unit_t, id, &text_behavior->shaping_unit)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (shaping_unit, kan_text_shaping_unit_t, id, &text_behavior->shaping_unit_id)
     if (!shaping_unit)
     {
         return;
@@ -1497,13 +1968,24 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_post_layout)
         {
             text_behavior_post_laid_out (state, ui, drawable, text_behavior);
         }
+
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
+                                       &laid_out_event->node_id)
+
+        if (line_edit_behavior)
+        {
+            // Need to update text edition visuals for the new text size even if shaping was not triggered by this.
+            // Mostly a safeguard logic.
+            line_edit_behavior->text_visuals_dirty = true;
+        }
     }
 }
 
 void kan_ui_input_singleton_init (struct kan_ui_input_singleton_t *instance)
 {
     instance->event_iterator = KAN_HANDLE_SET_INVALID (kan_application_system_event_iterator_t);
-    instance->window_filter = KAN_TYPED_ID_32_SET_INVALID (kan_platform_window_id_t);
+    instance->linked_window_handle = KAN_HANDLE_SET_INVALID (kan_application_system_window_t);
+    instance->linked_window_id = KAN_TYPED_ID_32_SET_INVALID (kan_platform_window_id_t);
 
     instance->viewport_offset_x = 0;
     instance->viewport_offset_y = 0;
@@ -1540,7 +2022,7 @@ void kan_ui_node_hit_box_shutdown (struct kan_ui_node_hit_box_t *instance)
 void kan_ui_node_text_behavior_init (struct kan_ui_node_text_behavior_t *instance)
 {
     instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
-    instance->shaping_unit = KAN_TYPED_ID_32_SET_INVALID (kan_text_shaping_unit_id_t);
+    instance->shaping_unit_id = KAN_TYPED_ID_32_SET_INVALID (kan_text_shaping_unit_id_t);
     instance->font_size = KAN_UI_VALUE_PX (14.0f);
     instance->sync_text_limit_from_ui = false;
     instance->sync_ui_size_from_text_secondary = false;
@@ -1571,4 +2053,49 @@ void kan_ui_node_scroll_behavior_init (struct kan_ui_node_scroll_behavior_t *ins
 
     instance->lines_always_visible = false;
     instance->line_visibility_s = 0.5f;
+}
+
+void kan_ui_node_line_edit_behavior_init (struct kan_ui_node_line_edit_behavior_t *instance)
+{
+    instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->text_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->shaping_unit_id = KAN_TYPED_ID_32_SET_INVALID (kan_text_shaping_unit_id_t);
+
+    instance->interactable_style_regular = NULL;
+    instance->interactable_style_selected = NULL;
+
+    // Always dirty until initial processing.
+    instance->content_dirty = true;
+    instance->text_visuals_dirty = true;
+
+    kan_dynamic_array_init (&instance->content_utf8, 0u, sizeof (uint8_t), alignof (kan_memory_size_t),
+                            kan_allocation_group_stack_get ());
+
+    instance->content_style = NULL;
+    instance->content_mark = 0u;
+
+    instance->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
+    instance->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
+    instance->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
+}
+
+void kan_ui_node_line_edit_behavior_set_content (struct kan_ui_node_line_edit_behavior_t *instance,
+                                                 const char *null_terminated_utf8_content,
+                                                 kan_interned_string_t content_style,
+                                                 uint32_t content_mark)
+{
+    const kan_instance_size_t input_length = strlen (null_terminated_utf8_content);
+    instance->content_utf8.size = 0u;
+    kan_dynamic_array_set_capacity (&instance->content_utf8, input_length + 1u);
+    instance->content_utf8.size = input_length + 1u;
+    memcpy (instance->content_utf8.data, null_terminated_utf8_content, input_length + 1u);
+
+    instance->content_style = content_style;
+    instance->content_mark = content_mark;
+    instance->content_dirty = true;
+}
+
+void kan_ui_node_line_edit_behavior_shutdown (struct kan_ui_node_line_edit_behavior_t *instance)
+{
+    kan_dynamic_array_shutdown (&instance->content_utf8);
 }

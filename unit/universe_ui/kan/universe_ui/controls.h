@@ -38,7 +38,8 @@ KAN_C_HEADER_BEGIN
 struct kan_ui_input_singleton_t
 {
     kan_application_system_event_iterator_t event_iterator;
-    kan_platform_window_id_t window_filter;
+    kan_application_system_window_t linked_window_handle;
+    kan_platform_window_id_t linked_window_id;
 
     kan_instance_offset_t viewport_offset_x;
     kan_instance_offset_t viewport_offset_y;
@@ -62,7 +63,7 @@ struct kan_ui_node_hit_box_t
     kan_immutable bool interactable;
     kan_immutable bool scroll_passthrough;
 
-    kan_immutable kan_interned_string_t interactable_style;
+    kan_interned_string_t interactable_style;
     kan_immutable uint32_t mouse_button_down_flags;
 
     /// \brief Marks and styles will be propagated to these node drawables as well.
@@ -113,7 +114,7 @@ struct kan_ui_press_end_t
 struct kan_ui_node_text_behavior_t
 {
     kan_immutable kan_ui_node_id_t id;
-    kan_immutable kan_text_shaping_unit_id_t shaping_unit;
+    kan_immutable kan_text_shaping_unit_id_t shaping_unit_id;
 
     /// \brief Font size that will be applied to the shaping unit text.
     /// \warning UI coordinate calculation result should be actual font size, not expect pixel height! Therefore, using
@@ -157,5 +158,59 @@ struct kan_ui_node_scroll_behavior_t
 };
 
 UNIVERSE_UI_API void kan_ui_node_scroll_behavior_init (struct kan_ui_node_scroll_behavior_t *instance);
+
+struct kan_ui_node_line_edit_behavior_t
+{
+    kan_immutable kan_ui_node_id_t id;
+    kan_immutable kan_ui_node_id_t text_id;
+    kan_immutable kan_text_shaping_unit_id_t shaping_unit_id;
+
+    kan_immutable kan_interned_string_t interactable_style_regular;
+    kan_immutable kan_interned_string_t interactable_style_selected;
+
+    /// \brief User should set this to true when manually modifying content from outside.
+    bool content_dirty;
+
+    /// \brief True if visual data should be updated, used internally and should not be edited by the user.
+    /// \details Cursor and selection visuals are updated not only when text is changed and reshaped, it can also be
+    ///          triggered by user actions like moving cursor or changing selection.
+    bool text_visuals_dirty;
+
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (uint8_t)
+    struct kan_dynamic_array_t content_utf8;
+
+    kan_interned_string_t content_style;
+    uint32_t content_mark;
+
+    // TODO: Image indices for selection and cursor?
+    //       And then change docs so user can set text_visuals_dirty to true when image indices are changed.
+
+    kan_instance_size_t cursor_content_location;
+    kan_instance_size_t selection_content_min;
+    kan_instance_size_t selection_content_max;
+};
+
+UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_init (struct kan_ui_node_line_edit_behavior_t *instance);
+
+/// \brief Helper for setting line edit content from outside.
+UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_set_content (struct kan_ui_node_line_edit_behavior_t *instance,
+                                                                 const char *null_terminated_utf8_content,
+                                                                 kan_interned_string_t content_style,
+                                                                 uint32_t content_mark);
+
+UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_shutdown (struct kan_ui_node_line_edit_behavior_t *instance);
+
+// TODO: Line edit in input:
+//       - outer dirty processing: clean cursor/selection for dirty, do not clear dirty flag
+//       - process all the input
+//       - update dirty content
+// TODO: After shaping: update cursor position (based on data index), update selection visuals.
+// TODO: When searching for a cluster to get cursor position, we need to find a cluster that starts at content index and
+//       then "step back" to get cluster from which position should be retrieved. Should keep in mind that stepping
+//       back must know about pointer inversion: step back from inverted is actually a step forward. Step back from
+//       non-inverted to inverted must search for the first inverted in the inverted run. Step back (forward) from
+//       inverted to non-inverted should search for the first non-inverted cluster before the current inverted run.
+//       It can be visually improved by also taking into account whether user has clicked on inverted or non-inverted
+//       cluster, but I think we can leave it out for now. Bidi text edition is a difficult topic anyway.
 
 KAN_C_HEADER_END

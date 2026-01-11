@@ -2151,6 +2151,7 @@ struct image_instanced_data_t
     struct kan_float_vector_2_t size;
     uint32_t image_index;
     uint32_t ui_mark;
+    float local_time;
 };
 
 KAN_REFLECTION_IGNORE
@@ -2681,7 +2682,7 @@ static void execute_draw_text_command (struct ui_render_state_t *state,
         break;
     }
 
-    push_constant.local_time = state->transient.ui->animation_global_time_s - command->text.animation_start_time_s;
+    push_constant.local_time = state->transient.ui->animation_global_time_s - command->animation_start_time_s;
     push_constant.ui_mark = command->ui_mark;
 
     while (push_constant.local_time < 0.0f)
@@ -2917,6 +2918,7 @@ static void execute_draw_custom_command (struct ui_render_state_t *state,
         push.offset.x = (float) drawable->width;
         push.offset.y = (float) drawable->height;
         push.ui_mark = command->ui_mark;
+        push.local_time = state->transient.ui->animation_global_time_s - command->animation_start_time_s;
         kan_render_pass_instance_push_constant (pass_instance, &push);
 
         kan_render_pass_instance_draw (pass_instance, 0u, sizeof (ui_rect_indices) / sizeof (ui_rect_indices[0u]), 0u,
@@ -2977,6 +2979,7 @@ static void process_draw_command (struct ui_render_state_t *state,
 
         data->image_index = command->image.record_index;
         data->ui_mark = command->ui_mark;
+        data->local_time = state->transient.ui->animation_global_time_s - command->animation_start_time_s;
         break;
     }
 
@@ -3266,7 +3269,8 @@ void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
     instance->clip_rect.width = 0.0f;
     instance->clip_rect.height = 0.0f;
 
-    instance->main_draw_command.ui_mark = 0u;
+    instance->main_draw_command.ui_mark = KAN_UI_DEFAULT_MARK_FLAG_NONE;
+    instance->main_draw_command.animation_start_time_s = 0.0f;
     instance->main_draw_command.type = KAN_UI_DRAW_COMMAND_NONE;
 
     kan_dynamic_array_init (&instance->additional_draw_commands, 0u, sizeof (struct kan_ui_draw_command_data_t),

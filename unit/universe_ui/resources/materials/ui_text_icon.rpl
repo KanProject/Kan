@@ -1,17 +1,3 @@
-push_constant push
-{
-    f4 offset_and_time;
-    alias (offset, offset_and_time.xy)
-    alias (local_time, offset_and_time.z)
-    u4 meta;
-    alias (ui_mark, meta.x)
-};
-
-vertex_attribute_container vertex
-{
-    f2 position;
-};
-
 instanced_attribute_container instanced
 {
     f4 min_max;
@@ -23,22 +9,6 @@ instanced_attribute_container instanced
     alias (read_index, meta.z)
 };
 
-struct palette_entry
-{
-    f4 color_main;
-    f4 color_hovered;
-    f4 color_down;
-    f4 cos_anim_color;
-    u1 color_table_multiplier_index;
-};
-
-set_material read_only_storage_buffer setup
-{
-    f1 cos_anim_period;
-    f1 glyph_read_time;
-    palette_entry... palette;
-};
-
 state_container state
 {
     u4 meta;
@@ -47,64 +17,26 @@ state_container state
     alias (read_index, meta.z)
     alias (ui_mark, meta.w)
     f2 uv;
+    f1 local_time;
 };
 
 void ui_vertex_main (void)
 {
     state.meta = u4 {instanced.meta, push.ui_mark};
-    state.uv =  vertex.position;
+    state.uv = vertex.position;
+    state.local_time = push.local_time;
     f2 position = instanced.min + vertex.position * (instanced.max - instanced.min);
     vertex_stage_output_position (pass_view_data.projection_view * f4 {push.offset + position, 0.5, 1.0});
 }
 
-constant palette_mask = 0xff;
-// Commented out as not supported, however still a part of mark flags.
-// constant outline_flag = 1u << 8u;
-constant cos_anim_flag = 1u << 9u;
-constant reading_anim_flag = 1u << 10u;
-constant color_table_flag = 1u << 11u;
-
 void ui_fragment_main (void)
 {
-    if ((state.mark & reading_anim_flag) != 0u)
-    {
-        f1 time_to_get_here = setup.glyph_read_time * f1 {state.read_index};
-        if (time_to_get_here > push.local_time)
-        {
-            color_output.color = f4 {0.0};
-            return;
-        }
-    }
-    
-    u1 palette_index = state.mark & palette_mask;
-    alias (palette, setup.palette[palette_index])
     alias (entry, image_entries.data[state.icon_index])
-    
+    // We do the simplified uv calculation here and ignore nine-patches as they're generally too complex and unnecessary
+    // for the icons that are used inside texts. And not using them reduces amount of data to pass between stages.
     f2 atlas_uv = entry.uv_min + state.uv * (entry.uv_max - entry.uv_min);
-    f4 modifier_color = palette.color_main;
-    
-    if ((state.mark & cos_anim_flag) != 0u)
-    {
-       f1 phase = 2.0 * pi() * fract_f1 (push.local_time / setup.cos_anim_period);
-       f1 modifier = cos_f1(phase) * 0.5 + 0.5;
-       modifier_color = mix_f4 (palette.cos_anim_color, modifier_color, f4 {modifier});
-    }
-    
-    if ((state.ui_mark & ui_mark_default_flag_hovered) != 0u)
-    {
-        modifier_color = palette.color_hovered;
-    }
-    
-    if ((state.ui_mark & ui_mark_default_flag_down) != 0u)
-    {
-        modifier_color = palette.color_down;
-    }
-    
-    if ((state.mark & color_table_flag) != 0u)
-    {
-        modifier_color = modifier_color * color_table.values[palette.color_table_multiplier_index];
-    }
-    
-    f4 color = sample (image_sampler, image_atlas, entry.page, atlas_uv) * modifier_color;
-    color_output.color = color;
+    f4 icon_color = sample (image_sampler, image_atlas, entry.page, atlas_uv);
+    f4 text_color = calculate_text_color (state.mark, state.read_index, state.ui_mark);
+    f4 modifier = calculate_ui_mark_color_modifier (state.ui_mark, state.local_time);
+    color_output.color = icon_color * text_color * modifier;
 }

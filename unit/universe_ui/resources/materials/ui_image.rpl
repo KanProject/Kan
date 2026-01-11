@@ -11,6 +11,7 @@ instanced_attribute_container instanced
     u2 meta;
     alias (index, meta.x)
     alias (ui_mark, meta.y)
+    f1 local_time;
 };
 
 state_container state
@@ -21,6 +22,7 @@ state_container state
     f2 uv;
     f2 size;
     f2 pixel;
+    f1 local_time;
 };
 
 void ui_vertex_main (void)
@@ -29,6 +31,7 @@ void ui_vertex_main (void)
     state.uv = vertex.position;
     state.size = instanced.size;
     state.pixel = vertex.position * instanced.size;
+    state.local_time = instanced.local_time;
     f2 position = instanced.offset + vertex.position * instanced.size;
     vertex_stage_output_position (pass_view_data.projection_view * f4 {position, 0.5, 1.0});
 }
@@ -36,86 +39,7 @@ void ui_vertex_main (void)
 void ui_fragment_main (void)
 {
     alias (entry, image_entries.data[state.index])
-    f2 base_uv = state.uv;
-    
-    if ((entry.flags & atlas_entry_flag_nine_slice) != 0u)
-    {
-        f2 entry_space = f2 {0.0};
-        f2 borders = f2 {
-            entry.nine_slice_left + entry.nine_slice_right, 
-            entry.nine_slice_top + entry.nine_slice_bottom};
-        f2 center_size = entry.pixel_size - borders;
-        
-        if (state.size.x > borders.x)
-        {
-            if (state.pixel.x < entry.nine_slice_left)
-            {
-                entry_space.x = state.pixel.x;
-            }
-            else if (state.size.x - state.pixel.x < entry.nine_slice_right)
-            {
-                entry_space.x = entry.pixel_size.x - (state.size.x - state.pixel.x);
-            }
-            else if ((entry.nine_slice_flags & atlas_entry_nine_slice_flag_tiled_x) != 0u)
-            {
-                entry_space.x = entry.nine_slice_left + (state.pixel.x - entry.nine_slice_left) % center_size.x;
-            }
-            else
-            {
-                f1 stretch_element = (state.pixel.x - entry.nine_slice_left) / (state.size.x - borders.x);
-                entry_space.x = entry.nine_slice_left + stretch_element * (entry.pixel_size.x - borders.x);
-            }
-        }
-        else
-        {
-            f1 edge = state.size.x * entry.nine_slice_left / borders.x;
-            if (state.pixel.x < edge)
-            {
-                entry_space.x = state.pixel.x;
-            }
-            else
-            {
-                entry_space.x = entry.pixel_size.x - (state.size.x - state.pixel.x);
-            }
-        }
-            
-        if (state.size.y > borders.y)
-        {
-            if (state.pixel.y < entry.nine_slice_top)
-            {
-                entry_space.y = state.pixel.y;
-            }
-            else if (state.size.y - state.pixel.y < entry.nine_slice_bottom)
-            {
-                entry_space.y = entry.pixel_size.y - (state.size.y - state.pixel.y);
-            }
-            else if ((entry.nine_slice_flags & atlas_entry_nine_slice_flag_tiled_y) != 0u)
-            {
-                entry_space.y = entry.nine_slice_top + (state.pixel.y - entry.nine_slice_top) % center_size.y;
-            }
-            else
-            {
-                f1 stretch_element = (state.pixel.y - entry.nine_slice_top) / (state.size.y - borders.y);
-                entry_space.y = entry.nine_slice_top + stretch_element * (entry.pixel_size.y - borders.y);
-            }
-        }
-        else
-        {
-            f1 edge = state.size.y * entry.nine_slice_top / borders.y;
-            if (state.pixel.y < edge)
-            {
-                entry_space.y = state.pixel.y;
-            }
-            else
-            {
-                entry_space.y = entry.pixel_size.y - (state.size.y - state.pixel.y);
-            }
-        }
-        
-        base_uv = entry_space / entry.pixel_size;
-    }
-    
-    f2 atlas_uv = entry.uv_min + base_uv * (entry.uv_max - entry.uv_min);
+    f2 atlas_uv = calculate_atlas_entry_uv (entry, state.uv, state.size, state.pixel);
     f4 color = sample (image_sampler, image_atlas, entry.page, atlas_uv);
     
     if ((entry.flags & atlas_entry_flag_color_multiplier) != 0u)
@@ -123,5 +47,6 @@ void ui_fragment_main (void)
         color = color * color_table.values[entry.color_table_multiplier_index];
     }
     
-    color_output.color = color;
+    f4 modifier = calculate_ui_mark_color_modifier (state.ui_mark, state.local_time);
+    color_output.color = color * modifier;
 }

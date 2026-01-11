@@ -140,7 +140,7 @@ struct kan_text_shaping_unit_t
         struct kan_text_shaped_unstable_data_t shaped_unstable;
     };
 
-    /// \brief Edition sequence data from shaping if it was requested by the user.
+    /// \brief Edition sequence data from shaping if it was requested by the user, always ordered by baseline value.
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_text_shaped_edition_sequence_data_t)
     struct kan_dynamic_array_t shaped_edition_sequences;
 

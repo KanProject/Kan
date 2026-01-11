@@ -512,7 +512,6 @@ static inline void text_commit_trailing_utf8 (struct text_create_context_t *cont
         }
     }
 
-    KAN_ASSERT (data_length > 0u)
     struct text_node_t *node = kan_allocate_general (
         text_allocation_group,
         kan_apply_alignment (sizeof (struct text_node_t) + data_length + 1u, alignof (struct text_node_t)),
@@ -769,6 +768,7 @@ void kan_text_shaped_edition_sequence_data_init (struct kan_text_shaped_edition_
     instance->baseline = 0;
     instance->ascender = 0;
     instance->descender = 0;
+    instance->end_at_index = KAN_INT_MAX (kan_instance_size_t);
 
     kan_dynamic_array_init (&instance->clusters, 0u, sizeof (struct kan_text_shaped_edition_cluster_data_t),
                             alignof (struct kan_text_shaped_edition_cluster_data_t), kan_allocation_group_stack_get ());
@@ -1126,6 +1126,7 @@ struct shape_context_t
     struct font_library_category_t *current_category;
     hb_font_t *harfbuzz_font;
     hb_buffer_t *harfbuzz_buffer;
+    kan_instance_size_t edition_index_offset;
 
     struct kan_dynamic_array_t line_breaks;
     struct kan_dynamic_array_t sequences;
@@ -1244,6 +1245,34 @@ static inline bool shape_is_break_allowed (struct shape_context_t *context, hb_d
     return false;
 }
 
+static inline void pad_edition_sequences (struct shape_context_t *context, const hb_glyph_info_t *glyph_info)
+{
+    KAN_ASSERT (context->request->generate_edition_markup)
+    if (context->output->edition_sequences.size < context->sequences.size)
+    {
+        if (context->output->edition_sequences.size != 0u)
+        {
+            struct kan_text_shaped_edition_sequence_data_t *last_edition =
+                &((struct kan_text_shaped_edition_sequence_data_t *)
+                      context->output->edition_sequences.data)[context->output->edition_sequences.size - 1u];
+            last_edition->end_at_index = context->edition_index_offset + glyph_info->cluster;
+        }
+
+        kan_dynamic_array_set_capacity (&context->output->edition_sequences, context->sequences.capacity);
+        kan_allocation_group_stack_push (context->output->edition_sequences.allocation_group);
+
+        while (context->output->edition_sequences.size < context->sequences.size)
+        {
+            struct kan_text_shaped_edition_sequence_data_t *new_sequence =
+                kan_dynamic_array_add_last (&context->output->edition_sequences);
+            kan_text_shaped_edition_sequence_data_init (new_sequence);
+            new_sequence->end_at_index = context->edition_index_offset + glyph_info->cluster;
+        }
+
+        kan_allocation_group_stack_pop ();
+    }
+}
+
 static inline void shape_apply_rendered_data_to_glyph (struct shape_context_t *context,
                                                        struct kan_text_shaped_glyph_instance_data_t *glyph,
                                                        struct font_rendered_glyph_node_t *rendered)
@@ -1324,6 +1353,11 @@ static inline void shape_append_to_sequence (struct shape_context_t *context,
 
     if (glyph_index == MISSING_GLYPH)
     {
+        if (context->request->generate_edition_markup)
+        {
+            pad_edition_sequences (context, glyph_info);
+        }
+
         return;
     }
 
@@ -1399,23 +1433,9 @@ static inline void shape_append_to_sequence (struct shape_context_t *context,
 
     if (context->request->generate_edition_markup)
     {
-        // Pad edition sequences if needed.
-        if (context->output->edition_sequences.size < context->sequences.size)
-        {
-            kan_dynamic_array_set_capacity (&context->output->edition_sequences, context->sequences.capacity);
-            kan_allocation_group_stack_push (context->output->edition_sequences.allocation_group);
-
-            while (context->output->edition_sequences.size < context->sequences.size)
-            {
-                struct kan_text_shaped_edition_sequence_data_t *new_sequence =
-                    kan_dynamic_array_add_last (&context->output->edition_sequences);
-                kan_text_shaped_edition_sequence_data_init (new_sequence);
-            }
-
-            kan_allocation_group_stack_pop ();
-        }
-
+        pad_edition_sequences (context, glyph_info);
         KAN_ASSERT (context->output->edition_sequences.size > 0u)
+
         struct kan_text_shaped_edition_sequence_data_t *last_edition =
             &((struct kan_text_shaped_edition_sequence_data_t *)
                   context->output->edition_sequences.data)[context->output->edition_sequences.size - 1u];
@@ -1449,7 +1469,7 @@ static inline void shape_append_to_sequence (struct shape_context_t *context,
                 context->forward_string_processing ? last_sequence->length_26_6 : -last_sequence->length_26_6;
 
             cluster->invert_pointer = harfbuzz_direction == HB_DIRECTION_RTL || harfbuzz_direction == HB_DIRECTION_BTT;
-            cluster->start_at_codepoint = glyph_info->cluster;
+            cluster->start_at_index = context->edition_index_offset + glyph_info->cluster;
         }
         else
         {
@@ -1473,20 +1493,22 @@ static inline void shape_append_to_sequence (struct shape_context_t *context,
         switch (context->request->orientation)
         {
         case KAN_TEXT_ORIENTATION_HORIZONTAL:
-            cluster->visual_min = origin_x + extents.x_bearing;
-            cluster->visual_max = origin_x + extents.x_bearing + extents.width;
+            min = origin_x + extents.x_bearing;
+            // Catch zero-sized glyphs like whitespace with width check. We still want their borders to be non-zero.
+            max = origin_x + extents.x_bearing + (extents.width ? extents.width : glyph_position->x_advance);
             break;
 
         case KAN_TEXT_ORIENTATION_VERTICAL:
-            cluster->visual_min = origin_y - extents.y_bearing;
-            cluster->visual_max = origin_y + extents.height - extents.y_bearing;
+            min = origin_y - extents.y_bearing;
+            // Catch zero-sized glyphs like whitespace with height check. We still want their borders to be non-zero.
+            max = origin_y + (extents.height ? extents.height : glyph_position->y_advance) - extents.y_bearing;
             break;
         }
 
         if (new_cluster)
         {
             cluster->visual_min = min;
-            cluster->visual_max = min;
+            cluster->visual_max = max;
         }
         else
         {
@@ -1990,6 +2012,15 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
             }
         }
     }
+
+    context->edition_index_offset += node->utf8.length;
+    if (context->request->generate_edition_markup && context->output->edition_sequences.size != 0u)
+    {
+        struct kan_text_shaped_edition_sequence_data_t *last_edition =
+            &((struct kan_text_shaped_edition_sequence_data_t *)
+                  context->output->edition_sequences.data)[context->output->edition_sequences.size - 1u];
+        last_edition->end_at_index = context->edition_index_offset;
+    }
 }
 
 static void shape_text_node_icon (struct shape_context_t *context, struct text_node_t *node)
@@ -2113,9 +2144,10 @@ static void shape_post_process_sequences (struct shape_context_t *context)
     context->output->typographic_secondary_size = 0u;
 
 #if KAN_TEXT_FT_HB_ROUND_OFFSETS_TO_PIXELS > 0u
-#    define MASK_FRACT (64u - 1u)
-#    define MASK_TRUNC ~MASK_FRACT
-#    define ROUND_GAP(VARIABLE) VARIABLE = (VARIABLE & MASK_TRUNC) + ((VARIABLE & MASK_FRACT) > 0u ? 64u : 0u);
+#    define ROUND_GAP(VARIABLE)                                                                                        \
+        VARIABLE = VARIABLE % 64 != 0 ?                                                                                \
+                       (VARIABLE >= 0 ? (VARIABLE + 64 - (VARIABLE % 64)) : (VARIABLE - 64 - (VARIABLE % 64))) :       \
+                       VARIABLE;
 #else
 #    define ROUND_GAP(VARIABLE)
 #endif
@@ -2333,6 +2365,7 @@ bool kan_font_library_shape (kan_font_library_t instance,
         .current_category = NULL,
         .harfbuzz_font = NULL,
         .harfbuzz_buffer = hb_buffer_create (),
+        .edition_index_offset = 0u,
     };
 
     if (context.library->primary_default_category_index < context.library->categories_count)

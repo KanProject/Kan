@@ -229,7 +229,7 @@ struct kan_text_shaped_edition_cluster_data_t
     /// \details Shaping-level logic has no info about original text items as they were merged or separated during text
     ///          object creation. Therefore, cluster data start index is computed as if all input strings were merged
     ///          into one string, which is usually the case for text edition and therefore is fine.
-    kan_instance_size_t start_at_codepoint;
+    kan_instance_size_t start_at_index;
 };
 
 /// \brief Contains data about one shaped sequence -- line or column -- needed for editing that text sequence.
@@ -238,6 +238,11 @@ struct kan_text_shaped_edition_sequence_data_t
     kan_instance_offset_t baseline;
     kan_instance_offset_t ascender;
     kan_instance_offset_t descender;
+
+    /// \brief Index of byte since which content no longer belongs to this sequence.
+    /// \details Follows the same indexing rules as `kan_text_shaped_edition_cluster_data_t::start_at_index`.
+    ///          Used to simplify pointer-to-content-index conversion.
+    kan_instance_size_t end_at_index;
 
     /// \brief List of clusters in that line/column sequence.
     /// \details Ordered by their appearance: left-to-right for horizontal and top-to-down for vertical.
@@ -264,6 +269,7 @@ struct kan_text_shaped_data_t
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_text_shaped_icon_instance_data_t)
     struct kan_dynamic_array_t icons;
 
+    /// \brief List of lines/columns for edition implementation, always ordered by baseline value.
     /// \warning Non-empty only if `kan_text_shaping_request_t::generate_edition_markup` is true.
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_text_shaped_edition_sequence_data_t)
     struct kan_dynamic_array_t edition_sequences;

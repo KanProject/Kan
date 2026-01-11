@@ -2909,12 +2909,19 @@ static bool mark_resource_for_cache (struct build_state_t *state,
         {
         case RESOURCE_STATUS_UNCONFIRMED:
         case RESOURCE_STATUS_UNAVAILABLE:
-        case RESOURCE_STATUS_BUILDING:
             KAN_LOG (resource_pipeline_build, KAN_LOG_ERROR,
                      "[Target \"%s\"] Failed to mark \"%s\" of type \"%s\" for cache as it is neither available "
                      "nor platform unsupported.",
                      entry->target->name, entry->name, entry->type->name);
             return false;
+
+        case RESOURCE_STATUS_BUILDING:
+            // This might happen when out-of-scope target has referenced in-scope resource as cache and this in-scope
+            // resource is out-of-date, therefore we're rebuilding this resource right now. In that case, we only need
+            // to set cache mark and return, because resource will properly propagate its cache dependencies after
+            // its build is finished.
+            entry->header.cache_mark = true;
+            return true;
 
         case RESOURCE_STATUS_AVAILABLE:
         case RESOURCE_STATUS_PLATFORM_UNSUPPORTED:

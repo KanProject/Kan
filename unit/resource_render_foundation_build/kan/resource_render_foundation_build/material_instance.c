@@ -99,10 +99,19 @@ RESOURCE_RENDER_FOUNDATION_BUILD_API struct kan_resource_reference_meta_t
         .flags = KAN_RESOURCE_REFERENCE_META_NULLABLE,
 };
 
+KAN_REFLECTION_STRUCT_FIELD_META (kan_resource_material_instance_raw_t, use_mixins)
+RESOURCE_RENDER_FOUNDATION_BUILD_API struct kan_resource_reference_meta_t
+    kan_resource_material_instance_raw_reference_use_mixins = {
+        .type_name = "kan_resource_material_instance_mixin_t",
+        .flags = KAN_RESOURCE_REFERENCE_META_NULLABLE,
+};
+
 void kan_resource_material_instance_raw_init (struct kan_resource_material_instance_raw_t *instance)
 {
     instance->material = NULL;
     instance->parent = NULL;
+    kan_dynamic_array_init (&instance->use_mixins, 0u, sizeof (kan_interned_string_t), alignof (kan_interned_string_t),
+                            kan_allocation_group_stack_get ());
     kan_dynamic_array_init (&instance->parameters, 0u, sizeof (struct kan_resource_material_parameter_t),
                             alignof (struct kan_resource_material_parameter_t), kan_allocation_group_stack_get ());
     kan_dynamic_array_init (&instance->tail_set, 0u, sizeof (struct kan_resource_material_tail_set_t),
@@ -119,6 +128,7 @@ void kan_resource_material_instance_raw_init (struct kan_resource_material_insta
 
 void kan_resource_material_instance_raw_shutdown (struct kan_resource_material_instance_raw_t *instance)
 {
+    kan_dynamic_array_shutdown (&instance->use_mixins);
     kan_dynamic_array_shutdown (&instance->parameters);
     KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->tail_set, kan_resource_material_tail_set)
     KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->tail_append, kan_resource_material_tail_append)
@@ -127,16 +137,56 @@ void kan_resource_material_instance_raw_shutdown (struct kan_resource_material_i
     KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->variants, kan_resource_material_variant_raw)
 }
 
-static enum kan_resource_build_rule_result_t material_transient_build (
+KAN_REFLECTION_STRUCT_META (kan_resource_material_instance_mixin_t)
+RESOURCE_RENDER_FOUNDATION_BUILD_API struct kan_resource_type_meta_t
+    kan_resource_material_instance_mixin_resource_type = {
+        .flags = 0u,
+        .version = CUSHION_START_NS_X64,
+        .move = NULL,
+        .reset = NULL,
+};
+
+void kan_resource_material_instance_mixin_init (struct kan_resource_material_instance_mixin_t *instance)
+{
+    kan_dynamic_array_init (&instance->parameters, 0u, sizeof (struct kan_resource_material_parameter_t),
+                            alignof (struct kan_resource_material_parameter_t), kan_allocation_group_stack_get ());
+    kan_dynamic_array_init (&instance->tail_set, 0u, sizeof (struct kan_resource_material_tail_set_t),
+                            alignof (struct kan_resource_material_tail_set_t), kan_allocation_group_stack_get ());
+    kan_dynamic_array_init (&instance->tail_append, 0u, sizeof (struct kan_resource_material_tail_append_t),
+                            alignof (struct kan_resource_material_tail_append_t), kan_allocation_group_stack_get ());
+    kan_dynamic_array_init (&instance->samplers, 0u, sizeof (struct kan_resource_material_sampler_t),
+                            alignof (struct kan_resource_material_sampler_t), kan_allocation_group_stack_get ());
+    kan_dynamic_array_init (&instance->images, 0u, sizeof (struct kan_resource_material_image_t),
+                            alignof (struct kan_resource_material_image_t), kan_allocation_group_stack_get ());
+    kan_dynamic_array_init (&instance->variants, 0u, sizeof (struct kan_resource_material_variant_raw_t),
+                            alignof (struct kan_resource_material_variant_raw_t), kan_allocation_group_stack_get ());
+}
+
+void kan_resource_material_instance_mixin_shutdown (struct kan_resource_material_instance_mixin_t *instance)
+{
+    kan_dynamic_array_shutdown (&instance->parameters);
+    KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->tail_set, kan_resource_material_tail_set)
+    KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->tail_append, kan_resource_material_tail_append)
+    kan_dynamic_array_shutdown (&instance->samplers);
+    kan_dynamic_array_shutdown (&instance->images);
+    KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->variants, kan_resource_material_variant_raw)
+}
+
+static enum kan_resource_build_rule_result_t material_instance_build (
     struct kan_resource_build_rule_context_t *context);
 
 KAN_REFLECTION_STRUCT_META (kan_resource_material_instance_t)
 RESOURCE_RENDER_FOUNDATION_BUILD_API struct kan_resource_build_rule_t kan_resource_material_instance_build_rule = {
     .primary_input_type = "kan_resource_material_instance_raw_t",
     .platform_configuration_type = NULL,
-    .secondary_types_count = 2u,
-    .secondary_types = (const char *[]) {"kan_resource_material_t", "kan_resource_material_instance_t"},
-    .functor = material_transient_build,
+    .secondary_types_count = 3u,
+    .secondary_types =
+        (const char *[]) {
+            "kan_resource_material_t",
+            "kan_resource_material_instance_t",
+            "kan_resource_material_instance_mixin_t",
+        },
+    .functor = material_instance_build,
     .version = CUSHION_START_NS_X64,
 };
 
@@ -841,8 +891,378 @@ static bool apply_tail_parameters (struct kan_resource_build_rule_context_t *con
     return successful;
 }
 
-static enum kan_resource_build_rule_result_t material_transient_build (
-    struct kan_resource_build_rule_context_t *context)
+static bool apply_parameters_array (struct kan_resource_build_rule_context_t *context,
+                                    const struct kan_resource_material_t *material,
+                                    const struct kan_dynamic_array_t *array)
+{
+    struct kan_resource_material_instance_t *output = context->primary_output;
+    bool successful = true;
+
+    for (kan_loop_size_t parameter_index = 0u; parameter_index < array->size; ++parameter_index)
+    {
+        const struct kan_resource_material_parameter_t *parameter =
+            &((struct kan_resource_material_parameter_t *) array->data)[parameter_index];
+        bool found = false;
+
+        for (kan_loop_size_t buffer_index = 0u; buffer_index < material->set_material.buffers.size && !found;
+             ++buffer_index)
+        {
+            const struct kan_rpl_meta_buffer_t *buffer_meta =
+                &((struct kan_rpl_meta_buffer_t *) material->set_material.buffers.data)[buffer_index];
+
+            for (kan_loop_size_t meta_parameter_index = 0u; meta_parameter_index < buffer_meta->main_parameters.size;
+                 ++meta_parameter_index)
+            {
+                const struct kan_rpl_meta_parameter_t *parameter_meta =
+                    &((struct kan_rpl_meta_parameter_t *) buffer_meta->main_parameters.data)[meta_parameter_index];
+
+                if (parameter_meta->name != parameter->name)
+                {
+                    continue;
+                }
+
+                found = true;
+                if (parameter->type != parameter_meta->type)
+                {
+                    KAN_LOG (resource_render_foundation_material_instance, KAN_LOG_ERROR,
+                             "Material instance \"%s\" failed to apply parameter \"%s\" as given parameter has type "
+                             "\"%s\" while type \"%s\" is expected by material code.",
+                             context->primary_name, parameter->name,
+                             kan_rpl_meta_variable_type_to_string (parameter->type),
+                             kan_rpl_meta_variable_type_to_string (parameter_meta->type))
+                    successful = false;
+                    break;
+                }
+
+                if (parameter_meta->total_item_count != 1u)
+                {
+                    KAN_LOG (resource_render_foundation_material_instance, KAN_LOG_ERROR,
+                             "Material instance \"%s\" failed to apply parameter \"%s\" as parameter meta expects "
+                             "several values and it is not yet supported.",
+                             context->primary_name, parameter->name)
+                    successful = false;
+                    break;
+                }
+
+                struct kan_resource_buffer_binding_t *buffer =
+                    &((struct kan_resource_buffer_binding_t *) output->buffers.data)[buffer_index];
+                copy_parameter_value (parameter, buffer->data.data + parameter_meta->offset);
+                break;
+            }
+        }
+
+        if (!found)
+        {
+            KAN_LOG (
+                resource_render_foundation_material_instance, KAN_LOG_ERROR,
+                "Material instance \"%s\" cannot apply parameter \"%s\" as it is not found across main parameters.",
+                context->primary_name, parameter->name)
+            successful = false;
+        }
+    }
+
+    return successful;
+}
+
+static bool apply_tail_set_array (struct kan_resource_build_rule_context_t *context,
+                                  const struct kan_resource_material_t *material,
+                                  const struct kan_dynamic_array_t *array)
+{
+    struct kan_resource_material_instance_t *output = context->primary_output;
+    bool successful = true;
+
+    for (kan_loop_size_t set_index = 0u; set_index < array->size; ++set_index)
+    {
+        const struct kan_resource_material_tail_set_t *tail_set =
+            &((struct kan_resource_material_tail_set_t *) array->data)[set_index];
+        bool tail_found = false;
+
+        for (kan_loop_size_t buffer_index = 0u; buffer_index < material->set_material.buffers.size; ++buffer_index)
+        {
+            const struct kan_rpl_meta_buffer_t *buffer_meta =
+                &((struct kan_rpl_meta_buffer_t *) material->set_material.buffers.data)[buffer_index];
+
+            if (buffer_meta->tail_name != tail_set->tail_name)
+            {
+                continue;
+            }
+
+            tail_found = true;
+            const kan_instance_size_t tail_offset =
+                buffer_meta->main_size + buffer_meta->tail_item_size * tail_set->index;
+            const kan_instance_size_t tail_end = tail_offset + buffer_meta->tail_item_size;
+
+            struct kan_resource_buffer_binding_t *buffer =
+                &((struct kan_resource_buffer_binding_t *) output->buffers.data)[buffer_index];
+
+            if (tail_end > buffer->data.size)
+            {
+                if (tail_end > buffer->data.capacity)
+                {
+                    kan_dynamic_array_set_capacity (&buffer->data, tail_end + KAN_RESOURCE_RF_MI_TAIL_APPEND_CAPACITY *
+                                                                                  buffer_meta->tail_item_size);
+                }
+
+                const kan_instance_size_t size_before = buffer->data.size;
+                buffer->data.size = tail_end;
+                memset (buffer->data.data + size_before, 0, tail_end - size_before);
+            }
+
+            successful &= apply_tail_parameters (context, buffer_meta, &tail_set->parameters,
+                                                 buffer->data.data + tail_offset, tail_set->tail_name);
+            break;
+        }
+
+        if (!tail_found)
+        {
+            KAN_LOG (
+                resource_render_foundation_material_instance, KAN_LOG_ERROR,
+                "Material instance \"%s\" cannot apply tail set \"%s\" as that tail name is not found across buffers.",
+                context->primary_name, tail_set->tail_name)
+            successful = false;
+        }
+    }
+
+    return successful;
+}
+
+static bool apply_tail_append_array (struct kan_resource_build_rule_context_t *context,
+                                     const struct kan_resource_material_t *material,
+                                     const struct kan_dynamic_array_t *array)
+{
+    struct kan_resource_material_instance_t *output = context->primary_output;
+    bool successful = true;
+
+    for (kan_loop_size_t append_index = 0u; append_index < array->size; ++append_index)
+    {
+        const struct kan_resource_material_tail_append_t *tail_append =
+            &((struct kan_resource_material_tail_append_t *) array->data)[append_index];
+        bool tail_found = false;
+
+        for (kan_loop_size_t buffer_index = 0u; buffer_index < material->set_material.buffers.size; ++buffer_index)
+        {
+            const struct kan_rpl_meta_buffer_t *buffer_meta =
+                &((struct kan_rpl_meta_buffer_t *) material->set_material.buffers.data)[buffer_index];
+
+            if (buffer_meta->tail_name != tail_append->tail_name)
+            {
+                continue;
+            }
+
+            tail_found = true;
+            struct kan_resource_buffer_binding_t *buffer =
+                &((struct kan_resource_buffer_binding_t *) output->buffers.data)[buffer_index];
+            KAN_ASSERT ((buffer->data.size - buffer_meta->main_size) % buffer_meta->tail_item_size == 0u)
+
+            const kan_instance_size_t tail_offset = buffer->data.size;
+            const kan_instance_size_t tail_end = tail_offset + buffer_meta->tail_item_size;
+
+            if (tail_end > buffer->data.capacity)
+            {
+                kan_dynamic_array_set_capacity (
+                    &buffer->data, tail_end + KAN_RESOURCE_RF_MI_TAIL_APPEND_CAPACITY * buffer_meta->tail_item_size);
+            }
+
+            const kan_instance_size_t size_before = buffer->data.size;
+            buffer->data.size = tail_end;
+            memset (buffer->data.data + size_before, 0, tail_end - size_before);
+
+            successful &= apply_tail_parameters (context, buffer_meta, &tail_append->parameters,
+                                                 buffer->data.data + tail_offset, tail_append->tail_name);
+            break;
+        }
+
+        if (!tail_found)
+        {
+            KAN_LOG (resource_render_foundation_material_instance, KAN_LOG_ERROR,
+                     "Material instance \"%s\" cannot apply tail append \"%s\" as that tail name is not found across "
+                     "buffers.",
+                     context->primary_name, tail_append->tail_name)
+            successful = false;
+        }
+    }
+
+    return successful;
+}
+
+static bool apply_samplers_array (struct kan_resource_build_rule_context_t *context,
+                                  const struct kan_resource_material_t *material,
+                                  const struct kan_dynamic_array_t *array)
+{
+    struct kan_resource_material_instance_t *output = context->primary_output;
+    bool successful = true;
+
+    for (kan_loop_size_t input_index = 0u; input_index < array->size; ++input_index)
+    {
+        const struct kan_resource_material_sampler_t *input_sampler =
+            &((struct kan_resource_material_sampler_t *) array->data)[input_index];
+        bool found = false;
+
+        for (kan_loop_size_t meta_index = 0u; meta_index < material->set_material.samplers.size; ++meta_index)
+        {
+            const struct kan_rpl_meta_sampler_t *meta_sampler =
+                &((struct kan_rpl_meta_sampler_t *) material->set_material.samplers.data)[meta_index];
+
+            if (meta_sampler->name != input_sampler->name)
+            {
+                continue;
+            }
+
+            found = true;
+            struct kan_resource_sampler_binding_t *output_sampler =
+                &((struct kan_resource_sampler_binding_t *) output->samplers.data)[meta_index];
+            output_sampler->sampler = input_sampler->sampler;
+            break;
+        }
+
+        if (!found)
+        {
+            KAN_LOG (resource_render_foundation_material_instance, KAN_LOG_ERROR,
+                     "Material instance \"%s\" cannot set sampler \"%s\" as it is not found across samplers.",
+                     context->primary_name, input_sampler->name)
+            successful = false;
+        }
+    }
+
+    return successful;
+}
+
+static bool apply_images_array (struct kan_resource_build_rule_context_t *context,
+                                const struct kan_resource_material_t *material,
+                                const struct kan_dynamic_array_t *array)
+{
+    struct kan_resource_material_instance_t *output = context->primary_output;
+    bool successful = true;
+
+    for (kan_loop_size_t input_index = 0u; input_index < array->size; ++input_index)
+    {
+        const struct kan_resource_material_image_t *input_image =
+            &((struct kan_resource_material_image_t *) array->data)[input_index];
+        bool found = false;
+
+        for (kan_loop_size_t meta_index = 0u; meta_index < material->set_material.images.size; ++meta_index)
+        {
+            const struct kan_rpl_meta_image_t *meta_image =
+                &((struct kan_rpl_meta_image_t *) material->set_material.images.data)[meta_index];
+
+            if (meta_image->name != input_image->name)
+            {
+                continue;
+            }
+
+            found = true;
+            struct kan_resource_image_binding_t *output_image =
+                &((struct kan_resource_image_binding_t *) output->images.data)[meta_index];
+            output_image->texture = input_image->texture;
+            break;
+        }
+
+        if (!found)
+        {
+            KAN_LOG (resource_render_foundation_material_instance, KAN_LOG_ERROR,
+                     "Material instance \"%s\" cannot set image \"%s\" as it is not found across images.",
+                     context->primary_name, input_image->name)
+            successful = false;
+        }
+    }
+
+    return successful;
+}
+
+static bool apply_variants_array (struct kan_resource_build_rule_context_t *context,
+                                  const struct kan_resource_material_t *material,
+                                  const struct kan_dynamic_array_t *array)
+{
+    const struct kan_resource_material_instance_raw_t *input = context->primary_input;
+    if (array->size > 0u && material->has_instanced_attribute_source)
+    {
+        KAN_LOG (resource_render_foundation_material_instance, KAN_LOG_ERROR,
+                 "Material instance \"%s\" has variants, but material \"%s\" has no instanced parameters, therefore "
+                 "variants are not possible here.",
+                 context->primary_name, input->material)
+        return false;
+    }
+
+    struct kan_resource_material_instance_t *output = context->primary_output;
+    bool successful = true;
+
+    for (kan_loop_size_t input_index = 0u; input_index < array->size; ++input_index)
+    {
+        const struct kan_resource_material_variant_raw_t *input_variant =
+            &((struct kan_resource_material_variant_raw_t *) array->data)[input_index];
+        struct kan_resource_material_variant_t *output_variant = NULL;
+
+        for (kan_loop_size_t existent_index = 0u; existent_index < output->variants.size; ++existent_index)
+        {
+            struct kan_resource_material_variant_t *existent =
+                &((struct kan_resource_material_variant_t *) output->variants.data)[existent_index];
+
+            if (existent->name == input_variant->name)
+            {
+                output_variant = existent;
+                break;
+            }
+        }
+
+        if (!output_variant)
+        {
+            output_variant = kan_dynamic_array_add_last (&output->variants);
+            if (!output_variant)
+            {
+                kan_dynamic_array_set_capacity (&output->variants, KAN_MAX (1u, output->variants.capacity * 2u));
+                output_variant = kan_dynamic_array_add_last (&output->variants);
+            }
+
+            kan_allocation_group_stack_push (output->variants.allocation_group);
+            kan_resource_material_variant_init (output_variant);
+            kan_allocation_group_stack_pop ();
+
+            output_variant->name = input_variant->name;
+            kan_dynamic_array_set_capacity (&output_variant->instanced_data,
+                                            material->instanced_attribute_source.block_size);
+            output_variant->instanced_data.size = output_variant->instanced_data.capacity;
+        }
+
+        for (kan_loop_size_t parameter_index = 0u; parameter_index < input_variant->parameters.size; ++parameter_index)
+        {
+            const struct kan_resource_material_parameter_t *parameter =
+                &((struct kan_resource_material_parameter_t *) input_variant->parameters.data)[parameter_index];
+            bool found = false;
+
+            for (kan_loop_size_t attribute_index = 0u;
+                 attribute_index < material->instanced_attribute_source.attributes.size; ++attribute_index)
+            {
+                const struct kan_rpl_meta_attribute_t *attribute =
+                    &((struct kan_rpl_meta_attribute_t *)
+                          material->instanced_attribute_source.attributes.data)[attribute_index];
+
+                if (attribute->name != parameter->name)
+                {
+                    continue;
+                }
+
+                found = true;
+                uint8_t *address = output_variant->instanced_data.data + attribute->offset;
+                successful &=
+                    apply_attribute_value (attribute, parameter, address, context->primary_name, input_variant->name);
+                break;
+            }
+
+            if (!found)
+            {
+                KAN_LOG (resource_render_foundation_material_instance, KAN_LOG_ERROR,
+                         "Material instance \"%s\" variant \"%s\" cannot set parameter \"%s\" as it is not found "
+                         "across instanced attributes.",
+                         context->primary_name, input_variant->name, parameter->name)
+                successful = false;
+            }
+        }
+    }
+
+    return successful;
+}
+
+static enum kan_resource_build_rule_result_t material_instance_build (struct kan_resource_build_rule_context_t *context)
 {
     kan_static_interned_ids_ensure_initialized ();
     const struct kan_resource_material_instance_raw_t *input = context->primary_input;
@@ -982,233 +1402,29 @@ static enum kan_resource_build_rule_result_t material_transient_build (
     }
 
     bool successful = true;
-    for (kan_loop_size_t parameter_index = 0u; parameter_index < input->parameters.size; ++parameter_index)
-    {
-        const struct kan_resource_material_parameter_t *parameter =
-            &((struct kan_resource_material_parameter_t *) input->parameters.data)[parameter_index];
-        bool found = false;
+#define APPLY_STAGE(FUNCTION, FIELD)                                                                                   \
+    secondary_node = context->secondary_input_first;                                                                   \
+                                                                                                                       \
+    while (secondary_node)                                                                                             \
+    {                                                                                                                  \
+        if (secondary_node->type == KAN_STATIC_INTERNED_ID_GET (kan_resource_material_instance_mixin_t))               \
+        {                                                                                                              \
+            const struct kan_resource_material_instance_mixin_t *mixin = secondary_node->data;                         \
+            successful &= FUNCTION (context, material, &mixin->FIELD);                                                 \
+        }                                                                                                              \
+                                                                                                                       \
+        secondary_node = secondary_node->next;                                                                         \
+    }                                                                                                                  \
+                                                                                                                       \
+    successful &= FUNCTION (context, material, &input->FIELD)
 
-        for (kan_loop_size_t buffer_index = 0u; buffer_index < material->set_material.buffers.size && !found;
-             ++buffer_index)
-        {
-            const struct kan_rpl_meta_buffer_t *buffer_meta =
-                &((struct kan_rpl_meta_buffer_t *) material->set_material.buffers.data)[buffer_index];
-
-            for (kan_loop_size_t meta_parameter_index = 0u; meta_parameter_index < buffer_meta->main_parameters.size;
-                 ++meta_parameter_index)
-            {
-                const struct kan_rpl_meta_parameter_t *parameter_meta =
-                    &((struct kan_rpl_meta_parameter_t *) buffer_meta->main_parameters.data)[meta_parameter_index];
-
-                if (parameter_meta->name != parameter->name)
-                {
-                    continue;
-                }
-
-                found = true;
-                if (parameter->type != parameter_meta->type)
-                {
-                    KAN_LOG (resource_render_foundation_material_instance, KAN_LOG_ERROR,
-                             "Material instance \"%s\" failed to apply parameter \"%s\" as given parameter has type "
-                             "\"%s\" while type \"%s\" is expected by material code.",
-                             context->primary_name, parameter->name,
-                             kan_rpl_meta_variable_type_to_string (parameter->type),
-                             kan_rpl_meta_variable_type_to_string (parameter_meta->type))
-                    successful = false;
-                    break;
-                }
-
-                if (parameter_meta->total_item_count != 1u)
-                {
-                    KAN_LOG (resource_render_foundation_material_instance, KAN_LOG_ERROR,
-                             "Material instance \"%s\" failed to apply parameter \"%s\" as parameter meta expects "
-                             "several values and it is not yet supported.",
-                             context->primary_name, parameter->name)
-                    successful = false;
-                    break;
-                }
-
-                struct kan_resource_buffer_binding_t *buffer =
-                    &((struct kan_resource_buffer_binding_t *) output->buffers.data)[buffer_index];
-                copy_parameter_value (parameter, buffer->data.data + parameter_meta->offset);
-                break;
-            }
-        }
-
-        if (!found)
-        {
-            KAN_LOG (
-                resource_render_foundation_material_instance, KAN_LOG_ERROR,
-                "Material instance \"%s\" cannot apply parameter \"%s\" as it is not found across main parameters.",
-                context->primary_name, parameter->name)
-            successful = false;
-        }
-    }
-
-    for (kan_loop_size_t set_index = 0u; set_index < input->tail_set.size; ++set_index)
-    {
-        const struct kan_resource_material_tail_set_t *tail_set =
-            &((struct kan_resource_material_tail_set_t *) input->tail_set.data)[set_index];
-        bool tail_found = false;
-
-        for (kan_loop_size_t buffer_index = 0u; buffer_index < material->set_material.buffers.size; ++buffer_index)
-        {
-            const struct kan_rpl_meta_buffer_t *buffer_meta =
-                &((struct kan_rpl_meta_buffer_t *) material->set_material.buffers.data)[buffer_index];
-
-            if (buffer_meta->tail_name != tail_set->tail_name)
-            {
-                continue;
-            }
-
-            tail_found = true;
-            const kan_instance_size_t tail_offset =
-                buffer_meta->main_size + buffer_meta->tail_item_size * tail_set->index;
-            const kan_instance_size_t tail_end = tail_offset + buffer_meta->tail_item_size;
-
-            struct kan_resource_buffer_binding_t *buffer =
-                &((struct kan_resource_buffer_binding_t *) output->buffers.data)[buffer_index];
-
-            if (tail_end > buffer->data.size)
-            {
-                if (tail_end > buffer->data.capacity)
-                {
-                    kan_dynamic_array_set_capacity (&buffer->data, tail_end + KAN_RESOURCE_RF_MI_TAIL_APPEND_CAPACITY *
-                                                                                  buffer_meta->tail_item_size);
-                }
-
-                const kan_instance_size_t size_before = buffer->data.size;
-                buffer->data.size = tail_end;
-                memset (buffer->data.data + size_before, 0, tail_end - size_before);
-            }
-
-            successful &= apply_tail_parameters (context, buffer_meta, &tail_set->parameters,
-                                                 buffer->data.data + tail_offset, tail_set->tail_name);
-            break;
-        }
-
-        if (!tail_found)
-        {
-            KAN_LOG (
-                resource_render_foundation_material_instance, KAN_LOG_ERROR,
-                "Material instance \"%s\" cannot apply tail set \"%s\" as that tail name is not found across buffers.",
-                context->primary_name, tail_set->tail_name)
-            successful = false;
-        }
-    }
-
-    for (kan_loop_size_t set_index = 0u; set_index < input->tail_append.size; ++set_index)
-    {
-        const struct kan_resource_material_tail_append_t *tail_append =
-            &((struct kan_resource_material_tail_append_t *) input->tail_append.data)[set_index];
-        bool tail_found = false;
-
-        for (kan_loop_size_t buffer_index = 0u; buffer_index < material->set_material.buffers.size; ++buffer_index)
-        {
-            const struct kan_rpl_meta_buffer_t *buffer_meta =
-                &((struct kan_rpl_meta_buffer_t *) material->set_material.buffers.data)[buffer_index];
-
-            if (buffer_meta->tail_name != tail_append->tail_name)
-            {
-                continue;
-            }
-
-            tail_found = true;
-            struct kan_resource_buffer_binding_t *buffer =
-                &((struct kan_resource_buffer_binding_t *) output->buffers.data)[buffer_index];
-            KAN_ASSERT ((buffer->data.size - buffer_meta->main_size) % buffer_meta->tail_item_size == 0u)
-
-            const kan_instance_size_t tail_offset = buffer->data.size;
-            const kan_instance_size_t tail_end = tail_offset + buffer_meta->tail_item_size;
-
-            if (tail_end > buffer->data.capacity)
-            {
-                kan_dynamic_array_set_capacity (
-                    &buffer->data, tail_end + KAN_RESOURCE_RF_MI_TAIL_APPEND_CAPACITY * buffer_meta->tail_item_size);
-            }
-
-            const kan_instance_size_t size_before = buffer->data.size;
-            buffer->data.size = tail_end;
-            memset (buffer->data.data + size_before, 0, tail_end - size_before);
-
-            successful &= apply_tail_parameters (context, buffer_meta, &tail_append->parameters,
-                                                 buffer->data.data + tail_offset, tail_append->tail_name);
-            break;
-        }
-
-        if (!tail_found)
-        {
-            KAN_LOG (resource_render_foundation_material_instance, KAN_LOG_ERROR,
-                     "Material instance \"%s\" cannot apply tail append \"%s\" as that tail name is not found across "
-                     "buffers.",
-                     context->primary_name, tail_append->tail_name)
-            successful = false;
-        }
-    }
-
-    for (kan_loop_size_t input_index = 0u; input_index < input->samplers.size; ++input_index)
-    {
-        const struct kan_resource_material_sampler_t *input_sampler =
-            &((struct kan_resource_material_sampler_t *) input->samplers.data)[input_index];
-        bool found = false;
-
-        for (kan_loop_size_t meta_index = 0u; meta_index < material->set_material.samplers.size; ++meta_index)
-        {
-            const struct kan_rpl_meta_sampler_t *meta_sampler =
-                &((struct kan_rpl_meta_sampler_t *) material->set_material.samplers.data)[meta_index];
-
-            if (meta_sampler->name != input_sampler->name)
-            {
-                continue;
-            }
-
-            found = true;
-            struct kan_resource_sampler_binding_t *output_sampler =
-                &((struct kan_resource_sampler_binding_t *) output->samplers.data)[meta_index];
-            output_sampler->sampler = input_sampler->sampler;
-            break;
-        }
-
-        if (!found)
-        {
-            KAN_LOG (resource_render_foundation_material_instance, KAN_LOG_ERROR,
-                     "Material instance \"%s\" cannot set sampler \"%s\" as it is not found across samplers.",
-                     context->primary_name, input_sampler->name)
-            successful = false;
-        }
-    }
-
-    for (kan_loop_size_t input_index = 0u; input_index < input->images.size; ++input_index)
-    {
-        const struct kan_resource_material_image_t *input_image =
-            &((struct kan_resource_material_image_t *) input->images.data)[input_index];
-        bool found = false;
-
-        for (kan_loop_size_t meta_index = 0u; meta_index < material->set_material.images.size; ++meta_index)
-        {
-            const struct kan_rpl_meta_image_t *meta_image =
-                &((struct kan_rpl_meta_image_t *) material->set_material.images.data)[meta_index];
-
-            if (meta_image->name != input_image->name)
-            {
-                continue;
-            }
-
-            found = true;
-            struct kan_resource_image_binding_t *output_image =
-                &((struct kan_resource_image_binding_t *) output->images.data)[meta_index];
-            output_image->texture = input_image->texture;
-            break;
-        }
-
-        if (!found)
-        {
-            KAN_LOG (resource_render_foundation_material_instance, KAN_LOG_ERROR,
-                     "Material instance \"%s\" cannot set image \"%s\" as it is not found across images.",
-                     context->primary_name, input_image->name)
-            successful = false;
-        }
-    }
+    APPLY_STAGE (apply_parameters_array, parameters);
+    APPLY_STAGE (apply_tail_set_array, tail_set);
+    APPLY_STAGE (apply_tail_append_array, tail_append);
+    APPLY_STAGE (apply_samplers_array, samplers);
+    APPLY_STAGE (apply_images_array, images);
+    APPLY_STAGE (apply_variants_array, variants);
+#undef APPLY_STAGE
 
     // Check if texture slots are filled for better error reporting.
     // We should not have NULL texture references and they will be reported anyway,
@@ -1228,88 +1444,6 @@ static enum kan_resource_build_rule_result_t material_transient_build (
                      "Material instance \"%s\" did not set any texture to slot \"%s\" which is considered an error.",
                      context->primary_name, meta->name)
             successful = false;
-        }
-    }
-
-    if (input->variants.size > 0u && material->has_instanced_attribute_source)
-    {
-        KAN_LOG (resource_render_foundation_material_instance, KAN_LOG_ERROR,
-                 "Material instance \"%s\" has variants, but material \"%s\" has no instanced parameters, therefore "
-                 "variants are not possible here.",
-                 context->primary_name, input->material)
-        return KAN_RESOURCE_BUILD_RULE_FAILURE;
-    }
-
-    for (kan_loop_size_t input_index = 0u; input_index < input->variants.size; ++input_index)
-    {
-        const struct kan_resource_material_variant_raw_t *input_variant =
-            &((struct kan_resource_material_variant_raw_t *) input->variants.data)[input_index];
-        struct kan_resource_material_variant_t *output_variant = NULL;
-
-        for (kan_loop_size_t existent_index = 0u; existent_index < output->variants.size; ++existent_index)
-        {
-            struct kan_resource_material_variant_t *existent =
-                &((struct kan_resource_material_variant_t *) output->variants.data)[existent_index];
-
-            if (existent->name == input_variant->name)
-            {
-                output_variant = existent;
-                break;
-            }
-        }
-
-        if (!output_variant)
-        {
-            output_variant = kan_dynamic_array_add_last (&output->variants);
-            if (!output_variant)
-            {
-                kan_dynamic_array_set_capacity (&output->variants, KAN_MAX (1u, output->variants.capacity * 2u));
-                output_variant = kan_dynamic_array_add_last (&output->variants);
-            }
-
-            kan_allocation_group_stack_push (output->variants.allocation_group);
-            kan_resource_material_variant_init (output_variant);
-            kan_allocation_group_stack_pop ();
-
-            output_variant->name = input_variant->name;
-            kan_dynamic_array_set_capacity (&output_variant->instanced_data,
-                                            material->instanced_attribute_source.block_size);
-            output_variant->instanced_data.size = output_variant->instanced_data.capacity;
-        }
-
-        for (kan_loop_size_t parameter_index = 0u; parameter_index < input_variant->parameters.size; ++parameter_index)
-        {
-            const struct kan_resource_material_parameter_t *parameter =
-                &((struct kan_resource_material_parameter_t *) input_variant->parameters.data)[parameter_index];
-            bool found = false;
-
-            for (kan_loop_size_t attribute_index = 0u;
-                 attribute_index < material->instanced_attribute_source.attributes.size; ++attribute_index)
-            {
-                const struct kan_rpl_meta_attribute_t *attribute =
-                    &((struct kan_rpl_meta_attribute_t *)
-                          material->instanced_attribute_source.attributes.data)[attribute_index];
-
-                if (attribute->name != parameter->name)
-                {
-                    continue;
-                }
-
-                found = true;
-                uint8_t *address = output_variant->instanced_data.data + attribute->offset;
-                successful &=
-                    apply_attribute_value (attribute, parameter, address, context->primary_name, input_variant->name);
-                break;
-            }
-
-            if (!found)
-            {
-                KAN_LOG (resource_render_foundation_material_instance, KAN_LOG_ERROR,
-                         "Material instance \"%s\" variant \"%s\" cannot set parameter \"%s\" as it is not found "
-                         "across instanced attributes.",
-                         context->primary_name, input_variant->name, parameter->name)
-                successful = false;
-            }
         }
     }
 

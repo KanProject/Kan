@@ -498,6 +498,18 @@ struct kan_ui_draw_command_image_t
         .custom_height = 0,                                                                                            \
     })
 
+/// \brief Syntax sugar drop-in initializer for initializing image commands that will be overridden either way.
+#define KAN_UI_IMAGE_COMMAND_NONE                                                                                      \
+    ((struct kan_ui_draw_command_image_t) {                                                                            \
+        .record_index = KAN_INT_MAX (uint32_t),                                                                        \
+        .allow_override = true,                                                                                        \
+        .custom_rect = false,                                                                                          \
+        .custom_x_offset = 0,                                                                                          \
+        .custom_y_offset = 0,                                                                                          \
+        .custom_width = 0,                                                                                             \
+        .custom_height = 0,                                                                                            \
+    })
+
 /// \brief If default text pipeline is used, it is possible select one of up to 255 palette entries for the color when
 ///        passed as mark in style while creating text object by masking palette index under this mask.
 #define KAN_UI_DEFAULT_TEXT_MARK_PALETTE_MASK 0x000000ff
@@ -569,7 +581,7 @@ enum kan_ui_default_command_mark_flag_t
     KAN_UI_DEFAULT_MARK_FLAG_NONE = 0u,
     KAN_UI_DEFAULT_MARK_FLAG_HOVERED = 1u << 8u,
     KAN_UI_DEFAULT_MARK_FLAG_DOWN = 1u << 9u,
-    
+
     /// \brief Used for blinking primitives like text cursors.
     KAN_UI_DEFAULT_MARK_FLAG_BLINK = 1u << 10u,
 };
@@ -590,6 +602,13 @@ struct kan_ui_draw_command_data_t
     /// \brief Used to calculate local time for primitive animation on GPU if any animation is used.
     /// \details Relative to `kan_ui_render_graph_singleton_t::animation_global_time_s`.
     float animation_start_time_s;
+
+    /// \brief If inside `kan_ui_node_drawable_t::additional_draw_commands`, setting this to true results in this
+    ///        command being executed prior to `kan_ui_node_drawable_t::main_draw_command`.
+    /// \details Additional commands are rarely used and therefore we'd like to avoid overhead of using two separate
+    ///          arrays for early commands and regular commands as even unused array field still takes 32 bytes of
+    ///          original structure.
+    bool early;
 
     enum kan_ui_draw_command_t type;
     union

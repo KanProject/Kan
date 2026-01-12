@@ -103,8 +103,11 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
     const kan_instance_size_t image_scroll_line =
         kan_render_atlas_loaded_query (atlas, KAN_STATIC_INTERNED_ID_GET (scroll_line_background), NULL);
 
-    const kan_instance_size_t image_text_edit =
-        kan_render_atlas_loaded_query (atlas, KAN_STATIC_INTERNED_ID_GET (text_edit_regular), NULL);
+    const kan_instance_size_t image_text_edit_cursor =
+        kan_render_atlas_loaded_query (atlas, KAN_STATIC_INTERNED_ID_GET (text_edit_cursor), NULL);
+
+    const kan_instance_size_t image_text_edit_selection =
+        kan_render_atlas_loaded_query (atlas, KAN_STATIC_INTERNED_ID_GET (text_edit_selection), NULL);
 
     // Clear old ones if any.
     const kan_ui_node_id_t no_parent_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
@@ -361,7 +364,7 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
                     {
                         line_edit_drawable->id = line_edit_node->id;
                         line_edit_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_IMAGE;
-                        line_edit_drawable->main_draw_command.image = KAN_UI_IMAGE_COMMAND_DEFAULT (image_text_edit);
+                        line_edit_drawable->main_draw_command.image = KAN_UI_IMAGE_COMMAND_NONE;
                         line_edit_drawable->main_draw_command.image.allow_override = true;
                     }
 
@@ -375,6 +378,12 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
                         line_edit_behavior->interactable_style_regular = KAN_STATIC_INTERNED_ID_GET (line_edit_regular);
                         line_edit_behavior->interactable_style_selected =
                             KAN_STATIC_INTERNED_ID_GET (line_edit_selected);
+
+                        line_edit_behavior->cursor_image_index = image_text_edit_cursor;
+                        line_edit_behavior->cursor_width = KAN_UI_VALUE_PT (3.0f);
+
+                        line_edit_behavior->selection_image_index = image_text_edit_selection;
+                        line_edit_behavior->selection_leeway = KAN_UI_VALUE_PT (3.0f);
 
                         kan_ui_node_line_edit_behavior_set_content (
                             line_edit_behavior, "Hello, world!", NULL,

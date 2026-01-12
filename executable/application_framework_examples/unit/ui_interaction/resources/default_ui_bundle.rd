@@ -16,8 +16,8 @@ text_icon_material_instance = text_icon
 +hit_box_interaction_styles {
     name = line_edit_regular
     regular_image = text_edit_regular
-    hovered_image = text_edit_regular
-    down_image = text_edit_regular
+    hovered_image = text_edit_regular_hovered
+    down_image = text_edit_regular_hovered
     down_state_s = 0.1
 }
 

@@ -32,7 +32,7 @@
 /// have similar configuration interface for material instances. Mixins would make it possible share this parameters
 /// for both material instances. Keep in mind, that mixins work pretty much like includes in C: material instances just
 /// grab everything from them before applying their own parameters, however parameter section application order still
-/// stands, for example tail appends from mixin are applied after tail sets from material instance and all mixins. 
+/// stands, for example tail appends from mixin are applied after tail sets from material instance and all mixins.
 /// Also, mixins do not support inheritance.
 /// \endparblock
 
@@ -189,7 +189,7 @@ struct kan_resource_material_instance_raw_t
 
     /// \brief Name of the parent material instance if any.
     kan_interned_string_t parent;
-    
+
     /// \brief Mixins to be applied on top of a parent data, but before other material instance parameters.
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (kan_interned_string_t)
     struct kan_dynamic_array_t use_mixins;

@@ -30,11 +30,11 @@
     +parameters {
         name = blink_invisible_s
         type = KAN_RPL_META_VARIABLE_TYPE_F1
-        value_f1 = 0.1
+        value_f1 = 0.3
     }
     +parameters {
         name = blink_visible_s
         type = KAN_RPL_META_VARIABLE_TYPE_F1
-        value_f1 = 0.2
+        value_f1 = 0.4
     }
 }

@@ -35,6 +35,14 @@ KAN_C_HEADER_BEGIN
 ///        have finished execution.
 #define KAN_UI_CONTROLS_POST_LAYOUT_END_CHECKPOINT "ui_controls_post_layout_end"
 
+/// \brief Checkpoint, after which controls update mutators that must done before rendering nodes out are executed.
+/// \details Mutators from this group might depend on text shaping as it provides data that might affect render.
+#define KAN_UI_CONTROLS_PRE_RENDER_BEGIN_CHECKPOINT "ui_controls_pre_render_begin"
+
+/// \brief Checkpoint, that is hit after all controls update mutators that must be before rendering nodes
+///        have finished execution.
+#define KAN_UI_CONTROLS_PRE_RENDER_END_CHECKPOINT "ui_controls_pre_render_end"
+
 struct kan_ui_input_singleton_t
 {
     kan_application_system_event_iterator_t event_iterator;
@@ -171,9 +179,8 @@ struct kan_ui_node_line_edit_behavior_t
     /// \brief User should set this to true when manually modifying content from outside.
     bool content_dirty;
 
-    /// \brief True if visual data should be updated, used internally and should not be edited by the user.
-    /// \details Cursor and selection visuals are updated not only when text is changed and reshaped, it can also be
-    ///          triggered by user actions like moving cursor or changing selection.
+    /// \brief True if visual data should be updated, usually set internally, but should also be manually set when user
+    ///        changes configuration for text edition elements like cursor or selection.
     bool text_visuals_dirty;
 
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (uint8_t)
@@ -182,8 +189,18 @@ struct kan_ui_node_line_edit_behavior_t
     kan_interned_string_t content_style;
     uint32_t content_mark;
 
-    // TODO: Image indices for selection and cursor?
-    //       And then change docs so user can set text_visuals_dirty to true when image indices are changed.
+    uint32_t cursor_image_index;
+    uint32_t cursor_ui_mark;
+    struct kan_ui_coordinate_t cursor_width;
+
+    uint32_t selection_image_index;
+    uint32_t selection_ui_mark;
+
+    /// \brief Selection is extended to both directions on primary axis by this value.
+    /// \details Glyph sizes could be affected by render techniques, therefore some leeway might be required for proper
+    ///          selection positioning. Also, in some cases tightly fitting selection looks worse than selection with
+    ///          leeway of several pixels.
+    struct kan_ui_coordinate_t selection_leeway;
 
     kan_instance_size_t cursor_content_location;
     kan_instance_size_t selection_content_min;

@@ -214,15 +214,12 @@ struct kan_text_shaped_edition_cluster_data_t
 {
     kan_instance_offset_t visual_min;
     kan_instance_offset_t visual_max;
+
+    /// \brief Cursor position when cursor is at `start_at_index` content location.
     kan_instance_offset_t visual_cursor_position;
 
-    /// \brief Used to mark cluster that have inverted (right-to-left or bottom-to-top) behavior for pointer-to-cursor
-    ///        calculation logic.
-    /// \details When pointer is not inverted, pointing to the left side of the cluster places cursor before this
-    ///          cluster (logically, after previous cluster) and pointing to the right side of cluster places cursor
-    ///          after this cluster according to this cluster pointer position. When pointer inverted, this logic is
-    ///          inverted, however "previous cluster" is then cluster in next array index due to that inversion as well.
-    bool invert_pointer;
+    /// \brief Used to mark cluster that have inverted direction relative to requested reading direction.
+    bool matching_reading_direction;
 
     /// \brief Index of byte from which codepoints that form this cluster start if all strings passed into text during
     ///        creation are treated as one continuous string.
@@ -245,7 +242,9 @@ struct kan_text_shaped_edition_sequence_data_t
     kan_instance_size_t end_at_index;
 
     /// \brief List of clusters in that line/column sequence.
-    /// \details Ordered by their appearance: left-to-right for horizontal and top-to-down for vertical.
+    /// \details Ordered by how clusters are read judging by requested reading direction. Clusters from bidi fragments
+    ///          are still ordered by reading direction in request, not by their actual direction! Which means that
+    ///          visual min/max is monotone ascending for left-ro-right and monotone-descending for right-to-left.
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_text_shaped_edition_cluster_data_t)
     struct kan_dynamic_array_t clusters;
 };

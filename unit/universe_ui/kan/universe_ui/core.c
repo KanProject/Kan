@@ -3188,13 +3188,27 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
         }
 
         apply_clip_rect (state, &node->clip_rect);
-        process_draw_command (state, node, &node->main_draw_command);
-
         for (kan_loop_size_t index = 0; index < node->additional_draw_commands.size; ++index)
         {
             const struct kan_ui_draw_command_data_t *command =
                 &((struct kan_ui_draw_command_data_t *) node->additional_draw_commands.data)[index];
-            process_draw_command (state, node, command);
+
+            if (command->early)
+            {
+                process_draw_command (state, node, command);
+            }
+        }
+
+        process_draw_command (state, node, &node->main_draw_command);
+        for (kan_loop_size_t index = 0; index < node->additional_draw_commands.size; ++index)
+        {
+            const struct kan_ui_draw_command_data_t *command =
+                &((struct kan_ui_draw_command_data_t *) node->additional_draw_commands.data)[index];
+
+            if (!command->early)
+            {
+                process_draw_command (state, node, command);
+            }
         }
     }
 
@@ -3271,6 +3285,7 @@ void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
 
     instance->main_draw_command.ui_mark = KAN_UI_DEFAULT_MARK_FLAG_NONE;
     instance->main_draw_command.animation_start_time_s = 0.0f;
+    instance->main_draw_command.early = false;
     instance->main_draw_command.type = KAN_UI_DRAW_COMMAND_NONE;
 
     kan_dynamic_array_init (&instance->additional_draw_commands, 0u, sizeof (struct kan_ui_draw_command_data_t),

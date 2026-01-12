@@ -1215,21 +1215,16 @@ static inline void shape_reset_category (struct shape_context_t *context)
     }
 }
 
-/// \details Breaking is only allowed if script has the same direction as lines starts.
-static inline bool shape_is_break_allowed (struct shape_context_t *context, hb_direction_t script_direction)
+static inline bool shape_is_matching_reading_direction (struct shape_context_t *context,
+                                                        hb_direction_t script_direction)
 {
-    if (!context->request->allow_breaks)
-    {
-        return false;
-    }
-
     switch (context->request->orientation)
     {
     case KAN_TEXT_ORIENTATION_HORIZONTAL:
         break;
 
     case KAN_TEXT_ORIENTATION_VERTICAL:
-        // Currently, all vertical text is top-to-bottom, therefore it is breakable.
+        // Currently, all vertical text is top-to-bottom, therefore reading direction is considered matching.
         return true;
     }
 
@@ -1243,6 +1238,12 @@ static inline bool shape_is_break_allowed (struct shape_context_t *context, hb_d
     }
 
     return false;
+}
+
+/// \details Breaking is only allowed if script direction matches reading direction.
+static inline bool shape_is_break_allowed (struct shape_context_t *context, hb_direction_t script_direction)
+{
+    return context->request->allow_breaks && shape_is_matching_reading_direction (context, script_direction);
 }
 
 static inline void pad_edition_sequences (struct shape_context_t *context, const hb_glyph_info_t *glyph_info)
@@ -1378,8 +1379,9 @@ static inline void shape_append_to_sequence (struct shape_context_t *context,
     }
 
     shaped->read_index = context->last_read_index;
-    int32_t origin_x = 0u;
-    int32_t origin_y = 0u;
+    int32_t origin_x = 0;
+    int32_t origin_y = 0;
+    const int32_t length_prior_to_placement_26_6 = last_sequence->length_26_6;
 
     switch (context->request->orientation)
     {
@@ -1466,9 +1468,9 @@ static inline void shape_append_to_sequence (struct shape_context_t *context,
             }
 
             cluster->visual_cursor_position =
-                context->forward_string_processing ? last_sequence->length_26_6 : -last_sequence->length_26_6;
+                context->forward_string_processing ? length_prior_to_placement_26_6 : -length_prior_to_placement_26_6;
 
-            cluster->invert_pointer = harfbuzz_direction == HB_DIRECTION_RTL || harfbuzz_direction == HB_DIRECTION_BTT;
+            cluster->matching_reading_direction = shape_is_matching_reading_direction (context, harfbuzz_direction);
             cluster->start_at_index = context->edition_index_offset + glyph_info->cluster;
         }
         else
@@ -2293,26 +2295,6 @@ static void shape_post_process_sequences (struct shape_context_t *context)
                 cluster->visual_max = (kan_instance_offset_t) roundf (FROM_26_6 (cluster->visual_max));
                 cluster->visual_cursor_position =
                     (kan_instance_offset_t) roundf (FROM_26_6 (cluster->visual_cursor_position));
-            }
-
-            // Mirror cluster data if reversed processing was used.
-            if (!context->forward_string_processing && edition_sequence->clusters.size > 0u)
-            {
-                for (kan_loop_size_t cluster_index = 0u;
-                     cluster_index < edition_sequence->clusters.size - cluster_index - 1u; ++cluster_index)
-                {
-                    struct kan_text_shaped_edition_cluster_data_t *left =
-                        &((struct kan_text_shaped_edition_cluster_data_t *)
-                              edition_sequence->clusters.data)[cluster_index];
-
-                    struct kan_text_shaped_edition_cluster_data_t *right =
-                        &((struct kan_text_shaped_edition_cluster_data_t *)
-                              edition_sequence->clusters.data)[edition_sequence->clusters.size - cluster_index - 1u];
-
-                    struct kan_text_shaped_edition_cluster_data_t temp = *right;
-                    *right = *left;
-                    *left = temp;
-                }
             }
         }
 

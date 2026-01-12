@@ -16,6 +16,7 @@ KAN_USE_STATIC_CPU_SECTIONS
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_controls_input)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_controls_pre_layout)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_controls_post_layout)
+KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_controls_pre_render)
 UNIVERSE_UI_API KAN_UM_MUTATOR_GROUP_META (ui_controls, KAN_UI_CONTROLS_MUTATOR_GROUP);
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
@@ -45,6 +46,14 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_n
     .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
     .child_type_name = "kan_ui_node_scroll_behavior_t",
     .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+};
+
+KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t
+    kan_ui_node_line_edit_behavior_cascade_deletion = {
+        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+        .child_type_name = "kan_ui_node_line_edit_behavior_t",
+        .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
 };
 
 struct kan_ui_node_down_mark_t
@@ -195,7 +204,7 @@ struct ui_controls_input_private_singleton_t
 
     // TODO: Refactor to some common id for input reading behaviors to avoid code complexity later?
     kan_ui_node_id_t selected_line_edit_id;
-    
+
     kan_instance_size_t line_edit_press_start_content_location;
     bool line_edit_selected_this_press;
     bool line_edit_press_moved;
@@ -976,7 +985,8 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
     KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &container_node_id)
     KAN_UMI_VALUE_UPDATE_OPTIONAL (shaping_unit, kan_text_shaping_unit_t, id, &shaping_unit_id)
 
-    if (!drawable || !shaping_unit || !shaping_unit->shaped || shaping_unit->shaped_edition_sequences.size == 0u)
+    if (!drawable || !shaping_unit || !shaping_unit->shaped || shaping_unit->dirty ||
+        shaping_unit->shaped_edition_sequences.size == 0u)
     {
         return KAN_INT_MAX (kan_instance_size_t);
     }
@@ -1027,80 +1037,124 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
         return KAN_INT_MAX (kan_instance_size_t);
     }
 
-    for (kan_loop_size_t index = 0u; index < selected_sequence->clusters.size; ++index)
+    const bool forward_base_direction =
+        shaping_unit->request.reading_direction == KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
+    kan_loop_size_t cluster_index = 0u;
+
+    while (cluster_index < selected_sequence->clusters.size)
     {
         const struct kan_text_shaped_edition_cluster_data_t *cluster =
-            &((struct kan_text_shaped_edition_cluster_data_t *) selected_sequence->clusters.data)[index];
+            &((struct kan_text_shaped_edition_cluster_data_t *) selected_sequence->clusters.data)[cluster_index];
 
+        // Separate out-of-order processing for bidi fragments.
+        if (!cluster->matching_reading_direction)
+        {
+            kan_instance_size_t run_ends_at = selected_sequence->clusters.size;
+            for (kan_loop_size_t scan_index = cluster_index + 1u; scan_index < selected_sequence->clusters.size;
+                 ++scan_index)
+            {
+                const struct kan_text_shaped_edition_cluster_data_t *scan_cluster =
+                    &((struct kan_text_shaped_edition_cluster_data_t *) selected_sequence->clusters.data)[scan_index];
+
+                if (scan_cluster->matching_reading_direction)
+                {
+                    run_ends_at = scan_index;
+                    break;
+                }
+            }
+
+            for (kan_loop_size_t run_index = run_ends_at - 1u;
+                 // Overflow guard is important here.
+                 run_index >= cluster_index && run_index != KAN_INT_MAX (kan_loop_size_t); --run_index)
+            {
+                const struct kan_text_shaped_edition_cluster_data_t *run_cluster =
+                    &((struct kan_text_shaped_edition_cluster_data_t *) selected_sequence->clusters.data)[run_index];
+
+                const kan_instance_offset_t cluster_middle = (run_cluster->visual_min + run_cluster->visual_max) / 2;
+                const bool inside =
+                    primary_coordinate >= run_cluster->visual_min && primary_coordinate < run_cluster->visual_max;
+
+                // Starting half is reversed as direction does not match.
+                const bool starting_half = forward_base_direction ? primary_coordinate >= cluster_middle :
+                                                                    primary_coordinate <= cluster_middle;
+
+                if (starting_half)
+                {
+                    return run_cluster->start_at_index;
+                }
+                else if (inside)
+                {
+                    // Find next cluster start index, be aware of bidi bounds.
+                    if (run_index - 1u >= cluster_index)
+                    {
+                        // Still part of the run, therefore solution is easy.
+                        return ((struct kan_text_shaped_edition_cluster_data_t *)
+                                    selected_sequence->clusters.data)[run_index - 1u]
+                            .start_at_index;
+                    }
+
+                    // And if it is an end of the run, we should not need any additional logic as when we exit back to
+                    // the matching routine position of the proper next cluster will be taken automatically through
+                    // starting half check.
+                    break;
+                }
+            }
+
+            cluster_index = run_ends_at;
+            continue;
+        }
+
+        const kan_instance_offset_t cluster_middle = (cluster->visual_min + cluster->visual_max) / 2;
         const bool inside = primary_coordinate >= cluster->visual_min && primary_coordinate < cluster->visual_max;
-        const bool left_half = primary_coordinate <= (cluster->visual_min + cluster->visual_max) / 2;
+        const bool starting_half =
+            forward_base_direction ? primary_coordinate <= cluster_middle : primary_coordinate >= cluster_middle;
 
-        if (!cluster->invert_pointer)
+        if (starting_half)
         {
-            if (left_half)
+            return cluster->start_at_index;
+        }
+        else if (inside)
+        {
+            if (cluster_index + 1u < selected_sequence->clusters.size)
             {
-                return cluster->start_at_index;
-            }
-            else if (inside)
-            {
-                // Return content offset right after this cluster. Be aware of possible bidi.
-                for (kan_loop_size_t next_index = index + 1u; next_index < selected_sequence->clusters.size;
-                     ++next_index)
-                {
-                    const struct kan_text_shaped_edition_cluster_data_t *next_cluster = &(
-                        (struct kan_text_shaped_edition_cluster_data_t *) selected_sequence->clusters.data)[next_index];
+                const struct kan_text_shaped_edition_cluster_data_t *next_cluster =
+                    &((struct kan_text_shaped_edition_cluster_data_t *)
+                          selected_sequence->clusters.data)[cluster_index + 1u];
 
-                    if (!next_cluster->invert_pointer)
+                if (next_cluster->matching_reading_direction)
+                {
+                    return next_cluster->start_at_index;
+                }
+
+                // If next cluster has non-matching direction, we need to look ahead till the end of the run in order
+                // to get the first cluster of bidi inverted direction.
+                kan_instance_size_t run_ends_at = selected_sequence->clusters.size;
+
+                for (kan_loop_size_t scan_index = cluster_index + 2u; scan_index < selected_sequence->clusters.size;
+                     ++scan_index)
+                {
+                    const struct kan_text_shaped_edition_cluster_data_t *scan_cluster = &(
+                        (struct kan_text_shaped_edition_cluster_data_t *) selected_sequence->clusters.data)[scan_index];
+
+                    if (scan_cluster->matching_reading_direction)
                     {
-                        return next_cluster->start_at_index;
+                        run_ends_at = scan_index;
+                        break;
                     }
                 }
 
-                return selected_sequence->end_at_index;
+                return ((struct kan_text_shaped_edition_cluster_data_t *)
+                            selected_sequence->clusters.data)[run_ends_at - 1u]
+                    .start_at_index;
             }
+
+            // Otherwise we're at the end of sequence and that will be processed below the loop.
         }
-        else
-        {
-            if (left_half)
-            {
-                // Return content offset right after this cluster. Be aware of possible bidi.
-                for (kan_loop_size_t previous_index = index - 1u;
-                     /* It is the right check due to overflow. */
-                     previous_index < selected_sequence->clusters.size; --previous_index)
-                {
-                    const struct kan_text_shaped_edition_cluster_data_t *previous_cluster =
-                        &((struct kan_text_shaped_edition_cluster_data_t *)
-                              selected_sequence->clusters.data)[previous_index];
 
-                    if (previous_cluster->invert_pointer)
-                    {
-                        return previous_cluster->start_at_index;
-                    }
-                }
-
-                return selected_sequence->end_at_index;
-            }
-            else if (inside)
-            {
-                return cluster->start_at_index;
-            }
-        }
+        ++cluster_index;
     }
 
-    // Didn't match any cluster fully, decide position using information about the last cluster.
-    const struct kan_text_shaped_edition_cluster_data_t *last_cluster =
-        &((struct kan_text_shaped_edition_cluster_data_t *)
-              selected_sequence->clusters.data)[selected_sequence->clusters.size - 1u];
-
-    if (last_cluster->invert_pointer)
-    {
-        // In case of inverted, it is actually a valid beginning of the sequence.
-        return last_cluster->start_at_index;
-    }
-    else
-    {
-        return selected_sequence->end_at_index;
-    }
+    return selected_sequence->end_at_index;
 }
 
 static inline void deselect_line_edit_behavior (struct ui_controls_input_state_t *state,
@@ -1262,8 +1316,19 @@ static void on_press_end_internal (struct ui_controls_input_state_t *state,
 
     if (line_edit_behavior)
     {
-        // We only have press end logic when no movement has happened during press.
-        if (!private->line_edit_press_moved)
+        if (private->line_edit_press_moved)
+        {
+            // If move was too small to select anything, just transfer it to cursor.
+            if (line_edit_behavior->selection_content_min != KAN_INT_MAX (kan_instance_size_t) &&
+                line_edit_behavior->selection_content_min == line_edit_behavior->selection_content_max)
+            {
+                line_edit_behavior->cursor_content_location = line_edit_behavior->selection_content_min;
+                line_edit_behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
+                line_edit_behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
+                line_edit_behavior->text_visuals_dirty = true;
+            }
+        }
+        else
         {
             // If we've selected line edit with this press, then select everything in the content.
             if (private->line_edit_selected_this_press)
@@ -1527,7 +1592,7 @@ static void process_events (struct ui_controls_input_state_t *state,
                     }
 
                     kan_repository_indexed_sequence_read_access_close (&element_access);
-                    
+
                     // If mouse wheel input was passed to scroll behavior, deselect line edit so the user won't
                     // unexpectedly input anything into it.
                     if (scroll_behaviour)
@@ -1981,6 +2046,234 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_post_layout)
     }
 }
 
+struct ui_controls_pre_render_state_t
+{
+    KAN_UM_GENERATE_STATE_QUERIES (ui_controls_pre_render)
+    KAN_UM_BIND_STATE (ui_controls_pre_render, state)
+};
+
+UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_controls_pre_render)
+{
+    kan_static_interned_ids_ensure_initialized ();
+    kan_cpu_static_sections_ensure_initialized ();
+
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_TEXT_SHAPING_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_CONTROLS_POST_LAYOUT_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_CONTROLS_PRE_RENDER_BEGIN_CHECKPOINT);
+    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_CONTROLS_PRE_RENDER_END_CHECKPOINT);
+    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_RENDER_BEGIN_CHECKPOINT);
+}
+
+static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_render_state_t *state,
+                                                        const struct kan_ui_singleton_t *ui,
+                                                        const struct kan_ui_node_line_edit_behavior_t *behavior)
+{
+    KAN_UMI_VALUE_UPDATE_REQUIRED (drawable, kan_ui_node_drawable_t, id, &behavior->text_id)
+    KAN_UMI_VALUE_READ_REQUIRED (shaping_unit, kan_text_shaping_unit_t, id, &behavior->shaping_unit_id)
+
+    // Clear all previous commands, we expect all additional commands to be driven by this behavior.
+    drawable->additional_draw_commands.size = 0u;
+
+#define ADJUST_IMAGE_RECT_TO_ORIENTATION(COMMAND)                                                                      \
+    switch (shaping_unit->request.orientation)                                                                         \
+    {                                                                                                                  \
+    case KAN_TEXT_ORIENTATION_HORIZONTAL:                                                                              \
+        /* No need to flip. */                                                                                         \
+        break;                                                                                                         \
+                                                                                                                       \
+    case KAN_TEXT_ORIENTATION_VERTICAL:                                                                                \
+    {                                                                                                                  \
+        /* Flip as basic calculations are written for horizontal. */                                                   \
+        kan_instance_offset_t temp = COMMAND->image.custom_x_offset;                                                   \
+        COMMAND->image.custom_x_offset = COMMAND->image.custom_y_offset;                                               \
+        COMMAND->image.custom_y_offset = temp;                                                                         \
+                                                                                                                       \
+        temp = COMMAND->image.custom_width;                                                                            \
+        COMMAND->image.custom_width = COMMAND->image.custom_height;                                                    \
+        COMMAND->image.custom_height = temp;                                                                           \
+        break;                                                                                                         \
+    }                                                                                                                  \
+    }
+
+    if (behavior->cursor_content_location != KAN_INT_MAX (kan_instance_size_t) &&
+        behavior->cursor_image_index != KAN_INT_MAX (uint32_t))
+    {
+        // We use x/y here for simplicity as we can later flip orientation anyway.
+        // No need for additional complication in naming with primary/secondary due to that flip.
+        kan_instance_offset_t cursor_x = KAN_INT_MAX (kan_instance_offset_t);
+        kan_instance_offset_t cursor_y_min = 0;
+        kan_instance_offset_t cursor_y_max = 0;
+
+        for (kan_loop_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
+             ++sequence_index)
+        {
+            const struct kan_text_shaped_edition_sequence_data_t *sequence =
+                &((struct kan_text_shaped_edition_sequence_data_t *)
+                      shaping_unit->shaped_edition_sequences.data)[sequence_index];
+
+            if (behavior->cursor_content_location == sequence->end_at_index && sequence->clusters.size > 0u)
+            {
+                // End of sequence, use last cluster visual max as cursor position.
+                cursor_x = ((struct kan_text_shaped_edition_cluster_data_t *)
+                                sequence->clusters.data)[sequence->clusters.size - 1u]
+                               .visual_max;
+
+                cursor_y_min = sequence->baseline - sequence->ascender;
+                cursor_y_max = sequence->baseline - sequence->descender;
+                break;
+            }
+
+            for (kan_loop_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
+            {
+                const struct kan_text_shaped_edition_cluster_data_t *cluster =
+                    &((struct kan_text_shaped_edition_cluster_data_t *) sequence->clusters.data)[cluster_index];
+
+                if (cluster->start_at_index == behavior->cursor_content_location)
+                {
+                    cursor_x = cluster->visual_cursor_position;
+                    cursor_y_min = sequence->baseline - sequence->ascender;
+                    cursor_y_max = sequence->baseline - sequence->descender;
+                    break;
+                }
+            }
+        }
+
+        if (cursor_x != KAN_INT_MAX (kan_instance_offset_t))
+        {
+            struct kan_ui_draw_command_data_t *command =
+                kan_dynamic_array_add_last (&drawable->additional_draw_commands);
+
+            if (!command)
+            {
+                kan_dynamic_array_set_capacity (&drawable->additional_draw_commands,
+                                                KAN_MAX (1u, drawable->additional_draw_commands.size * 2u));
+                command = kan_dynamic_array_add_last (&drawable->additional_draw_commands);
+            }
+
+            command->ui_mark = behavior->cursor_ui_mark;
+            command->animation_start_time_s = ui->animation_global_time_s;
+            command->early = false;
+
+            command->type = KAN_UI_DRAW_COMMAND_IMAGE;
+            command->image.record_index = behavior->cursor_image_index;
+            command->image.allow_override = false;
+            command->image.custom_rect = true;
+
+            const kan_instance_offset_t cursor_width = kan_ui_calculate_coordinate (ui, behavior->cursor_width);
+            command->image.custom_x_offset = cursor_x - cursor_width / 2;
+            command->image.custom_y_offset = cursor_y_min;
+            command->image.custom_width = cursor_width;
+            command->image.custom_height = cursor_y_max - cursor_y_min;
+            ADJUST_IMAGE_RECT_TO_ORIENTATION (command)
+
+            // TODO: Offset drawable if needed due to the cursor position. Do not forget about vertical.
+        }
+    }
+
+    if (behavior->selection_content_min != KAN_INT_MAX (kan_instance_size_t) &&
+        behavior->selection_content_max != KAN_INT_MAX (kan_instance_size_t) &&
+        behavior->selection_image_index != KAN_INT_MAX (uint32_t))
+    {
+        const kan_instance_offset_t selection_leeway = kan_ui_calculate_coordinate (ui, behavior->selection_leeway);
+        for (kan_loop_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
+             ++sequence_index)
+        {
+            const struct kan_text_shaped_edition_sequence_data_t *sequence =
+                &((struct kan_text_shaped_edition_sequence_data_t *)
+                      shaping_unit->shaped_edition_sequences.data)[sequence_index];
+
+            kan_instance_offset_t selection_min = KAN_INT_MAX (kan_instance_offset_t);
+            kan_instance_offset_t selection_max = KAN_INT_MAX (kan_instance_offset_t);
+
+#define PUSH_SELECTION_DRAW_COMMAND                                                                                    \
+    {                                                                                                                  \
+        struct kan_ui_draw_command_data_t *command = kan_dynamic_array_add_last (&drawable->additional_draw_commands); \
+        if (!command)                                                                                                  \
+        {                                                                                                              \
+            kan_dynamic_array_set_capacity (&drawable->additional_draw_commands,                                       \
+                                            KAN_MAX (1u, drawable->additional_draw_commands.size * 2u));               \
+            command = kan_dynamic_array_add_last (&drawable->additional_draw_commands);                                \
+        }                                                                                                              \
+                                                                                                                       \
+        command->ui_mark = behavior->selection_ui_mark;                                                                \
+        command->animation_start_time_s = ui->animation_global_time_s;                                                 \
+        command->early = true;                                                                                         \
+                                                                                                                       \
+        command->type = KAN_UI_DRAW_COMMAND_IMAGE;                                                                     \
+        command->image.record_index = behavior->selection_image_index;                                                 \
+        command->image.allow_override = false;                                                                         \
+        command->image.custom_rect = true;                                                                             \
+                                                                                                                       \
+        command->image.custom_x_offset = selection_min - selection_leeway;                                             \
+        command->image.custom_y_offset = sequence->baseline - sequence->ascender;                                      \
+        command->image.custom_width = selection_max - selection_min + selection_leeway * 2u;                           \
+        command->image.custom_height = sequence->ascender - sequence->descender;                                       \
+                                                                                                                       \
+        ADJUST_IMAGE_RECT_TO_ORIENTATION (command)                                                                     \
+        selection_min = KAN_INT_MAX (kan_instance_offset_t);                                                           \
+        selection_max = KAN_INT_MAX (kan_instance_offset_t);                                                           \
+    }
+
+            for (kan_loop_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
+            {
+                const struct kan_text_shaped_edition_cluster_data_t *cluster =
+                    &((struct kan_text_shaped_edition_cluster_data_t *) sequence->clusters.data)[cluster_index];
+
+                if (cluster->start_at_index >= behavior->selection_content_min &&
+                    cluster->start_at_index < behavior->selection_content_max)
+                {
+                    if (selection_min == KAN_INT_MAX (kan_instance_offset_t))
+                    {
+                        selection_min = cluster->visual_min;
+                        selection_max = cluster->visual_max;
+                    }
+                    else
+                    {
+                        selection_min = KAN_MIN (selection_min, cluster->visual_min);
+                        selection_max = KAN_MAX (selection_min, cluster->visual_max);
+                    }
+                }
+                else if (selection_min != KAN_INT_MAX (kan_instance_offset_t))
+                {
+                    PUSH_SELECTION_DRAW_COMMAND
+                }
+            }
+
+            if (selection_min != KAN_INT_MAX (kan_instance_offset_t))
+            {
+                PUSH_SELECTION_DRAW_COMMAND
+            }
+#undef PUSH_SELECTION_DRAW_COMMAND
+        }
+    }
+
+#undef ADJUST_IMAGE_RECT_TO_ORIENTATION
+    // Make sure that we do not use more memory than needed.
+    kan_dynamic_array_set_capacity (&drawable->additional_draw_commands, drawable->additional_draw_commands.size);
+}
+
+UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_pre_render)
+{
+    KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
+    KAN_UML_EVENT_FETCH (text_shaped, kan_text_shaped_t)
+    {
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, shaping_unit_id,
+                                       &text_shaped->id)
+
+        if (line_edit_behavior)
+        {
+            regenerate_line_edit_behavior_text_visuals (state, ui, line_edit_behavior);
+            line_edit_behavior->text_visuals_dirty = false;
+        }
+    }
+
+    KAN_UML_SIGNAL_UPDATE (line_edit_behavior, kan_ui_node_line_edit_behavior_t, text_visuals_dirty, true)
+    {
+        regenerate_line_edit_behavior_text_visuals (state, ui, line_edit_behavior);
+        line_edit_behavior->text_visuals_dirty = false;
+    }
+}
+
 void kan_ui_input_singleton_init (struct kan_ui_input_singleton_t *instance)
 {
     instance->event_iterator = KAN_HANDLE_SET_INVALID (kan_application_system_event_iterator_t);
@@ -2073,6 +2366,14 @@ void kan_ui_node_line_edit_behavior_init (struct kan_ui_node_line_edit_behavior_
 
     instance->content_style = NULL;
     instance->content_mark = 0u;
+
+    instance->cursor_image_index = KAN_INT_MAX (uint32_t);
+    instance->cursor_ui_mark = KAN_UI_DEFAULT_COMMAND_MAKE_MARK (0u, KAN_UI_DEFAULT_MARK_FLAG_BLINK);
+    instance->cursor_width = KAN_UI_VALUE_PT (5.0f);
+
+    instance->selection_image_index = KAN_INT_MAX (uint32_t);
+    instance->selection_ui_mark = KAN_UI_DEFAULT_COMMAND_MAKE_MARK (0u, KAN_UI_DEFAULT_MARK_FLAG_NONE);
+    instance->selection_leeway = KAN_UI_VALUE_PT (0.0f);
 
     instance->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
     instance->selection_content_min = KAN_INT_MAX (kan_instance_size_t);

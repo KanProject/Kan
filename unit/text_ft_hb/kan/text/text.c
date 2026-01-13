@@ -480,8 +480,7 @@ struct text_create_context_t
 };
 
 static inline void text_commit_trailing_utf8 (struct text_create_context_t *context,
-                                              kan_instance_size_t items_count,
-                                              struct kan_text_item_t *items,
+                                              const struct kan_text_description_t *description,
                                               kan_instance_size_t current_index,
                                               kan_instance_size_t current_start,
                                               kan_instance_size_t current_end)
@@ -492,7 +491,7 @@ static inline void text_commit_trailing_utf8 (struct text_create_context_t *cont
         for (kan_loop_size_t uncommited_index = context->first_uncommited_utf8_index; uncommited_index < current_index;
              ++uncommited_index)
         {
-            struct kan_text_item_t *uncommited_item = &items[uncommited_index];
+            struct kan_text_item_t *uncommited_item = &description->items[uncommited_index];
             KAN_ASSERT (uncommited_item->type == KAN_TEXT_ITEM_UTF8)
 
             const kan_instance_size_t from_offset =
@@ -503,9 +502,9 @@ static inline void text_commit_trailing_utf8 (struct text_create_context_t *cont
         }
     }
 
-    if (current_index != items_count)
+    if (current_index != description->items_count)
     {
-        struct kan_text_item_t *current_item = &items[current_index];
+        struct kan_text_item_t *current_item = &description->items[current_index];
         if (current_item->type == KAN_TEXT_ITEM_UTF8)
         {
             data_length += current_end - current_start;
@@ -528,7 +527,7 @@ static inline void text_commit_trailing_utf8 (struct text_create_context_t *cont
         for (kan_loop_size_t uncommited_index = context->first_uncommited_utf8_index; uncommited_index < current_index;
              ++uncommited_index)
         {
-            struct kan_text_item_t *uncommited_item = &items[uncommited_index];
+            struct kan_text_item_t *uncommited_item = &description->items[uncommited_index];
             KAN_ASSERT (uncommited_item->type == KAN_TEXT_ITEM_UTF8)
 
             const kan_instance_size_t from_offset =
@@ -542,9 +541,9 @@ static inline void text_commit_trailing_utf8 (struct text_create_context_t *cont
         context->first_uncommited_utf8_index = KAN_INT_MAX (kan_instance_size_t);
     }
 
-    if (current_index != items_count && current_start != current_end)
+    if (current_index != description->items_count && current_start != current_end)
     {
-        struct kan_text_item_t *current_item = &items[current_index];
+        struct kan_text_item_t *current_item = &description->items[current_index];
         if (current_item->type == KAN_TEXT_ITEM_UTF8)
         {
             memcpy (node->utf8.data + write_offset, current_item->utf8 + current_start, current_end - current_start);
@@ -565,7 +564,7 @@ static inline void text_commit_trailing_utf8 (struct text_create_context_t *cont
     context->last_node = node;
 }
 
-kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_item_t *items)
+kan_text_t kan_text_create (const struct kan_text_description_t *description)
 {
     ensure_statics_initialized ();
     KAN_CPU_SCOPED_STATIC_SECTION (kan_text_create)
@@ -580,9 +579,9 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
     kan_interned_string_t style = NULL;
     uint32_t mark = 0u;
 
-    for (kan_loop_size_t index = 0u; index < items_count; ++index)
+    for (kan_loop_size_t index = 0u; index < description->items_count; ++index)
     {
-        struct kan_text_item_t *item = &items[index];
+        struct kan_text_item_t *item = &description->items[index];
         switch (item->type)
         {
         case KAN_TEXT_ITEM_EMPTY:
@@ -595,6 +594,7 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
             const uint8_t *utf8_end = utf8 + strlen (item->utf8);
             kan_unicode_codepoint_t codepoint = 0u;
             kan_instance_size_t uncommited_from = 0u;
+            kan_instance_size_t common_since_offset = KAN_INT_MAX (kan_instance_size_t);
 
             while (true)
             {
@@ -606,7 +606,7 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
 
                 if (codepoint == KAN_TEXT_BIDI_CUSTOM_BREAK_VALUE)
                 {
-                    text_commit_trailing_utf8 (&context, items_count, items, index, uncommited_from, pre_step_offset);
+                    text_commit_trailing_utf8 (&context, description, index, uncommited_from, pre_step_offset);
                     // Uncommited from current offset, skip break character.
                     uncommited_from = (kan_instance_size_t) (utf8 - (uint8_t *) item->utf8);
                     context.current_script = HB_SCRIPT_UNKNOWN;
@@ -622,6 +622,11 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
                 case HB_SCRIPT_INHERITED:
                 case HB_SCRIPT_UNKNOWN:
                     // Common scripts are treated as part of primary scripts.
+                    if (common_since_offset == KAN_INT_MAX (kan_instance_size_t))
+                    {
+                        common_since_offset = pre_step_offset;
+                    }
+
                     break;
 
                 default:
@@ -637,14 +642,37 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
 
                         default:
                         {
-                            text_commit_trailing_utf8 (&context, items_count, items, index, uncommited_from,
-                                                       pre_step_offset);
-                            uncommited_from = pre_step_offset;
+                            bool lazy_grab = false;
+                            if (description->guide_bidi_with_direction)
+                            {
+                                const hb_direction_t old_script_direction =
+                                    hb_script_get_horizontal_direction (context.current_script);
+                                
+                                switch (description->direction_to_guide_bidi)
+                                {
+                                case KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT:
+                                    lazy_grab = old_script_direction == HB_DIRECTION_RTL;
+                                    break;
+
+                                case KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT:
+                                    lazy_grab = old_script_direction == HB_DIRECTION_LTR;
+                                    break;
+                                }
+                            }
+
+                            const kan_instance_size_t grab_until =
+                                lazy_grab && common_since_offset != KAN_INT_MAX (kan_instance_size_t) ?
+                                    common_since_offset :
+                                    pre_step_offset;
+
+                            text_commit_trailing_utf8 (&context, description, index, uncommited_from, grab_until);
+                            uncommited_from = grab_until;
                             break;
                         }
                         }
                     }
 
+                    common_since_offset = KAN_INT_MAX (kan_instance_size_t);
                     context.current_script = script;
                     break;
                 }
@@ -666,7 +694,7 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
         {
             if (context.first_uncommited_utf8_index != KAN_INT_MAX (kan_instance_size_t))
             {
-                text_commit_trailing_utf8 (&context, items_count, items, index, 0u, 0u);
+                text_commit_trailing_utf8 (&context, description, index, 0u, 0u);
                 context.current_script = HB_SCRIPT_UNKNOWN;
             }
 
@@ -704,7 +732,7 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
 
             if (context.first_uncommited_utf8_index != KAN_INT_MAX (kan_instance_size_t))
             {
-                text_commit_trailing_utf8 (&context, items_count, items, index, 0u, 0u);
+                text_commit_trailing_utf8 (&context, description, index, 0u, 0u);
                 context.current_script = HB_SCRIPT_UNKNOWN;
             }
 
@@ -733,7 +761,7 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
 
     if (context.first_uncommited_utf8_index != KAN_INT_MAX (kan_instance_size_t))
     {
-        text_commit_trailing_utf8 (&context, items_count, items, items_count, 0u, 0u);
+        text_commit_trailing_utf8 (&context, description, description->items_count, 0u, 0u);
     }
 
     return KAN_HANDLE_SET (kan_text_t, context.first_node);
@@ -1958,6 +1986,7 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
             NEW_SEQUENCE;
         }
 
+        const kan_instance_size_t first_glyph_index = context->output->glyphs.size;
         if (context->forward_string_processing)
         {
             for (kan_loop_size_t index = 0u; index < glyph_count; ++index)
@@ -1970,6 +1999,25 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
             for (kan_loop_size_t index = glyph_count - 1u; index != KAN_INT_MAX (kan_loop_size_t); --index)
             {
                 shape_append_to_sequence (context, glyph_infos + index, glyph_positions + index, harfbuzz_direction);
+            }
+        }
+
+        // If the direction is not matching, we need to invert read indices as we've added glyphs according to global
+        // reading direction instead of this fragment script reading direction. Also, we cannot just append using
+        // script reading direction as it will potentially mess up a lot of other stuff, including shaped data for
+        // edition logic.
+        if (!shape_is_matching_reading_direction (context, harfbuzz_direction) &&
+            first_glyph_index < context->output->glyphs.size)
+        {
+            struct kan_text_shaped_glyph_instance_data_t *first_glyph =
+                &((struct kan_text_shaped_glyph_instance_data_t *) context->output->glyphs.data)[first_glyph_index];
+            const kan_instance_size_t base_read_index = first_glyph->read_index;
+
+            for (kan_loop_size_t index = first_glyph_index; index < context->output->glyphs.size; ++index)
+            {
+                struct kan_text_shaped_glyph_instance_data_t *glyph =
+                    &((struct kan_text_shaped_glyph_instance_data_t *) context->output->glyphs.data)[index];
+                glyph->read_index = base_read_index + context->last_read_index - glyph->read_index;
             }
         }
 

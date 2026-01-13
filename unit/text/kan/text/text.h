@@ -168,8 +168,26 @@ struct kan_text_item_t
     };
 };
 
+/// \brief Describes how to construct text object.
+struct kan_text_description_t
+{
+    kan_instance_size_t items_count;
+    struct kan_text_item_t *items;
+    
+    /// \brief If true, tries to use given direction to automatically exclude common script codepoints like whitespaces
+    ///        from bidi-inverted sequences.
+    bool guide_bidi_with_direction;
+    
+    /// \brief If `guide_bidi_with_direction`, scripts with direction that do not match this one will only include
+    ///        common-script codepoints if that codepoints are not followed by direction-matching script.
+    /// \details This behavior alteration should allow us to solve the issue of bidi+common-script which is a common
+    ///          case for custom bidi break insertion. Solving this automatically means that bidi should work better
+    ///          for user input like text edits.
+    enum kan_text_reading_direction_t direction_to_guide_bidi;
+};
+
 /// \brief Builds text object from provided array of items.
-TEXT_API kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_item_t *items);
+TEXT_API kan_text_t kan_text_create (const struct kan_text_description_t *description);
 
 /// \brief Destroys given text object immediately.
 TEXT_API void kan_text_destroy (kan_text_t instance);

@@ -810,7 +810,14 @@ KAN_TEST_CASE (english_left)
         },
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -847,7 +854,14 @@ KAN_TEST_CASE (english_center)
         },
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -884,7 +898,14 @@ KAN_TEST_CASE (english_right)
         },
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -915,7 +936,14 @@ KAN_TEST_CASE (english_vertical)
         },
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -996,7 +1024,14 @@ KAN_TEST_CASE (english_styles)
         },
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -1080,7 +1115,14 @@ KAN_TEST_CASE (russian)
         },
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -1112,7 +1154,14 @@ KAN_TEST_CASE (persian)
         },
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -1142,12 +1191,19 @@ KAN_TEST_CASE (ltr_inside_rtl)
         {
             .type = KAN_TEXT_ITEM_UTF8,
             .utf8 = "اگر به روزی دردی رسید به تو"
-                    " " KAN_TEXT_BIDI_CUSTOM_BREAK "test me" KAN_TEXT_BIDI_CUSTOM_BREAK " "
+                    " test me "
                     "دگرگونی ز دست تو بر می\u200Cآید\n",
         },
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = true,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -1178,7 +1234,7 @@ KAN_TEST_CASE (ltr_3_langs)
         },
         {
             .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = KAN_TEXT_BIDI_CUSTOM_BREAK "نوع مفتوح" KAN_TEXT_BIDI_CUSTOM_BREAK,
+            .utf8 = "نوع مفتوح",
         },
         {
             .type = KAN_TEXT_ITEM_UTF8,
@@ -1186,7 +1242,14 @@ KAN_TEST_CASE (ltr_3_langs)
         },
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = true,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;

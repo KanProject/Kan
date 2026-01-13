@@ -144,7 +144,14 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
             },                                                                                                         \
         };                                                                                                             \
                                                                                                                        \
-        NAME##_unit->request.text = kan_text_create (sizeof (text_items) / sizeof (text_items[0u]), text_items);       \
+        struct kan_text_description_t description = {                                                                  \
+            .items_count = sizeof (text_items) / sizeof (text_items[0u]),                                              \
+            .items = text_items,                                                                                       \
+            .guide_bidi_with_direction = false,                                                                        \
+            .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,                                       \
+        };                                                                                                             \
+                                                                                                                       \
+        NAME##_unit->request.text = kan_text_create (&description);                                                    \
         NAME##_unit->stable = true;                                                                                    \
     }
 
@@ -323,8 +330,14 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                     },
                 };
 
-                icons_test_text_unit->request.text =
-                    kan_text_create (sizeof (text_items) / sizeof (text_items[0u]), text_items);
+                struct kan_text_description_t description = {
+                    .items_count = sizeof (text_items) / sizeof (text_items[0u]),
+                    .items = text_items,
+                    .guide_bidi_with_direction = false,
+                    .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+                };
+
+                icons_test_text_unit->request.text = kan_text_create (&description);
                 icons_test_text_unit->stable = true;
             }
 

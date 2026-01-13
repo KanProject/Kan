@@ -1685,6 +1685,15 @@ static void process_events (struct ui_controls_input_state_t *state,
 
 static void process_line_edit_content_dirty_inner (struct ui_controls_input_state_t *state)
 {
+    KAN_UMI_SINGLETON_READ (locale_singleton, kan_locale_singleton_t)
+    KAN_UMI_VALUE_READ_OPTIONAL (locale, kan_locale_t, name, &locale_singleton->selected_locale)
+
+    if (!locale)
+    {
+        // Can't create text with proper bidi while locale is not available.
+        return;
+    }
+
     KAN_UML_SIGNAL_UPDATE (behavior, kan_ui_node_line_edit_behavior_t, content_dirty, true)
     {
         KAN_UMI_VALUE_UPDATE_REQUIRED (shaping_unit, kan_text_shaping_unit_t, id, &behavior->shaping_unit_id)
@@ -1708,8 +1717,18 @@ static void process_line_edit_content_dirty_inner (struct ui_controls_input_stat
             kan_text_destroy (shaping_unit->request.text);
         }
 
+        struct kan_text_description_t description = {
+            .items_count = sizeof (text_items) / sizeof (text_items[0u]),
+            .items = text_items,
+            .guide_bidi_with_direction = true,
+            .direction_to_guide_bidi =
+                locale->resource.preferred_direction == KAN_LOCALE_PREFERRED_TEXT_DIRECTION_LEFT_TO_RIGHT ?
+                    KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT :
+                    KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT,
+        };
+
         // Recreating text that way is not very effective, but text line edit should not be a bottleneck for us anyway.
-        shaping_unit->request.text = kan_text_create (sizeof (text_items) / sizeof (text_items[0u]), text_items);
+        shaping_unit->request.text = kan_text_create (&description);
         shaping_unit->dirty = true;
 
         behavior->content_dirty = false;

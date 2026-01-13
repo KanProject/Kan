@@ -237,7 +237,14 @@ static void update_dirty_text (struct example_text_effects_singleton_t *singleto
         },
     };
 
-    text->request.text = kan_text_create (sizeof (text_items) / sizeof (text_items[0u]), text_items);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_items) / sizeof (text_items[0u]),
+        .items = text_items,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    text->request.text = kan_text_create (&description);
     text->dirty = true;
 }
 
@@ -267,7 +274,14 @@ static void update_unstable_text (struct kan_text_shaping_unit_t *text)
         },
     };
 
-    text->request.text = kan_text_create (sizeof (text_items) / sizeof (text_items[0u]), text_items);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_items) / sizeof (text_items[0u]),
+        .items = text_items,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    text->request.text = kan_text_create (&description);
 }
 
 static void update_showcase_text (struct kan_text_shaping_unit_t *text)
@@ -451,8 +465,15 @@ static void update_showcase_text (struct kan_text_shaping_unit_t *text)
             .utf8 = "Also.\n",
         },
     };
+    
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_items) / sizeof (text_items[0u]),
+        .items = text_items,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
 
-    text->request.text = kan_text_create (sizeof (text_items) / sizeof (text_items[0u]), text_items);
+    text->request.text = kan_text_create (&description);
     text->dirty = true;
 }
 
@@ -489,8 +510,15 @@ static void update_reading_text (struct kan_text_shaping_unit_t *text)
                 "was also briefly Prince of Benevento (1078–1081), before returning the title to the papacy.\n",
         },
     };
+    
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_items) / sizeof (text_items[0u]),
+        .items = text_items,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
 
-    text->request.text = kan_text_create (sizeof (text_items) / sizeof (text_items[0u]), text_items);
+    text->request.text = kan_text_create (&description);
     text->dirty = true;
 }
 
@@ -530,8 +558,15 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
                     .utf8 = "Text that is shaped once and never made dirty.",
                 },
             };
+            
+            struct kan_text_description_t description = {
+                .items_count = sizeof (text_items) / sizeof (text_items[0u]),
+                .items = text_items,
+                .guide_bidi_with_direction = false,
+                .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+            };
 
-            unit->request.text = kan_text_create (sizeof (text_items) / sizeof (text_items[0u]), text_items);
+            unit->request.text = kan_text_create (&description);
         }
 
         // Initialize locale here as well, because this will only be executed once.

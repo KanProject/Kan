@@ -140,9 +140,16 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
             },                                                                                                         \
         };                                                                                                             \
                                                                                                                        \
+        struct kan_text_description_t description = {                                                                  \
+            .items_count = sizeof (text_items) / sizeof (text_items[0u]),                                              \
+            .items = text_items,                                                                                       \
+            .guide_bidi_with_direction = false,                                                                        \
+            .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,                                       \
+        };                                                                                                             \
+                                                                                                                       \
         NAME##_unit->request.allow_breaks = true;                                                                      \
         NAME##_unit->request.generate_edition_markup = false;                                                          \
-        NAME##_unit->request.text = kan_text_create (sizeof (text_items) / sizeof (text_items[0u]), text_items);       \
+        NAME##_unit->request.text = kan_text_create (&description);                                                    \
         NAME##_unit->stable = true;                                                                                    \
     }
 

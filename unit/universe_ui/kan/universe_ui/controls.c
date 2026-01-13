@@ -202,8 +202,11 @@ struct ui_controls_input_private_singleton_t
 {
     kan_instance_offset_t press_knob_offset;
 
-    // TODO: Refactor to some common id for input reading behaviors to avoid code complexity later?
-    kan_ui_node_id_t selected_line_edit_id;
+    /// \details Id of a node with input-consuming behavior like line edit, usually selected by user press and usually
+    ///          deselected by actions like press on another item.
+    kan_ui_node_id_t input_receiver_id;
+
+    bool input_receiver_requested_text_input;
 
     kan_instance_size_t line_edit_press_start_content_location;
     bool line_edit_selected_this_press;
@@ -213,7 +216,8 @@ struct ui_controls_input_private_singleton_t
 UNIVERSE_UI_API void ui_controls_input_private_singleton_init (struct ui_controls_input_private_singleton_t *instance)
 {
     instance->press_knob_offset = 0;
-    instance->selected_line_edit_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->input_receiver_requested_text_input = false;
     instance->line_edit_press_start_content_location = KAN_INT_MAX (kan_instance_size_t);
     instance->line_edit_selected_this_press = false;
     instance->line_edit_press_moved = false;
@@ -695,8 +699,7 @@ static void process_scroll_behavior_insertion (struct ui_controls_input_state_t 
     }
 }
 
-static void process_line_edit_behavior_lifetime (struct ui_controls_input_state_t *state,
-                                                 struct kan_ui_input_singleton_t *public)
+static void process_line_edit_behavior_lifetime (struct ui_controls_input_state_t *state)
 {
     KAN_UML_EVENT_FETCH (line_edit_behavior_inserted_event, kan_ui_node_line_edit_behavior_on_insert_event_t)
     {
@@ -725,21 +728,25 @@ static void process_line_edit_behavior_lifetime (struct ui_controls_input_state_
         shaping_unit->dirty = true;
         shaping_unit->stable = true;
     }
+}
 
-    // Edge case: properly manage text listener lifetime when selected line edit was deleted from ui.
+static void sanitize_input_receiver_selection (struct ui_controls_input_state_t *state,
+                                               struct kan_ui_input_singleton_t *public)
+{
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->selected_line_edit_id))
+    if (KAN_TYPED_ID_32_IS_VALID (private->input_receiver_id))
     {
-        KAN_UMI_VALUE_READ_OPTIONAL (behavior, kan_ui_node_line_edit_behavior_t, id, &private->selected_line_edit_id)
-        if (!behavior)
+        KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &private->input_receiver_id)
+        if (!node)
         {
-            private->selected_line_edit_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
-            if (KAN_HANDLE_IS_VALID (public->linked_window_handle))
+            if (private->input_receiver_requested_text_input && KAN_HANDLE_IS_VALID (public->linked_window_handle))
             {
                 kan_application_window_remove_text_listener (state->application_system_handle,
                                                              public->linked_window_handle);
             }
+
+            private->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+            private->input_receiver_requested_text_input = false;
         }
     }
 }
@@ -769,9 +776,9 @@ static void process_line_edit_content_dirty_outer (struct ui_controls_input_stat
         behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
         behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
 
-        if (KAN_TYPED_ID_32_IS_EQUAL (private->selected_line_edit_id, behavior->id))
+        if (KAN_TYPED_ID_32_IS_EQUAL (private->input_receiver_id, behavior->id))
         {
-            private->selected_line_edit_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+            private->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
             clear_line_edit_selection_visuals (state, behavior);
         }
     }
@@ -1157,21 +1164,24 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
     return selected_sequence->end_at_index;
 }
 
-static inline void deselect_line_edit_behavior (struct ui_controls_input_state_t *state,
-                                                struct kan_ui_input_singleton_t *public,
-                                                struct ui_controls_input_private_singleton_t *private)
+static inline void deselect_input_receiver_behavior (struct ui_controls_input_state_t *state,
+                                                     struct kan_ui_input_singleton_t *public,
+                                                     struct ui_controls_input_private_singleton_t *private)
 {
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (behavior, kan_ui_node_line_edit_behavior_t, id, &private->selected_line_edit_id)
-    if (behavior)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
+                                   &private->input_receiver_id)
+    if (line_edit_behavior)
     {
-        clear_line_edit_selection_visuals (state, behavior);
+        clear_line_edit_selection_visuals (state, line_edit_behavior);
     }
 
-    private->selected_line_edit_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
-    if (KAN_HANDLE_IS_VALID (public->linked_window_handle))
+    if (private->input_receiver_requested_text_input && KAN_HANDLE_IS_VALID (public->linked_window_handle))
     {
         kan_application_window_remove_text_listener (state->application_system_handle, public->linked_window_handle);
     }
+
+    private->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    private->input_receiver_requested_text_input = false;
 }
 
 static void on_press_begin_internal (struct ui_controls_input_state_t *state,
@@ -1228,10 +1238,10 @@ static void on_press_begin_internal (struct ui_controls_input_state_t *state,
         }
     }
 
-    if (KAN_TYPED_ID_32_IS_VALID (private->selected_line_edit_id) &&
-        !KAN_TYPED_ID_32_IS_EQUAL (private->selected_line_edit_id, public->mouse_button_down_on_id))
+    if (KAN_TYPED_ID_32_IS_VALID (private->input_receiver_id) &&
+        !KAN_TYPED_ID_32_IS_EQUAL (private->input_receiver_id, public->mouse_button_down_on_id))
     {
-        deselect_line_edit_behavior (state, public, private);
+        deselect_input_receiver_behavior (state, public, private);
     }
 
     KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
@@ -1240,9 +1250,9 @@ static void on_press_begin_internal (struct ui_controls_input_state_t *state,
     if (line_edit_behavior && !line_edit_behavior->content_dirty)
     {
         private->line_edit_selected_this_press =
-            !KAN_TYPED_ID_32_IS_EQUAL (private->selected_line_edit_id, line_edit_behavior->id);
+            !KAN_TYPED_ID_32_IS_EQUAL (private->input_receiver_id, line_edit_behavior->id);
 
-        private->selected_line_edit_id = line_edit_behavior->id;
+        private->input_receiver_id = line_edit_behavior->id;
         private->line_edit_press_moved = false;
 
         KAN_UMI_VALUE_UPDATE_REQUIRED (hit_box, kan_ui_node_hit_box_t, id, &line_edit_behavior->id)
@@ -1266,9 +1276,9 @@ static void on_press_begin_filtered_out_internal (struct ui_controls_input_state
                                                   const struct kan_ui_singleton_t *ui)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    if (KAN_TYPED_ID_32_IS_VALID (private->selected_line_edit_id))
+    if (KAN_TYPED_ID_32_IS_VALID (private->input_receiver_id))
     {
-        deselect_line_edit_behavior (state, public, private);
+        deselect_input_receiver_behavior (state, public, private);
     }
 }
 
@@ -1286,7 +1296,7 @@ static void on_press_motion_internal (struct ui_controls_input_state_t *state,
     }
 
     KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
-                                   &private->selected_line_edit_id)
+                                   &private->input_receiver_id)
 
     if (line_edit_behavior)
     {
@@ -1312,7 +1322,7 @@ static void on_press_end_internal (struct ui_controls_input_state_t *state,
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
     KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
-                                   &private->selected_line_edit_id)
+                                   &private->input_receiver_id)
 
     if (line_edit_behavior)
     {
@@ -1350,9 +1360,11 @@ static void on_press_end_internal (struct ui_controls_input_state_t *state,
             }
         }
 
-        if (private->line_edit_selected_this_press && KAN_HANDLE_IS_VALID (public->linked_window_handle))
+        if (private->line_edit_selected_this_press && !private->input_receiver_requested_text_input &&
+            KAN_HANDLE_IS_VALID (public->linked_window_handle))
         {
             kan_application_window_add_text_listener (state->application_system_handle, public->linked_window_handle);
+            private->input_receiver_requested_text_input = true;
         }
     }
 }
@@ -1598,9 +1610,9 @@ static void process_events (struct ui_controls_input_state_t *state,
                     if (scroll_behaviour)
                     {
                         KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-                        if (KAN_TYPED_ID_32_IS_VALID (private->selected_line_edit_id))
+                        if (KAN_TYPED_ID_32_IS_VALID (private->input_receiver_id))
                         {
-                            deselect_line_edit_behavior (state, public, private);
+                            deselect_input_receiver_behavior (state, public, private);
                         }
                     }
                 }
@@ -1854,7 +1866,8 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_input)
     }
 
     process_scroll_behavior_insertion (state, ui);
-    process_line_edit_behavior_lifetime (state, public);
+    process_line_edit_behavior_lifetime (state);
+    sanitize_input_receiver_selection (state, public);
     process_line_edit_content_dirty_outer (state);
 
     KAN_UML_EVENT_FETCH (laid_out_event, kan_ui_node_laid_out_t)

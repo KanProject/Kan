@@ -465,7 +465,7 @@ static void update_showcase_text (struct kan_text_shaping_unit_t *text)
             .utf8 = "Also.\n",
         },
     };
-    
+
     struct kan_text_description_t description = {
         .items_count = sizeof (text_items) / sizeof (text_items[0u]),
         .items = text_items,
@@ -510,7 +510,7 @@ static void update_reading_text (struct kan_text_shaping_unit_t *text)
                 "was also briefly Prince of Benevento (1078–1081), before returning the title to the papacy.\n",
         },
     };
-    
+
     struct kan_text_description_t description = {
         .items_count = sizeof (text_items) / sizeof (text_items[0u]),
         .items = text_items,
@@ -558,7 +558,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
                     .utf8 = "Text that is shaped once and never made dirty.",
                 },
             };
-            
+
             struct kan_text_description_t description = {
                 .items_count = sizeof (text_items) / sizeof (text_items[0u]),
                 .items = text_items,

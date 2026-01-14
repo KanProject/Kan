@@ -173,11 +173,11 @@ struct kan_text_description_t
 {
     kan_instance_size_t items_count;
     struct kan_text_item_t *items;
-    
+
     /// \brief If true, tries to use given direction to automatically exclude common script codepoints like whitespaces
     ///        from bidi-inverted sequences.
     bool guide_bidi_with_direction;
-    
+
     /// \brief If `guide_bidi_with_direction`, scripts with direction that do not match this one will only include
     ///        common-script codepoints if that codepoints are not followed by direction-matching script.
     /// \details This behavior alteration should allow us to solve the issue of bidi+common-script which is a common

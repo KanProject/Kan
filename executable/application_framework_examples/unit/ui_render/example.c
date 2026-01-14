@@ -200,6 +200,7 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                 top_text_drawable->id = top_text_node->id;
                 top_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                 top_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
+                top_text_drawable->main_draw_command.text.handle_alignment_on_overflow = true;
             }
 
             KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
@@ -228,6 +229,7 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                 remark_text_drawable->id = remark_text_node->id;
                 remark_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                 remark_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
+                remark_text_drawable->main_draw_command.text.handle_alignment_on_overflow = true;
             }
 
             KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
@@ -346,6 +348,7 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                 icons_test_text_drawable->id = icons_test_text_node->id;
                 icons_test_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                 icons_test_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
+                icons_test_text_drawable->main_draw_command.text.handle_alignment_on_overflow = true;
             }
 
             KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
@@ -374,6 +377,7 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                 bottom_text_drawable->id = bottom_text_node->id;
                 bottom_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                 bottom_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
+                bottom_text_drawable->main_draw_command.text.handle_alignment_on_overflow = true;
             }
 
             KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
@@ -461,6 +465,7 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                                     button_text_drawable->id = button_text_node->id;
                                     button_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
                                     button_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
+                                    button_text_drawable->main_draw_command.text.handle_alignment_on_overflow = true;
                                 }
 
                                 KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)

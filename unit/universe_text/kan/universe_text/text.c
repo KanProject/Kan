@@ -806,22 +806,25 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_DEPLOY (text_shaping)
 
 static inline void shaping_unit_clean_shaped_data (struct kan_text_shaping_unit_t *unit)
 {
-    if (unit->shaped_as_stable)
+    if (unit->shaped)
     {
-        if (KAN_HANDLE_IS_VALID (unit->shaped_stable.glyphs))
+        if (unit->shaped_as_stable)
         {
-            kan_render_buffer_destroy (unit->shaped_stable.glyphs);
-        }
+            if (KAN_HANDLE_IS_VALID (unit->shaped_stable.glyphs))
+            {
+                kan_render_buffer_destroy (unit->shaped_stable.glyphs);
+            }
 
-        if (KAN_HANDLE_IS_VALID (unit->shaped_stable.icons))
-        {
-            kan_render_buffer_destroy (unit->shaped_stable.icons);
+            if (KAN_HANDLE_IS_VALID (unit->shaped_stable.icons))
+            {
+                kan_render_buffer_destroy (unit->shaped_stable.icons);
+            }
         }
-    }
-    else
-    {
-        kan_dynamic_array_shutdown (&unit->shaped_unstable.glyphs);
-        kan_dynamic_array_shutdown (&unit->shaped_unstable.icons);
+        else
+        {
+            kan_dynamic_array_shutdown (&unit->shaped_unstable.glyphs);
+            kan_dynamic_array_shutdown (&unit->shaped_unstable.icons);
+        }
     }
 
     for (kan_loop_size_t index = 0u; index < unit->shaped_edition_sequences.size; ++index)

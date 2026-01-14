@@ -2668,18 +2668,46 @@ static void execute_draw_text_command (struct ui_render_state_t *state,
     push_constant.offset.x = (float) (drawable->global_x + drawable->draw_offset_x);
     push_constant.offset.y = (float) (drawable->global_y + drawable->draw_offset_y);
 
-    switch (shaping_unit->request.alignment)
+    if (command->text.handle_alignment_on_overflow)
     {
-    case KAN_TEXT_SHAPING_ALIGNMENT_LEFT:
-        break;
+        switch (shaping_unit->request.orientation)
+        {
+        case KAN_TEXT_ORIENTATION_HORIZONTAL:
+            switch (shaping_unit->request.alignment)
+            {
+            case KAN_TEXT_SHAPING_ALIGNMENT_LEFT:
+                break;
 
-    case KAN_TEXT_SHAPING_ALIGNMENT_CENTER:
-        push_constant.offset.x += 0.5f * (float) drawable->width - 0.5f * (float) shaping_unit->shaped_primary_size;
-        break;
+            case KAN_TEXT_SHAPING_ALIGNMENT_CENTER:
+                push_constant.offset.x +=
+                    0.5f * (float) drawable->width - 0.5f * (float) shaping_unit->shaped_primary_size;
+                break;
 
-    case KAN_TEXT_SHAPING_ALIGNMENT_RIGHT:
-        push_constant.offset.x += (float) drawable->width - (float) shaping_unit->shaped_primary_size;
-        break;
+            case KAN_TEXT_SHAPING_ALIGNMENT_RIGHT:
+                push_constant.offset.x += (float) drawable->width - (float) shaping_unit->shaped_primary_size;
+                break;
+            }
+
+            break;
+
+        case KAN_TEXT_ORIENTATION_VERTICAL:
+            switch (shaping_unit->request.alignment)
+            {
+            case KAN_TEXT_SHAPING_ALIGNMENT_LEFT:
+                break;
+
+            case KAN_TEXT_SHAPING_ALIGNMENT_CENTER:
+                push_constant.offset.y +=
+                    0.5f * (float) drawable->height - 0.5f * (float) shaping_unit->shaped_primary_size;
+                break;
+
+            case KAN_TEXT_SHAPING_ALIGNMENT_RIGHT:
+                push_constant.offset.y += (float) drawable->height - (float) shaping_unit->shaped_primary_size;
+                break;
+            }
+
+            break;
+        }
     }
 
     push_constant.local_time = state->transient.ui->animation_global_time_s - command->animation_start_time_s;

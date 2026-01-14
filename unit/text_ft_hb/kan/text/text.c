@@ -647,7 +647,7 @@ kan_text_t kan_text_create (const struct kan_text_description_t *description)
                             {
                                 const hb_direction_t old_script_direction =
                                     hb_script_get_horizontal_direction (context.current_script);
-                                
+
                                 switch (description->direction_to_guide_bidi)
                                 {
                                 case KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT:

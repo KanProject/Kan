@@ -52,6 +52,11 @@ struct kan_ui_input_singleton_t
     kan_instance_offset_t viewport_offset_x;
     kan_instance_offset_t viewport_offset_y;
 
+    /// \brief Id of a node with behavior that aims to consume input.
+    /// \details If this is a valid id, then user has selected control that aims to parse and apply all the input,
+    ///          for example text line edit control.
+    kan_ui_node_id_t input_receiver_id;
+
     uint32_t mouse_button_down_flags;
     uint32_t mouse_button_down_inclusive_flags;
     kan_ui_node_id_t mouse_button_down_on_id;
@@ -193,6 +198,9 @@ struct kan_ui_node_line_edit_behavior_t
     uint32_t cursor_ui_mark;
     struct kan_ui_coordinate_t cursor_width;
 
+    /// \brief Cursor visuals will always be at least this distance from the borders set through primary axis limit.
+    struct kan_ui_coordinate_t cursor_safe_space;
+
     uint32_t selection_image_index;
     uint32_t selection_ui_mark;
 
@@ -216,18 +224,5 @@ UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_set_content (struct kan_ui_n
                                                                  uint32_t content_mark);
 
 UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_shutdown (struct kan_ui_node_line_edit_behavior_t *instance);
-
-// TODO: Line edit in input:
-//       - outer dirty processing: clean cursor/selection for dirty, do not clear dirty flag
-//       - process all the input
-//       - update dirty content
-// TODO: After shaping: update cursor position (based on data index), update selection visuals.
-// TODO: When searching for a cluster to get cursor position, we need to find a cluster that starts at content index and
-//       then "step back" to get cluster from which position should be retrieved. Should keep in mind that stepping
-//       back must know about pointer inversion: step back from inverted is actually a step forward. Step back from
-//       non-inverted to inverted must search for the first inverted in the inverted run. Step back (forward) from
-//       inverted to non-inverted should search for the first non-inverted cluster before the current inverted run.
-//       It can be visually improved by also taking into account whether user has clicked on inverted or non-inverted
-//       cluster, but I think we can leave it out for now. Bidi text edition is a difficult topic anyway.
 
 KAN_C_HEADER_END

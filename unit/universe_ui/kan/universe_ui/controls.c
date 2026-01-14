@@ -4,7 +4,6 @@
 
 #include <kan/context/all_system_names.h>
 #include <kan/log/logging.h>
-#include <kan/precise_time/precise_time.h>
 #include <kan/universe/macro.h>
 #include <kan/universe_locale/locale.h>
 #include <kan/universe_render_foundation/atlas.h>
@@ -202,10 +201,6 @@ struct ui_controls_input_private_singleton_t
 {
     kan_instance_offset_t press_knob_offset;
 
-    /// \details Id of a node with input-consuming behavior like line edit, usually selected by user press and usually
-    ///          deselected by actions like press on another item.
-    kan_ui_node_id_t input_receiver_id;
-
     bool input_receiver_requested_text_input;
 
     kan_instance_size_t line_edit_press_start_content_location;
@@ -216,7 +211,6 @@ struct ui_controls_input_private_singleton_t
 UNIVERSE_UI_API void ui_controls_input_private_singleton_init (struct ui_controls_input_private_singleton_t *instance)
 {
     instance->press_knob_offset = 0;
-    instance->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     instance->input_receiver_requested_text_input = false;
     instance->line_edit_press_start_content_location = KAN_INT_MAX (kan_instance_size_t);
     instance->line_edit_selected_this_press = false;
@@ -734,9 +728,9 @@ static void sanitize_input_receiver_selection (struct ui_controls_input_state_t 
                                                struct kan_ui_input_singleton_t *public)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    if (KAN_TYPED_ID_32_IS_VALID (private->input_receiver_id))
+    if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
     {
-        KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &private->input_receiver_id)
+        KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &public->input_receiver_id)
         if (!node)
         {
             if (private->input_receiver_requested_text_input && KAN_HANDLE_IS_VALID (public->linked_window_handle))
@@ -745,7 +739,7 @@ static void sanitize_input_receiver_selection (struct ui_controls_input_state_t 
                                                              public->linked_window_handle);
             }
 
-            private->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+            public->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
             private->input_receiver_requested_text_input = false;
         }
     }
@@ -763,7 +757,8 @@ static void clear_line_edit_selection_visuals (struct ui_controls_input_state_t 
     hit_box->interactable_style = behavior->interactable_style_regular;
 }
 
-static void process_line_edit_content_dirty_outer (struct ui_controls_input_state_t *state)
+static void process_line_edit_content_dirty_outer (struct ui_controls_input_state_t *state,
+                                                   struct kan_ui_input_singleton_t *public)
 {
     // If we got here, then line edit content was changed from outside.
     // It means that we should reset anything related to the edition, including line edit element selection.
@@ -776,11 +771,429 @@ static void process_line_edit_content_dirty_outer (struct ui_controls_input_stat
         behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
         behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
 
-        if (KAN_TYPED_ID_32_IS_EQUAL (private->input_receiver_id, behavior->id))
+        if (KAN_TYPED_ID_32_IS_EQUAL (public->input_receiver_id, behavior->id))
         {
-            private->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+            public->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
             clear_line_edit_selection_visuals (state, behavior);
         }
+    }
+}
+
+static void line_edit_erase_subsequence (struct kan_ui_node_line_edit_behavior_t *behavior,
+                                         kan_instance_size_t min,
+                                         kan_instance_size_t max)
+{
+    KAN_ASSERT (min < max)
+    KAN_ASSERT (max < behavior->content_utf8.size)
+    const kan_instance_size_t size = max - min;
+
+    // If not full erase, move data.
+    if (behavior->content_utf8.size - 1u != size)
+    {
+        for (kan_loop_size_t index = min; index < behavior->content_utf8.size - size - 1u; ++index)
+        {
+            if (index + size < behavior->content_utf8.size - 1u)
+            {
+                behavior->content_utf8.data[index] = behavior->content_utf8.data[index + size];
+            }
+        }
+    }
+
+    behavior->content_utf8.size -= size;
+    behavior->content_utf8.data[behavior->content_utf8.size - 1u] = '\0';
+    behavior->content_dirty = true;
+}
+
+static inline void line_edit_erase_selection (struct kan_ui_node_line_edit_behavior_t *behavior)
+{
+    line_edit_erase_subsequence (behavior, behavior->selection_content_min, behavior->selection_content_max);
+    behavior->cursor_content_location = behavior->selection_content_min;
+    behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
+    behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
+    behavior->content_dirty = true;
+}
+
+static void line_edit_paste_text (struct kan_ui_node_line_edit_behavior_t *behavior, const char *text)
+{
+    if (!text)
+    {
+        return;
+    }
+
+    if (behavior->selection_content_min != KAN_INT_MAX (kan_instance_size_t) &&
+        behavior->selection_content_max != KAN_INT_MAX (kan_instance_size_t))
+    {
+        line_edit_erase_selection (behavior);
+    }
+
+    if (behavior->cursor_content_location == KAN_INT_MAX (kan_instance_size_t))
+    {
+        // Just a failsafe, should never happen normally.
+        behavior->cursor_content_location = behavior->content_utf8.size - 1u;
+    }
+
+    const uint8_t *text_utf8 = (uint8_t *) text;
+    const kan_instance_size_t input_length = strlen (text);
+
+    const uint8_t *text_iterator = text_utf8;
+    kan_instance_size_t filtered_size = 0u;
+
+    // Currently, we only ignore ASCII control characters.
+#define IS_CODEPOINT_IGNORED(CODEPOINT) ((CODEPOINT) < 32u)
+
+    while (true)
+    {
+        kan_unicode_codepoint_t codepoint = 0u;
+        const kan_instance_size_t offset_before = (kan_instance_size_t) (text_iterator - text_utf8);
+
+        if (!(codepoint = kan_text_utf8_next (&text_iterator, text_utf8 + input_length)))
+        {
+            break;
+        }
+
+        if (IS_CODEPOINT_IGNORED (codepoint))
+        {
+            continue;
+        }
+
+        const kan_instance_size_t offset_after = (kan_instance_size_t) (text_iterator - text_utf8);
+        filtered_size += offset_after - offset_before;
+    }
+
+    if (behavior->content_utf8.size + filtered_size > behavior->content_utf8.capacity)
+    {
+        kan_dynamic_array_set_capacity (&behavior->content_utf8, KAN_MAX (behavior->content_utf8.size * 2u,
+                                                                          behavior->content_utf8.size + filtered_size));
+    }
+
+    for (kan_loop_size_t index = behavior->content_utf8.size - 1u;
+         index >= behavior->cursor_content_location && index != KAN_INT_MAX (kan_loop_size_t); --index)
+    {
+        behavior->content_utf8.data[index + filtered_size] = behavior->content_utf8.data[index];
+    }
+
+    text_iterator = text_utf8;
+    while (true)
+    {
+        kan_unicode_codepoint_t codepoint = 0u;
+        const kan_instance_size_t offset_before = (kan_instance_size_t) (text_iterator - text_utf8);
+
+        if (!(codepoint = kan_text_utf8_next (&text_iterator, text_utf8 + input_length)))
+        {
+            break;
+        }
+
+        if (IS_CODEPOINT_IGNORED (codepoint))
+        {
+            continue;
+        }
+
+        const kan_instance_size_t offset_after = (kan_instance_size_t) (text_iterator - text_utf8);
+        switch (offset_after - offset_before)
+        {
+        case 4u:
+            behavior->content_utf8.data[behavior->cursor_content_location + 3u] = text_utf8[offset_before + 3u];
+
+        case 3u:
+            behavior->content_utf8.data[behavior->cursor_content_location + 2u] = text_utf8[offset_before + 2u];
+
+        case 2u:
+            behavior->content_utf8.data[behavior->cursor_content_location + 1u] = text_utf8[offset_before + 1u];
+
+        case 1u:
+            behavior->content_utf8.data[behavior->cursor_content_location] = text_utf8[offset_before];
+            break;
+
+        default:
+            KAN_ASSERT (false);
+            break;
+        }
+
+        behavior->cursor_content_location += offset_after - offset_before;
+    }
+
+#undef IS_CODEPOINT_IGNORED
+    behavior->content_utf8.size += filtered_size;
+    behavior->content_utf8.data[behavior->content_utf8.size - 1u] = '\0';
+    behavior->content_dirty = true;
+}
+
+static void line_edit_process_horizontal_arrow (struct kan_ui_node_line_edit_behavior_t *behavior,
+                                                struct kan_text_shaping_unit_t *shaping_unit,
+                                                bool positive_direction)
+{
+    if (behavior->selection_content_min != KAN_INT_MAX (kan_instance_size_t) &&
+        behavior->selection_content_max != KAN_INT_MAX (kan_instance_size_t))
+    {
+        behavior->cursor_content_location =
+            positive_direction ? behavior->selection_content_max : behavior->selection_content_min;
+
+        behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
+        behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
+        return;
+    }
+
+    for (kan_loop_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
+         ++sequence_index)
+    {
+        const struct kan_text_shaped_edition_sequence_data_t *sequence =
+            &((struct kan_text_shaped_edition_sequence_data_t *)
+                  shaping_unit->shaped_edition_sequences.data)[sequence_index];
+
+        if (behavior->cursor_content_location == sequence->end_at_index)
+        {
+            if (positive_direction)
+            {
+                goto go_to_the_next_cluster_in_sequences_after;
+            }
+            else
+            {
+                if (sequence->clusters.size > 0u)
+                {
+                    behavior->cursor_content_location = ((struct kan_text_shaped_edition_cluster_data_t *)
+                                                             sequence->clusters.data)[sequence->clusters.size - 1u]
+                                                            .start_at_index;
+                }
+                else
+                {
+                    goto go_to_the_previous_cluster_in_sequences_before;
+                }
+            }
+
+            return;
+        }
+
+        for (kan_loop_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
+        {
+            const struct kan_text_shaped_edition_cluster_data_t *cluster =
+                &((struct kan_text_shaped_edition_cluster_data_t *) sequence->clusters.data)[cluster_index];
+
+            if (cluster->start_at_index == behavior->cursor_content_location)
+            {
+                if (positive_direction)
+                {
+                    if (cluster_index + 1u < sequence->clusters.size)
+                    {
+                        behavior->cursor_content_location = ((struct kan_text_shaped_edition_cluster_data_t *)
+                                                                 sequence->clusters.data)[cluster_index + 1u]
+                                                                .start_at_index;
+                    }
+                    else
+                    {
+                        goto go_to_the_next_cluster_in_sequences_after;
+                    }
+                }
+                else
+                {
+                    if (cluster_index > 0u)
+                    {
+                        behavior->cursor_content_location = ((struct kan_text_shaped_edition_cluster_data_t *)
+                                                                 sequence->clusters.data)[cluster_index - 1u]
+                                                                .start_at_index;
+                    }
+                    else
+                    {
+                        goto go_to_the_previous_cluster_in_sequences_before;
+                    }
+                }
+
+                return;
+            }
+        }
+
+        continue;
+
+    go_to_the_next_cluster_in_sequences_after:
+    {
+        ++sequence_index;
+        while (sequence_index < shaping_unit->shaped_edition_sequences.size)
+        {
+            sequence = &((struct kan_text_shaped_edition_sequence_data_t *)
+                             shaping_unit->shaped_edition_sequences.data)[sequence_index];
+
+            if (sequence->clusters.size > 0u)
+            {
+                behavior->cursor_content_location =
+                    ((struct kan_text_shaped_edition_cluster_data_t *) sequence->clusters.data)[0u].start_at_index;
+                return;
+            }
+
+            ++sequence_index;
+        }
+
+        // Failsafe.
+        behavior->cursor_content_location = behavior->content_utf8.size - 1u;
+        return;
+    }
+
+    go_to_the_previous_cluster_in_sequences_before:
+    {
+        --sequence_index;
+        while (sequence_index != KAN_INT_MAX (kan_loop_size_t))
+        {
+            sequence = &((struct kan_text_shaped_edition_sequence_data_t *)
+                             shaping_unit->shaped_edition_sequences.data)[sequence_index];
+
+            if (sequence->clusters.size > 0u)
+            {
+                behavior->cursor_content_location = ((struct kan_text_shaped_edition_cluster_data_t *)
+                                                         sequence->clusters.data)[sequence->clusters.size - 1u]
+                                                        .start_at_index;
+                return;
+            }
+
+            --sequence_index;
+        }
+
+        // Failsafe.
+        behavior->cursor_content_location = 0u;
+        return;
+    }
+    }
+
+    // Failsafe.
+    if (positive_direction)
+    {
+        behavior->cursor_content_location = behavior->content_utf8.size - 1u;
+    }
+    else
+    {
+        behavior->cursor_content_location = 0u;
+    }
+}
+
+static void process_key_down_internal (struct ui_controls_input_state_t *state,
+                                       struct kan_ui_input_singleton_t *public,
+                                       const struct kan_ui_singleton_t *ui,
+                                       const struct kan_platform_application_event_t *event)
+{
+    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
+    if (!KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id) ||
+        // We do not process keyboard input while mouse is down.
+        public->mouse_button_down_flags != 0u)
+    {
+        return;
+    }
+
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
+    if (line_edit_behavior)
+    {
+        switch (event->keyboard.scan_code)
+        {
+        case KAN_PLATFORM_SCAN_CODE_LEFT:
+        case KAN_PLATFORM_SCAN_CODE_RIGHT:
+        {
+            KAN_UMI_VALUE_UPDATE_OPTIONAL (shaping_unit, kan_text_shaping_unit_t, id,
+                                           &line_edit_behavior->shaping_unit_id)
+
+            if (!shaping_unit || !shaping_unit->shaped || shaping_unit->dirty ||
+                shaping_unit->shaped_edition_sequences.size == 0u)
+            {
+                break;
+            }
+
+            const bool forward_base_direction =
+                shaping_unit->request.reading_direction == KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
+
+            const bool positive_direction = forward_base_direction ?
+                                                event->keyboard.scan_code == KAN_PLATFORM_SCAN_CODE_RIGHT :
+                                                event->keyboard.scan_code == KAN_PLATFORM_SCAN_CODE_LEFT;
+
+            line_edit_process_horizontal_arrow (line_edit_behavior, shaping_unit, positive_direction);
+            line_edit_behavior->text_visuals_dirty = true;
+            break;
+        }
+
+        case KAN_PLATFORM_SCAN_CODE_BACKSPACE:
+        case KAN_PLATFORM_SCAN_CODE_DELETE:
+            if (line_edit_behavior->selection_content_min != KAN_INT_MAX (kan_instance_size_t) &&
+                line_edit_behavior->selection_content_max != KAN_INT_MAX (kan_instance_size_t))
+            {
+                line_edit_erase_selection (line_edit_behavior);
+            }
+            else if (line_edit_behavior->cursor_content_location != KAN_INT_MAX (kan_instance_size_t))
+            {
+                if (event->keyboard.scan_code == KAN_PLATFORM_SCAN_CODE_BACKSPACE)
+                {
+                    const uint8_t *previous_position = kan_text_utf8_find_previous (
+                        line_edit_behavior->content_utf8.data + line_edit_behavior->cursor_content_location,
+                        line_edit_behavior->content_utf8.data);
+
+                    if (previous_position)
+                    {
+                        const kan_instance_size_t previous_at =
+                            (kan_instance_size_t) (previous_position - line_edit_behavior->content_utf8.data);
+
+                        line_edit_erase_subsequence (line_edit_behavior, previous_at,
+                                                     line_edit_behavior->cursor_content_location);
+                        line_edit_behavior->cursor_content_location = previous_at;
+                    }
+                }
+                else
+                {
+                    uint8_t *iterator =
+                        line_edit_behavior->content_utf8.data + line_edit_behavior->cursor_content_location;
+
+                    if (kan_text_utf8_next (&iterator, line_edit_behavior->content_utf8.data +
+                                                           line_edit_behavior->content_utf8.size - 1u))
+                    {
+                        const kan_instance_size_t next_at = iterator - line_edit_behavior->content_utf8.data;
+                        line_edit_erase_subsequence (line_edit_behavior, line_edit_behavior->cursor_content_location,
+                                                     next_at);
+                    }
+                }
+            }
+
+            break;
+
+        case KAN_PLATFORM_SCAN_CODE_C:
+            if (event->keyboard.modifiers & KAN_PLATFORM_MODIFIER_MASK_ANY_CONTROL)
+            {
+                if (line_edit_behavior->selection_content_min != KAN_INT_MAX (kan_instance_size_t) &&
+                    line_edit_behavior->selection_content_max != KAN_INT_MAX (kan_instance_size_t))
+                {
+                    kan_application_system_clipboard_set_text_sequence (
+                        state->application_system_handle,
+                        (char *) (line_edit_behavior->content_utf8.data + line_edit_behavior->selection_content_min),
+                        (char *) (line_edit_behavior->content_utf8.data + line_edit_behavior->selection_content_max));
+                }
+            }
+
+            break;
+
+        case KAN_PLATFORM_SCAN_CODE_V:
+            if (event->keyboard.modifiers & KAN_PLATFORM_MODIFIER_MASK_ANY_CONTROL)
+            {
+                line_edit_paste_text (line_edit_behavior,
+                                      kan_application_system_clipboard_get_text (state->application_system_handle));
+            }
+
+            break;
+
+        default:
+            // Do not care for other keys, we process text input events as well.
+            break;
+        }
+    }
+}
+
+static void process_text_input_internal (struct ui_controls_input_state_t *state,
+                                         struct kan_ui_input_singleton_t *public,
+                                         const struct kan_ui_singleton_t *ui,
+                                         const struct kan_platform_application_event_t *event)
+{
+    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
+    if (!KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id) || !private->input_receiver_requested_text_input ||
+        // We do not process text input while mouse is down.
+        public->mouse_button_down_flags != 0u)
+    {
+        return;
+    }
+
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
+    if (line_edit_behavior)
+    {
+        line_edit_paste_text (line_edit_behavior, event->text_input.text);
     }
 }
 
@@ -1164,12 +1577,42 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
     return selected_sequence->end_at_index;
 }
 
+static void on_press_motion_internal (struct ui_controls_input_state_t *state,
+                                      struct kan_ui_input_singleton_t *public,
+                                      const struct kan_ui_singleton_t *ui)
+{
+    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id,
+                                   &public->mouse_button_down_on_id)
+
+    if (scroll_line_state)
+    {
+        place_scroll_line_knob_at_press (state, public, private, ui, scroll_line_state);
+    }
+
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
+    if (line_edit_behavior)
+    {
+        private->line_edit_press_moved = true;
+        const kan_instance_size_t current_content_location = calculate_content_position_on_shaped_text (
+            state, line_edit_behavior->text_id, line_edit_behavior->shaping_unit_id, public->last_mouse_x,
+            public->last_mouse_y);
+
+        line_edit_behavior->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
+        line_edit_behavior->selection_content_min =
+            KAN_MIN (private->line_edit_press_start_content_location, current_content_location);
+
+        line_edit_behavior->selection_content_max =
+            KAN_MAX (private->line_edit_press_start_content_location, current_content_location);
+        line_edit_behavior->text_visuals_dirty = true;
+    }
+}
+
 static inline void deselect_input_receiver_behavior (struct ui_controls_input_state_t *state,
                                                      struct kan_ui_input_singleton_t *public,
                                                      struct ui_controls_input_private_singleton_t *private)
 {
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
-                                   &private->input_receiver_id)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
     if (line_edit_behavior)
     {
         clear_line_edit_selection_visuals (state, line_edit_behavior);
@@ -1180,7 +1623,7 @@ static inline void deselect_input_receiver_behavior (struct ui_controls_input_st
         kan_application_window_remove_text_listener (state->application_system_handle, public->linked_window_handle);
     }
 
-    private->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    public->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     private->input_receiver_requested_text_input = false;
 }
 
@@ -1238,8 +1681,8 @@ static void on_press_begin_internal (struct ui_controls_input_state_t *state,
         }
     }
 
-    if (KAN_TYPED_ID_32_IS_VALID (private->input_receiver_id) &&
-        !KAN_TYPED_ID_32_IS_EQUAL (private->input_receiver_id, public->mouse_button_down_on_id))
+    if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id) &&
+        !KAN_TYPED_ID_32_IS_EQUAL (public->input_receiver_id, public->mouse_button_down_on_id))
     {
         deselect_input_receiver_behavior (state, public, private);
     }
@@ -1250,9 +1693,9 @@ static void on_press_begin_internal (struct ui_controls_input_state_t *state,
     if (line_edit_behavior && !line_edit_behavior->content_dirty)
     {
         private->line_edit_selected_this_press =
-            !KAN_TYPED_ID_32_IS_EQUAL (private->input_receiver_id, line_edit_behavior->id);
+            !KAN_TYPED_ID_32_IS_EQUAL (public->input_receiver_id, line_edit_behavior->id);
 
-        private->input_receiver_id = line_edit_behavior->id;
+        public->input_receiver_id = line_edit_behavior->id;
         private->line_edit_press_moved = false;
 
         KAN_UMI_VALUE_UPDATE_REQUIRED (hit_box, kan_ui_node_hit_box_t, id, &line_edit_behavior->id)
@@ -1276,41 +1719,24 @@ static void on_press_begin_filtered_out_internal (struct ui_controls_input_state
                                                   const struct kan_ui_singleton_t *ui)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    if (KAN_TYPED_ID_32_IS_VALID (private->input_receiver_id))
+    if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
     {
         deselect_input_receiver_behavior (state, public, private);
     }
 }
 
-static void on_press_motion_internal (struct ui_controls_input_state_t *state,
-                                      struct kan_ui_input_singleton_t *public,
-                                      const struct kan_ui_singleton_t *ui)
+static void on_multi_click_internal (struct ui_controls_input_state_t *state,
+                                     struct kan_ui_input_singleton_t *public,
+                                     const struct kan_ui_singleton_t *ui,
+                                     kan_instance_size_t clicks_count)
 {
-    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id,
-                                   &public->mouse_button_down_on_id)
-
-    if (scroll_line_state)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
+    if (line_edit_behavior && clicks_count == 2u)
     {
-        place_scroll_line_knob_at_press (state, public, private, ui, scroll_line_state);
-    }
-
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
-                                   &private->input_receiver_id)
-
-    if (line_edit_behavior)
-    {
-        private->line_edit_press_moved = true;
-        const kan_instance_size_t current_content_location = calculate_content_position_on_shaped_text (
-            state, line_edit_behavior->text_id, line_edit_behavior->shaping_unit_id, public->last_mouse_x,
-            public->last_mouse_y);
-
         line_edit_behavior->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
-        line_edit_behavior->selection_content_min =
-            KAN_MIN (private->line_edit_press_start_content_location, current_content_location);
-
-        line_edit_behavior->selection_content_max =
-            KAN_MAX (private->line_edit_press_start_content_location, current_content_location);
+        line_edit_behavior->selection_content_min = 0u;
+        // Minus 1 due to null terminator inside content.
+        line_edit_behavior->selection_content_max = line_edit_behavior->content_utf8.size - 1u;
         line_edit_behavior->text_visuals_dirty = true;
     }
 }
@@ -1321,43 +1747,21 @@ static void on_press_end_internal (struct ui_controls_input_state_t *state,
                                    bool continuous)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
-                                   &private->input_receiver_id)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
 
     if (line_edit_behavior)
     {
-        if (private->line_edit_press_moved)
+        if (!private->line_edit_press_moved ||
+            (line_edit_behavior->selection_content_min != KAN_INT_MAX (kan_instance_size_t) &&
+             line_edit_behavior->selection_content_min == line_edit_behavior->selection_content_max))
         {
-            // If move was too small to select anything, just transfer it to cursor.
-            if (line_edit_behavior->selection_content_min != KAN_INT_MAX (kan_instance_size_t) &&
-                line_edit_behavior->selection_content_min == line_edit_behavior->selection_content_max)
-            {
-                line_edit_behavior->cursor_content_location = line_edit_behavior->selection_content_min;
-                line_edit_behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
-                line_edit_behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
-                line_edit_behavior->text_visuals_dirty = true;
-            }
-        }
-        else
-        {
-            // If we've selected line edit with this press, then select everything in the content.
-            if (private->line_edit_selected_this_press)
-            {
-                line_edit_behavior->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
-                line_edit_behavior->selection_content_min = 0u;
-                line_edit_behavior->selection_content_max = line_edit_behavior->content_utf8.size;
-                line_edit_behavior->text_visuals_dirty = true;
-            }
-            else
-            {
-                line_edit_behavior->cursor_content_location = calculate_content_position_on_shaped_text (
-                    state, line_edit_behavior->text_id, line_edit_behavior->shaping_unit_id, public->last_mouse_x,
-                    public->last_mouse_y);
+            line_edit_behavior->cursor_content_location = calculate_content_position_on_shaped_text (
+                state, line_edit_behavior->text_id, line_edit_behavior->shaping_unit_id, public->last_mouse_x,
+                public->last_mouse_y);
 
-                line_edit_behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
-                line_edit_behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
-                line_edit_behavior->text_visuals_dirty = true;
-            }
+            line_edit_behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
+            line_edit_behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
+            line_edit_behavior->text_visuals_dirty = true;
         }
 
         if (private->line_edit_selected_this_press && !private->input_receiver_requested_text_input &&
@@ -1424,6 +1828,22 @@ static void process_events (struct ui_controls_input_state_t *state,
                 public->mouse_button_down_inclusive_flags = 0u;
                 public->mouse_button_down_on_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
                 public->press_filtered_in = false;
+            }
+
+            break;
+
+        case KAN_PLATFORM_APPLICATION_EVENT_TYPE_KEY_DOWN:
+            if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_motion.window_id, public->linked_window_id))
+            {
+                process_key_down_internal (state, public, ui, event);
+            }
+
+            break;
+
+        case KAN_PLATFORM_APPLICATION_EVENT_TYPE_TEXT_INPUT:
+            if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_motion.window_id, public->linked_window_id))
+            {
+                process_text_input_internal (state, public, ui, event);
             }
 
             break;
@@ -1522,6 +1942,11 @@ static void process_events (struct ui_controls_input_state_t *state,
                         on_press_begin_filtered_out_internal (state, public, ui);
                     }
                 }
+
+                if (multi_click)
+                {
+                    on_multi_click_internal (state, public, ui, event->mouse_button.clicks);
+                }
             }
 
             break;
@@ -1609,9 +2034,9 @@ static void process_events (struct ui_controls_input_state_t *state,
                     // unexpectedly input anything into it.
                     if (scroll_behaviour)
                     {
-                        KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-                        if (KAN_TYPED_ID_32_IS_VALID (private->input_receiver_id))
+                        if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
                         {
+                            KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
                             deselect_input_receiver_behavior (state, public, private);
                         }
                     }
@@ -1620,8 +2045,6 @@ static void process_events (struct ui_controls_input_state_t *state,
 
             break;
         }
-
-            // TODO: Process key down and text input for line edit.
 
         default:
             // Do not care about other event types.
@@ -1709,6 +2132,8 @@ static void process_line_edit_content_dirty_inner (struct ui_controls_input_stat
     KAN_UML_SIGNAL_UPDATE (behavior, kan_ui_node_line_edit_behavior_t, content_dirty, true)
     {
         KAN_UMI_VALUE_UPDATE_REQUIRED (shaping_unit, kan_text_shaping_unit_t, id, &behavior->shaping_unit_id)
+        kan_dynamic_array_set_capacity (&behavior->content_utf8, behavior->content_utf8.size);
+
         struct kan_text_item_t text_items[] = {
             {
                 .type = KAN_TEXT_ITEM_STYLE,
@@ -1868,7 +2293,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_input)
     process_scroll_behavior_insertion (state, ui);
     process_line_edit_behavior_lifetime (state);
     sanitize_input_receiver_selection (state, public);
-    process_line_edit_content_dirty_outer (state);
+    process_line_edit_content_dirty_outer (state, public);
 
     KAN_UML_EVENT_FETCH (laid_out_event, kan_ui_node_laid_out_t)
     {
@@ -2105,6 +2530,8 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
 
     // Clear all previous commands, we expect all additional commands to be driven by this behavior.
     drawable->additional_draw_commands.size = 0u;
+    KAN_ASSERT (drawable->main_draw_command.type == KAN_UI_DRAW_COMMAND_TEXT)
+    drawable->main_draw_command.text.handle_alignment_on_overflow = false;
 
 #define ADJUST_IMAGE_RECT_TO_ORIENTATION(COMMAND)                                                                      \
     switch (shaping_unit->request.orientation)                                                                         \
@@ -2125,6 +2552,27 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
         COMMAND->image.custom_height = temp;                                                                           \
         break;                                                                                                         \
     }                                                                                                                  \
+    }
+
+    kan_instance_offset_t primary_draw_offset = 0;
+
+    // If shaped data is too wide, adjust offsets to handle overflow according to alignment.
+    if (shaping_unit->request.primary_axis_limit < shaping_unit->shaped_primary_size)
+    {
+        switch (shaping_unit->request.alignment)
+        {
+        case KAN_TEXT_SHAPING_ALIGNMENT_LEFT:
+            // Nothing to do.
+            break;
+
+        case KAN_TEXT_SHAPING_ALIGNMENT_CENTER:
+            primary_draw_offset = shaping_unit->request.primary_axis_limit / 2 - shaping_unit->shaped_primary_size / 2;
+            break;
+
+        case KAN_TEXT_SHAPING_ALIGNMENT_RIGHT:
+            primary_draw_offset = shaping_unit->request.primary_axis_limit - shaping_unit->shaped_primary_size;
+            break;
+        }
     }
 
     if (behavior->cursor_content_location != KAN_INT_MAX (kan_instance_size_t) &&
@@ -2192,13 +2640,27 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
             command->image.custom_rect = true;
 
             const kan_instance_offset_t cursor_width = kan_ui_calculate_coordinate (ui, behavior->cursor_width);
+            const kan_instance_offset_t cursor_safe_space =
+                kan_ui_calculate_coordinate (ui, behavior->cursor_safe_space);
+
             command->image.custom_x_offset = cursor_x - cursor_width / 2;
             command->image.custom_y_offset = cursor_y_min;
             command->image.custom_width = cursor_width;
             command->image.custom_height = cursor_y_max - cursor_y_min;
             ADJUST_IMAGE_RECT_TO_ORIENTATION (command)
 
-            // TODO: Offset drawable if needed due to the cursor position. Do not forget about vertical.
+            const kan_instance_offset_t cursor_x_with_offset = cursor_x + primary_draw_offset;
+            if (cursor_x_with_offset < cursor_safe_space)
+            {
+                primary_draw_offset += cursor_safe_space - cursor_x_with_offset;
+            }
+            else if (cursor_x_with_offset + cursor_safe_space >
+                     (kan_instance_offset_t) shaping_unit->request.primary_axis_limit)
+            {
+                primary_draw_offset -= cursor_x_with_offset -
+                                       (kan_instance_offset_t) shaping_unit->request.primary_axis_limit +
+                                       cursor_safe_space;
+            }
         }
     }
 
@@ -2280,6 +2742,28 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
     }
 
 #undef ADJUST_IMAGE_RECT_TO_ORIENTATION
+
+    // During selection, we freeze draw offset as a simplistic solution for line edits with text size overflows.
+    // It is not a full-fledged solution like solutions in browsers, but should be fine right now.
+    const bool primary_draw_offset_frozen = behavior->selection_content_min != KAN_INT_MAX (kan_instance_size_t) &&
+                                            behavior->selection_content_max != KAN_INT_MAX (kan_instance_size_t);
+
+    if (!primary_draw_offset_frozen)
+    {
+        switch (shaping_unit->request.orientation)
+        {
+        case KAN_TEXT_ORIENTATION_HORIZONTAL:
+            drawable->draw_offset_x = primary_draw_offset;
+            drawable->draw_offset_y = 0;
+            break;
+
+        case KAN_TEXT_ORIENTATION_VERTICAL:
+            drawable->draw_offset_x = 0;
+            drawable->draw_offset_y = primary_draw_offset;
+            break;
+        }
+    }
+
     // Make sure that we do not use more memory than needed.
     kan_dynamic_array_set_capacity (&drawable->additional_draw_commands, drawable->additional_draw_commands.size);
 }
@@ -2314,6 +2798,8 @@ void kan_ui_input_singleton_init (struct kan_ui_input_singleton_t *instance)
 
     instance->viewport_offset_x = 0;
     instance->viewport_offset_y = 0;
+
+    instance->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
 
     instance->mouse_button_down_flags = 0u;
     instance->mouse_button_down_inclusive_flags = 0u;
@@ -2393,8 +2879,9 @@ void kan_ui_node_line_edit_behavior_init (struct kan_ui_node_line_edit_behavior_
     instance->content_dirty = true;
     instance->text_visuals_dirty = true;
 
-    kan_dynamic_array_init (&instance->content_utf8, 0u, sizeof (uint8_t), alignof (kan_memory_size_t),
-                            kan_allocation_group_stack_get ());
+    kan_dynamic_array_init (&instance->content_utf8, 1u, sizeof (uint8_t), 1u, kan_allocation_group_stack_get ());
+    instance->content_utf8.size = 1u;
+    instance->content_utf8.data[0u] = '\0';
 
     instance->content_style = NULL;
     instance->content_mark = 0u;
@@ -2402,6 +2889,7 @@ void kan_ui_node_line_edit_behavior_init (struct kan_ui_node_line_edit_behavior_
     instance->cursor_image_index = KAN_INT_MAX (uint32_t);
     instance->cursor_ui_mark = KAN_UI_DEFAULT_COMMAND_MAKE_MARK (0u, KAN_UI_DEFAULT_MARK_FLAG_BLINK);
     instance->cursor_width = KAN_UI_VALUE_PT (5.0f);
+    instance->cursor_safe_space = KAN_UI_VALUE_PT (0.0f);
 
     instance->selection_image_index = KAN_INT_MAX (uint32_t);
     instance->selection_ui_mark = KAN_UI_DEFAULT_COMMAND_MAKE_MARK (0u, KAN_UI_DEFAULT_MARK_FLAG_NONE);

@@ -1507,15 +1507,24 @@ const char *kan_application_system_clipboard_get_text (kan_context_system_t syst
 
 void kan_application_system_clipboard_set_text (kan_context_system_t system_handle, const char *text)
 {
+    const kan_instance_size_t text_length = (kan_instance_size_t) strlen (text);
+    kan_application_system_clipboard_set_text_sequence (system_handle, text, text + text_length);
+}
+
+void kan_application_system_clipboard_set_text_sequence (kan_context_system_t system_handle,
+                                                         const char *text_begin,
+                                                         const char *text_end)
+{
     struct application_system_t *system = KAN_HANDLE_GET (system_handle);
     KAN_ATOMIC_INT_SCOPED_LOCK (&system->operation_submission_lock)
     struct operation_t *operation = kan_stack_group_allocator_allocate (
         &system->operation_temporary_allocator, sizeof (struct operation_t), alignof (struct operation_t));
     operation->type = OPERATION_TYPE_CLIPBOARD_SET_TEXT;
 
-    const kan_instance_size_t text_length = (kan_instance_size_t) strlen (text);
+    const kan_instance_size_t text_length = (kan_instance_size_t) (text_end - text_begin);
     char *text_copied = kan_allocate_general (system->operations_group, text_length + 1u, alignof (char));
-    memcpy (text_copied, text, text_length + 1u);
+    memcpy (text_copied, text_begin, text_length);
+    text_copied[text_length] = '\0';
     operation->clipboard_set_text_suffix.text = text_copied;
     insert_operation (system, operation);
 }

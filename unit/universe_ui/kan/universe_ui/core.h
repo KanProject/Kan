@@ -542,6 +542,12 @@ struct kan_ui_draw_command_text_t
 {
     /// \brief Shaping unit that should be drawn when ready.
     kan_text_shaping_unit_id_t shaping_unit;
+
+    /// \brief If true and typographic primary size is higher that axis limit,
+    ///        additional offset will be applied to make sure that alignment is still done properly.
+    /// \details Should be enabled for most cases, except for edition controls that have custom management for
+    ///          typographic size overflows.
+    bool handle_alignment_on_overflow;
 };
 
 /// \brief Describes push constant layout data for custom draw command.

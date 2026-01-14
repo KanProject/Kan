@@ -338,4 +338,8 @@ CONTEXT_APPLICATION_SYSTEM_API const char *kan_application_system_clipboard_get_
 CONTEXT_APPLICATION_SYSTEM_API void kan_application_system_clipboard_set_text (kan_context_system_t system_handle,
                                                                                const char *text);
 
+/// \brief Adapts `kan_platform_application_put_text_into_clipboard`.
+CONTEXT_APPLICATION_SYSTEM_API void kan_application_system_clipboard_set_text_sequence (
+    kan_context_system_t system_handle, const char *text_begin, const char *text_end);
+
 KAN_C_HEADER_END

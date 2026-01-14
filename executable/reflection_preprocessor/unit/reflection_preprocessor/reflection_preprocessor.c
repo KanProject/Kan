@@ -1301,7 +1301,7 @@ static enum parse_status_t parse_enum_declaration (const char *declaration_name_
          }
 
          @name_begin identifier @name_end
-         (separator* "=" separator* ([0-9a-zA-Z_+<>] | separator | "-")+)? separator* ","?
+         (separator* "=" separator* ([0-9a-zA-Z_+<>] | separator | "-" | "|")+)? separator* ","?
          {
              if (parser.current_target_node->type == TARGET_FILE_TYPE_OBJECT)
              {

@@ -421,7 +421,7 @@ bool kan_platform_application_fetch_next_event (struct kan_platform_application_
             return true;
 
         case SDL_EVENT_KEY_UP:
-            output->type = KAN_PLATFORM_APPLICATION_EVENT_TYPE_KEY_DOWN;
+            output->type = KAN_PLATFORM_APPLICATION_EVENT_TYPE_KEY_UP;
             output->time_ns = event.common.timestamp;
             output->keyboard.window_id = KAN_TYPED_ID_32_SET (kan_platform_window_id_t, event.key.windowID);
             output->keyboard.repeat = event.key.repeat > 0 ? true : false;

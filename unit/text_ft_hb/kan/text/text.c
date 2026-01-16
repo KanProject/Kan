@@ -1495,10 +1495,13 @@ static inline void shape_append_to_sequence (struct shape_context_t *context,
                 break;
             }
 
-            cluster->visual_cursor_position =
-                context->forward_string_processing ? length_prior_to_placement_26_6 : -length_prior_to_placement_26_6;
-
             cluster->matching_reading_direction = shape_is_matching_reading_direction (context, harfbuzz_direction);
+            const kan_instance_offset_t cursor_position_base =
+                cluster->matching_reading_direction ? length_prior_to_placement_26_6 : last_sequence->length_26_6;
+
+            cluster->visual_cursor_position =
+                context->forward_string_processing ? cursor_position_base : -cursor_position_base;
+
             cluster->start_at_index = context->edition_index_offset + glyph_info->cluster;
         }
         else

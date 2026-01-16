@@ -1,4 +1,8 @@
+#define _CRT_SECURE_NO_WARNINGS __CUSHION_PRESERVE__
+
 #include <application_framework_examples_ui_interaction_api.h>
+
+#include <string.h>
 
 #include <kan/context/all_system_names.h>
 #include <kan/context/application_framework_system.h>
@@ -27,15 +31,41 @@ KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_example_interaction_post_render)
 APPLICATION_FRAMEWORK_EXAMPLES_UI_INTERACTION_API KAN_UM_MUTATOR_GROUP_META (ui_interaction,
                                                                              KAN_UI_INTERACTION_MUTATOR_GROUP);
 
-#define TEST_WIDTH 1600u
+#define TEST_WIDTH 800u
 #define TEST_HEIGHT 800u
+
+enum example_ui_interaction_test_stage_t
+{
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_START = 0u,
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_HOVER_CHECK_1,
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_PRESS_CHECK,
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_HOVER_CHECK_2,
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_SCROLL,
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_SELECTION,
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_INPUT_1,
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_CURSOR_CLICK,
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_INPUT_2,
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_RIGHT,
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_BACKSPACE,
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_LEFT,
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_DELETE,
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_FINISHED,
+    EXAMPLE_UI_INTERACTION_TEST_STAGE_ERRED,
+};
 
 struct example_ui_interaction_singleton_t
 {
     kan_application_system_window_t window_handle;
     kan_render_surface_t window_surface;
     bool should_rebuild;
-    bool rendered_once;
+    enum example_ui_interaction_test_stage_t test_stage;
+
+    kan_ui_node_id_t second_button_in_list_id;
+    kan_ui_node_id_t scroll_container_id;
+    kan_ui_node_id_t line_edit_id;
+
+    float test_last_mouse_x;
+    float test_last_mouse_y;
 };
 
 APPLICATION_FRAMEWORK_EXAMPLES_UI_INTERACTION_API void example_ui_interaction_singleton_init (
@@ -44,7 +74,14 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_INTERACTION_API void example_ui_interaction_si
     instance->window_handle = KAN_HANDLE_SET_INVALID (kan_application_system_window_t);
     instance->window_surface = KAN_HANDLE_SET_INVALID (kan_render_surface_t);
     instance->should_rebuild = false;
-    instance->rendered_once = false;
+    instance->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_START;
+
+    instance->second_button_in_list_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->scroll_container_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->line_edit_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+
+    instance->test_last_mouse_x = 0.0f;
+    instance->test_last_mouse_y = 0.0f;
 }
 
 struct ui_example_interaction_update_state_t
@@ -187,6 +224,12 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
             {
                 button_node->id = kan_next_ui_node_id (ui);
                 button_node->parent_id = left_window_node->id;
+
+                if (button == 1u)
+                {
+                    singleton->second_button_in_list_id = button_node->id;
+                }
+
                 button_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
                 button_node->element.height = KAN_UI_VALUE_VH (0.05f);
                 button_node->element.margin = KAN_UI_RECT_PT (16.0f, 16.0f, 16.0f, 16.0f);
@@ -307,6 +350,7 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
             {
                 scroll_container_node->id = container_id;
                 scroll_container_node->parent_id = scroll_outer_node->id;
+                singleton->scroll_container_id = scroll_container_node->id;
 
                 scroll_container_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;
                 scroll_container_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW | KAN_UI_SIZE_FLAG_FIT_CHILDREN;
@@ -356,6 +400,7 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
                     line_edit_node->id = kan_next_ui_node_id (ui);
                     const kan_ui_node_id_t edit_text_id = kan_next_ui_node_id (ui);
                     line_edit_node->parent_id = scroll_container_node->id;
+                    singleton->line_edit_id = line_edit_node->id;
 
                     line_edit_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
                     line_edit_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
@@ -617,17 +662,17 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_INTERACTION_API KAN_UM_MUTATOR_DEPLOY (ui_exam
 
 APPLICATION_FRAMEWORK_EXAMPLES_UI_INTERACTION_API KAN_UM_MUTATOR_EXECUTE (ui_example_interaction_post_render)
 {
+    KAN_UMI_SINGLETON_READ (ui_input, kan_ui_input_singleton_t)
     KAN_UMI_SINGLETON_READ (ui_render_graph, kan_ui_render_graph_singleton_t)
     KAN_UMI_SINGLETON_READ (resource_provider, kan_resource_provider_singleton_t)
     KAN_UMI_SINGLETON_WRITE (test, test_routine_singleton_t)
     KAN_UMI_SINGLETON_WRITE (singleton, example_ui_interaction_singleton_t)
 
+    const struct kan_application_system_window_info_t *window_info =
+        kan_application_system_get_window_info_from_handle (state->application_system_handle, singleton->window_handle);
+
     if (KAN_HANDLE_IS_VALID (ui_render_graph->final_pass_instance) && KAN_HANDLE_IS_VALID (singleton->window_surface))
     {
-        const struct kan_application_system_window_info_t *window_info =
-            kan_application_system_get_window_info_from_handle (state->application_system_handle,
-                                                                singleton->window_handle);
-
         struct kan_render_integer_region_2d_t region = {
             .x = 0,
             .y = 0,
@@ -637,18 +682,313 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_INTERACTION_API KAN_UM_MUTATOR_EXECUTE (ui_exa
 
         kan_render_backend_system_present_image_on_surface (singleton->window_surface, ui_render_graph->final_image, 0u,
                                                             region, region, ui_render_graph->final_pass_instance);
+    }
 
-        if (singleton->rendered_once && test->test_mode_enabled && test->expectation_read_back_statuses.size == 0u)
+    if (!test->test_mode_enabled || singleton->should_rebuild)
+    {
+        return;
+    }
+
+#define TEST_PUSH_EVENT(...)                                                                                           \
+    {                                                                                                                  \
+        struct kan_platform_application_event_t event = __VA_ARGS__;                                                   \
+        kan_application_system_push_fake_event (state->application_system_handle, &event);                             \
+    }
+
+#define TEST_MOUSE_MOVE(TO_X, TO_Y)                                                                                    \
+    TEST_PUSH_EVENT ({                                                                                                 \
+        .type = KAN_PLATFORM_APPLICATION_EVENT_TYPE_MOUSE_MOTION,                                                      \
+        .time_ns = 0u,                                                                                                 \
+        .mouse_motion =                                                                                                \
+            {                                                                                                          \
+                .window_id = window_info->id,                                                                          \
+                .button_state = 0u,                                                                                    \
+                .window_x = (TO_X),                                                                                    \
+                .window_y = (TO_Y),                                                                                    \
+                .window_x_relative = singleton->test_last_mouse_x - (TO_X),                                            \
+                .window_y_relative = singleton->test_last_mouse_y - (TO_Y),                                            \
+            },                                                                                                         \
+    })                                                                                                                 \
+    singleton->test_last_mouse_x = TO_X;                                                                               \
+    singleton->test_last_mouse_y = TO_Y;
+
+#define TEST_MOUSE_DOWN(BUTTON)                                                                                        \
+    TEST_PUSH_EVENT ({                                                                                                 \
+        .type = KAN_PLATFORM_APPLICATION_EVENT_TYPE_MOUSE_BUTTON_DOWN,                                                 \
+        .time_ns = 0u,                                                                                                 \
+        .mouse_button =                                                                                                \
+            {                                                                                                          \
+                .window_id = window_info->id,                                                                          \
+                .button = BUTTON,                                                                                      \
+                .clicks = 1u,                                                                                          \
+                .window_x = singleton->test_last_mouse_x,                                                              \
+                .window_y = singleton->test_last_mouse_y,                                                              \
+            },                                                                                                         \
+    })
+
+#define TEST_MOUSE_UP(BUTTON)                                                                                          \
+    TEST_PUSH_EVENT ({                                                                                                 \
+        .type = KAN_PLATFORM_APPLICATION_EVENT_TYPE_MOUSE_BUTTON_UP,                                                   \
+        .time_ns = 0u,                                                                                                 \
+        .mouse_button =                                                                                                \
+            {                                                                                                          \
+                .window_id = window_info->id,                                                                          \
+                .button = BUTTON,                                                                                      \
+                .clicks = 1u,                                                                                          \
+                .window_x = singleton->test_last_mouse_x,                                                              \
+                .window_y = singleton->test_last_mouse_y,                                                              \
+            },                                                                                                         \
+    })
+
+#define TEST_INPUT_TEXT(LITERAL)                                                                                       \
+    {                                                                                                                  \
+        char *event_text = kan_allocate_general (kan_platform_application_get_events_allocation_group (),              \
+                                                 sizeof (LITERAL), alignof (char));                                    \
+        memcpy (event_text, LITERAL, sizeof (LITERAL));                                                                \
+                                                                                                                       \
+        TEST_PUSH_EVENT ({                                                                                             \
+            .type = KAN_PLATFORM_APPLICATION_EVENT_TYPE_TEXT_INPUT,                                                    \
+            .time_ns = 0u,                                                                                             \
+            .text_input =                                                                                              \
+                {                                                                                                      \
+                    .window_id = window_info->id,                                                                      \
+                    .text = event_text,                                                                                \
+                },                                                                                                     \
+        })                                                                                                             \
+    }
+
+#define TEST_KEY_DOWN(SCAN, KEY)                                                                                       \
+    TEST_PUSH_EVENT ({                                                                                                 \
+        .type = KAN_PLATFORM_APPLICATION_EVENT_TYPE_KEY_DOWN,                                                          \
+        .time_ns = 0u,                                                                                                 \
+        .keyboard =                                                                                                    \
+            {                                                                                                          \
+                .window_id = window_info->id,                                                                          \
+                .repeat = false,                                                                                       \
+                .scan_code = SCAN,                                                                                     \
+                .key_code = KEY,                                                                                       \
+                .modifiers = 0u,                                                                                       \
+            },                                                                                                         \
+    })
+
+#define TEST_KEY_UP(SCAN, KEY)                                                                                         \
+    TEST_PUSH_EVENT ({                                                                                                 \
+        .type = KAN_PLATFORM_APPLICATION_EVENT_TYPE_KEY_UP,                                                            \
+        .time_ns = 0u,                                                                                                 \
+        .keyboard =                                                                                                    \
+            {                                                                                                          \
+                .window_id = window_info->id,                                                                          \
+                .repeat = false,                                                                                       \
+                .scan_code = SCAN,                                                                                     \
+                .key_code = KEY,                                                                                       \
+                .modifiers = 0u,                                                                                       \
+            },                                                                                                         \
+    })
+
+#define TEST_CHECK_EXPECTATION(...)                                                                                    \
+    if (!(__VA_ARGS__))                                                                                                \
+    {                                                                                                                  \
+        KAN_LOG (application_framework_example_ui_interaction, KAN_LOG_ERROR, "Test expectation failed: %s",           \
+                 #__VA_ARGS__);                                                                                        \
+        test->manual_result = TEST_ROUTINE_MANUAL_RESULT_FAILED;                                                       \
+        singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_ERRED;                                               \
+    }
+
+    switch (singleton->test_stage)
+    {
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_START:
+        singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_HOVER_CHECK_1;
+        TEST_MOUSE_MOVE (120.0f, 340.0f)
+        break;
+
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_HOVER_CHECK_1:
+        singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_PRESS_CHECK;
+
+        TEST_CHECK_EXPECTATION (
+            KAN_TYPED_ID_32_IS_EQUAL (ui_input->current_hovered_id, singleton->second_button_in_list_id))
+
+        TEST_MOUSE_DOWN (KAN_PLATFORM_MOUSE_BUTTON_LEFT)
+        TEST_MOUSE_UP (KAN_PLATFORM_MOUSE_BUTTON_LEFT)
+        break;
+
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_PRESS_CHECK:
+    {
+        singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_HOVER_CHECK_2;
+        bool press_begin_detected = false;
+        bool press_end_detected = false;
+
+        KAN_UML_EVENT_FETCH (begin_event, kan_ui_press_begin_t)
         {
-            kan_dynamic_array_set_capacity (&test->expectation_read_back_statuses, 1u);
-            *(kan_render_read_back_status_t *) kan_dynamic_array_add_last (&test->expectation_read_back_statuses) =
-                kan_render_request_read_back_from_image (ui_render_graph->final_image, 0u, 0u,
-                                                         test->expectation_read_back_buffer, 0u,
-                                                         ui_render_graph->final_pass_instance);
+            TEST_CHECK_EXPECTATION (
+                KAN_TYPED_ID_32_IS_EQUAL (begin_event->node_id, singleton->second_button_in_list_id))
+            TEST_CHECK_EXPECTATION (begin_event->mouse_button_down_flags == (1u << KAN_PLATFORM_MOUSE_BUTTON_LEFT))
+            TEST_CHECK_EXPECTATION (begin_event->at_x == 120)
+            TEST_CHECK_EXPECTATION (begin_event->at_y == 340)
+            press_begin_detected = true;
         }
 
-        // We'd like to capture the second frame, not first one,
-        // as text-height-to-ui sync will only be applied on second frame and onward.
-        singleton->rendered_once = true;
+        KAN_UML_EVENT_FETCH (end_event, kan_ui_press_end_t)
+        {
+            TEST_CHECK_EXPECTATION (KAN_TYPED_ID_32_IS_EQUAL (end_event->node_id, singleton->second_button_in_list_id))
+            TEST_CHECK_EXPECTATION (end_event->mouse_button_down_inclusive_flags ==
+                                    (1u << KAN_PLATFORM_MOUSE_BUTTON_LEFT))
+            TEST_CHECK_EXPECTATION (end_event->continuous_press)
+            TEST_CHECK_EXPECTATION (end_event->at_x == 120)
+            TEST_CHECK_EXPECTATION (end_event->at_y == 340)
+            press_end_detected = true;
+        }
+
+        TEST_CHECK_EXPECTATION (press_begin_detected)
+        TEST_CHECK_EXPECTATION (press_end_detected)
+
+        TEST_MOUSE_MOVE (240.0f, 340.0f)
+        break;
     }
+
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_HOVER_CHECK_2:
+    {
+        singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_SCROLL;
+        TEST_CHECK_EXPECTATION (!KAN_TYPED_ID_32_IS_VALID (ui_input->current_hovered_id))
+
+        KAN_UMI_VALUE_READ_REQUIRED (scroll_container_node, kan_ui_node_t, id, &singleton->scroll_container_id)
+        TEST_CHECK_EXPECTATION (scroll_container_node->render.scroll_y.type == KAN_UI_PT)
+        TEST_CHECK_EXPECTATION (KAN_FLOATING_IS_NEAR (scroll_container_node->render.scroll_y.value, 0.0f))
+
+        TEST_MOUSE_MOVE (575.0f, 240.0f)
+        TEST_MOUSE_DOWN (KAN_PLATFORM_MOUSE_BUTTON_LEFT)
+        TEST_MOUSE_MOVE (575.0f, 600.0f)
+        TEST_MOUSE_UP (KAN_PLATFORM_MOUSE_BUTTON_LEFT)
+        break;
+    }
+
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_SCROLL:
+    {
+        singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_SELECTION;
+        KAN_UMI_VALUE_READ_REQUIRED (scroll_container_node, kan_ui_node_t, id, &singleton->scroll_container_id)
+        TEST_CHECK_EXPECTATION (scroll_container_node->render.scroll_y.type == KAN_UI_PT)
+        TEST_CHECK_EXPECTATION (KAN_FLOATING_IS_NEAR (scroll_container_node->render.scroll_y.value, 1207.0f))
+
+        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_line_edit_behavior_t, id, &singleton->line_edit_id)
+        TEST_CHECK_EXPECTATION (behavior->cursor_content_location == KAN_INT_MAX (kan_instance_size_t))
+        TEST_CHECK_EXPECTATION (behavior->selection_content_min == KAN_INT_MAX (kan_instance_size_t))
+        TEST_CHECK_EXPECTATION (behavior->selection_content_max == KAN_INT_MAX (kan_instance_size_t))
+
+        TEST_MOUSE_MOVE (290.0f, 565.0f)
+        TEST_MOUSE_DOWN (KAN_PLATFORM_MOUSE_BUTTON_LEFT)
+        TEST_MOUSE_MOVE (378.0f, 565.0f)
+        TEST_MOUSE_UP (KAN_PLATFORM_MOUSE_BUTTON_LEFT)
+        break;
+    }
+
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_SELECTION:
+    {
+        singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_INPUT_1;
+        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_line_edit_behavior_t, id, &singleton->line_edit_id)
+        TEST_CHECK_EXPECTATION (behavior->cursor_content_location == KAN_INT_MAX (kan_instance_size_t))
+        TEST_CHECK_EXPECTATION (behavior->selection_content_min == 0u)
+        TEST_CHECK_EXPECTATION (behavior->selection_content_max == 5u)
+        TEST_INPUT_TEXT ("Дратуте")
+        break;
+    }
+
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_INPUT_1:
+    {
+        singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_CURSOR_CLICK;
+        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_line_edit_behavior_t, id, &singleton->line_edit_id)
+        TEST_CHECK_EXPECTATION (behavior->cursor_content_location == 14u)
+        TEST_CHECK_EXPECTATION (behavior->selection_content_min == KAN_INT_MAX (kan_instance_size_t))
+        TEST_CHECK_EXPECTATION (behavior->selection_content_max == KAN_INT_MAX (kan_instance_size_t))
+        TEST_CHECK_EXPECTATION (strcmp ("Дратуте, world!", (char *) behavior->content_utf8.data) == 0)
+
+        TEST_MOUSE_MOVE (526.0f, 565.0f)
+        TEST_MOUSE_DOWN (KAN_PLATFORM_MOUSE_BUTTON_LEFT)
+        TEST_MOUSE_UP (KAN_PLATFORM_MOUSE_BUTTON_LEFT)
+        break;
+    }
+
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_CURSOR_CLICK:
+    {
+        singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_INPUT_2;
+        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_line_edit_behavior_t, id, &singleton->line_edit_id)
+        TEST_CHECK_EXPECTATION (behavior->cursor_content_location == 21u)
+        TEST_CHECK_EXPECTATION (behavior->selection_content_min == KAN_INT_MAX (kan_instance_size_t))
+        TEST_CHECK_EXPECTATION (behavior->selection_content_max == KAN_INT_MAX (kan_instance_size_t))
+        TEST_INPUT_TEXT (" бяБЯбя")
+        break;
+    }
+
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_INPUT_2:
+    {
+        singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_RIGHT;
+        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_line_edit_behavior_t, id, &singleton->line_edit_id)
+        TEST_CHECK_EXPECTATION (behavior->cursor_content_location == 34u)
+        TEST_CHECK_EXPECTATION (behavior->selection_content_min == KAN_INT_MAX (kan_instance_size_t))
+        TEST_CHECK_EXPECTATION (behavior->selection_content_max == KAN_INT_MAX (kan_instance_size_t))
+        TEST_CHECK_EXPECTATION (strcmp ("Дратуте, world бяБЯбя!", (char *) behavior->content_utf8.data) == 0)
+
+        TEST_KEY_DOWN (KAN_PLATFORM_SCAN_CODE_RIGHT, 0u)
+        TEST_KEY_UP (KAN_PLATFORM_SCAN_CODE_RIGHT, 0u)
+        TEST_KEY_DOWN (KAN_PLATFORM_SCAN_CODE_RIGHT, 0u)
+        TEST_KEY_UP (KAN_PLATFORM_SCAN_CODE_RIGHT, 0u)
+        break;
+    }
+
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_RIGHT:
+    {
+        singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_BACKSPACE;
+        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_line_edit_behavior_t, id, &singleton->line_edit_id)
+        TEST_CHECK_EXPECTATION (behavior->cursor_content_location == 35u)
+
+        TEST_KEY_DOWN (KAN_PLATFORM_SCAN_CODE_BACKSPACE, 0u)
+        TEST_KEY_UP (KAN_PLATFORM_SCAN_CODE_BACKSPACE, 0u)
+        break;
+    }
+
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_BACKSPACE:
+    {
+        singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_LEFT;
+        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_line_edit_behavior_t, id, &singleton->line_edit_id)
+        TEST_CHECK_EXPECTATION (behavior->cursor_content_location == 34u)
+        TEST_CHECK_EXPECTATION (strcmp ("Дратуте, world бяБЯбя", (char *) behavior->content_utf8.data) == 0)
+
+        TEST_KEY_DOWN (KAN_PLATFORM_SCAN_CODE_LEFT, 0u)
+        TEST_KEY_UP (KAN_PLATFORM_SCAN_CODE_LEFT, 0u)
+        TEST_KEY_DOWN (KAN_PLATFORM_SCAN_CODE_LEFT, 0u)
+        TEST_KEY_UP (KAN_PLATFORM_SCAN_CODE_LEFT, 0u)
+        break;
+    }
+
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_LEFT:
+    {
+        singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_DELETE;
+        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_line_edit_behavior_t, id, &singleton->line_edit_id)
+        TEST_CHECK_EXPECTATION (behavior->cursor_content_location == 30u)
+
+        TEST_KEY_DOWN (KAN_PLATFORM_SCAN_CODE_DELETE, 0u)
+        TEST_KEY_UP (KAN_PLATFORM_SCAN_CODE_DELETE, 0u)
+        break;
+    }
+
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_TEXT_DELETE:
+    {
+        singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_FINISHED;
+        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_line_edit_behavior_t, id, &singleton->line_edit_id)
+        TEST_CHECK_EXPECTATION (behavior->cursor_content_location == 30u)
+        TEST_CHECK_EXPECTATION (strcmp ("Дратуте, world бяБЯя", (char *) behavior->content_utf8.data) == 0)
+        break;
+    }
+
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_FINISHED:
+        test->manual_result = TEST_ROUTINE_MANUAL_RESULT_PASSED;
+        break;
+
+    case EXAMPLE_UI_INTERACTION_TEST_STAGE_ERRED:
+        break;
+    }
+
+#undef TEST_PUSH_EVENT
+#undef TEST_MOUSE_MOVE
+#undef TEST_MOUSE_DOWN
+#undef TEST_MOUSE_UP
+#undef TEST_CHECK_EXPECTATION
 }

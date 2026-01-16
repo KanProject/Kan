@@ -72,6 +72,7 @@ enum operation_type_t
     OPERATION_TYPE_WARP_MOUSE_TO_WINDOW,
     OPERATION_TYPE_SET_CURSOR_VISIBLE,
     OPERATION_TYPE_CLIPBOARD_SET_TEXT,
+    OPERATION_TYPE_PUSH_FAKE_EVENT,
 };
 
 struct window_create_suffix_t
@@ -192,6 +193,7 @@ struct operation_t
         struct warp_mouse_to_window_suffix_t warp_mouse_to_window_suffix;
         struct set_cursor_visible_suffix_t set_cursor_visible_suffix;
         struct clipboard_set_text_suffix_t clipboard_set_text_suffix;
+        struct kan_platform_application_event_t push_fake_event;
     };
 };
 
@@ -216,7 +218,10 @@ struct application_system_t
 
     struct kan_application_system_mouse_state_t mouse_state;
     char *clipboard_content;
+
+    /// \details Initial clipboard content is still not captured on Linux on X11, seems to be internal SDL bug.
     bool initial_clipboard_update_done;
+
     struct kan_atomic_int_t resource_id_counter;
 };
 
@@ -239,6 +244,11 @@ static inline void shutdown_operation (struct operation_t *operation, kan_alloca
     {
         kan_free_general (operation_allocation_group, operation->clipboard_set_text_suffix.text,
                           strlen (operation->clipboard_set_text_suffix.text) + 1u);
+    }
+
+    if (operation->type == OPERATION_TYPE_PUSH_FAKE_EVENT)
+    {
+        kan_platform_application_event_shutdown (&operation->push_fake_event);
     }
 }
 
@@ -712,6 +722,18 @@ static inline void flush_operations (struct application_system_t *system)
         case OPERATION_TYPE_CLIPBOARD_SET_TEXT:
             kan_platform_application_put_text_into_clipboard (operation->clipboard_set_text_suffix.text);
             break;
+
+        case OPERATION_TYPE_PUSH_FAKE_EVENT:
+        {
+            struct event_node_t *node = (struct event_node_t *) kan_event_queue_submit_begin (&system->event_queue);
+            if (node)
+            {
+                kan_platform_application_event_move (&operation->push_fake_event, &node->event);
+                kan_event_queue_submit_end (&system->event_queue, &allocate_event_node (system->events_group)->node);
+            }
+
+            break;
+        }
         }
 
         struct operation_t *next = operation->next;
@@ -889,10 +911,17 @@ static inline void sync_info_and_clipboard (struct application_system_t *system,
         }
 
         char *extracted = kan_platform_application_extract_text_from_clipboard ();
-        const kan_instance_size_t length = (kan_instance_size_t) strlen (extracted);
-        system->clipboard_content = kan_allocate_general (system->clipboard_group, length + 1u, alignof (char));
-        memcpy (system->clipboard_content, extracted, length + 1u);
-        kan_free_general (kan_platform_application_get_clipboard_allocation_group (), extracted, length + 1u);
+        if (extracted && *extracted != '\0')
+        {
+            const kan_instance_size_t length = (kan_instance_size_t) strlen (extracted);
+            system->clipboard_content = kan_allocate_general (system->clipboard_group, length + 1u, alignof (char));
+            memcpy (system->clipboard_content, extracted, length + 1u);
+            kan_free_general (kan_platform_application_get_clipboard_allocation_group (), extracted, length + 1u);
+        }
+        else
+        {
+            system->clipboard_content = NULL;
+        }
     }
 }
 
@@ -1526,5 +1555,18 @@ void kan_application_system_clipboard_set_text_sequence (kan_context_system_t sy
     memcpy (text_copied, text_begin, text_length);
     text_copied[text_length] = '\0';
     operation->clipboard_set_text_suffix.text = text_copied;
+    insert_operation (system, operation);
+}
+
+void kan_application_system_push_fake_event (kan_context_system_t system_handle,
+                                             struct kan_platform_application_event_t *event)
+{
+    struct application_system_t *system = KAN_HANDLE_GET (system_handle);
+    KAN_ATOMIC_INT_SCOPED_LOCK (&system->operation_submission_lock)
+    struct operation_t *operation = kan_stack_group_allocator_allocate (
+        &system->operation_temporary_allocator, sizeof (struct operation_t), alignof (struct operation_t));
+
+    operation->type = OPERATION_TYPE_PUSH_FAKE_EVENT;
+    kan_platform_application_event_move (event, &operation->push_fake_event);
     insert_operation (system, operation);
 }

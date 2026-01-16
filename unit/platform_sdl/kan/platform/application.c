@@ -33,6 +33,11 @@ static struct kan_atomic_int_t vulkan_library_requests;
 
 static inline uint8_t convert_mouse_state (uint32_t sdl_state) { return (uint8_t) sdl_state; }
 
+kan_allocation_group_t kan_platform_application_get_events_allocation_group (void)
+{
+    return application_events_allocation_group;
+}
+
 void kan_platform_application_event_init (struct kan_platform_application_event_t *instance)
 {
     instance->type = KAN_PLATFORM_APPLICATION_EVENT_TYPE_QUIT;
@@ -96,10 +101,12 @@ void kan_platform_application_event_move (struct kan_platform_application_event_
 
     case KAN_PLATFORM_APPLICATION_EVENT_TYPE_TEXT_EDITING:
         to->text_editing = from->text_editing;
+        from->text_editing.text = NULL;
         break;
 
     case KAN_PLATFORM_APPLICATION_EVENT_TYPE_TEXT_INPUT:
         to->text_input = from->text_input;
+        from->text_input.text = NULL;
         break;
 
     case KAN_PLATFORM_APPLICATION_EVENT_TYPE_MOUSE_MOTION:

@@ -237,6 +237,9 @@ enum kan_platform_window_flag_t
     KAN_PLATFORM_WINDOW_FLAG_MOUSE_CAPTURE = 1u << 20u,
 };
 
+/// \brief Returns allocation group used for allocating memory from inside events, for example for text input.
+PLATFORM_API kan_allocation_group_t kan_platform_application_get_events_allocation_group (void);
+
 PLATFORM_API void kan_platform_application_event_init (struct kan_platform_application_event_t *instance);
 
 PLATFORM_API void kan_platform_application_event_move (struct kan_platform_application_event_t *from,

@@ -342,4 +342,11 @@ CONTEXT_APPLICATION_SYSTEM_API void kan_application_system_clipboard_set_text (k
 CONTEXT_APPLICATION_SYSTEM_API void kan_application_system_clipboard_set_text_sequence (
     kan_context_system_t system_handle, const char *text_begin, const char *text_end);
 
+/// \brief Push fake event that will be read during next sync.
+/// \details Event data is moved out, therefore shutting down pushed event is optional.
+/// \warning This event does not execute anything by itself (for example, dues not modify clipboard), it is just passed
+///          to all event readers as a valid event, which is only useful for testing purposes.
+CONTEXT_APPLICATION_SYSTEM_API void kan_application_system_push_fake_event (
+    kan_context_system_t system_handle, struct kan_platform_application_event_t *event);
+
 KAN_C_HEADER_END

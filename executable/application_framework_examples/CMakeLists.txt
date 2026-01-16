@@ -101,10 +101,9 @@ application_plugin_include (ABSTRACT CONCRETE application_framework_examples_ui_
 register_application_program (example_ui_interaction)
 application_program_set_configuration ("${CMAKE_CURRENT_SOURCE_DIR}/configuration/example_ui_interaction.rd")
 application_program_use_plugin_group (example_ui_interaction)
-# TODO: Will become a test later, when more controls are implemented.
-# application_program_use_as_test_in_development_mode (
-#        ARGUMENTS --test --disable-auto-build PROPERTIES TIMEOUT 20 LABELS GRAPHICS)
-# application_program_use_as_test_in_packaged_mode (ARGUMENTS --test PROPERTIES TIMEOUT 10 LABELS GRAPHICS)
+application_program_use_as_test_in_development_mode (
+        ARGUMENTS --test --disable-auto-build PROPERTIES TIMEOUT 20 LABELS GRAPHICS)
+application_program_use_as_test_in_packaged_mode (ARGUMENTS --test PROPERTIES TIMEOUT 10 LABELS GRAPHICS)
 
 register_application_variant (example_ui_interaction)
 application_variant_add_program (example_ui_interaction)

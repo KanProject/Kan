@@ -783,6 +783,11 @@ static void line_edit_erase_subsequence (struct kan_ui_node_line_edit_behavior_t
                                          kan_instance_size_t min,
                                          kan_instance_size_t max)
 {
+    if (min == max)
+    {
+        return;
+    }
+
     KAN_ASSERT (min < max)
     KAN_ASSERT (max < behavior->content_utf8.size)
     const kan_instance_size_t size = max - min;

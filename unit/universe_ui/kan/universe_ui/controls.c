@@ -2139,38 +2139,28 @@ static void process_line_edit_content_dirty_inner (struct ui_controls_input_stat
         KAN_UMI_VALUE_UPDATE_REQUIRED (shaping_unit, kan_text_shaping_unit_t, id, &behavior->shaping_unit_id)
         kan_dynamic_array_set_capacity (&behavior->content_utf8, behavior->content_utf8.size);
 
-        struct kan_text_item_t text_items[] = {
-            {
-                .type = KAN_TEXT_ITEM_STYLE,
-                .style =
-                    {
-                        .style = behavior->content_style,
-                        .mark = behavior->content_mark,
-                    },
-            },
-            {
-                .type = KAN_TEXT_ITEM_UTF8,
-                .utf8 = (const char *) behavior->content_utf8.data,
-            },
-        };
-
         if (KAN_HANDLE_IS_VALID (shaping_unit->request.text))
         {
             kan_text_destroy (shaping_unit->request.text);
         }
 
-        struct kan_text_description_t description = {
-            .items_count = sizeof (text_items) / sizeof (text_items[0u]),
-            .items = text_items,
-            .guide_bidi_with_direction = true,
-            .direction_to_guide_bidi =
-                locale->resource.preferred_direction == KAN_LOCALE_PREFERRED_TEXT_DIRECTION_LEFT_TO_RIGHT ?
-                    KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT :
-                    KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT,
+        struct kan_text_item_t new_text_items[] = {
+            KAN_INIT_TEXT_ITEM_STYLE (behavior->content_style, behavior->content_mark),
+            KAN_INIT_TEXT_ITEM_UTF8 ((const char *) behavior->content_utf8.data),
         };
 
+        struct kan_text_description_t new_text_description = {
+            .items_count = sizeof (new_text_items) / sizeof (new_text_items[0u]),
+            .items = new_text_items,
+            .guide_bidi_with_direction = false,
+            .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+        };
+
+        // Using macro primarily to highlight possible code reuse.
+        KAN_NEW_TEXT_SHAPING_UNIT_APPLY_LOCALE (new, locale)
+
         // Recreating text that way is not very effective, but text line edit should not be a bottleneck for us anyway.
-        shaping_unit->request.text = kan_text_create (&description);
+        shaping_unit->request.text = kan_text_create (&new_text_description);
         shaping_unit->dirty = true;
 
         behavior->content_dirty = false;

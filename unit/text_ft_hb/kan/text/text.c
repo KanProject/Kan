@@ -492,13 +492,29 @@ static inline void text_commit_trailing_utf8 (struct text_create_context_t *cont
              ++uncommited_index)
         {
             struct kan_text_item_t *uncommited_item = &description->items[uncommited_index];
-            KAN_ASSERT (uncommited_item->type == KAN_TEXT_ITEM_UTF8)
+            switch (uncommited_item->type)
+            {
+            case KAN_TEXT_ITEM_EMPTY:
+            case KAN_TEXT_ITEM_STYLE:
+                // Nothing to do.
+                break;
 
-            const kan_instance_size_t from_offset =
-                uncommited_index == context->first_uncommited_utf8_index ? context->first_uncommited_utf8_offset : 0u;
+            case KAN_TEXT_ITEM_UTF8:
+            {
+                const kan_instance_size_t from_offset = uncommited_index == context->first_uncommited_utf8_index ?
+                                                            context->first_uncommited_utf8_offset :
+                                                            0u;
 
-            const kan_instance_size_t length = (kan_instance_size_t) strlen (uncommited_item->utf8);
-            data_length += length - from_offset;
+                const kan_instance_size_t length = (kan_instance_size_t) strlen (uncommited_item->utf8);
+                data_length += length - from_offset;
+                break;
+            }
+
+            case KAN_TEXT_ITEM_ICON:
+                // Must never happen.
+                KAN_ASSERT (false)
+                break;
+            }
         }
     }
 
@@ -528,14 +544,30 @@ static inline void text_commit_trailing_utf8 (struct text_create_context_t *cont
              ++uncommited_index)
         {
             struct kan_text_item_t *uncommited_item = &description->items[uncommited_index];
-            KAN_ASSERT (uncommited_item->type == KAN_TEXT_ITEM_UTF8)
+            switch (uncommited_item->type)
+            {
+            case KAN_TEXT_ITEM_EMPTY:
+            case KAN_TEXT_ITEM_STYLE:
+                // Nothing to do.
+                break;
 
-            const kan_instance_size_t from_offset =
-                uncommited_index == context->first_uncommited_utf8_index ? context->first_uncommited_utf8_offset : 0u;
+            case KAN_TEXT_ITEM_UTF8:
+            {
+                const kan_instance_size_t from_offset = uncommited_index == context->first_uncommited_utf8_index ?
+                                                            context->first_uncommited_utf8_offset :
+                                                            0u;
 
-            const kan_instance_size_t length = (kan_instance_size_t) strlen (uncommited_item->utf8);
-            memcpy (node->utf8.data + write_offset, uncommited_item->utf8 + from_offset, length - from_offset);
-            write_offset += length - from_offset;
+                const kan_instance_size_t length = (kan_instance_size_t) strlen (uncommited_item->utf8);
+                memcpy (node->utf8.data + write_offset, uncommited_item->utf8 + from_offset, length - from_offset);
+                write_offset += length - from_offset;
+                break;
+            }
+
+            case KAN_TEXT_ITEM_ICON:
+                // Must never happen.
+                KAN_ASSERT (false)
+                break;
+            }
         }
 
         context->first_uncommited_utf8_index = KAN_INT_MAX (kan_instance_size_t);

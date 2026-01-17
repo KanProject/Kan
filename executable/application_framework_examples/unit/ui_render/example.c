@@ -15,8 +15,7 @@
 #include <kan/universe_render_foundation/render_graph.h>
 #include <kan/universe_resource_provider/provider.h>
 #include <kan/universe_text/text.h>
-#include <kan/universe_ui/controls.h>
-#include <kan/universe_ui/core.h>
+#include <kan/universe_ui/macro.h>
 
 KAN_LOG_DEFINE_CATEGORY (application_framework_example_ui_render);
 KAN_USE_STATIC_INTERNED_IDS
@@ -111,372 +110,118 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
     const kan_instance_size_t image_tiled_slice =
         kan_render_atlas_loaded_query (atlas, KAN_STATIC_INTERNED_ID_GET (tiled_slice), NULL);
 
-    // Clear old ones if any.
-    const kan_ui_node_id_t no_parent_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
-    KAN_UML_VALUE_DELETE (ui_root, kan_ui_node_t, parent_id, &no_parent_id) { KAN_UM_ACCESS_DELETE (ui_root); }
-
-#define ADD_TEXT_SHAPING_UNIT(NAME, ALIGNMENT, LITERAL)                                                                \
-    const kan_text_shaping_unit_id_t NAME##_id = kan_next_text_shaping_unit_id (text_shaping);                         \
-    KAN_UMO_INDEXED_INSERT (NAME##_unit, kan_text_shaping_unit_t)                                                      \
-    {                                                                                                                  \
-        NAME##_unit->id = NAME##_id;                                                                                   \
-        NAME##_unit->request.font_size = 24u;                                                                          \
-        NAME##_unit->request.render_format = KAN_FONT_GLYPH_RENDER_FORMAT_SDF;                                         \
-        NAME##_unit->request.orientation = KAN_TEXT_ORIENTATION_HORIZONTAL;                                            \
-        NAME##_unit->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;                             \
-        NAME##_unit->request.alignment = ALIGNMENT;                                                                    \
-        NAME##_unit->request.primary_axis_limit = 0u;                                                                  \
-        NAME##_unit->request.allow_breaks = true;                                                                      \
-        NAME##_unit->request.generate_edition_markup = false;                                                          \
-                                                                                                                       \
-        struct kan_text_item_t text_items[] = {                                                                        \
-            {                                                                                                          \
-                .type = KAN_TEXT_ITEM_STYLE,                                                                           \
-                .style =                                                                                               \
-                    {                                                                                                  \
-                        .style = NULL,                                                                                 \
-                        .mark = KAN_UI_DEFAULT_TEXT_MAKE_MARK (0u, KAN_UI_DEFAULT_TEXT_MARK_FLAG_OUTLINE),             \
-                    },                                                                                                 \
-            },                                                                                                         \
-            {                                                                                                          \
-                .type = KAN_TEXT_ITEM_UTF8,                                                                            \
-                .utf8 = LITERAL,                                                                                       \
-            },                                                                                                         \
-        };                                                                                                             \
-                                                                                                                       \
-        struct kan_text_description_t description = {                                                                  \
-            .items_count = sizeof (text_items) / sizeof (text_items[0u]),                                              \
-            .items = text_items,                                                                                       \
-            .guide_bidi_with_direction = false,                                                                        \
-            .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,                                       \
-        };                                                                                                             \
-                                                                                                                       \
-        NAME##_unit->request.text = kan_text_create (&description);                                                    \
-        NAME##_unit->stable = true;                                                                                    \
-    }
-
+    KAN_UIM_CLEAR_EVERYTHING
+    const uint32_t default_text_mark = KAN_UI_DEFAULT_TEXT_MAKE_MARK (0u, KAN_UI_DEFAULT_TEXT_MARK_FLAG_OUTLINE);
     const kan_instance_size_t button_images[] = {image_button_negative, image_button_positive, image_button_neutral};
     const float button_sizes[] = {0.25f, 0.20f, 0.15f};
     const char *button_texts[] = {"Evil color!", "Good color!", "Neutral!"};
 
     KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
-    KAN_UMO_INDEXED_INSERT (window_node, kan_ui_node_t)
+    KAN_UIM_PREPARE_ROOT;
+
+    KAN_UIM_WIDGET_IMAGE (window, KAN_UI_IMAGE_COMMAND_DEFAULT (image_window));
+    window_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
+    window_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
+
+    window_node->element.width = KAN_UI_VALUE_VH (0.9f);
+    window_node->element.height = KAN_UI_VALUE_VH (0.3f);
+
+    window_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
+    window_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
+
+    window_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;
+    window_node->layout.padding = KAN_UI_RECT_PT (16.0f, 16.0f, 16.0f, 16.0f);
+    window_node->render.clip = true;
+
+    KAN_UIM_CHILDREN (window)
     {
-        window_node->id = kan_next_ui_node_id (ui);
-        window_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
-        window_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
+        KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL (top_text, "Centered window with nine-slice buttons for tests.",
+                                                default_text_mark);
+        KAN_UIM_WIDGET_TEXT (top_text, KAN_UI_VALUE_PX (24.0f));
+        top_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
+        top_text_node->local_element_order = -999; // Small value to always be on top.
 
-        window_node->element.width = KAN_UI_VALUE_VH (0.9f);
-        window_node->element.height = KAN_UI_VALUE_VH (0.3f);
+        KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL (remark_text, "Button colors are selected from color table by the way.",
+                                                default_text_mark);
+        KAN_UIM_WIDGET_TEXT (remark_text, KAN_UI_VALUE_PX (24.0f));
+        remark_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
+        remark_text_node->local_element_order = -100;
 
-        window_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
-        window_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
-        window_node->local_element_order = 0;
+        KAN_NEW_TEXT_SHAPING_UNIT (icons_test_text);
+        icons_test_text_shaping_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER;
 
-        window_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;
-        window_node->layout.padding = KAN_UI_RECT_PT (16.0f, 16.0f, 16.0f, 16.0f);
-        window_node->render.clip = true;
+        KAN_NEW_TEXT_SHAPING_UNIT_CUSTOM_TEXT (icons_test_text) {
+            KAN_INIT_TEXT_ITEM_ICON (image_shield, 0.8f, 0.8f),  KAN_INIT_TEXT_ITEM_ICON (image_shield, 0.8f, 0.8f),
+            KAN_INIT_TEXT_ITEM_ICON (image_shield, 0.8f, 0.8f),  KAN_INIT_TEXT_ITEM_STYLE (NULL, default_text_mark),
+            KAN_INIT_TEXT_ITEM_UTF8 (" this text tests icons "), KAN_INIT_TEXT_ITEM_ICON (image_shield, 0.8f, 0.8f),
+            KAN_INIT_TEXT_ITEM_ICON (image_shield, 0.8f, 0.8f),  KAN_INIT_TEXT_ITEM_ICON (image_shield, 0.8f, 0.8f),
+        };
 
-        KAN_UMO_INDEXED_INSERT (window_drawable, kan_ui_node_drawable_t)
+        KAN_UIM_WIDGET_TEXT (icons_test_text, KAN_UI_VALUE_PX (24.0f));
+        icons_test_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
+        icons_test_text_node->local_element_order = 100;
+
+        KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL (bottom_text, "This text should always be at the bottom.",
+                                                default_text_mark);
+        bottom_text_shaping_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_RIGHT;
+
+        KAN_UIM_WIDGET_TEXT (bottom_text, KAN_UI_VALUE_PX (24.0f));
+        bottom_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
+        bottom_text_node->local_element_order = 999; // Big value to always be on bottom.
+
+        KAN_UIM_NEW_NODE (horizontal);
+        horizontal_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN | KAN_UI_SIZE_FLAG_GROW;
+        horizontal_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
+        horizontal_node->local_element_order = 0;
+        horizontal_node->layout.layout = KAN_UI_LAYOUT_HORIZONTAL_CONTAINER;
+
+        KAN_UIM_CHILDREN (horizontal)
         {
-            window_drawable->id = window_node->id;
-            window_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_IMAGE;
-            window_drawable->main_draw_command.image = KAN_UI_IMAGE_COMMAND_DEFAULT (image_window);
-        }
-
-        KAN_UMO_INDEXED_INSERT (top_text_node, kan_ui_node_t)
-        {
-            top_text_node->id = kan_next_ui_node_id (ui);
-            top_text_node->parent_id = window_node->id;
-
-            top_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-            top_text_node->local_element_order = -999; // Small value to always be on top.
-
-            ADD_TEXT_SHAPING_UNIT (node_text, KAN_TEXT_SHAPING_ALIGNMENT_LEFT,
-                                   "Centered window with nine-slice buttons for tests.")
-
-            KAN_UMO_INDEXED_INSERT (top_text_drawable, kan_ui_node_drawable_t)
-            {
-                top_text_drawable->id = top_text_node->id;
-                top_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
-                top_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                top_text_drawable->main_draw_command.text.handle_alignment_on_overflow = true;
-            }
-
-            KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
-            {
-                text_behavior->id = top_text_node->id;
-                text_behavior->shaping_unit_id = node_text_id;
-                text_behavior->font_size = KAN_UI_VALUE_PX (24.0f);
-                text_behavior->sync_text_limit_from_ui = true;
-                text_behavior->sync_ui_size_from_text_secondary = true;
-            }
-        }
-
-        KAN_UMO_INDEXED_INSERT (remark_text_node, kan_ui_node_t)
-        {
-            remark_text_node->id = kan_next_ui_node_id (ui);
-            remark_text_node->parent_id = window_node->id;
-
-            remark_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-            remark_text_node->local_element_order = -100;
-
-            ADD_TEXT_SHAPING_UNIT (node_text, KAN_TEXT_SHAPING_ALIGNMENT_LEFT,
-                                   "Button colors are selected from color table by the way.")
-
-            KAN_UMO_INDEXED_INSERT (remark_text_drawable, kan_ui_node_drawable_t)
-            {
-                remark_text_drawable->id = remark_text_node->id;
-                remark_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
-                remark_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                remark_text_drawable->main_draw_command.text.handle_alignment_on_overflow = true;
-            }
-
-            KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
-            {
-                text_behavior->id = remark_text_node->id;
-                text_behavior->shaping_unit_id = node_text_id;
-                text_behavior->font_size = KAN_UI_VALUE_PX (24.0f);
-                text_behavior->sync_text_limit_from_ui = true;
-                text_behavior->sync_ui_size_from_text_secondary = true;
-            }
-        }
-
-        KAN_UMO_INDEXED_INSERT (icons_test_text_node, kan_ui_node_t)
-        {
-            icons_test_text_node->id = kan_next_ui_node_id (ui);
-            icons_test_text_node->parent_id = window_node->id;
-
-            icons_test_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-            icons_test_text_node->local_element_order = 100;
-
-            const kan_text_shaping_unit_id_t node_text_id = kan_next_text_shaping_unit_id (text_shaping);
-            KAN_UMO_INDEXED_INSERT (icons_test_text_unit, kan_text_shaping_unit_t)
-            {
-                icons_test_text_unit->id = node_text_id;
-                icons_test_text_unit->request.font_size = 24u;
-                icons_test_text_unit->request.render_format = KAN_FONT_GLYPH_RENDER_FORMAT_SDF;
-                icons_test_text_unit->request.orientation = KAN_TEXT_ORIENTATION_HORIZONTAL;
-                icons_test_text_unit->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
-                icons_test_text_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER;
-                icons_test_text_unit->request.primary_axis_limit = 0u;
-                icons_test_text_unit->request.allow_breaks = true;
-                icons_test_text_unit->request.generate_edition_markup = false;
-
-                struct kan_text_item_t text_items[] = {
-                    {
-                        .type = KAN_TEXT_ITEM_ICON,
-                        .icon =
-                            {
-                                .icon_index = image_shield,
-                                .x_scale = 0.8f,
-                                .y_scale = 0.8f,
-                            },
-                    },
-                    {
-                        .type = KAN_TEXT_ITEM_ICON,
-                        .icon =
-                            {
-                                .icon_index = image_shield,
-                                .x_scale = 0.8f,
-                                .y_scale = 0.8f,
-                            },
-                    },
-                    {
-                        .type = KAN_TEXT_ITEM_ICON,
-                        .icon =
-                            {
-                                .icon_index = image_shield,
-                                .x_scale = 0.8f,
-                                .y_scale = 0.8f,
-                            },
-                    },
-                    {
-                        .type = KAN_TEXT_ITEM_STYLE,
-                        .style =
-                            {
-                                .style = NULL,
-                                .mark = KAN_UI_DEFAULT_TEXT_MAKE_MARK (0u, KAN_UI_DEFAULT_TEXT_MARK_FLAG_OUTLINE),
-                            },
-                    },
-                    {
-                        .type = KAN_TEXT_ITEM_UTF8,
-                        .utf8 = " this text tests icons ",
-                    },
-                    {
-                        .type = KAN_TEXT_ITEM_ICON,
-                        .icon =
-                            {
-                                .icon_index = image_shield,
-                                .x_scale = 0.8f,
-                                .y_scale = 0.8f,
-                            },
-                    },
-                    {
-                        .type = KAN_TEXT_ITEM_ICON,
-                        .icon =
-                            {
-                                .icon_index = image_shield,
-                                .x_scale = 0.8f,
-                                .y_scale = 0.8f,
-                            },
-                    },
-                    {
-                        .type = KAN_TEXT_ITEM_ICON,
-                        .icon =
-                            {
-                                .icon_index = image_shield,
-                                .x_scale = 0.8f,
-                                .y_scale = 0.8f,
-                            },
-                    },
-                };
-
-                struct kan_text_description_t description = {
-                    .items_count = sizeof (text_items) / sizeof (text_items[0u]),
-                    .items = text_items,
-                    .guide_bidi_with_direction = false,
-                    .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
-                };
-
-                icons_test_text_unit->request.text = kan_text_create (&description);
-                icons_test_text_unit->stable = true;
-            }
-
-            KAN_UMO_INDEXED_INSERT (icons_test_text_drawable, kan_ui_node_drawable_t)
-            {
-                icons_test_text_drawable->id = icons_test_text_node->id;
-                icons_test_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
-                icons_test_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                icons_test_text_drawable->main_draw_command.text.handle_alignment_on_overflow = true;
-            }
-
-            KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
-            {
-                text_behavior->id = icons_test_text_node->id;
-                text_behavior->shaping_unit_id = node_text_id;
-                text_behavior->font_size = KAN_UI_VALUE_PX (24.0f);
-                text_behavior->sync_text_limit_from_ui = true;
-                text_behavior->sync_ui_size_from_text_secondary = true;
-            }
-        }
-
-        KAN_UMO_INDEXED_INSERT (bottom_text_node, kan_ui_node_t)
-        {
-            bottom_text_node->id = kan_next_ui_node_id (ui);
-            bottom_text_node->parent_id = window_node->id;
-
-            bottom_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-            bottom_text_node->local_element_order = 999; // Big value to always be on bottom.
-
-            ADD_TEXT_SHAPING_UNIT (node_text, KAN_TEXT_SHAPING_ALIGNMENT_RIGHT,
-                                   "This text should always be at the bottom.")
-
-            KAN_UMO_INDEXED_INSERT (bottom_text_drawable, kan_ui_node_drawable_t)
-            {
-                bottom_text_drawable->id = bottom_text_node->id;
-                bottom_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
-                bottom_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                bottom_text_drawable->main_draw_command.text.handle_alignment_on_overflow = true;
-            }
-
-            KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
-            {
-                text_behavior->id = bottom_text_node->id;
-                text_behavior->shaping_unit_id = node_text_id;
-                text_behavior->font_size = KAN_UI_VALUE_PX (24.0f);
-                text_behavior->sync_text_limit_from_ui = true;
-                text_behavior->sync_ui_size_from_text_secondary = true;
-            }
-        }
-
-        KAN_UMO_INDEXED_INSERT (horizontal_node, kan_ui_node_t)
-        {
-            horizontal_node->id = kan_next_ui_node_id (ui);
-            horizontal_node->parent_id = window_node->id;
-
-            horizontal_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN | KAN_UI_SIZE_FLAG_GROW;
-            horizontal_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
-            horizontal_node->local_element_order = 0;
-            horizontal_node->layout.layout = KAN_UI_LAYOUT_HORIZONTAL_CONTAINER;
-
             for (kan_loop_size_t column = 0u; column < 3u; ++column)
             {
-                KAN_UMO_INDEXED_INSERT (column_node, kan_ui_node_t)
+                KAN_UIM_NEW_NODE (column);
+                column_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
+                column_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
+
+                if (column == 1u)
                 {
-                    column_node->id = kan_next_ui_node_id (ui);
-                    column_node->parent_id = horizontal_node->id;
+                    column_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
+                }
 
-                    column_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
-                    column_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
+                column_node->element.margin = KAN_UI_RECT_PT (16.0f, 16.0f, 0.0f, 0.0f);
+                column_node->local_element_order = (kan_instance_offset_t) column;
+                column_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;
+                const kan_instance_size_t button_type_count = sizeof (button_images) / sizeof (button_images[0u]);
 
-                    if (column == 1u)
-                    {
-                        column_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-                    }
-
-                    column_node->element.margin = KAN_UI_RECT_PT (16.0f, 16.0f, 0.0f, 0.0f);
-                    column_node->local_element_order = (kan_instance_offset_t) column;
-                    column_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;
-                    const kan_instance_size_t button_type_count = sizeof (button_images) / sizeof (button_images[0u]);
-
+                KAN_UIM_CHILDREN (column)
+                {
                     for (kan_loop_size_t button = 0u; button < 6u; ++button)
                     {
-                        KAN_UMO_INDEXED_INSERT (button_node, kan_ui_node_t)
+                        KAN_UIM_WIDGET_IMAGE (button,
+                                              KAN_UI_IMAGE_COMMAND_DEFAULT (button_images[button % button_type_count]));
+
+                        if (column == 1u)
                         {
-                            button_node->id = kan_next_ui_node_id (ui);
-                            button_node->parent_id = column_node->id;
+                            button_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
+                        }
 
-                            if (column == 1u)
-                            {
-                                button_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-                            }
+                        button_node->element.width = KAN_UI_VALUE_VH (button_sizes[button % button_type_count]);
+                        button_node->element.height = KAN_UI_VALUE_VH (0.05f);
+                        button_node->element.margin = KAN_UI_RECT_PT (16.0f, 16.0f, 16.0f, 16.0f);
 
-                            button_node->element.width = KAN_UI_VALUE_VH (button_sizes[button % button_type_count]);
-                            button_node->element.height = KAN_UI_VALUE_VH (0.05f);
-                            button_node->element.margin = KAN_UI_RECT_PT (16.0f, 16.0f, 16.0f, 16.0f);
+                        button_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
+                        button_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
 
-                            button_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
-                            button_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
-                            button_node->local_element_order = (kan_instance_offset_t) button;
+                        KAN_UIM_CHILDREN (button)
+                        {
+                            KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL (
+                                button_text, button_texts[button % button_type_count], default_text_mark);
+                            button_text_shaping_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER;
 
-                            KAN_UMO_INDEXED_INSERT (button_drawable, kan_ui_node_drawable_t)
-                            {
-                                button_drawable->id = button_node->id;
-                                button_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_IMAGE;
-                                button_drawable->main_draw_command.image =
-                                    KAN_UI_IMAGE_COMMAND_DEFAULT (button_images[button % button_type_count]);
-                            }
-
-                            KAN_UMO_INDEXED_INSERT (button_text_node, kan_ui_node_t)
-                            {
-                                button_text_node->id = kan_next_ui_node_id (ui);
-                                button_text_node->parent_id = button_node->id;
-
-                                button_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-                                button_text_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
-                                button_text_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
-
-                                ADD_TEXT_SHAPING_UNIT (node_text, KAN_TEXT_SHAPING_ALIGNMENT_CENTER,
-                                                       button_texts[button % button_type_count])
-
-                                KAN_UMO_INDEXED_INSERT (button_text_drawable, kan_ui_node_drawable_t)
-                                {
-                                    button_text_drawable->id = button_text_node->id;
-                                    button_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;
-                                    button_text_drawable->main_draw_command.text.shaping_unit = node_text_id;
-                                    button_text_drawable->main_draw_command.text.handle_alignment_on_overflow = true;
-                                }
-
-                                KAN_UMO_INDEXED_INSERT (text_behavior, kan_ui_node_text_behavior_t)
-                                {
-                                    text_behavior->id = button_text_node->id;
-                                    text_behavior->shaping_unit_id = node_text_id;
-                                    text_behavior->font_size = KAN_UI_VALUE_PX (24.0f);
-                                    text_behavior->sync_text_limit_from_ui = true;
-                                    text_behavior->sync_ui_size_from_text_secondary = true;
-                                }
-                            }
+                            KAN_UIM_WIDGET_TEXT (button_text, KAN_UI_VALUE_PX (24.0f));
+                            button_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
+                            button_text_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
+                            button_text_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
                         }
                     }
                 }
@@ -484,82 +229,55 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
         }
     }
 
-    KAN_UMO_INDEXED_INSERT (status_row_node, kan_ui_node_t)
+    KAN_UIM_NEW_NODE (status_row);
+    status_row_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
+    status_row_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
+
+    status_row_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
+    status_row_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_BOTTOM;
+
+    status_row_node->layout.layout = KAN_UI_LAYOUT_HORIZONTAL_CONTAINER;
+    status_row_node->render.clip = true;
+
+    KAN_UIM_CHILDREN (status_row)
     {
-        status_row_node->id = kan_next_ui_node_id (ui);
-        status_row_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
-        status_row_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
-
-        status_row_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
-        status_row_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_BOTTOM;
-        status_row_node->local_element_order = 1;
-
-        status_row_node->layout.layout = KAN_UI_LAYOUT_HORIZONTAL_CONTAINER;
-        status_row_node->render.clip = true;
-
         for (kan_loop_size_t index = 0u; index < 9u; ++index)
         {
-            KAN_UMO_INDEXED_INSERT (status_node, kan_ui_node_t)
-            {
-                status_node->id = kan_next_ui_node_id (ui);
-                status_node->parent_id = status_row_node->id;
+            KAN_UIM_WIDGET_IMAGE (status, KAN_UI_IMAGE_COMMAND_DEFAULT (image_shield));
+            status_node->element.width = KAN_UI_VALUE_VH (0.075f);
+            status_node->element.height = KAN_UI_VALUE_VH (0.075f);
+            status_node->element.margin = KAN_UI_RECT_PT (3.0f, 3.0f, 3.0f, 3.0f);
 
-                status_node->element.width = KAN_UI_VALUE_VH (0.075f);
-                status_node->element.height = KAN_UI_VALUE_VH (0.075f);
-                status_node->element.margin = KAN_UI_RECT_PT (3.0f, 3.0f, 3.0f, 3.0f);
-
-                status_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
-                status_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
-                status_node->local_element_order = (kan_instance_offset_t) index;
-
-                KAN_UMO_INDEXED_INSERT (status_drawable, kan_ui_node_drawable_t)
-                {
-                    status_drawable->id = status_node->id;
-                    status_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_IMAGE;
-                    status_drawable->main_draw_command.image = KAN_UI_IMAGE_COMMAND_DEFAULT (image_shield);
-                }
-            }
+            status_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
+            status_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
         }
     }
 
-    KAN_UMO_INDEXED_INSERT (tiled_column_node, kan_ui_node_t)
+    KAN_UIM_NEW_NODE (tiled_column);
+    tiled_column_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
+    tiled_column_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
+
+    tiled_column_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT;
+    tiled_column_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_TOP;
+    tiled_column_node->local_element_order = -1; // Below window.
+
+    tiled_column_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;
+    tiled_column_node->render.clip = true;
+
+    KAN_UIM_CHILDREN (tiled_column)
     {
-        tiled_column_node->id = kan_next_ui_node_id (ui);
-        tiled_column_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
-        tiled_column_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
-
-        tiled_column_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT;
-        tiled_column_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_TOP;
-        tiled_column_node->local_element_order = -1; // Below window.
-
-        tiled_column_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;
-        tiled_column_node->render.clip = true;
-
         const float widths[] = {0.8f, 0.4f, 0.2f};
         const float heights[] = {0.2f, 0.1f, 0.4f};
 
         for (kan_loop_size_t index = 0u; index < sizeof (widths) / sizeof (widths[0u]); ++index)
         {
-            KAN_UMO_INDEXED_INSERT (tiled_node, kan_ui_node_t)
-            {
-                tiled_node->id = kan_next_ui_node_id (ui);
-                tiled_node->parent_id = tiled_column_node->id;
+            KAN_UIM_WIDGET_IMAGE (tiled, KAN_UI_IMAGE_COMMAND_DEFAULT (image_tiled_slice));
+            tiled_node->element.width = KAN_UI_VALUE_VH (widths[index]);
+            tiled_node->element.height = KAN_UI_VALUE_VH (heights[index]);
+            tiled_node->element.margin = KAN_UI_RECT_PT (3.0f, 3.0f, 32.0f, 32.0f);
 
-                tiled_node->element.width = KAN_UI_VALUE_VH (widths[index]);
-                tiled_node->element.height = KAN_UI_VALUE_VH (heights[index]);
-                tiled_node->element.margin = KAN_UI_RECT_PT (3.0f, 3.0f, 32.0f, 32.0f);
-
-                tiled_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT;
-                tiled_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_TOP;
-                tiled_node->local_element_order = (kan_instance_offset_t) index;
-
-                KAN_UMO_INDEXED_INSERT (tiled_drawable, kan_ui_node_drawable_t)
-                {
-                    tiled_drawable->id = tiled_node->id;
-                    tiled_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_IMAGE;
-                    tiled_drawable->main_draw_command.image = KAN_UI_IMAGE_COMMAND_DEFAULT (image_tiled_slice);
-                }
-            }
+            tiled_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT;
+            tiled_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_TOP;
         }
     };
 

@@ -168,6 +168,36 @@ struct kan_text_item_t
     };
 };
 
+/// \brief Convenience macro for filling out empty text item.
+#define KAN_INIT_TEXT_ITEM_EMPTY                                                                                       \
+    (struct kan_text_item_t) { .type = KAN_TEXT_ITEM_EMPTY, }
+
+/// \brief Convenience macro for filling out utf8 text item.
+#define KAN_INIT_TEXT_ITEM_UTF8(DATA)                                                                                  \
+    (struct kan_text_item_t) { .type = KAN_TEXT_ITEM_UTF8, .utf8 = (DATA), }
+
+/// \brief Convenience macro for filling out icon text item.
+#define KAN_INIT_TEXT_ITEM_ICON(INDEX, X_SCALE, Y_SCALE)                                                               \
+    (struct kan_text_item_t)                                                                                           \
+    {                                                                                                                  \
+        .type = KAN_TEXT_ITEM_ICON,                                                                                    \
+        .icon = {                                                                                                      \
+            .icon_index = (INDEX),                                                                                     \
+            .x_scale = (X_SCALE),                                                                                      \
+            .y_scale = (Y_SCALE),                                                                                      \
+        },                                                                                                             \
+    }
+
+/// \brief Convenience macro for filling out style text item.
+#define KAN_INIT_TEXT_ITEM_STYLE(STYLE, MARK)                                                                          \
+    (struct kan_text_item_t)                                                                                           \
+    {                                                                                                                  \
+        .type = KAN_TEXT_ITEM_STYLE, .style = {                                                                        \
+            .style = (STYLE),                                                                                          \
+            .mark = (MARK),                                                                                            \
+        }                                                                                                              \
+    }
+
 /// \brief Describes how to construct text object.
 struct kan_text_description_t
 {

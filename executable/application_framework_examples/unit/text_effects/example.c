@@ -223,18 +223,8 @@ static void update_dirty_text (struct example_text_effects_singleton_t *singleto
     snprintf (buffer, sizeof (buffer), "Text that is reshaped once per second: %u.", (unsigned int) seconds);
 
     struct kan_text_item_t text_items[] = {
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = buffer,
-        },
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE)),
+        KAN_INIT_TEXT_ITEM_UTF8 (buffer),
     };
 
     struct kan_text_description_t description = {
@@ -260,18 +250,8 @@ static void update_unstable_text (struct kan_text_shaping_unit_t *text)
               (unsigned int) ((kan_precise_time_get_elapsed_nanoseconds () / 1000000u) % 1000u));
 
     struct kan_text_item_t text_items[] = {
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = buffer,
-        },
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE)),
+        KAN_INIT_TEXT_ITEM_UTF8 (buffer),
     };
 
     struct kan_text_description_t description = {
@@ -296,174 +276,34 @@ static void update_showcase_text (struct kan_text_shaping_unit_t *text)
     text->request.generate_edition_markup = false;
 
     struct kan_text_item_t text_items[] = {
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "This text is used to showcase various shader-based effects inside one text unit.\n",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = TEXT_MAKE_MARK (0u, 0u),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "It can be just white without outline. ",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = TEXT_MAKE_MARK (1u, 0u),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "It can be red. ",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = TEXT_MAKE_MARK (1u, TEXT_MARK_FLAG_OUTLINE),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "With outline! ",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = TEXT_MAKE_MARK (2u, TEXT_MARK_FLAG_OUTLINE),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "And green! ",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = TEXT_MAKE_MARK (3u, TEXT_MARK_FLAG_OUTLINE),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "And blue!\n",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = kan_string_intern ("bold"),
-                    .mark = TEXT_MAKE_MARK (0u, 0u),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "Let's make this text ",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = kan_string_intern ("bold"),
-                    .mark = TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "BOLD",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = kan_string_intern ("bold"),
-                    .mark = TEXT_MAKE_MARK (0u, 0u),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = " again. ",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "And back to regular now.\n",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE | TEXT_MARK_FLAG_SIN_ANIMATION),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "We can also do some color animations. ",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = TEXT_MAKE_MARK (1u, TEXT_MARK_FLAG_SIN_ANIMATION),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "Also. ",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = TEXT_MAKE_MARK (2u, TEXT_MARK_FLAG_SIN_ANIMATION),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "Also. ",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = TEXT_MAKE_MARK (3u, TEXT_MARK_FLAG_SIN_ANIMATION),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "Also.\n",
-        },
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE)),
+        KAN_INIT_TEXT_ITEM_UTF8 ("This text is used to showcase various shader-based effects inside one text unit.\n"),
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, TEXT_MAKE_MARK (0u, 0u)),
+        KAN_INIT_TEXT_ITEM_UTF8 ("It can be just white without outline. "),
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, TEXT_MAKE_MARK (1u, 0u)),
+        KAN_INIT_TEXT_ITEM_UTF8 ("It can be red. "),
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, TEXT_MAKE_MARK (1u, TEXT_MARK_FLAG_OUTLINE)),
+        KAN_INIT_TEXT_ITEM_UTF8 ("With outline! "),
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, TEXT_MAKE_MARK (2u, TEXT_MARK_FLAG_OUTLINE)),
+        KAN_INIT_TEXT_ITEM_UTF8 ("And green! "),
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, TEXT_MAKE_MARK (3u, TEXT_MARK_FLAG_OUTLINE)),
+        KAN_INIT_TEXT_ITEM_UTF8 ("And blue!\n"),
+        KAN_INIT_TEXT_ITEM_STYLE (kan_string_intern ("bold"), TEXT_MAKE_MARK (0u, 0u)),
+        KAN_INIT_TEXT_ITEM_UTF8 ("Let's make this text "),
+        KAN_INIT_TEXT_ITEM_STYLE (kan_string_intern ("bold"), TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE)),
+        KAN_INIT_TEXT_ITEM_UTF8 ("BOLD"),
+        KAN_INIT_TEXT_ITEM_STYLE (kan_string_intern ("bold"), TEXT_MAKE_MARK (0u, 0u)),
+        KAN_INIT_TEXT_ITEM_UTF8 (" again. "),
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE)),
+        KAN_INIT_TEXT_ITEM_UTF8 ("And back to regular now.\n"),
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE | TEXT_MARK_FLAG_SIN_ANIMATION)),
+        KAN_INIT_TEXT_ITEM_UTF8 ("We can also do some color animations. "),
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, TEXT_MAKE_MARK (1u, TEXT_MARK_FLAG_SIN_ANIMATION)),
+        KAN_INIT_TEXT_ITEM_UTF8 ("Also. "),
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, TEXT_MAKE_MARK (2u, TEXT_MARK_FLAG_SIN_ANIMATION)),
+        KAN_INIT_TEXT_ITEM_UTF8 ("Also. "),
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, TEXT_MAKE_MARK (3u, TEXT_MARK_FLAG_SIN_ANIMATION)),
+        KAN_INIT_TEXT_ITEM_UTF8 ("Also.\n"),
     };
 
     struct kan_text_description_t description = {
@@ -489,26 +329,16 @@ static void update_reading_text (struct kan_text_shaping_unit_t *text)
     text->request.generate_edition_markup = false;
 
     struct kan_text_item_t text_items[] = {
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE | TEXT_MARK_FLAG_READING_ANIMATION),
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 =
-                "This text is copied from wikipedia and used to showcase how \"reading appearance\" can be done.\n\n"
-                "Robert Guiscard also referred to as Robert de Hauteville, was a Norman adventurer remembered for "
-                "his conquest of southern Italy and Sicily in the 11th century.\n"
-                "\n"
-                "Robert was born into the Hauteville family in Normandy, the sixth son of Tancred de Hauteville "
-                "and his wife Fressenda. He inherited the County of Apulia and Calabria from his brother in 1057, "
-                "and in 1059 he was made Duke of Apulia and Calabria and Lord of Sicily by Pope Nicholas II. He "
-                "was also briefly Prince of Benevento (1078–1081), before returning the title to the papacy.\n",
-        },
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE | TEXT_MARK_FLAG_READING_ANIMATION)),
+        KAN_INIT_TEXT_ITEM_UTF8 (
+            "This text is copied from wikipedia and used to showcase how \"reading appearance\" can be done.\n\n"
+            "Robert Guiscard also referred to as Robert de Hauteville, was a Norman adventurer remembered for "
+            "his conquest of southern Italy and Sicily in the 11th century.\n"
+            "\n"
+            "Robert was born into the Hauteville family in Normandy, the sixth son of Tancred de Hauteville "
+            "and his wife Fressenda. He inherited the County of Apulia and Calabria from his brother in 1057, "
+            "and in 1059 he was made Duke of Apulia and Calabria and Lord of Sicily by Pope Nicholas II. He "
+            "was also briefly Prince of Benevento (1078–1081), before returning the title to the papacy.\n"),
     };
 
     struct kan_text_description_t description = {
@@ -524,50 +354,17 @@ static void update_reading_text (struct kan_text_shaping_unit_t *text)
 
 APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_effects_update)
 {
-    KAN_UMI_SINGLETON_READ (text_singleton, kan_text_shaping_singleton_t)
+    KAN_UMI_SINGLETON_READ (text_shaping, kan_text_shaping_singleton_t)
     KAN_UMI_SINGLETON_WRITE (singleton, example_text_effects_singleton_t)
 
     if (!KAN_TYPED_ID_32_IS_VALID (singleton->stable_text_id))
     {
-        singleton->stable_text_id = kan_next_text_shaping_unit_id (text_singleton);
-        KAN_UMO_INDEXED_INSERT (unit, kan_text_shaping_unit_t)
-        {
-            unit->id = singleton->stable_text_id;
-            unit->stable = true;
+        KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL (stable, "Text that is shaped once and never made dirty.",
+                                                TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE));
 
-            unit->request.font_size = 32u;
-            unit->request.render_format = KAN_FONT_GLYPH_RENDER_FORMAT_SDF;
-            unit->request.orientation = KAN_TEXT_ORIENTATION_HORIZONTAL;
-            unit->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
-            unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT;
-            unit->request.primary_axis_limit = 425u;
-            unit->request.allow_breaks = true;
-            unit->request.generate_edition_markup = false;
-
-            struct kan_text_item_t text_items[] = {
-                {
-                    .type = KAN_TEXT_ITEM_STYLE,
-                    .style =
-                        {
-                            .style = NULL,
-                            .mark = TEXT_MAKE_MARK (0u, TEXT_MARK_FLAG_OUTLINE),
-                        },
-                },
-                {
-                    .type = KAN_TEXT_ITEM_UTF8,
-                    .utf8 = "Text that is shaped once and never made dirty.",
-                },
-            };
-
-            struct kan_text_description_t description = {
-                .items_count = sizeof (text_items) / sizeof (text_items[0u]),
-                .items = text_items,
-                .guide_bidi_with_direction = false,
-                .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
-            };
-
-            unit->request.text = kan_text_create (&description);
-        }
+        stable_shaping_unit->request.font_size = 32u;
+        stable_shaping_unit->request.primary_axis_limit = 425u;
+        singleton->stable_text_id = stable_shaping_unit->id;
 
         // Initialize locale here as well, because this will only be executed once.
         KAN_UMI_SINGLETON_WRITE (locale, kan_locale_singleton_t)
@@ -576,22 +373,14 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
 
     if (!KAN_TYPED_ID_32_IS_VALID (singleton->dirty_text_id))
     {
-        singleton->dirty_text_id = kan_next_text_shaping_unit_id (text_singleton);
-        KAN_UMO_INDEXED_INSERT (unit, kan_text_shaping_unit_t)
-        {
-            unit->id = singleton->dirty_text_id;
-            unit->dirty = true;
+        KAN_NEW_TEXT_SHAPING_UNIT (dirty);
+        dirty_shaping_unit->request.font_size = 32u;
+        dirty_shaping_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER;
+        dirty_shaping_unit->request.primary_axis_limit = 425u;
+        dirty_shaping_unit->dirty = true;
 
-            unit->request.font_size = 32u;
-            unit->request.render_format = KAN_FONT_GLYPH_RENDER_FORMAT_SDF;
-            unit->request.orientation = KAN_TEXT_ORIENTATION_HORIZONTAL;
-            unit->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
-            unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER;
-            unit->request.primary_axis_limit = 425u;
-            unit->request.allow_breaks = true;
-            unit->request.generate_edition_markup = false;
-            update_dirty_text (singleton, unit);
-        }
+        singleton->dirty_text_id = dirty_shaping_unit->id;
+        update_dirty_text (singleton, dirty_shaping_unit);
     }
     else
     {
@@ -601,22 +390,14 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
 
     if (!KAN_TYPED_ID_32_IS_VALID (singleton->unstable_text_id))
     {
-        singleton->unstable_text_id = kan_next_text_shaping_unit_id (text_singleton);
-        KAN_UMO_INDEXED_INSERT (unit, kan_text_shaping_unit_t)
-        {
-            unit->id = singleton->unstable_text_id;
-            unit->stable = false;
+        KAN_NEW_TEXT_SHAPING_UNIT (unstable);
+        unstable_shaping_unit->request.font_size = 32u;
+        unstable_shaping_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_RIGHT;
+        unstable_shaping_unit->request.primary_axis_limit = 425u;
+        unstable_shaping_unit->stable = false;
 
-            unit->request.font_size = 32u;
-            unit->request.render_format = KAN_FONT_GLYPH_RENDER_FORMAT_SDF;
-            unit->request.orientation = KAN_TEXT_ORIENTATION_HORIZONTAL;
-            unit->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
-            unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_RIGHT;
-            unit->request.primary_axis_limit = 425u;
-            unit->request.allow_breaks = true;
-            unit->request.generate_edition_markup = false;
-            update_unstable_text (unit);
-        }
+        singleton->unstable_text_id = unstable_shaping_unit->id;
+        update_unstable_text (unstable_shaping_unit);
     }
     else
     {
@@ -626,13 +407,9 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
 
     if (!KAN_TYPED_ID_32_IS_VALID (singleton->showcase_text_id))
     {
-        singleton->showcase_text_id = kan_next_text_shaping_unit_id (text_singleton);
-        KAN_UMO_INDEXED_INSERT (unit, kan_text_shaping_unit_t)
-        {
-            unit->id = singleton->showcase_text_id;
-            unit->stable = true;
-            update_showcase_text (unit);
-        }
+        KAN_NEW_TEXT_SHAPING_UNIT (showcase);
+        singleton->showcase_text_id = showcase_shaping_unit->id;
+        update_showcase_text (showcase_shaping_unit);
     }
     else if (state->just_deployed)
     {
@@ -642,13 +419,9 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
 
     if (!KAN_TYPED_ID_32_IS_VALID (singleton->reading_text_id))
     {
-        singleton->reading_text_id = kan_next_text_shaping_unit_id (text_singleton);
-        KAN_UMO_INDEXED_INSERT (unit, kan_text_shaping_unit_t)
-        {
-            unit->id = singleton->reading_text_id;
-            unit->stable = true;
-            update_reading_text (unit);
-        }
+        KAN_NEW_TEXT_SHAPING_UNIT (reading);
+        singleton->reading_text_id = reading_shaping_unit->id;
+        update_reading_text (reading_shaping_unit);
     }
     else if (state->just_deployed)
     {

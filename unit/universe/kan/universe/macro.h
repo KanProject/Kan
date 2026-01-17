@@ -114,37 +114,21 @@
 
 KAN_C_HEADER_BEGIN
 
-#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
-#    define KAN_UM_GENERATE_STATE_QUERIES(STATE_NAME)                                                                  \
-        /* Highlight-autocomplete replacement. */                                                                      \
-        kan_memory_size_t STATE_NAME##_fake_placeholder_field;
-#else
-#    define KAN_UM_GENERATE_STATE_QUERIES(STATE_NAME) CUSHION_STATEMENT_ACCUMULATOR (universe_queries_##STATE_NAME)
-#endif
+#define KAN_UM_GENERATE_STATE_QUERIES(STATE_NAME)                                                                      \
+    KAN_HIGHLIGHT_ONLY (kan_memory_size_t STATE_NAME##_fake_placeholder_field;)                                        \
+    KAN_NOT_IN_HIGHLIGHT (CUSHION_STATEMENT_ACCUMULATOR (universe_queries_##STATE_NAME))
 
-#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
-#    define KAN_UM_BIND_STATE(STATE_NAME, ...) /* No highlight-time replacement. */
-#else
-#    define KAN_UM_BIND_STATE(STATE_NAME, ...)                                                                         \
-        CUSHION_STATEMENT_ACCUMULATOR_REF (universe_queries, universe_queries_##STATE_NAME)                            \
-        CUSHION_SNIPPET (KAN_UM_STATE_PATH, (__VA_ARGS__))
-#endif
+#define KAN_UM_BIND_STATE(STATE_NAME, ...)                                                                             \
+    KAN_NOT_IN_HIGHLIGHT (CUSHION_STATEMENT_ACCUMULATOR_REF (universe_queries, universe_queries_##STATE_NAME))         \
+    KAN_NOT_IN_HIGHLIGHT (CUSHION_SNIPPET (KAN_UM_STATE_PATH, (__VA_ARGS__)))
 
-#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
-#    define KAN_UM_BIND_STATE_FIELDLESS(STATE_NAME, ...) /* No highlight-time replacement. */
-#else
-#    define KAN_UM_BIND_STATE_FIELDLESS(STATE_NAME, ...)                                                               \
-        CUSHION_STATEMENT_ACCUMULATOR_UNREF (universe_queries)                                                         \
-        CUSHION_SNIPPET (KAN_UM_STATE_PATH, (__VA_ARGS__))
-#endif
+#define KAN_UM_BIND_STATE_FIELDLESS(STATE_NAME, ...)                                                                   \
+    KAN_NOT_IN_HIGHLIGHT (CUSHION_STATEMENT_ACCUMULATOR_UNREF (universe_queries))                                      \
+    KAN_NOT_IN_HIGHLIGHT (CUSHION_SNIPPET (KAN_UM_STATE_PATH, (__VA_ARGS__)))
 
-#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
-#    define KAN_UM_UNBIND_STATE /* No highlight-time replacement. */
-#else
-#    define KAN_UM_UNBIND_STATE                                                                                        \
-        CUSHION_STATEMENT_ACCUMULATOR_UNREF (universe_queries)                                                         \
-        CUSHION_SNIPPET (KAN_UM_STATE_PATH, (kan_up_state_path_not_initialized))
-#endif
+#define KAN_UM_UNBIND_STATE                                                                                            \
+    KAN_NOT_IN_HIGHLIGHT (CUSHION_STATEMENT_ACCUMULATOR_UNREF (universe_queries))                                      \
+    KAN_NOT_IN_HIGHLIGHT (CUSHION_SNIPPET (KAN_UM_STATE_PATH, (kan_up_state_path_not_initialized)))
 
 #define KAN_UM_MUTATOR_DEPLOY_SIGNATURE(FUNCTION_NAME, STATE_TYPE)                                                     \
     void FUNCTION_NAME (kan_universe_t universe, kan_universe_world_t world, kan_repository_t world_repository,        \
@@ -202,28 +186,19 @@ KAN_C_HEADER_BEGIN
     TARGET = NAME##_access;                                                                                            \
     *(typeof_unqual (NAME) *) &NAME = NULL
 
-#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
-#    define KAN_UM_ACCESS_DELETE(NAME)                                                                                 \
-        /* Highlight results in error with "no variable" if query highlight didn't declare this variable marking       \
-         * delete as allowed for this query type. */                                                                   \
-        delete_allowed_for_highlight_##NAME = true;                                                                    \
-        *(typeof_unqual (NAME) *) &NAME = NULL
-#else
-#    define KAN_UM_ACCESS_DELETE(NAME)                                                                                 \
-        KAN_SNIPPET_DELETE_ACCESS_##NAME;                                                                              \
-        *(typeof_unqual (NAME) *) &NAME = NULL
-#endif
+#define KAN_UM_ACCESS_DELETE(NAME)                                                                                     \
+    /* Highlight results in error with "no variable" if query highlight didn't declare this variable marking           \
+     * delete as allowed for this query type. */                                                                       \
+    KAN_HIGHLIGHT_ONLY (delete_allowed_for_highlight_##NAME = true;)                                                   \
+    KAN_NOT_IN_HIGHLIGHT (KAN_SNIPPET_DELETE_ACCESS_##NAME;)                                                           \
+    *(typeof_unqual (NAME) *) &NAME = NULL
 
-#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
-#    define KAN_UM_ACCESS_CLOSE_IMMEDIATELY(NAME) *(typeof_unqual (NAME) *) &NAME = NULL
-#else
-#    define KAN_UM_ACCESS_CLOSE_IMMEDIATELY(NAME)                                                                      \
-        if (NAME)                                                                                                      \
-        {                                                                                                              \
-            KAN_SNIPPET_CLOSE_ACCESS_##NAME;                                                                           \
-            *(typeof_unqual (NAME) *) &NAME = NULL;                                                                    \
-        }
-#endif
+#define KAN_UM_ACCESS_CLOSE_IMMEDIATELY(NAME)                                                                          \
+    if (NAME)                                                                                                          \
+    {                                                                                                                  \
+        KAN_NOT_IN_HIGHLIGHT (KAN_SNIPPET_CLOSE_ACCESS_##NAME;)                                                        \
+    }                                                                                                                  \
+    *(typeof_unqual (NAME) *) &NAME = NULL
 
 #define KAN_UM_INTERNAL_STATE_FIELD(QUERY_TYPE, FIELD_NAME)                                                            \
     CUSHION_STATEMENT_ACCUMULATOR_PUSH (universe_queries, unique, optional) { struct QUERY_TYPE FIELD_NAME; }

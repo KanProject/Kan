@@ -208,7 +208,7 @@ TEST_ROUTINE_API KAN_UM_MUTATOR_EXECUTE (test_routine)
 
                     kan_file_system_path_container_copy_string (&output_path_container, setup->screenshot_base_name);
                     kan_file_system_path_container_add_suffix (&output_path_container, "_0");
-                    output_path_container.path[output_path_container.length - 1u] += index;
+                    output_path_container.path[output_path_container.length - 1u] += (char) index;
                     kan_file_system_path_container_add_suffix (&output_path_container, ".png");
 
                     struct kan_stream_t *output_stream =

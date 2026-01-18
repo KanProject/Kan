@@ -145,7 +145,7 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
     KAN_UIM_CLEAR_EVERYTHING
     KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
     KAN_UIM_PREPARE_ROOT;
-    
+
     const uint32_t default_text_mark = KAN_UI_DEFAULT_TEXT_MAKE_MARK (0u, KAN_UI_DEFAULT_TEXT_MARK_FLAG_OUTLINE);
     const float outline_enlarge_factor = 1.0625f;
 
@@ -168,9 +168,9 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
         {
             KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL (button, "Hello, world!", default_text_mark);
             button_shaping_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER;
-            
-            KAN_UIM_WIDGET_TEXT_BUTTON (button, KAN_STATIC_INTERNED_ID_GET (default),
-                                        KAN_UI_VALUE_PT (24.0f), outline_enlarge_factor);
+
+            KAN_UIM_WIDGET_TEXT_BUTTON (button, KAN_STATIC_INTERNED_ID_GET (default), KAN_UI_VALUE_PT (24.0f),
+                                        outline_enlarge_factor);
 
             if (button == 1u)
             {

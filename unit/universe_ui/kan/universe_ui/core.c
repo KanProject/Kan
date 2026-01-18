@@ -2539,7 +2539,8 @@ static void flush_instanced_ui_images (struct ui_render_state_t *state)
         return;
     }
 
-    const kan_instance_size_t instance_count = state->transient.image_bulk_next - state->transient.image_bulk_run_begin;
+    const kan_instance_size_t instance_count =
+        (kan_instance_size_t) (state->transient.image_bulk_next - state->transient.image_bulk_run_begin);
     kan_render_pass_instance_t pass_instance = state->transient.ui_render_graph->final_pass_instance;
 
     if (state->transient.bound_pipeline != UI_BOUND_PIPELINE_IMAGE &&
@@ -2564,7 +2565,7 @@ static void flush_instanced_ui_images (struct ui_render_state_t *state)
     if (state->transient.bound_pipeline == UI_BOUND_PIPELINE_IMAGE)
     {
         const kan_instance_size_t begin_index =
-            state->transient.image_bulk_run_begin - state->transient.image_bulk_slice_begin;
+            (kan_instance_size_t) (state->transient.image_bulk_run_begin - state->transient.image_bulk_slice_begin);
 
         const kan_instance_size_t full_offset =
             state->transient.image_bulk_allocation.slice_offset + begin_index * sizeof (struct image_instanced_data_t);
@@ -2605,8 +2606,8 @@ static void allocate_new_image_bulk_region (struct ui_render_state_t *state)
     if (state->transient.private->previous_frame_instanced_images == 0u)
     {
         // Unknown amount of images, allocate 25% of a page.
-        allocation_size =
-            kan_apply_alignment (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE / 4u, alignof (struct image_instanced_data_t));
+        allocation_size = (kan_instance_size_t) kan_apply_alignment (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE / 4u,
+                                                                     alignof (struct image_instanced_data_t));
     }
     else
     {
@@ -3306,10 +3307,10 @@ void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
     instance->fully_clipped_out = false;
     instance->hidden = false;
 
-    instance->clip_rect.x = 0.0f;
-    instance->clip_rect.y = 0.0f;
-    instance->clip_rect.width = 0.0f;
-    instance->clip_rect.height = 0.0f;
+    instance->clip_rect.x = 0;
+    instance->clip_rect.y = 0;
+    instance->clip_rect.width = 0;
+    instance->clip_rect.height = 0;
 
     instance->main_draw_command.ui_mark = KAN_UI_DEFAULT_MARK_FLAG_NONE;
     instance->main_draw_command.animation_start_time_s = 0.0f;

@@ -838,7 +838,7 @@ static void line_edit_paste_text (struct kan_ui_node_line_edit_behavior_t *behav
     }
 
     const uint8_t *text_utf8 = (uint8_t *) text;
-    const kan_instance_size_t input_length = strlen (text);
+    const kan_instance_size_t input_length = (kan_instance_size_t) strlen (text);
 
     const uint8_t *text_iterator = text_utf8;
     kan_instance_size_t filtered_size = 0u;
@@ -1142,7 +1142,8 @@ static void process_key_down_internal (struct ui_controls_input_state_t *state,
                     if (kan_text_utf8_next (&iterator, line_edit_behavior->content_utf8.data +
                                                            line_edit_behavior->content_utf8.size - 1u))
                     {
-                        const kan_instance_size_t next_at = iterator - line_edit_behavior->content_utf8.data;
+                        const kan_instance_size_t next_at =
+                            (kan_instance_size_t) (iterator - line_edit_behavior->content_utf8.data);
                         line_edit_erase_subsequence (line_edit_behavior, line_edit_behavior->cursor_content_location,
                                                      next_at);
                     }
@@ -2900,7 +2901,7 @@ void kan_ui_node_line_edit_behavior_set_content (struct kan_ui_node_line_edit_be
                                                  kan_interned_string_t content_style,
                                                  uint32_t content_mark)
 {
-    const kan_instance_size_t input_length = strlen (null_terminated_utf8_content);
+    const kan_instance_size_t input_length = (kan_instance_size_t) strlen (null_terminated_utf8_content);
     instance->content_utf8.size = 0u;
     kan_dynamic_array_set_capacity (&instance->content_utf8, input_length + 1u);
     instance->content_utf8.size = input_length + 1u;

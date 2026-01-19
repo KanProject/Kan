@@ -455,7 +455,7 @@ static void update_interacted_scroll_line_visibility (struct ui_controls_input_s
     }
 
     if (behavior->lines_always_visible || interacted_with_hit_box ||
-        KAN_TYPED_ID_32_IS_EQUAL (line_state->id, public->mouse_button_down_on_id))
+        KAN_TYPED_ID_32_IS_EQUAL (line_state->id, public->press_started_on_id))
     {
         line_state->visible_until_s = FLT_MAX;
         return;
@@ -1588,8 +1588,7 @@ static void on_press_motion_internal (struct ui_controls_input_state_t *state,
                                       const struct kan_ui_singleton_t *ui)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id,
-                                   &public->mouse_button_down_on_id)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id, &public->press_started_on_id)
 
     if (scroll_line_state)
     {
@@ -1638,8 +1637,7 @@ static void on_press_begin_internal (struct ui_controls_input_state_t *state,
                                      const struct kan_ui_singleton_t *ui)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id,
-                                   &public->mouse_button_down_on_id)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id, &public->press_started_on_id)
 
     if (scroll_line_state)
     {
@@ -1688,13 +1686,13 @@ static void on_press_begin_internal (struct ui_controls_input_state_t *state,
     }
 
     if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id) &&
-        !KAN_TYPED_ID_32_IS_EQUAL (public->input_receiver_id, public->mouse_button_down_on_id))
+        !KAN_TYPED_ID_32_IS_EQUAL (public->input_receiver_id, public->press_started_on_id))
     {
         deselect_input_receiver_behavior (state, public, private);
     }
 
     KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
-                                   &public->mouse_button_down_on_id)
+                                   &public->press_started_on_id)
 
     if (line_edit_behavior && !line_edit_behavior->content_dirty)
     {
@@ -1821,7 +1819,7 @@ static void process_events (struct ui_controls_input_state_t *state,
                 if (public->press_filtered_in)
                 {
                     KAN_UMO_EVENT_INSERT_INIT (kan_ui_press_end_t) {
-                        .node_id = public->mouse_button_down_on_id,
+                        .node_id = public->press_started_on_id,
                         .mouse_button_down_inclusive_flags = public->mouse_button_down_inclusive_flags,
                         .continuous_press = false,
                         .at_x = public->last_mouse_x,
@@ -1832,7 +1830,7 @@ static void process_events (struct ui_controls_input_state_t *state,
                 }
 
                 public->mouse_button_down_inclusive_flags = 0u;
-                public->mouse_button_down_on_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+                public->press_started_on_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
                 public->press_filtered_in = false;
             }
 
@@ -1858,8 +1856,8 @@ static void process_events (struct ui_controls_input_state_t *state,
             if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_motion.window_id, public->linked_window_id))
             {
                 mouse_hit_box_update = INPUT_HIT_BOX_MOUSE_UPDATE_MODE_EXECUTE;
-                public->last_mouse_x = (kan_instance_offset_t) event->mouse_motion.window_x;
-                public->last_mouse_y = (kan_instance_offset_t) event->mouse_motion.window_y;
+                public->last_mouse_x = public->viewport_offset_x + (kan_instance_offset_t) event->mouse_motion.window_x;
+                public->last_mouse_y = public->viewport_offset_y + (kan_instance_offset_t) event->mouse_motion.window_y;
 
                 if (public->press_filtered_in)
                 {
@@ -1872,8 +1870,8 @@ static void process_events (struct ui_controls_input_state_t *state,
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_MOUSE_BUTTON_DOWN:
             if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_button.window_id, public->linked_window_id))
             {
-                public->last_mouse_x = (kan_instance_offset_t) event->mouse_button.window_x;
-                public->last_mouse_y = (kan_instance_offset_t) event->mouse_button.window_y;
+                public->last_mouse_x = public->viewport_offset_x + (kan_instance_offset_t) event->mouse_button.window_x;
+                public->last_mouse_y = public->viewport_offset_y + (kan_instance_offset_t) event->mouse_button.window_y;
 
                 const uint32_t flag = 1u << event->mouse_button.button;
                 const bool new_press = public->mouse_button_down_flags == 0u;
@@ -1884,13 +1882,12 @@ static void process_events (struct ui_controls_input_state_t *state,
 
                 struct kan_repository_indexed_sequence_read_access_t element_access;
                 const struct kan_ui_node_hit_box_t *element = find_hit_box_at (
-                    state, HIT_BOX_SEARCH_MODE_POINTER, public->viewport_offset_x + public->last_mouse_x,
-                    public->viewport_offset_y + public->last_mouse_y, &element_access);
+                    state, HIT_BOX_SEARCH_MODE_POINTER, public->last_mouse_x, public->last_mouse_y, &element_access);
 
                 public->press_filtered_in = !element || ((new_press || multi_click) && element->interactable &&
                                                          (element->mouse_button_down_flags & flag));
 
-                public->mouse_button_down_on_id =
+                public->press_started_on_id =
                     element && public->press_filtered_in ? element->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
 
                 if (multi_click)
@@ -1898,7 +1895,7 @@ static void process_events (struct ui_controls_input_state_t *state,
                     if (public->press_filtered_in)
                     {
                         KAN_UMO_EVENT_INSERT_INIT (kan_ui_multi_click_t) {
-                            .node_id = public->mouse_button_down_on_id,
+                            .node_id = public->press_started_on_id,
                             .multi_click_button = event->mouse_button.button,
                             .click_count = event->mouse_button.clicks,
                             .mouse_button_down_flags = public->mouse_button_down_flags,
@@ -1916,13 +1913,13 @@ static void process_events (struct ui_controls_input_state_t *state,
                     if (new_press)
                     {
                         public->press_filtered_in = false;
-                        public->mouse_button_down_on_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+                        public->press_started_on_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
                     }
                 }
                 else if (new_press && public->press_filtered_in)
                 {
                     KAN_UMO_EVENT_INSERT_INIT (kan_ui_press_begin_t) {
-                        .node_id = public->mouse_button_down_on_id,
+                        .node_id = public->press_started_on_id,
                         .mouse_button_down_flags = public->mouse_button_down_flags,
                         .at_x = public->last_mouse_x,
                         .at_y = public->last_mouse_y,
@@ -1960,8 +1957,8 @@ static void process_events (struct ui_controls_input_state_t *state,
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_MOUSE_BUTTON_UP:
             if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_button.window_id, public->linked_window_id))
             {
-                public->last_mouse_x = (kan_instance_offset_t) event->mouse_button.window_x;
-                public->last_mouse_y = (kan_instance_offset_t) event->mouse_button.window_y;
+                public->last_mouse_x = public->viewport_offset_x + (kan_instance_offset_t) event->mouse_button.window_x;
+                public->last_mouse_y = public->viewport_offset_y + (kan_instance_offset_t) event->mouse_button.window_y;
 
                 const uint32_t flag = 1u << event->mouse_button.button;
                 const bool end_press = public->mouse_button_down_flags == flag;
@@ -1972,16 +1969,16 @@ static void process_events (struct ui_controls_input_state_t *state,
                     if (public->press_filtered_in)
                     {
                         struct kan_repository_indexed_sequence_read_access_t element_access;
-                        const struct kan_ui_node_hit_box_t *element = find_hit_box_at (
-                            state, HIT_BOX_SEARCH_MODE_POINTER, public->viewport_offset_x + public->last_mouse_x,
-                            public->viewport_offset_y + public->last_mouse_y, &element_access);
+                        const struct kan_ui_node_hit_box_t *element =
+                            find_hit_box_at (state, HIT_BOX_SEARCH_MODE_POINTER, public->last_mouse_x,
+                                             public->last_mouse_y, &element_access);
 
                         const kan_ui_node_id_t end_node_id =
                             element ? element->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
-                        const bool continuous = KAN_TYPED_ID_32_IS_EQUAL (end_node_id, public->mouse_button_down_on_id);
+                        const bool continuous = KAN_TYPED_ID_32_IS_EQUAL (end_node_id, public->press_started_on_id);
 
                         KAN_UMO_EVENT_INSERT_INIT (kan_ui_press_end_t) {
-                            .node_id = public->mouse_button_down_on_id,
+                            .node_id = public->press_started_on_id,
                             .mouse_button_down_inclusive_flags = public->mouse_button_down_inclusive_flags,
                             .continuous_press = continuous,
                             .at_x = public->last_mouse_x,
@@ -1999,7 +1996,7 @@ static void process_events (struct ui_controls_input_state_t *state,
                     }
 
                     public->mouse_button_down_inclusive_flags = 0u;
-                    public->mouse_button_down_on_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+                    public->press_started_on_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
                     public->press_filtered_in = false;
                 }
             }
@@ -2010,13 +2007,12 @@ static void process_events (struct ui_controls_input_state_t *state,
         {
             if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_wheel.window_id, public->linked_window_id))
             {
-                public->last_mouse_x = (kan_instance_offset_t) event->mouse_wheel.window_x;
-                public->last_mouse_y = (kan_instance_offset_t) event->mouse_wheel.window_y;
+                public->last_mouse_x = public->viewport_offset_x + (kan_instance_offset_t) event->mouse_wheel.window_x;
+                public->last_mouse_y = public->viewport_offset_y + (kan_instance_offset_t) event->mouse_wheel.window_y;
 
                 struct kan_repository_indexed_sequence_read_access_t element_access;
                 const struct kan_ui_node_hit_box_t *element = find_hit_box_at (
-                    state, HIT_BOX_SEARCH_MODE_SCROLL, public->viewport_offset_x + public->last_mouse_x,
-                    public->viewport_offset_y + public->last_mouse_y, &element_access);
+                    state, HIT_BOX_SEARCH_MODE_SCROLL, public->last_mouse_x, public->last_mouse_y, &element_access);
 
                 if (element)
                 {
@@ -2083,9 +2079,8 @@ static void process_events (struct ui_controls_input_state_t *state,
     case INPUT_HIT_BOX_MOUSE_UPDATE_MODE_EXECUTE:
     {
         struct kan_repository_indexed_sequence_read_access_t new_hovered_access;
-        const struct kan_ui_node_hit_box_t *new_hovered =
-            find_hit_box_at (state, HIT_BOX_SEARCH_MODE_POINTER, public->viewport_offset_x + public->last_mouse_x,
-                             public->viewport_offset_y + public->last_mouse_y, &new_hovered_access);
+        const struct kan_ui_node_hit_box_t *new_hovered = find_hit_box_at (
+            state, HIT_BOX_SEARCH_MODE_POINTER, public->last_mouse_x, public->last_mouse_y, &new_hovered_access);
         const bool new_hovered_applicable = new_hovered && new_hovered->interactable;
 
         if (!new_hovered_applicable || !KAN_TYPED_ID_32_IS_EQUAL (public->current_hovered_id, new_hovered->id))
@@ -2114,9 +2109,9 @@ static void process_events (struct ui_controls_input_state_t *state,
     }
     }
 
-    if (public->press_filtered_in && KAN_TYPED_ID_32_IS_VALID (public->mouse_button_down_on_id))
+    if (public->press_filtered_in && KAN_TYPED_ID_32_IS_VALID (public->press_started_on_id))
     {
-        KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &public->mouse_button_down_on_id)
+        KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &public->press_started_on_id)
         if (hit_box)
         {
             prolong_hit_box_down_visuals (state, public, bundle, hit_box);
@@ -2579,6 +2574,7 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
         kan_instance_offset_t cursor_x = KAN_INT_MAX (kan_instance_offset_t);
         kan_instance_offset_t cursor_y_min = 0;
         kan_instance_offset_t cursor_y_max = 0;
+        bool cursor_at_sequence_bound = false;
 
         for (kan_loop_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
              ++sequence_index)
@@ -2596,6 +2592,7 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
 
                 cursor_y_min = sequence->baseline - sequence->ascender;
                 cursor_y_max = sequence->baseline - sequence->descender;
+                cursor_at_sequence_bound = true;
                 break;
             }
 
@@ -2609,6 +2606,7 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
                     cursor_x = cluster->visual_cursor_position;
                     cursor_y_min = sequence->baseline - sequence->ascender;
                     cursor_y_max = sequence->baseline - sequence->descender;
+                    cursor_at_sequence_bound = cluster_index == 0u;
                     break;
                 }
             }
@@ -2648,14 +2646,18 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
             const kan_instance_offset_t cursor_x_with_offset = cursor_x + primary_draw_offset;
             if (cursor_x_with_offset < cursor_safe_space)
             {
-                primary_draw_offset += cursor_safe_space - cursor_x_with_offset;
+                primary_draw_offset = KAN_MIN (cursor_safe_space - cursor_x, cursor_width / 2);
             }
             else if (cursor_x_with_offset + cursor_safe_space >
                      (kan_instance_offset_t) shaping_unit->request.primary_axis_limit)
             {
-                primary_draw_offset -= cursor_x_with_offset -
-                                       (kan_instance_offset_t) shaping_unit->request.primary_axis_limit +
-                                       cursor_safe_space;
+                const kan_instance_offset_t offset_right_border_limit =
+                    (kan_instance_offset_t) shaping_unit->request.primary_axis_limit -
+                    (kan_instance_offset_t) shaping_unit->shaped_primary_size - cursor_width / 2;
+
+                primary_draw_offset = KAN_MAX ((kan_instance_offset_t) shaping_unit->request.primary_axis_limit -
+                                                   (cursor_x + cursor_safe_space + cursor_width / 2),
+                                               offset_right_border_limit);
             }
         }
     }
@@ -2799,7 +2801,7 @@ void kan_ui_input_singleton_init (struct kan_ui_input_singleton_t *instance)
 
     instance->mouse_button_down_flags = 0u;
     instance->mouse_button_down_inclusive_flags = 0u;
-    instance->mouse_button_down_on_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->press_started_on_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     instance->press_filtered_in = false;
 
     instance->last_mouse_x = 0;

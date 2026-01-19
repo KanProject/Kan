@@ -91,7 +91,7 @@ struct kan_ui_input_singleton_t
     /// \brief Offset that is applied to raw mouse position in window events on X axis.
     /// \details Used for the cases when UI is not attached to (0, 0) coordinate of the window.
     kan_instance_offset_t viewport_offset_x;
-    
+
     /// \brief Offset that is applied to raw mouse position in window events on Y axis.
     /// \details Used for the cases when UI is not attached to (0, 0) coordinate of the window.
     kan_instance_offset_t viewport_offset_y;
@@ -103,22 +103,22 @@ struct kan_ui_input_singleton_t
 
     /// \brief Mouse buttons that are currently down as flags.
     uint32_t mouse_button_down_flags;
-    
+
     /// \brief All mouse buttons that were down at any point of current filtered in press.
     uint32_t mouse_button_down_inclusive_flags;
-    
+
     /// \brief Id of an interactable node on which current press has started.
     kan_ui_node_id_t press_started_on_id;
-    
+
     /// \brief True if press interaction has started and is considered valid.
     bool press_filtered_in;
 
     /// \brief Last read mouse position on X axis including `viewport_offset_x`.
     kan_instance_offset_t last_mouse_x;
-    
+
     /// \brief Last read mouse position on Y axis including `viewport_offset_y`.
     kan_instance_offset_t last_mouse_y;
-    
+
     /// \brief Id of an interactable node which is considered hovered right now.
     kan_ui_node_id_t current_hovered_id;
 };
@@ -132,7 +132,7 @@ struct kan_ui_node_hit_box_t
 
     /// \brief If true, hit box can be hovered and can be pressed on, and also supports visuals for that.
     kan_immutable bool interactable;
-    
+
     /// \brief If true, this hit box will ignored when processing mouse scroll event in order to pass this event to
     ///        scroll pane hit box below if such hit box exists.
     kan_immutable bool scroll_passthrough;
@@ -140,7 +140,7 @@ struct kan_ui_node_hit_box_t
     /// \brief Name of the `kan_resource_ui_hit_box_interaction_style_t` in bundle for hover and press visualization.
     /// \details Only used when `interactable`.
     kan_interned_string_t interactable_style;
-    
+
     /// \brief Press is only registered if hit box is `interactable` and mouse button was found in this mask.
     kan_immutable uint32_t mouse_button_down_flags;
 
@@ -164,11 +164,11 @@ struct kan_ui_multi_click_t
     kan_ui_node_id_t node_id;
     enum kan_platform_mouse_button_t multi_click_button;
     kan_instance_size_t click_count;
-    
+
     /// \brief Mask of mouse buttons that were down during the click.
     /// \details Useful for special cases, for example when left button was double clicked while right button was down.
     uint32_t mouse_button_down_flags;
-    
+
     kan_instance_offset_t at_x;
     kan_instance_offset_t at_y;
 };
@@ -232,7 +232,7 @@ UNIVERSE_UI_API void kan_ui_node_text_behavior_init (struct kan_ui_node_text_beh
 struct kan_ui_node_scroll_behavior_t
 {
     kan_immutable kan_ui_node_id_t id;
-    
+
     /// \brief Id of a node that contains actual elements.
     /// \details In most cases, container node uses KAN_UI_SIZE_FLAG_FIT_CHILDREN to get automatically resized to
     ///          children size on required direction.
@@ -243,7 +243,7 @@ struct kan_ui_node_scroll_behavior_t
     /// \invariant Must have interactable hit box in order to process user input.
     /// \invariant `horizontal_knob_id` must be a valid id.
     kan_immutable kan_ui_node_id_t horizontal_line_id;
-    
+
     /// \brief If `horizontal_line_id` is valid id, then this node represents knob on that line.
     kan_immutable kan_ui_node_id_t horizontal_knob_id;
 
@@ -252,13 +252,13 @@ struct kan_ui_node_scroll_behavior_t
     /// \invariant Must have interactable hit box in order to process user input.
     /// \invariant `vertical_knob_id` must be a valid id.
     kan_immutable kan_ui_node_id_t vertical_line_id;
-    
+
     /// \brief If `vertical_line_id` is valid id, then this node represents knob on that line.
     kan_immutable kan_ui_node_id_t vertical_knob_id;
 
     /// \brief If true, then horizontal scrolling is supported.
     kan_immutable bool horizontal;
-    
+
     /// \brief If true, then vertical scrolling is supported.
     kan_immutable bool vertical;
 
@@ -266,7 +266,7 @@ struct kan_ui_node_scroll_behavior_t
     /// \details Needed to properly preserve scrolling when resize happens. Only user knows which coordinate type is
     ///          primarily used in container, therefore user should set this value to that coordinate type.
     kan_immutable enum kan_ui_coordinate_type_t offset_coordinate_type_x;
-    
+
     /// \brief Coordinate type used to represent vertical scroll offset.
     /// \details Needed to properly preserve scrolling when resize happens. Only user knows which coordinate type is
     ///          primarily used in container, therefore user should set this value to that coordinate type.
@@ -274,13 +274,13 @@ struct kan_ui_node_scroll_behavior_t
 
     /// \brief Horizontal scroll speed for the mouse wheel.
     kan_immutable struct kan_ui_coordinate_t mouse_speed_x;
-    
+
     /// \brief Vertical scroll speed for the mouse wheel.
     kan_immutable struct kan_ui_coordinate_t mouse_speed_y;
 
     /// \brief If true, then scroll lines are always visible instead of only being visible due to interaction.
     kan_immutable bool lines_always_visible;
-    
+
     /// \brief Scroll line are visible for this amount of seconds after interaction.
     kan_immutable float line_visibility_s;
 };
@@ -296,18 +296,18 @@ UNIVERSE_UI_API void kan_ui_node_scroll_behavior_init (struct kan_ui_node_scroll
 struct kan_ui_node_line_edit_behavior_t
 {
     kan_immutable kan_ui_node_id_t id;
-    
+
     /// \brief Id of a child node that contains text that is being edited.
     /// \details That node should have `kan_ui_node_text_behavior_t` that points to the same shaping unit as
     ///          `shaping_unit_id` of this behavior.
     kan_immutable kan_ui_node_id_t text_id;
-    
+
     /// \brief Shaping unit that is used to shape edited text.
     kan_immutable kan_text_shaping_unit_id_t shaping_unit_id;
 
     /// \brief When not selected, this style is applied to hit box.
     kan_immutable kan_interned_string_t interactable_style_regular;
-    
+
     /// \brief When selected for text edition, this style is applied to hit box.
     kan_immutable kan_interned_string_t interactable_style_selected;
 
@@ -325,16 +325,16 @@ struct kan_ui_node_line_edit_behavior_t
 
     /// \brief Style that is applied to content text object prior to shaping.
     kan_interned_string_t content_style;
-    
+
     /// \brief Mark value that is applied to content text object prior to shaping.
     uint32_t content_mark;
 
     /// \brief Index of an image in UI atlas that should be used for cursor draw command.
     uint32_t cursor_image_index;
-    
+
     /// \brief UI draw mark that should be passed to cursor draw command.
     uint32_t cursor_ui_mark;
-    
+
     /// \brief Width for cursor draw rect.
     /// \details Height is calculated automatically from shaped text ascent and descent.
     struct kan_ui_coordinate_t cursor_width;
@@ -346,7 +346,7 @@ struct kan_ui_node_line_edit_behavior_t
 
     /// \brief Index of an image in UI atlas that should be used for background selection draw command.
     uint32_t selection_image_index;
-    
+
     /// \brief UI draw mark that should be passed to background selection draw command.
     uint32_t selection_ui_mark;
 
@@ -360,12 +360,12 @@ struct kan_ui_node_line_edit_behavior_t
     /// \details `KAN_INT_MAX (kan_instance_size_t)` if no cursor right now.
     /// \invariant Should not be edited by user, expected to be only modified by inner logic.
     kan_instance_size_t cursor_content_location;
-    
+
     /// \brief Current location of selection minimum border inside content in bytes if any.
     /// \details `KAN_INT_MAX (kan_instance_size_t)` if no selection right now.
     /// \invariant Should not be edited by user, expected to be only modified by inner logic.
     kan_instance_size_t selection_content_min;
-    
+
     /// \brief Current location of selection maximum border inside content in bytes if any.
     /// \details `KAN_INT_MAX (kan_instance_size_t)` if no selection right now.
     /// \invariant Should not be edited by user, expected to be only modified by inner logic.

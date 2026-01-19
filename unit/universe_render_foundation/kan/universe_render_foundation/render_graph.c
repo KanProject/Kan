@@ -340,10 +340,10 @@ void kan_render_context_singleton_init (struct kan_render_context_singleton_t *i
     // Add basic colors as a temporary filler just in case.
     *(struct kan_color_linear_t *) kan_dynamic_array_add_last (&instance->color_table_values) =
         kan_make_color_linear (1.0f, 0.0f, 0.0f, 1.0f);
-    
+
     *(struct kan_color_linear_t *) kan_dynamic_array_add_last (&instance->color_table_values) =
         kan_make_color_linear (0.0f, 1.0f, 0.0f, 1.0f);
-    
+
     *(struct kan_color_linear_t *) kan_dynamic_array_add_last (&instance->color_table_values) =
         kan_make_color_linear (0.0f, 0.0f, 1.0f, 1.0f);
 }

@@ -2574,7 +2574,6 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
         kan_instance_offset_t cursor_x = KAN_INT_MAX (kan_instance_offset_t);
         kan_instance_offset_t cursor_y_min = 0;
         kan_instance_offset_t cursor_y_max = 0;
-        bool cursor_at_sequence_bound = false;
 
         for (kan_loop_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
              ++sequence_index)
@@ -2592,7 +2591,6 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
 
                 cursor_y_min = sequence->baseline - sequence->ascender;
                 cursor_y_max = sequence->baseline - sequence->descender;
-                cursor_at_sequence_bound = true;
                 break;
             }
 
@@ -2606,7 +2604,6 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
                     cursor_x = cluster->visual_cursor_position;
                     cursor_y_min = sequence->baseline - sequence->ascender;
                     cursor_y_max = sequence->baseline - sequence->descender;
-                    cursor_at_sequence_bound = cluster_index == 0u;
                     break;
                 }
             }

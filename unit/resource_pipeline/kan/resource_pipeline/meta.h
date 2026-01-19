@@ -6,6 +6,7 @@
 #include <kan/api_common/core_types.h>
 #include <kan/container/interned_string.h>
 #include <kan/hash/hash.h>
+#include <kan/reflection/markup.h>
 #include <kan/stream/stream.h>
 
 /// \file
@@ -32,6 +33,7 @@
 KAN_C_HEADER_BEGIN
 
 /// \brief Enumerates flags that add special behaviors to resource types.
+KAN_REFLECTION_FLAGS
 enum kan_resource_type_flags_t
 {
     /// \brief Resource should be treated as root while building.
@@ -73,6 +75,7 @@ struct kan_resource_type_meta_t
 };
 
 /// \brief Enumerates flags that may alter how resource reference is processed.
+KAN_REFLECTION_FLAGS
 enum kan_resource_reference_meta_flags_t
 {
     /// \brief Informs that resource can be absent on some platforms.

@@ -1,0 +1,52 @@
+vertex_attribute_container vertex
+{
+    f2 position;
+};
+
+instanced_attribute_container instanced
+{
+    f4 transform;
+    alias (offset, transform.xy)
+    alias (size, transform.zw)
+    u2 meta;
+    alias (index, meta.x)
+    alias (ui_mark, meta.y)
+    f1 local_time;
+};
+
+state_container state
+{
+    u2 meta;
+    alias (index, meta.x)
+    alias (ui_mark, meta.y)
+    f2 uv;
+    f2 size;
+    f2 pixel;
+    f1 local_time;
+};
+
+void ui_vertex_main (void)
+{
+    state.meta = instanced.meta;
+    state.uv = vertex.position;
+    state.size = instanced.size;
+    state.pixel = vertex.position * instanced.size;
+    state.local_time = instanced.local_time;
+    f2 position = instanced.offset + vertex.position * instanced.size;
+    vertex_stage_output_position (pass_view_data.projection_view * f4 {position, 0.5, 1.0});
+}
+
+void ui_fragment_main (void)
+{
+    alias (entry, image_entries.data[state.index])
+    f2 atlas_uv = calculate_atlas_entry_uv (entry, state.uv, state.size, state.pixel);
+    f4 color = sample (image_sampler, image_atlas, entry.page, atlas_uv);
+    
+    if ((entry.flags & atlas_entry_flag_color_multiplier) != 0u)
+    {
+        color = color * color_table.values[entry.color_table_multiplier_index];
+    }
+    
+    f4 modifier = calculate_ui_mark_color_modifier (state.ui_mark, state.local_time);
+    color_output.color = color * modifier;
+}

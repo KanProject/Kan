@@ -1,0 +1,59 @@
+instanced_attribute_container instanced
+{
+    f4 min_max;
+    alias (min, min_max.xy)
+    alias (max, min_max.zw)
+    f4 uv_min_max;
+    alias (uv_min, uv_min_max.xy)
+    alias (uv_max, uv_min_max.zw)
+    u3 meta;
+    alias (layer, meta.x)
+    alias (mark, meta.y)
+    alias (read_index, meta.z)
+};
+
+state_container state
+{
+    u4 meta;
+    alias (layer, meta.x)
+    alias (mark, meta.y)
+    alias (read_index, meta.z)
+    alias (ui_mark, meta.w)
+    f2 uv;
+    f1 local_time;
+};
+
+void ui_vertex_main (void)
+{
+    state.meta = u4 {instanced.meta, push.ui_mark};
+    state.uv = instanced.uv_min + vertex.position * (instanced.uv_max - instanced.uv_min);
+    state.local_time = push.local_time;
+    f2 position = instanced.min + vertex.position * (instanced.max - instanced.min);
+    vertex_stage_output_position (pass_view_data.projection_view * f4 {push.offset + position, 0.5, 1.0});
+}
+
+constant smoothing = 1.0 / 32.0;
+constant bound = 0.5;
+constant outline_width = 3.0 / 32.0;
+constant outline_bound = bound - outline_width;
+
+void ui_fragment_main (void)
+{
+    f4 text_color = calculate_text_color (state.mark, state.read_index, state.ui_mark);
+    u1 text_palette_index = state.mark & text_palette_mask;
+    alias (text_palette, text_setup.text_palette[text_palette_index])
+    
+    f1 distance = sample (glyph_sampler, glyph_sdf_atlas, state.layer, state.uv).x;
+    f1 alpha_bound = smooth_step_f1 (bound - smoothing, bound + smoothing, distance);
+    
+    if ((state.mark & text_outline_flag) != 0u)
+    {
+        f1 alpha_outline = smooth_step_f1 (outline_bound - smoothing, outline_bound + smoothing, distance);
+        text_color = mix_f4 (text_palette.color_outline, text_color, f4 {alpha_bound});
+        alpha_bound = alpha_outline;
+    }
+    
+    text_color.w = text_color.w * alpha_bound;    
+    f4 modifier = calculate_ui_mark_color_modifier (state.ui_mark, state.local_time);
+    color_output.color = text_color * modifier;
+}

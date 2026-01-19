@@ -31,6 +31,7 @@ REFLECTION_HELPERS_API bool kan_reflection_are_structs_equal (kan_reflection_reg
                                                               const void *second);
 
 /// \brief Attempts to move data field-by-field from source struct to target one.
+/// \warning Field const-ness is ignored!
 /// \invariant Target points to freshly allocated and initialized struct with zero capacity arrays,
 ///            otherwise old data will be leaked.
 /// \invariant There is no fields of KAN_REFLECTION_ARCHETYPE_EXTERNAL_POINTER and
@@ -46,6 +47,7 @@ REFLECTION_HELPERS_API void kan_reflection_move_struct (kan_reflection_registry_
                                                         void *source);
 
 /// \brief Provides simplistic common mechanism for struct data reset operation.
+/// \warning Field const-ness is ignored!
 /// \invariant There is no KAN_REFLECTION_ARCHETYPE_STRING_POINTER, KAN_REFLECTION_ARCHETYPE_EXTERNAL_POINTER and
 ///            KAN_REFLECTION_ARCHETYPE_STRUCT_POINTER as it is not entirely obvious what to do with them: deallocate
 ///            them or leave them be.

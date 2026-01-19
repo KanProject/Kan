@@ -1,0 +1,42 @@
+instanced_attribute_container instanced
+{
+    f4 min_max;
+    alias (min, min_max.xy)
+    alias (max, min_max.zw)
+    u3 meta;
+    alias (icon_index, meta.x)
+    alias (mark, meta.y)
+    alias (read_index, meta.z)
+};
+
+state_container state
+{
+    u4 meta;
+    alias (icon_index, meta.x)
+    alias (mark, meta.y)
+    alias (read_index, meta.z)
+    alias (ui_mark, meta.w)
+    f2 uv;
+    f1 local_time;
+};
+
+void ui_vertex_main (void)
+{
+    state.meta = u4 {instanced.meta, push.ui_mark};
+    state.uv = vertex.position;
+    state.local_time = push.local_time;
+    f2 position = instanced.min + vertex.position * (instanced.max - instanced.min);
+    vertex_stage_output_position (pass_view_data.projection_view * f4 {push.offset + position, 0.5, 1.0});
+}
+
+void ui_fragment_main (void)
+{
+    alias (entry, image_entries.data[state.icon_index])
+    // We do the simplified uv calculation here and ignore nine-patches as they're generally too complex and unnecessary
+    // for the icons that are used inside texts. And not using them reduces amount of data to pass between stages.
+    f2 atlas_uv = entry.uv_min + state.uv * (entry.uv_max - entry.uv_min);
+    f4 icon_color = sample (image_sampler, image_atlas, entry.page, atlas_uv);
+    f4 text_color = calculate_text_color (state.mark, state.read_index, state.ui_mark);
+    f4 modifier = calculate_ui_mark_color_modifier (state.ui_mark, state.local_time);
+    color_output.color = icon_color * text_color * modifier;
+}

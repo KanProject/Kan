@@ -211,6 +211,7 @@ struct kan_platform_display_mode_t
 };
 
 /// \brief Enumerates supported window flags.
+KAN_REFLECTION_FLAGS
 enum kan_platform_window_flag_t
 {
     KAN_PLATFORM_WINDOW_FLAG_FULLSCREEN = 1u << 0u,
@@ -235,6 +236,9 @@ enum kan_platform_window_flag_t
     KAN_PLATFORM_WINDOW_FLAG_MOUSE_FOCUS = 1u << 18u,
     KAN_PLATFORM_WINDOW_FLAG_MOUSE_CAPTURE = 1u << 20u,
 };
+
+/// \brief Returns allocation group used for allocating memory from inside events, for example for text input.
+PLATFORM_API kan_allocation_group_t kan_platform_application_get_events_allocation_group (void);
 
 PLATFORM_API void kan_platform_application_event_init (struct kan_platform_application_event_t *instance);
 

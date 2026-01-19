@@ -25,8 +25,8 @@ KAN_C_HEADER_BEGIN
 #define KAN_TRANSFORM_INTERFACE(DIMENSIONS)                                                                            \
     struct kan_transform_##DIMENSIONS##_component_t                                                                    \
     {                                                                                                                  \
-        kan_universe_object_id_t object_id;                                                                            \
-        kan_universe_object_id_t parent_object_id;                                                                     \
+        kan_immutable kan_universe_object_id_t object_id;                                                              \
+        kan_immutable kan_universe_object_id_t parent_object_id;                                                       \
                                                                                                                        \
         struct kan_atomic_int_t global_lock;                                                                           \
         struct kan_transform_##DIMENSIONS##_t global;                                                                  \
@@ -45,11 +45,6 @@ KAN_C_HEADER_BEGIN
         struct kan_repository_indexed_value_read_query_t                                                               \
             read_value__kan_transform_##DIMENSIONS##_component_t__parent_object_id;                                    \
     };                                                                                                                 \
-                                                                                                                       \
-    /** \brief Updates parent object id and invalidates global transforms across hierarchy. */                         \
-    UNIVERSE_TRANSFORM_API void kan_transform_##DIMENSIONS##_component_set_parent_object_id (                          \
-        struct kan_transform_##DIMENSIONS##_queries_t *queries,                                                        \
-        struct kan_transform_##DIMENSIONS##_component_t *component, kan_universe_object_id_t parent_object_id);        \
                                                                                                                        \
     /** Just a helper to illustrate that local transform can be directly accessed without locks. */                    \
     static inline struct kan_transform_##DIMENSIONS##_t kan_transform_##DIMENSIONS##_component_get_local (             \

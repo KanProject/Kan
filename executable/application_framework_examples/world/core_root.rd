@@ -16,9 +16,11 @@ scheduler_name = "trivial"
 
 +pipelines {
     name = "update"
+    mutators = test_routine
     mutator_groups =
         locale_management,
         render_foundation_frame,
+        render_foundation_atlas_management,
         render_foundation_program_management,
         render_foundation_texture_management,
         resource_provider,

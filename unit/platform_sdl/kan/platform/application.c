@@ -33,6 +33,11 @@ static struct kan_atomic_int_t vulkan_library_requests;
 
 static inline uint8_t convert_mouse_state (uint32_t sdl_state) { return (uint8_t) sdl_state; }
 
+kan_allocation_group_t kan_platform_application_get_events_allocation_group (void)
+{
+    return application_events_allocation_group;
+}
+
 void kan_platform_application_event_init (struct kan_platform_application_event_t *instance)
 {
     instance->type = KAN_PLATFORM_APPLICATION_EVENT_TYPE_QUIT;
@@ -96,10 +101,12 @@ void kan_platform_application_event_move (struct kan_platform_application_event_
 
     case KAN_PLATFORM_APPLICATION_EVENT_TYPE_TEXT_EDITING:
         to->text_editing = from->text_editing;
+        from->text_editing.text = NULL;
         break;
 
     case KAN_PLATFORM_APPLICATION_EVENT_TYPE_TEXT_INPUT:
         to->text_input = from->text_input;
+        from->text_input.text = NULL;
         break;
 
     case KAN_PLATFORM_APPLICATION_EVENT_TYPE_MOUSE_MOTION:
@@ -421,7 +428,7 @@ bool kan_platform_application_fetch_next_event (struct kan_platform_application_
             return true;
 
         case SDL_EVENT_KEY_UP:
-            output->type = KAN_PLATFORM_APPLICATION_EVENT_TYPE_KEY_DOWN;
+            output->type = KAN_PLATFORM_APPLICATION_EVENT_TYPE_KEY_UP;
             output->time_ns = event.common.timestamp;
             output->keyboard.window_id = KAN_TYPED_ID_32_SET (kan_platform_window_id_t, event.key.windowID);
             output->keyboard.repeat = event.key.repeat > 0 ? true : false;
@@ -501,8 +508,8 @@ bool kan_platform_application_fetch_next_event (struct kan_platform_application_
             output->mouse_wheel.window_id = KAN_TYPED_ID_32_SET (kan_platform_window_id_t, event.wheel.windowID);
             output->mouse_wheel.wheel_x = event.wheel.x;
             output->mouse_wheel.wheel_y = event.wheel.y;
-            output->mouse_wheel.window_x = event.wheel.x;
-            output->mouse_wheel.window_y = event.wheel.y;
+            output->mouse_wheel.window_x = event.wheel.mouse_x;
+            output->mouse_wheel.window_y = event.wheel.mouse_y;
             return true;
 
         case SDL_EVENT_CLIPBOARD_UPDATE:

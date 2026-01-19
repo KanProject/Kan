@@ -1,0 +1,47 @@
+struct ui_mark_command_palette_entry
+{
+    f4 color_modifier_regular;
+    f4 color_modifier_hovered;
+    f4 color_modifier_down;
+    f1 no_blink_interval_s;
+    f1 blink_invisible_s;
+    f1 blink_visible_s;
+};
+
+set_material read_only_storage_buffer ui_mark_setup
+{
+    ui_mark_command_palette_entry... ui_mark_palette;
+};
+
+f4 calculate_ui_mark_color_modifier (in u1 ui_mark, in f1 local_time)
+{
+    u1 palette_index = ui_mark & ui_mark_default_palette_mask;
+    alias (palette, ui_mark_setup.ui_mark_palette[palette_index])
+    f4 modifier = palette.color_modifier_regular;
+    
+    if ((ui_mark & ui_mark_default_flag_hovered) != 0u)
+    {
+        modifier = palette.color_modifier_hovered;
+    }
+    
+    if ((ui_mark & ui_mark_default_flag_down) != 0u)
+    {
+        modifier = palette.color_modifier_down;
+    }
+    
+    if ((ui_mark & ui_mark_default_flag_blink) != 0u)
+    {
+        if (local_time > palette.no_blink_interval_s)
+        {
+            f1 blink_period = palette.blink_invisible_s + palette.blink_visible_s;
+            f1 blink_time = (local_time - palette.no_blink_interval_s) % blink_period;
+            
+            if (blink_time < palette.blink_invisible_s)
+            {
+                modifier = f4 {0.0};
+            }
+        }
+    }
+    
+    return modifier;
+}

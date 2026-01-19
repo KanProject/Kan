@@ -102,6 +102,7 @@ KAN_TEST_CASE (registry)
             kan_string_intern ("first"),
             0u,
             sizeof (int32_t),
+            false,
             KAN_REFLECTION_ARCHETYPE_SIGNED_INT,
             .visibility_condition_field = NULL,
             .visibility_condition_values_count = 0u,
@@ -111,6 +112,7 @@ KAN_TEST_CASE (registry)
             kan_string_intern ("second"),
             sizeof (int32_t),
             sizeof (uint32_t),
+            false,
             KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
             .visibility_condition_field = NULL,
             .visibility_condition_values_count = 0u,
@@ -120,6 +122,7 @@ KAN_TEST_CASE (registry)
             kan_string_intern ("third"),
             sizeof (int32_t) + sizeof (uint32_t),
             sizeof (kan_interned_string_t),
+            false,
             KAN_REFLECTION_ARCHETYPE_INTERNED_STRING,
             .visibility_condition_field = NULL,
             .visibility_condition_values_count = 0u,
@@ -146,6 +149,7 @@ KAN_TEST_CASE (registry)
             kan_string_intern ("first"),
             0u,
             sizeof (int32_t),
+            false,
             KAN_REFLECTION_ARCHETYPE_SIGNED_INT,
             .visibility_condition_field = NULL,
             .visibility_condition_values_count = 0u,
@@ -155,6 +159,7 @@ KAN_TEST_CASE (registry)
             kan_string_intern ("second"),
             sizeof (int32_t),
             sizeof (uint32_t),
+            false,
             KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
             .visibility_condition_field = NULL,
             .visibility_condition_values_count = 0u,
@@ -164,6 +169,7 @@ KAN_TEST_CASE (registry)
             kan_string_intern ("third"),
             sizeof (int32_t) + sizeof (uint32_t),
             sizeof (kan_interned_string_t),
+            false,
             KAN_REFLECTION_ARCHETYPE_INTERNED_STRING,
             .visibility_condition_field = NULL,
             .visibility_condition_values_count = 0u,
@@ -192,11 +198,13 @@ KAN_TEST_CASE (registry)
         {
             .name = kan_string_intern ("x"),
             .size = sizeof (int32_t),
+            .is_const = false,
             .archetype = KAN_REFLECTION_ARCHETYPE_SIGNED_INT,
         },
         {
             .name = kan_string_intern ("y"),
             .size = sizeof (uint32_t),
+            .is_const = false,
             .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
         },
     };
@@ -217,6 +225,7 @@ KAN_TEST_CASE (registry)
         {
             .name = kan_string_intern ("parameter"),
             .size = sizeof (int32_t),
+            .is_const = false,
             .archetype = KAN_REFLECTION_ARCHETYPE_SIGNED_INT,
         },
     };
@@ -436,6 +445,7 @@ KAN_TEST_CASE (query_local_field)
             kan_string_intern ("first"),
             0u,
             sizeof (int32_t),
+            false,
             KAN_REFLECTION_ARCHETYPE_SIGNED_INT,
             .visibility_condition_field = NULL,
             .visibility_condition_values_count = 0u,
@@ -445,6 +455,7 @@ KAN_TEST_CASE (query_local_field)
             kan_string_intern ("second"),
             sizeof (int32_t),
             sizeof (uint32_t),
+            false,
             KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
             .visibility_condition_field = NULL,
             .visibility_condition_values_count = 0u,
@@ -454,6 +465,7 @@ KAN_TEST_CASE (query_local_field)
             kan_string_intern ("third"),
             sizeof (int32_t) + sizeof (uint32_t),
             sizeof (kan_interned_string_t),
+            false,
             KAN_REFLECTION_ARCHETYPE_INTERNED_STRING,
             .visibility_condition_field = NULL,
             .visibility_condition_values_count = 0u,
@@ -477,6 +489,7 @@ KAN_TEST_CASE (query_local_field)
             .name = kan_string_intern ("first"),
             .offset = 0u,
             .size = sizeof (void *),
+            .is_const = false,
             .archetype = KAN_REFLECTION_ARCHETYPE_STRUCT_POINTER,
             .archetype_struct_pointer = {first_struct.name},
             .visibility_condition_field = NULL,
@@ -487,6 +500,7 @@ KAN_TEST_CASE (query_local_field)
             .name = kan_string_intern ("second"),
             .offset = (kan_instance_size_t) kan_apply_alignment (sizeof (void *), first_struct.alignment),
             .size = first_struct.size,
+            .is_const = false,
             .archetype = KAN_REFLECTION_ARCHETYPE_STRUCT,
             .archetype_struct = {first_struct.name},
             .visibility_condition_field = NULL,
@@ -570,6 +584,7 @@ KAN_TEST_CASE (field_visibility_iterator)
         {.name = kan_string_intern ("before"),
          .offset = offsetof (struct struct_with_union_t, before),
          .size = sizeof (((struct struct_with_union_t *) NULL)->before),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -577,6 +592,7 @@ KAN_TEST_CASE (field_visibility_iterator)
         {.name = kan_string_intern ("switch_value"),
          .offset = offsetof (struct struct_with_union_t, switch_value),
          .size = sizeof (((struct struct_with_union_t *) NULL)->switch_value),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -584,6 +600,7 @@ KAN_TEST_CASE (field_visibility_iterator)
         {.name = kan_string_intern ("first"),
          .offset = offsetof (struct struct_with_union_t, first),
          .size = sizeof (((struct struct_with_union_t *) NULL)->first),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = &struct_with_union_fields[1u],
          .visibility_condition_values_count = 2u,
@@ -591,6 +608,7 @@ KAN_TEST_CASE (field_visibility_iterator)
         {.name = kan_string_intern ("second"),
          .offset = offsetof (struct struct_with_union_t, second),
          .size = sizeof (((struct struct_with_union_t *) NULL)->second),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = &struct_with_union_fields[1u],
          .visibility_condition_values_count = 2u,
@@ -598,6 +616,7 @@ KAN_TEST_CASE (field_visibility_iterator)
         {.name = kan_string_intern ("after"),
          .offset = offsetof (struct struct_with_union_t, after),
          .size = sizeof (((struct struct_with_union_t *) NULL)->after),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -703,6 +722,7 @@ KAN_TEST_CASE (patch)
          .offset = offsetof (struct patch_inner_t, first),
          .size = sizeof (((struct patch_inner_t *) NULL)->first),
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
+         .is_const = false,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
          .visibility_condition_values = NULL},
@@ -710,6 +730,7 @@ KAN_TEST_CASE (patch)
          .offset = offsetof (struct patch_inner_t, second),
          .size = sizeof (((struct patch_inner_t *) NULL)->second),
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
+         .is_const = false,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
          .visibility_condition_values = NULL},
@@ -730,6 +751,7 @@ KAN_TEST_CASE (patch)
         {.name = kan_string_intern ("before"),
          .offset = offsetof (struct patch_outer_t, before),
          .size = sizeof (((struct patch_outer_t *) NULL)->before),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_FLOATING,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -737,6 +759,7 @@ KAN_TEST_CASE (patch)
         {.name = kan_string_intern ("inner"),
          .offset = offsetof (struct patch_outer_t, inner),
          .size = sizeof (((struct patch_outer_t *) NULL)->inner),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_INLINE_ARRAY,
          .archetype_inline_array =
              {
@@ -752,6 +775,7 @@ KAN_TEST_CASE (patch)
         {.name = kan_string_intern ("after"),
          .offset = offsetof (struct patch_outer_t, after),
          .size = sizeof (((struct patch_outer_t *) NULL)->after),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_FLOATING,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1169,6 +1193,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("first"),
          .offset = offsetof (struct same_source_t, first),
          .size = sizeof (((struct same_source_t *) NULL)->first),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1176,6 +1201,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("second"),
          .offset = offsetof (struct same_source_t, second),
          .size = sizeof (((struct same_source_t *) NULL)->second),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_ENUM,
          .archetype_enum = {.type_name = kan_string_intern ("second_enum_t")},
          .visibility_condition_field = NULL,
@@ -1184,6 +1210,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("third"),
          .offset = offsetof (struct same_source_t, third),
          .size = sizeof (((struct same_source_t *) NULL)->third),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1194,6 +1221,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("first"),
          .offset = offsetof (struct same_target_t, first),
          .size = sizeof (((struct same_target_t *) NULL)->first),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1201,6 +1229,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("second"),
          .offset = offsetof (struct same_target_t, second),
          .size = sizeof (((struct same_target_t *) NULL)->second),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_ENUM,
          .archetype_enum = {.type_name = kan_string_intern ("second_enum_t")},
          .visibility_condition_field = NULL,
@@ -1209,6 +1238,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("third"),
          .offset = offsetof (struct same_target_t, third),
          .size = sizeof (((struct same_target_t *) NULL)->third),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1241,6 +1271,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("a"),
          .offset = offsetof (struct cross_copy_source_t, a),
          .size = sizeof (((struct cross_copy_source_t *) NULL)->a),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1248,6 +1279,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("b"),
          .offset = offsetof (struct cross_copy_source_t, b),
          .size = sizeof (((struct cross_copy_source_t *) NULL)->b),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1255,6 +1287,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("c"),
          .offset = offsetof (struct cross_copy_source_t, c),
          .size = sizeof (((struct cross_copy_source_t *) NULL)->c),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1262,6 +1295,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("d"),
          .offset = offsetof (struct cross_copy_source_t, d),
          .size = sizeof (((struct cross_copy_source_t *) NULL)->d),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1269,6 +1303,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("e"),
          .offset = offsetof (struct cross_copy_source_t, e),
          .size = sizeof (((struct cross_copy_source_t *) NULL)->e),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1276,6 +1311,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("f"),
          .offset = offsetof (struct cross_copy_source_t, f),
          .size = sizeof (((struct cross_copy_source_t *) NULL)->f),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1286,6 +1322,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("d"),
          .offset = offsetof (struct cross_copy_target_t, d),
          .size = sizeof (((struct cross_copy_target_t *) NULL)->d),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1293,6 +1330,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("e"),
          .offset = offsetof (struct cross_copy_target_t, e),
          .size = sizeof (((struct cross_copy_target_t *) NULL)->e),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1300,6 +1338,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("f"),
          .offset = offsetof (struct cross_copy_target_t, f),
          .size = sizeof (((struct cross_copy_target_t *) NULL)->f),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1307,6 +1346,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("a"),
          .offset = offsetof (struct cross_copy_target_t, a),
          .size = sizeof (((struct cross_copy_target_t *) NULL)->a),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1314,6 +1354,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("b"),
          .offset = offsetof (struct cross_copy_target_t, b),
          .size = sizeof (((struct cross_copy_target_t *) NULL)->b),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1321,6 +1362,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("c"),
          .offset = offsetof (struct cross_copy_target_t, c),
          .size = sizeof (((struct cross_copy_target_t *) NULL)->c),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1353,6 +1395,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("same"),
          .offset = offsetof (struct nesting_source_t, same),
          .size = sizeof (((struct nesting_source_t *) NULL)->same),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_STRUCT,
          .archetype_struct = {.type_name = kan_string_intern ("same_t")},
          .visibility_condition_field = NULL,
@@ -1361,6 +1404,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("cross_copy"),
          .offset = offsetof (struct nesting_source_t, cross_copy),
          .size = sizeof (((struct nesting_source_t *) NULL)->cross_copy),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_STRUCT,
          .archetype_struct = {.type_name = kan_string_intern ("cross_copy_t")},
          .visibility_condition_field = NULL,
@@ -1372,6 +1416,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("same"),
          .offset = offsetof (struct nesting_target_t, same),
          .size = sizeof (((struct nesting_target_t *) NULL)->same),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_STRUCT,
          .archetype_struct = {.type_name = kan_string_intern ("same_t")},
          .visibility_condition_field = NULL,
@@ -1380,6 +1425,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("cross_copy"),
          .offset = offsetof (struct nesting_target_t, cross_copy),
          .size = sizeof (((struct nesting_target_t *) NULL)->cross_copy),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_STRUCT,
          .archetype_struct = {.type_name = kan_string_intern ("cross_copy_t")},
          .visibility_condition_field = NULL,
@@ -1416,6 +1462,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("nesting_first"),
          .offset = offsetof (struct migration_source_t, nesting_first),
          .size = sizeof (((struct migration_source_t *) NULL)->nesting_first),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_STRUCT,
          .archetype_struct = {.type_name = kan_string_intern ("nesting_t")},
          .visibility_condition_field = NULL,
@@ -1424,6 +1471,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("nesting_to_drop"),
          .offset = offsetof (struct migration_source_t, nesting_to_drop),
          .size = sizeof (((struct migration_source_t *) NULL)->nesting_to_drop),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_STRUCT,
          .archetype_struct = {.type_name = kan_string_intern ("nesting_t")},
          .visibility_condition_field = NULL,
@@ -1432,6 +1480,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("nesting_second"),
          .offset = offsetof (struct migration_source_t, nesting_second),
          .size = sizeof (((struct migration_source_t *) NULL)->nesting_second),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_STRUCT,
          .archetype_struct = {.type_name = kan_string_intern ("nesting_t")},
          .visibility_condition_field = NULL,
@@ -1440,6 +1489,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("enums_array_one"),
          .offset = offsetof (struct migration_source_t, enums_array_one),
          .size = sizeof (((struct migration_source_t *) NULL)->enums_array_one),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_INLINE_ARRAY,
          .archetype_inline_array =
              {
@@ -1455,6 +1505,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("enums_array_two"),
          .offset = offsetof (struct migration_source_t, enums_array_two),
          .size = sizeof (((struct migration_source_t *) NULL)->enums_array_two),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_INLINE_ARRAY,
          .archetype_inline_array =
              {
@@ -1470,6 +1521,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("numeric_to_adapt"),
          .offset = offsetof (struct migration_source_t, numeric_to_adapt),
          .size = sizeof (((struct migration_source_t *) NULL)->numeric_to_adapt),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1477,6 +1529,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("selector"),
          .offset = offsetof (struct migration_source_t, selector),
          .size = sizeof (((struct migration_source_t *) NULL)->selector),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1484,6 +1537,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("selection_first"),
          .offset = offsetof (struct migration_source_t, selection_first),
          .size = sizeof (((struct migration_source_t *) NULL)->selection_first),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_ENUM,
          .archetype_enum = {.type_name = kan_string_intern ("first_enum_t")},
          .visibility_condition_field = &migration_source_fields[6],
@@ -1492,6 +1546,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("selection_second"),
          .offset = offsetof (struct migration_source_t, selection_second),
          .size = sizeof (((struct migration_source_t *) NULL)->selection_second),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_ENUM,
          .archetype_enum = {.type_name = kan_string_intern ("second_enum_t")},
          .visibility_condition_field = &migration_source_fields[6],
@@ -1500,6 +1555,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("interned_string"),
          .offset = offsetof (struct migration_source_t, interned_string),
          .size = sizeof (((struct migration_source_t *) NULL)->interned_string),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_INTERNED_STRING,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1507,6 +1563,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("owned_string"),
          .offset = offsetof (struct migration_source_t, owned_string),
          .size = sizeof (((struct migration_source_t *) NULL)->owned_string),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_STRING_POINTER,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1514,6 +1571,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("dynamic_array"),
          .offset = offsetof (struct migration_source_t, dynamic_array),
          .size = sizeof (((struct migration_source_t *) NULL)->dynamic_array),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_DYNAMIC_ARRAY,
          .archetype_dynamic_array =
              {
@@ -1530,6 +1588,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("nesting_first"),
          .offset = offsetof (struct migration_target_t, nesting_first),
          .size = sizeof (((struct migration_target_t *) NULL)->nesting_first),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_STRUCT,
          .archetype_struct = {.type_name = kan_string_intern ("nesting_t")},
          .visibility_condition_field = NULL,
@@ -1538,6 +1597,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("nesting_second"),
          .offset = offsetof (struct migration_target_t, nesting_second),
          .size = sizeof (((struct migration_target_t *) NULL)->nesting_second),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_STRUCT,
          .archetype_struct = {.type_name = kan_string_intern ("nesting_t")},
          .visibility_condition_field = NULL,
@@ -1546,6 +1606,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("nesting_to_add"),
          .offset = offsetof (struct migration_target_t, nesting_to_add),
          .size = sizeof (((struct migration_target_t *) NULL)->nesting_to_add),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_STRUCT,
          .archetype_struct = {.type_name = kan_string_intern ("nesting_t")},
          .visibility_condition_field = NULL,
@@ -1554,6 +1615,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("enums_array_one"),
          .offset = offsetof (struct migration_target_t, enums_array_one),
          .size = sizeof (((struct migration_target_t *) NULL)->enums_array_one),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_INLINE_ARRAY,
          .archetype_inline_array =
              {
@@ -1569,6 +1631,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("enums_array_two"),
          .offset = offsetof (struct migration_target_t, enums_array_two),
          .size = sizeof (((struct migration_target_t *) NULL)->enums_array_two),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_INLINE_ARRAY,
          .archetype_inline_array =
              {
@@ -1584,6 +1647,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("numeric_to_adapt"),
          .offset = offsetof (struct migration_target_t, numeric_to_adapt),
          .size = sizeof (((struct migration_target_t *) NULL)->numeric_to_adapt),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1591,6 +1655,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("selector"),
          .offset = offsetof (struct migration_target_t, selector),
          .size = sizeof (((struct migration_target_t *) NULL)->selector),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1598,6 +1663,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("selection_first"),
          .offset = offsetof (struct migration_target_t, selection_first),
          .size = sizeof (((struct migration_target_t *) NULL)->selection_first),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_ENUM,
          .archetype_enum = {.type_name = kan_string_intern ("first_enum_t")},
          .visibility_condition_field = &migration_target_fields[6],
@@ -1606,6 +1672,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("selection_second"),
          .offset = offsetof (struct migration_target_t, selection_second),
          .size = sizeof (((struct migration_target_t *) NULL)->selection_second),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_ENUM,
          .archetype_enum = {.type_name = kan_string_intern ("second_enum_t")},
          .visibility_condition_field = &migration_target_fields[6],
@@ -1614,6 +1681,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("interned_string"),
          .offset = offsetof (struct migration_target_t, interned_string),
          .size = sizeof (((struct migration_target_t *) NULL)->interned_string),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_INTERNED_STRING,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1621,6 +1689,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("owned_string"),
          .offset = offsetof (struct migration_target_t, owned_string),
          .size = sizeof (((struct migration_target_t *) NULL)->owned_string),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_STRING_POINTER,
          .visibility_condition_field = NULL,
          .visibility_condition_values_count = 0u,
@@ -1628,6 +1697,7 @@ KAN_TEST_CASE (migration)
         {.name = kan_string_intern ("dynamic_array"),
          .offset = offsetof (struct migration_target_t, dynamic_array),
          .size = sizeof (((struct migration_target_t *) NULL)->dynamic_array),
+         .is_const = false,
          .archetype = KAN_REFLECTION_ARCHETYPE_DYNAMIC_ARRAY,
          .archetype_dynamic_array =
              {
@@ -1919,11 +1989,12 @@ KAN_TEST_CASE (generated_reflection)
     const struct kan_reflection_struct_t *a_bit_of_everything_data =
         kan_reflection_registry_query_struct (registry, kan_string_intern ("a_bit_of_everything_t"));
     KAN_TEST_ASSERT (a_bit_of_everything_data)
-    KAN_TEST_ASSERT (a_bit_of_everything_data->fields_count == 16u)
+    KAN_TEST_ASSERT (a_bit_of_everything_data->fields_count == 18u)
 
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[0u].name == kan_string_intern ("some_enum"))
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[0u].size == sizeof (int))
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[0u].offset == offsetof (struct a_bit_of_everything_t, some_enum))
+    KAN_TEST_CHECK (a_bit_of_everything_data->fields[0u].is_const == false)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[0u].archetype == KAN_REFLECTION_ARCHETYPE_ENUM)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[0u].archetype_enum.type_name == kan_string_intern ("some_enum_t"))
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[0u].visibility_condition_field == NULL)
@@ -1933,6 +2004,7 @@ KAN_TEST_CASE (generated_reflection)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[1u].name == kan_string_intern ("some_flags"))
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[1u].size == sizeof (int))
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[1u].offset == offsetof (struct a_bit_of_everything_t, some_flags))
+    KAN_TEST_CHECK (a_bit_of_everything_data->fields[1u].is_const == false)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[1u].archetype == KAN_REFLECTION_ARCHETYPE_ENUM)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[1u].archetype_enum.type_name == kan_string_intern ("some_flags_t"))
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[1u].visibility_condition_field == NULL)
@@ -1942,6 +2014,7 @@ KAN_TEST_CASE (generated_reflection)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[2u].name == kan_string_intern ("uint32"))
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[2u].size == sizeof (uint32_t))
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[2u].offset == offsetof (struct a_bit_of_everything_t, uint32))
+    KAN_TEST_CHECK (a_bit_of_everything_data->fields[2u].is_const == false)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[2u].archetype == KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[2u].visibility_condition_field == NULL)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[2u].visibility_condition_values_count == 0u)
@@ -1950,6 +2023,7 @@ KAN_TEST_CASE (generated_reflection)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[3u].name == kan_string_intern ("int32"))
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[3u].size == sizeof (int32_t))
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[3u].offset == offsetof (struct a_bit_of_everything_t, int32))
+    KAN_TEST_CHECK (a_bit_of_everything_data->fields[3u].is_const == false)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[3u].archetype == KAN_REFLECTION_ARCHETYPE_SIGNED_INT)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[3u].visibility_condition_field == NULL)
     KAN_TEST_CHECK (a_bit_of_everything_data->fields[3u].visibility_condition_values_count == 0u)
@@ -2015,6 +2089,14 @@ KAN_TEST_CASE (generated_reflection)
     KAN_TEST_CHECK (
         a_bit_of_everything_data->fields[15u].archetype_dynamic_array.item_archetype_struct_pointer.type_name ==
         kan_string_intern ("second_component_t"))
+
+    KAN_TEST_CHECK (a_bit_of_everything_data->fields[16u].name == kan_string_intern ("const_field"))
+    KAN_TEST_CHECK (a_bit_of_everything_data->fields[16u].is_const == true)
+    KAN_TEST_CHECK (a_bit_of_everything_data->fields[16u].archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT)
+
+    KAN_TEST_CHECK (a_bit_of_everything_data->fields[17u].name == kan_string_intern ("immutable_field"))
+    KAN_TEST_CHECK (a_bit_of_everything_data->fields[17u].is_const == true)
+    KAN_TEST_CHECK (a_bit_of_everything_data->fields[17u].archetype = KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT)
 
     struct kan_reflection_struct_field_meta_iterator_t iterator = kan_reflection_registry_query_struct_field_meta (
         registry, kan_string_intern ("first_component_t"), kan_string_intern ("position"),

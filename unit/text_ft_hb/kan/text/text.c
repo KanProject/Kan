@@ -187,37 +187,40 @@ void hb_free_impl (void *ptr) { free (ptr); }
 //    Linux very troublesome as TARGET_SONAME_FILE generator expression is not available for them, but soname suffixes
 //    are still appended.
 
-kan_unicode_codepoint_t kan_text_utf8_next (const uint8_t **iterator)
+kan_unicode_codepoint_t kan_text_utf8_next (const uint8_t **iterator, const uint8_t *boundary)
 {
+    if (*iterator >= boundary)
+    {
+        return 0u;
+    }
+
     // Implementation is based upon hb_utf8_t::next from harfbuzz, which is based upon U8_NEXT from ICU. Oh, well. :)
-    // However, our implementation is not as safe as the ones above, because we do not require end pointer and therefore
-    // do not have proper string end check to catch malformed utf8.
     kan_unicode_codepoint_t value = **iterator;
     ++*iterator;
 
-    if (value <= 0x7Fu)
+    if (value <= 0x7F)
     {
         return value;
     }
 
 #define IS_IN_RANGE(LEFT, RIGHT) ((kan_unicode_codepoint_t) (value - LEFT) <= (kan_unicode_codepoint_t) (RIGHT - LEFT))
-    if (IS_IN_RANGE (0xC2u, 0xDFu)) /* Two-byte */
+    if (IS_IN_RANGE (0xC2, 0xDF)) /* Two-byte */
     {
         unsigned int t1;
-        if ((t1 = (*iterator)[0u] - 0x80u) <= 0x3Fu)
+        if (boundary - *iterator >= 1 && (t1 = (*iterator)[0u] - 0x80) <= 0x3F)
         {
-            value = ((value & 0x1Fu) << 6u) | t1;
+            value = ((value & 0x1F) << 6u) | t1;
             ++*iterator;
             return value;
         }
     }
-    else if (IS_IN_RANGE (0xE0u, 0xEFu)) /* Three-byte */
+    else if (IS_IN_RANGE (0xE0, 0xEF)) /* Three-byte */
     {
         unsigned int t1, t2;
-        if ((t1 = (*iterator)[0u] - 0x80u) <= 0x3Fu && (t2 = (*iterator)[1u] - 0x80u) <= 0x3Fu)
+        if (boundary - *iterator >= 2 && (t1 = (*iterator)[0u] - 0x80) <= 0x3F && (t2 = (*iterator)[1u] - 0x80) <= 0x3F)
         {
             value = ((value & 0xFu) << 12u) | (t1 << 6u) | t2;
-            if (value < 0x0800u || IS_IN_RANGE (0xD800u, 0xDFFFu))
+            if (value < 0x0800 || IS_IN_RANGE (0xD800, 0xDFFF))
             {
                 return 0u;
             }
@@ -226,14 +229,14 @@ kan_unicode_codepoint_t kan_text_utf8_next (const uint8_t **iterator)
             return value;
         }
     }
-    else if (IS_IN_RANGE (0xF0u, 0xF4u)) /* Four-byte */
+    else if (IS_IN_RANGE (0xF0, 0xF4)) /* Four-byte */
     {
         unsigned int t1, t2, t3;
-        if ((t1 = (*iterator)[0u] - 0x80u) <= 0x3Fu && (t2 = (*iterator)[1u] - 0x80u) <= 0x3Fu &&
-            (t3 = (*iterator)[2u] - 0x80u) <= 0x3Fu)
+        if (boundary - *iterator >= 3 && (t1 = (*iterator)[0u] - 0x80) <= 0x3F &&
+            (t2 = (*iterator)[1u] - 0x80) <= 0x3F && (t3 = (*iterator)[2u] - 0x80) <= 0x3F)
         {
-            value = ((value & 0x7u) << 18u) | (t1 << 12u) | (t2 << 6u) | t3;
-            if (!IS_IN_RANGE (0x10000u, 0x10FFFFu))
+            value = ((value & 0x7) << 18u) | (t1 << 12u) | (t2 << 6u) | t3;
+            if (!IS_IN_RANGE (0x10000, 0x10FFFF))
             {
                 return 0u;
             }
@@ -247,15 +250,101 @@ kan_unicode_codepoint_t kan_text_utf8_next (const uint8_t **iterator)
     return 0u;
 }
 
+const uint8_t *kan_text_utf8_find_previous (const uint8_t *from, const uint8_t *boundary)
+{
+    // Implementation is based upon hb_utf8_t::next from harfbuzz, which is based upon U8_NEXT from ICU. Oh, well. :)
+    const uint8_t *start = from - 1u;
+
+    while (true)
+    {
+        if (start < boundary)
+        {
+            return NULL;
+        }
+
+        if ((*start & 0xC0) != 0x80)
+        {
+            break;
+        }
+
+        --start;
+        if (from - start > 4)
+        {
+            return NULL;
+        }
+    }
+
+    // Do codepoint length validity check.
+#define CHECK_RANGE(LEFT, RIGHT) ((*start - (LEFT)) <= ((RIGHT) - (LEFT)))
+
+    switch (from - start)
+    {
+    case 4u:
+        return CHECK_RANGE (0xF0, 0xF4) ? start : NULL;
+
+    case 3u:
+        return CHECK_RANGE (0xE0, 0xEF) ? start : NULL;
+
+    case 2u:
+        return CHECK_RANGE (0xC2, 0xDF) ? start : NULL;
+
+    case 1u:
+        return CHECK_RANGE (0x00, 0x7F) ? start : NULL;
+
+    default:
+        return NULL;
+    }
+#undef CHECK_RANGE
+}
+
+struct kan_text_utf8_result_t kan_text_utf32_to_utf8 (kan_unicode_codepoint_t codepoint)
+{
+    struct kan_text_utf8_result_t result;
+    result.length = 0u;
+
+    if (codepoint < 0x7F)
+    {
+        result.length = 1u;
+        result.data[0u] = (char) codepoint;
+    }
+    else if (codepoint <= 0x7FF)
+    {
+        result.length = 2u;
+        result.data[0u] = (char) ((codepoint >> 6u) | 0xC0);
+        result.data[1u] = (char) ((codepoint & 0x3F) | 0x80);
+    }
+    else if (codepoint <= 0xD7FF || (0xE000 <= codepoint && codepoint <= 0xFFFF))
+    {
+        result.length = 3u;
+        result.data[0u] = (char) ((codepoint >> 12u) | 0xE0);
+        result.data[1u] = (char) (((codepoint >> 6u) & 0x3F) | 0x80);
+        result.data[2u] = (char) ((codepoint & 0x3F) | 0x80);
+    }
+    else if (0xFFFF < codepoint && codepoint <= 0x10FFFF)
+    {
+        result.length = 4u;
+        result.data[0u] = (char) ((codepoint >> 18u) | 0xF0);
+        result.data[1u] = (char) (((codepoint >> 12u) & 0x3F) | 0x80);
+        result.data[1u] = (char) (((codepoint >> 6u) & 0x3F) | 0x80);
+        result.data[2u] = (char) ((codepoint & 0x3F) | 0x80);
+    }
+
+    return result;
+}
+
 struct line_break_iterator_context_t
 {
     const uint8_t *text_begin;
     const uint8_t *text_iterator;
+    const uint8_t *text_end;
     bool whitespace_sequence;
 };
 
-#define LINE_BREAK_ITERATOR_CONTEXT_INIT(TEXT)                                                                         \
-    (struct line_break_iterator_context_t) { .text_begin = TEXT, .text_iterator = TEXT, .whitespace_sequence = false, }
+#define LINE_BREAK_ITERATOR_CONTEXT_INIT(TEXT, LENGTH)                                                                 \
+    (struct line_break_iterator_context_t)                                                                             \
+    {                                                                                                                  \
+        .text_begin = TEXT, .text_iterator = TEXT, .text_end = TEXT + LENGTH, .whitespace_sequence = false,            \
+    }
 
 static inline bool line_break_iterator_next (struct line_break_iterator_context_t *context,
                                              kan_instance_size_t *output_cluster,
@@ -276,7 +365,7 @@ static inline bool line_break_iterator_next (struct line_break_iterator_context_
     while (true)
     {
         const kan_instance_size_t cluster = (kan_instance_size_t) (context->text_iterator - context->text_begin);
-        const kan_unicode_codepoint_t codepoint = kan_text_utf8_next (&context->text_iterator);
+        const kan_unicode_codepoint_t codepoint = kan_text_utf8_next (&context->text_iterator, context->text_end);
 
         if (!codepoint)
         {
@@ -358,7 +447,6 @@ struct text_icon_t
 {
     kan_interned_string_t style;
     uint32_t icon_index;
-    uint32_t base_codepoint;
     float x_scale;
     float y_scale;
 };
@@ -392,8 +480,7 @@ struct text_create_context_t
 };
 
 static inline void text_commit_trailing_utf8 (struct text_create_context_t *context,
-                                              kan_instance_size_t items_count,
-                                              struct kan_text_item_t *items,
+                                              const struct kan_text_description_t *description,
                                               kan_instance_size_t current_index,
                                               kan_instance_size_t current_start,
                                               kan_instance_size_t current_end)
@@ -404,27 +491,42 @@ static inline void text_commit_trailing_utf8 (struct text_create_context_t *cont
         for (kan_loop_size_t uncommited_index = context->first_uncommited_utf8_index; uncommited_index < current_index;
              ++uncommited_index)
         {
-            struct kan_text_item_t *uncommited_item = &items[uncommited_index];
-            KAN_ASSERT (uncommited_item->type == KAN_TEXT_ITEM_UTF8)
+            struct kan_text_item_t *uncommited_item = &description->items[uncommited_index];
+            switch (uncommited_item->type)
+            {
+            case KAN_TEXT_ITEM_EMPTY:
+            case KAN_TEXT_ITEM_STYLE:
+                // Nothing to do.
+                break;
 
-            const kan_instance_size_t from_offset =
-                uncommited_index == context->first_uncommited_utf8_index ? context->first_uncommited_utf8_offset : 0u;
+            case KAN_TEXT_ITEM_UTF8:
+            {
+                const kan_instance_size_t from_offset = uncommited_index == context->first_uncommited_utf8_index ?
+                                                            context->first_uncommited_utf8_offset :
+                                                            0u;
 
-            const kan_instance_size_t length = (kan_instance_size_t) strlen (uncommited_item->utf8);
-            data_length += length - from_offset;
+                const kan_instance_size_t length = (kan_instance_size_t) strlen (uncommited_item->utf8);
+                data_length += length - from_offset;
+                break;
+            }
+
+            case KAN_TEXT_ITEM_ICON:
+                // Must never happen.
+                KAN_ASSERT (false)
+                break;
+            }
         }
     }
 
-    if (current_index != items_count)
+    if (current_index != description->items_count)
     {
-        struct kan_text_item_t *current_item = &items[current_index];
+        struct kan_text_item_t *current_item = &description->items[current_index];
         if (current_item->type == KAN_TEXT_ITEM_UTF8)
         {
             data_length += current_end - current_start;
         }
     }
 
-    KAN_ASSERT (data_length > 0u)
     struct text_node_t *node = kan_allocate_general (
         text_allocation_group,
         kan_apply_alignment (sizeof (struct text_node_t) + data_length + 1u, alignof (struct text_node_t)),
@@ -441,23 +543,39 @@ static inline void text_commit_trailing_utf8 (struct text_create_context_t *cont
         for (kan_loop_size_t uncommited_index = context->first_uncommited_utf8_index; uncommited_index < current_index;
              ++uncommited_index)
         {
-            struct kan_text_item_t *uncommited_item = &items[uncommited_index];
-            KAN_ASSERT (uncommited_item->type == KAN_TEXT_ITEM_UTF8)
+            struct kan_text_item_t *uncommited_item = &description->items[uncommited_index];
+            switch (uncommited_item->type)
+            {
+            case KAN_TEXT_ITEM_EMPTY:
+            case KAN_TEXT_ITEM_STYLE:
+                // Nothing to do.
+                break;
 
-            const kan_instance_size_t from_offset =
-                uncommited_index == context->first_uncommited_utf8_index ? context->first_uncommited_utf8_offset : 0u;
+            case KAN_TEXT_ITEM_UTF8:
+            {
+                const kan_instance_size_t from_offset = uncommited_index == context->first_uncommited_utf8_index ?
+                                                            context->first_uncommited_utf8_offset :
+                                                            0u;
 
-            const kan_instance_size_t length = (kan_instance_size_t) strlen (uncommited_item->utf8);
-            memcpy (node->utf8.data + write_offset, uncommited_item->utf8 + from_offset, length - from_offset);
-            write_offset += length - from_offset;
+                const kan_instance_size_t length = (kan_instance_size_t) strlen (uncommited_item->utf8);
+                memcpy (node->utf8.data + write_offset, uncommited_item->utf8 + from_offset, length - from_offset);
+                write_offset += length - from_offset;
+                break;
+            }
+
+            case KAN_TEXT_ITEM_ICON:
+                // Must never happen.
+                KAN_ASSERT (false)
+                break;
+            }
         }
 
         context->first_uncommited_utf8_index = KAN_INT_MAX (kan_instance_size_t);
     }
 
-    if (current_index != items_count && current_start != current_end)
+    if (current_index != description->items_count && current_start != current_end)
     {
-        struct kan_text_item_t *current_item = &items[current_index];
+        struct kan_text_item_t *current_item = &description->items[current_index];
         if (current_item->type == KAN_TEXT_ITEM_UTF8)
         {
             memcpy (node->utf8.data + write_offset, current_item->utf8 + current_start, current_end - current_start);
@@ -478,7 +596,7 @@ static inline void text_commit_trailing_utf8 (struct text_create_context_t *cont
     context->last_node = node;
 }
 
-kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_item_t *items)
+kan_text_t kan_text_create (const struct kan_text_description_t *description)
 {
     ensure_statics_initialized ();
     KAN_CPU_SCOPED_STATIC_SECTION (kan_text_create)
@@ -493,9 +611,9 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
     kan_interned_string_t style = NULL;
     uint32_t mark = 0u;
 
-    for (kan_loop_size_t index = 0u; index < items_count; ++index)
+    for (kan_loop_size_t index = 0u; index < description->items_count; ++index)
     {
-        struct kan_text_item_t *item = &items[index];
+        struct kan_text_item_t *item = &description->items[index];
         switch (item->type)
         {
         case KAN_TEXT_ITEM_EMPTY:
@@ -505,20 +623,22 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
         case KAN_TEXT_ITEM_UTF8:
         {
             const uint8_t *utf8 = (uint8_t *) item->utf8;
+            const uint8_t *utf8_end = utf8 + strlen (item->utf8);
             kan_unicode_codepoint_t codepoint = 0u;
             kan_instance_size_t uncommited_from = 0u;
+            kan_instance_size_t common_since_offset = KAN_INT_MAX (kan_instance_size_t);
 
             while (true)
             {
                 const kan_instance_size_t pre_step_offset = (kan_instance_size_t) (utf8 - (uint8_t *) item->utf8);
-                if (!(codepoint = kan_text_utf8_next (&utf8)))
+                if (!(codepoint = kan_text_utf8_next (&utf8, utf8_end)))
                 {
                     break;
                 }
 
                 if (codepoint == KAN_TEXT_BIDI_CUSTOM_BREAK_VALUE)
                 {
-                    text_commit_trailing_utf8 (&context, items_count, items, index, uncommited_from, pre_step_offset);
+                    text_commit_trailing_utf8 (&context, description, index, uncommited_from, pre_step_offset);
                     // Uncommited from current offset, skip break character.
                     uncommited_from = (kan_instance_size_t) (utf8 - (uint8_t *) item->utf8);
                     context.current_script = HB_SCRIPT_UNKNOWN;
@@ -534,6 +654,11 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
                 case HB_SCRIPT_INHERITED:
                 case HB_SCRIPT_UNKNOWN:
                     // Common scripts are treated as part of primary scripts.
+                    if (common_since_offset == KAN_INT_MAX (kan_instance_size_t))
+                    {
+                        common_since_offset = pre_step_offset;
+                    }
+
                     break;
 
                 default:
@@ -549,14 +674,37 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
 
                         default:
                         {
-                            text_commit_trailing_utf8 (&context, items_count, items, index, uncommited_from,
-                                                       pre_step_offset);
-                            uncommited_from = pre_step_offset;
+                            bool lazy_grab = false;
+                            if (description->guide_bidi_with_direction)
+                            {
+                                const hb_direction_t old_script_direction =
+                                    hb_script_get_horizontal_direction (context.current_script);
+
+                                switch (description->direction_to_guide_bidi)
+                                {
+                                case KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT:
+                                    lazy_grab = old_script_direction == HB_DIRECTION_RTL;
+                                    break;
+
+                                case KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT:
+                                    lazy_grab = old_script_direction == HB_DIRECTION_LTR;
+                                    break;
+                                }
+                            }
+
+                            const kan_instance_size_t grab_until =
+                                lazy_grab && common_since_offset != KAN_INT_MAX (kan_instance_size_t) ?
+                                    common_since_offset :
+                                    pre_step_offset;
+
+                            text_commit_trailing_utf8 (&context, description, index, uncommited_from, grab_until);
+                            uncommited_from = grab_until;
                             break;
                         }
                         }
                     }
 
+                    common_since_offset = KAN_INT_MAX (kan_instance_size_t);
                     context.current_script = script;
                     break;
                 }
@@ -578,7 +726,7 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
         {
             if (context.first_uncommited_utf8_index != KAN_INT_MAX (kan_instance_size_t))
             {
-                text_commit_trailing_utf8 (&context, items_count, items, index, 0u, 0u);
+                text_commit_trailing_utf8 (&context, description, index, 0u, 0u);
                 context.current_script = HB_SCRIPT_UNKNOWN;
             }
 
@@ -588,7 +736,6 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
             node->next = NULL;
             node->type = TEXT_NODE_TYPE_ICON;
             node->icon.icon_index = item->icon.icon_index;
-            node->icon.base_codepoint = item->icon.base_codepoint;
             node->icon.x_scale = item->icon.x_scale;
             node->icon.y_scale = item->icon.y_scale;
 
@@ -617,7 +764,7 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
 
             if (context.first_uncommited_utf8_index != KAN_INT_MAX (kan_instance_size_t))
             {
-                text_commit_trailing_utf8 (&context, items_count, items, index, 0u, 0u);
+                text_commit_trailing_utf8 (&context, description, index, 0u, 0u);
                 context.current_script = HB_SCRIPT_UNKNOWN;
             }
 
@@ -646,7 +793,7 @@ kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_ite
 
     if (context.first_uncommited_utf8_index != KAN_INT_MAX (kan_instance_size_t))
     {
-        text_commit_trailing_utf8 (&context, items_count, items, items_count, 0u, 0u);
+        text_commit_trailing_utf8 (&context, description, description->items_count, 0u, 0u);
     }
 
     return KAN_HANDLE_SET (kan_text_t, context.first_node);
@@ -676,23 +823,41 @@ void kan_text_destroy (kan_text_t instance)
     }
 }
 
+void kan_text_shaped_edition_sequence_data_init (struct kan_text_shaped_edition_sequence_data_t *instance)
+{
+    instance->baseline = 0;
+    instance->ascender = 0;
+    instance->descender = 0;
+    instance->end_at_index = KAN_INT_MAX (kan_instance_size_t);
+
+    kan_dynamic_array_init (&instance->clusters, 0u, sizeof (struct kan_text_shaped_edition_cluster_data_t),
+                            alignof (struct kan_text_shaped_edition_cluster_data_t), kan_allocation_group_stack_get ());
+}
+
+void kan_text_shaped_edition_sequence_data_shutdown (struct kan_text_shaped_edition_sequence_data_t *instance)
+{
+    kan_dynamic_array_shutdown (&instance->clusters);
+}
+
 void kan_text_shaped_data_init (struct kan_text_shaped_data_t *instance)
 {
-    instance->min.x = 0;
-    instance->min.y = 0;
-    instance->max.x = 0;
-    instance->max.y = 0;
+    instance->typographic_primary_size = 0u;
+    instance->typographic_secondary_size = 0u;
 
     kan_dynamic_array_init (&instance->glyphs, 0u, sizeof (struct kan_text_shaped_glyph_instance_data_t),
                             alignof (struct kan_text_shaped_glyph_instance_data_t), kan_allocation_group_stack_get ());
     kan_dynamic_array_init (&instance->icons, 0u, sizeof (struct kan_text_shaped_icon_instance_data_t),
                             alignof (struct kan_text_shaped_icon_instance_data_t), kan_allocation_group_stack_get ());
+    kan_dynamic_array_init (&instance->edition_sequences, 0u, sizeof (struct kan_text_shaped_edition_sequence_data_t),
+                            alignof (struct kan_text_shaped_edition_sequence_data_t),
+                            kan_allocation_group_stack_get ());
 }
 
 void kan_text_shaped_data_shutdown (struct kan_text_shaped_data_t *instance)
 {
     kan_dynamic_array_shutdown (&instance->glyphs);
     kan_dynamic_array_shutdown (&instance->icons);
+    KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->edition_sequences, kan_text_shaped_edition_sequence_data)
 }
 
 struct font_rendered_glyph_node_t
@@ -769,6 +934,7 @@ struct font_library_t
     struct kan_stack_group_allocator_t allocator;
 
     kan_instance_size_t categories_count;
+    kan_instance_size_t primary_default_category_index;
     struct font_library_category_t categories[];
 };
 
@@ -847,13 +1013,20 @@ kan_font_library_t kan_font_library_create (kan_render_context_t render_context,
     library->allocator_lock = kan_atomic_int_init (0);
     kan_stack_group_allocator_init (&library->allocator, font_library_allocation_group,
                                     KAN_TEXT_FT_HB_FONT_LIBRARY_STACK);
+
     library->categories_count = categories_count;
+    library->primary_default_category_index = KAN_INT_MAX (kan_instance_size_t);
 
     struct kan_font_library_category_t *source = categories;
     struct font_library_category_t *target = library->categories;
 
     for (kan_loop_size_t index = 0u; index < library->categories_count; ++index, ++source, ++target)
     {
+        if (library->primary_default_category_index == KAN_INT_MAX (kan_instance_size_t) && !source->style)
+        {
+            library->primary_default_category_index = (kan_instance_size_t) index;
+        }
+
         target->style = source->style;
         target->script_name = source->script;
         target->script = hb_script_from_string (source->script, -1);
@@ -906,6 +1079,21 @@ kan_font_library_t kan_font_library_create (kan_render_context_t render_context,
         {
             target->variable_axis = NULL;
         }
+    }
+
+    if (library->primary_default_category_index < library->categories_count &&
+        !library->categories[library->primary_default_category_index].harfbuzz_face)
+    {
+        KAN_LOG (text, KAN_LOG_ERROR,
+                 "Failed to select primary default category for font library: harfbuzz face creation failed. Text "
+                 "render is likely to be broken.")
+        library->primary_default_category_index = KAN_INT_MAX (kan_instance_size_t);
+    }
+    else if (library->primary_default_category_index >= library->categories_count)
+    {
+        KAN_LOG (text, KAN_LOG_ERROR,
+                 "Failed to select primary default category for font library: no categories with NULL style. Text "
+                 "render is likely to be broken.")
     }
 
     return KAN_HANDLE_SET (kan_font_library_t, library);
@@ -967,6 +1155,8 @@ struct shape_sequence_t
     kan_instance_size_t first_icon_index;
     int32_t length_26_6;
     int32_t biggest_line_space_26_6;
+    int32_t biggest_ascender_26_6;
+    int32_t biggest_descender_26_6;
 };
 
 struct shape_render_delayed_reminder_t
@@ -986,16 +1176,43 @@ struct shape_context_t
     uint32_t mark;
     kan_instance_size_t last_read_index;
     kan_instance_size_t last_read_cluster;
-    int32_t primary_axis_limit_26_6;
+    const int32_t primary_axis_limit_26_6;
+
+    /// \details As harfbuzz always orders output in left-to-right top-to-bottom order, right-to-left and bottom-to-top
+    ///          sequences must be processed in reversed order to break the sequences correctly. However, we don't have
+    ///          bottom-to-top support for now, therefore it is only right-to-left.
+    bool forward_string_processing;
 
     struct font_library_category_t *current_category;
     hb_font_t *harfbuzz_font;
     hb_buffer_t *harfbuzz_buffer;
+    kan_instance_size_t edition_index_offset;
 
     struct kan_dynamic_array_t line_breaks;
     struct kan_dynamic_array_t sequences;
     struct kan_dynamic_array_t render_delayed;
+
+    int32_t primary_default_ascender_26_6;
+    int32_t primary_default_descender_26_6;
+    int32_t icon_base_width_26_6;
+    int32_t icon_base_height_26_6;
+    int32_t icon_base_y_offset_26_6;
 };
+
+static inline void shape_do_choose_category (struct shape_context_t *context, struct font_library_category_t *category)
+{
+    context->current_category = category;
+    context->harfbuzz_font = hb_font_create (category->harfbuzz_face);
+
+    if (category->variable_axis)
+    {
+        hb_font_set_var_coords_design (context->harfbuzz_font, category->variable_axis, category->variable_axis_count);
+    }
+
+    hb_font_set_scale (context->harfbuzz_font, TO_26_6 (context->request->font_size),
+                       TO_26_6 (context->request->font_size));
+    hb_font_make_immutable (context->harfbuzz_font);
+}
 
 static bool shape_choose_category (struct shape_context_t *context)
 {
@@ -1035,18 +1252,7 @@ static bool shape_choose_category (struct shape_context_t *context)
             continue;
         }
 
-        context->current_category = category;
-        context->harfbuzz_font = hb_font_create (category->harfbuzz_face);
-
-        if (category->variable_axis)
-        {
-            hb_font_set_var_coords_design (context->harfbuzz_font, category->variable_axis,
-                                           category->variable_axis_count);
-        }
-
-        hb_font_set_scale (context->harfbuzz_font, TO_26_6 (context->request->font_size),
-                           TO_26_6 (context->request->font_size));
-        hb_font_make_immutable (context->harfbuzz_font);
+        shape_do_choose_category (context, category);
         return true;
     }
 
@@ -1069,8 +1275,8 @@ static inline void shape_reset_category (struct shape_context_t *context)
     }
 }
 
-/// \details Breaking is only allowed if script has the same direction as lines starts.
-static inline bool shape_is_break_allowed (struct shape_context_t *context, hb_direction_t script_direction)
+static inline bool shape_is_matching_reading_direction (struct shape_context_t *context,
+                                                        hb_direction_t script_direction)
 {
     switch (context->request->orientation)
     {
@@ -1078,7 +1284,7 @@ static inline bool shape_is_break_allowed (struct shape_context_t *context, hb_d
         break;
 
     case KAN_TEXT_ORIENTATION_VERTICAL:
-        // Currently, all vertical text is top-to-bottom, therefore it is breakable.
+        // Currently, all vertical text is top-to-bottom, therefore reading direction is considered matching.
         return true;
     }
 
@@ -1092,6 +1298,40 @@ static inline bool shape_is_break_allowed (struct shape_context_t *context, hb_d
     }
 
     return false;
+}
+
+/// \details Breaking is only allowed if script direction matches reading direction.
+static inline bool shape_is_break_allowed (struct shape_context_t *context, hb_direction_t script_direction)
+{
+    return context->request->allow_breaks && shape_is_matching_reading_direction (context, script_direction);
+}
+
+static inline void pad_edition_sequences (struct shape_context_t *context, const hb_glyph_info_t *glyph_info)
+{
+    KAN_ASSERT (context->request->generate_edition_markup)
+    if (context->output->edition_sequences.size < context->sequences.size)
+    {
+        if (context->output->edition_sequences.size != 0u)
+        {
+            struct kan_text_shaped_edition_sequence_data_t *last_edition =
+                &((struct kan_text_shaped_edition_sequence_data_t *)
+                      context->output->edition_sequences.data)[context->output->edition_sequences.size - 1u];
+            last_edition->end_at_index = context->edition_index_offset + glyph_info->cluster;
+        }
+
+        kan_dynamic_array_set_capacity (&context->output->edition_sequences, context->sequences.capacity);
+        kan_allocation_group_stack_push (context->output->edition_sequences.allocation_group);
+
+        while (context->output->edition_sequences.size < context->sequences.size)
+        {
+            struct kan_text_shaped_edition_sequence_data_t *new_sequence =
+                kan_dynamic_array_add_last (&context->output->edition_sequences);
+            kan_text_shaped_edition_sequence_data_init (new_sequence);
+            new_sequence->end_at_index = context->edition_index_offset + glyph_info->cluster;
+        }
+
+        kan_allocation_group_stack_pop ();
+    }
 }
 
 static inline void shape_apply_rendered_data_to_glyph (struct shape_context_t *context,
@@ -1161,16 +1401,24 @@ static inline bool shape_extract_render_data_for_glyph_concurrently (
 }
 
 static inline void shape_append_to_sequence (struct shape_context_t *context,
-                                             struct shape_sequence_t *last_sequence,
-                                             bool forward_processing,
                                              const hb_glyph_info_t *glyph_info,
-                                             const hb_glyph_position_t *glyph_position)
+                                             const hb_glyph_position_t *glyph_position,
+                                             hb_direction_t harfbuzz_direction)
 {
+    KAN_ASSERT (context->sequences.size > 0u)
+    struct shape_sequence_t *last_sequence =
+        &((struct shape_sequence_t *) context->sequences.data)[context->sequences.size - 1u];
+
     // After shaping data in glyph info is not an actual unicode codepoint, but glyph index in font.
     const kan_instance_size_t glyph_index = (kan_instance_size_t) glyph_info->codepoint;
 
     if (glyph_index == MISSING_GLYPH)
     {
+        if (context->request->generate_edition_markup)
+        {
+            pad_edition_sequences (context, glyph_info);
+        }
+
         return;
     }
 
@@ -1182,28 +1430,30 @@ static inline void shape_append_to_sequence (struct shape_context_t *context,
     }
 
     shaped->mark = context->mark;
-    if (context->last_read_cluster != (kan_instance_size_t) glyph_info->cluster)
+    const bool new_cluster = context->last_read_cluster != (kan_instance_size_t) glyph_info->cluster;
+
+    if (new_cluster)
     {
         ++context->last_read_index;
         context->last_read_cluster = glyph_info->cluster;
     }
 
     shaped->read_index = context->last_read_index;
-    int32_t origin_x = 0u;
-    int32_t origin_y = 0u;
+    int32_t origin_x = 0;
+    int32_t origin_y = 0;
+    const int32_t length_prior_to_placement_26_6 = last_sequence->length_26_6;
 
     switch (context->request->orientation)
     {
     case KAN_TEXT_ORIENTATION_HORIZONTAL:
-        if (forward_processing)
+        if (context->forward_string_processing)
         {
             origin_x = last_sequence->length_26_6 + glyph_position->x_offset;
             origin_y = -glyph_position->y_offset;
         }
         else
         {
-            origin_x = context->primary_axis_limit_26_6 - last_sequence->length_26_6 - glyph_position->x_advance +
-                       glyph_position->x_offset;
+            origin_x = -last_sequence->length_26_6 - glyph_position->x_advance + glyph_position->x_offset;
             origin_y = -glyph_position->y_offset;
         }
 
@@ -1211,7 +1461,7 @@ static inline void shape_append_to_sequence (struct shape_context_t *context,
         break;
 
     case KAN_TEXT_ORIENTATION_VERTICAL:
-        KAN_ASSERT (forward_processing) // No bottom-to-top ordering for now.
+        KAN_ASSERT (context->forward_string_processing) // No bottom-to-top ordering for now.
         origin_x = glyph_position->x_offset;
         origin_y = last_sequence->length_26_6 - glyph_position->y_offset;
         KAN_ASSERT (glyph_position->y_advance <= 0)
@@ -1241,6 +1491,95 @@ static inline void shape_append_to_sequence (struct shape_context_t *context,
 
         render_delayed->font_glyph_index = glyph_index;
         render_delayed->shaped_glyph_index = context->output->glyphs.size - 1u;
+    }
+
+    if (context->request->generate_edition_markup)
+    {
+        pad_edition_sequences (context, glyph_info);
+        KAN_ASSERT (context->output->edition_sequences.size > 0u)
+
+        struct kan_text_shaped_edition_sequence_data_t *last_edition =
+            &((struct kan_text_shaped_edition_sequence_data_t *)
+                  context->output->edition_sequences.data)[context->output->edition_sequences.size - 1u];
+        struct kan_text_shaped_edition_cluster_data_t *cluster;
+
+        if (new_cluster)
+        {
+            cluster = kan_dynamic_array_add_last (&last_edition->clusters);
+            if (!cluster)
+            {
+                kan_dynamic_array_set_capacity (
+                    &last_edition->clusters,
+                    KAN_MAX (KAN_TEXT_FT_HB_FONT_SHAPED_EDITION_CLUSTERS_MIN, last_edition->clusters.size * 2u));
+                cluster = kan_dynamic_array_add_last (&last_edition->clusters);
+            }
+
+            switch (context->request->orientation)
+            {
+            case KAN_TEXT_ORIENTATION_HORIZONTAL:
+                cluster->visual_min = origin_x;
+                cluster->visual_max = origin_x;
+                break;
+
+            case KAN_TEXT_ORIENTATION_VERTICAL:
+                cluster->visual_min = origin_y;
+                cluster->visual_max = origin_y;
+                break;
+            }
+
+            cluster->matching_reading_direction = shape_is_matching_reading_direction (context, harfbuzz_direction);
+            const kan_instance_offset_t cursor_position_base =
+                cluster->matching_reading_direction ? length_prior_to_placement_26_6 : last_sequence->length_26_6;
+
+            cluster->visual_cursor_position =
+                context->forward_string_processing ? cursor_position_base : -cursor_position_base;
+
+            cluster->start_at_index = context->edition_index_offset + glyph_info->cluster;
+        }
+        else
+        {
+            KAN_ASSERT (last_edition->clusters.size > 0u)
+            cluster = &((struct kan_text_shaped_edition_cluster_data_t *)
+                            last_edition->clusters.data)[last_edition->clusters.size - 1u];
+        }
+
+        struct hb_glyph_extents_t extents;
+        if (!hb_font_get_glyph_extents_for_origin (context->harfbuzz_font, glyph_info->codepoint, harfbuzz_direction,
+                                                   &extents))
+        {
+            KAN_LOG (text, KAN_LOG_ERROR, "Failed to get glyph extents for glyph at index %lu.\n",
+                     (unsigned long) glyph_info->codepoint)
+            return;
+        }
+
+        kan_instance_offset_t min = 0;
+        kan_instance_offset_t max = 0;
+
+        switch (context->request->orientation)
+        {
+        case KAN_TEXT_ORIENTATION_HORIZONTAL:
+            min = origin_x + extents.x_bearing;
+            // Catch zero-sized glyphs like whitespace with width check. We still want their borders to be non-zero.
+            max = origin_x + extents.x_bearing + (extents.width ? extents.width : glyph_position->x_advance);
+            break;
+
+        case KAN_TEXT_ORIENTATION_VERTICAL:
+            min = origin_y - extents.y_bearing;
+            // Catch zero-sized glyphs like whitespace with height check. We still want their borders to be non-zero.
+            max = origin_y + (extents.height ? extents.height : glyph_position->y_advance) - extents.y_bearing;
+            break;
+        }
+
+        if (new_cluster)
+        {
+            cluster->visual_min = min;
+            cluster->visual_max = max;
+        }
+        else
+        {
+            cluster->visual_min = KAN_MIN (cluster->visual_min, min);
+            cluster->visual_max = KAN_MAX (cluster->visual_max, max);
+        }
     }
 }
 
@@ -1464,7 +1803,7 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
     if (can_break)
     {
         struct line_break_iterator_context_t line_break_context =
-            LINE_BREAK_ITERATOR_CONTEXT_INIT ((uint8_t *) node->utf8.data);
+            LINE_BREAK_ITERATOR_CONTEXT_INIT ((uint8_t *) node->utf8.data, node->utf8.length);
 
         while (true)
         {
@@ -1503,7 +1842,7 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
     hb_buffer_set_script (context->harfbuzz_buffer, node->utf8.script);
     hb_buffer_set_direction (context->harfbuzz_buffer, harfbuzz_direction);
     hb_buffer_set_cluster_level (context->harfbuzz_buffer, HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS);
-    hb_buffer_add_utf8 (context->harfbuzz_buffer, node->utf8.data, -1, 0u, -1);
+    hb_buffer_add_utf8 (context->harfbuzz_buffer, node->utf8.data, node->utf8.length, 0u, node->utf8.length);
     hb_shape (context->harfbuzz_font, context->harfbuzz_buffer, NULL, 0u);
     CUSHION_DEFER { hb_buffer_clear_contents (context->harfbuzz_buffer); }
 
@@ -1527,12 +1866,17 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
     last_sequence->first_glyph_index = context->output->glyphs.size;                                                   \
     last_sequence->first_icon_index = context->output->icons.size;                                                     \
     last_sequence->length_26_6 = 0;                                                                                    \
-    last_sequence->biggest_line_space_26_6 = line_space_26_6
+    last_sequence->biggest_line_space_26_6 = line_space_26_6;                                                          \
+    last_sequence->biggest_ascender_26_6 = font_extents.ascender;                                                      \
+    last_sequence->biggest_descender_26_6 = font_extents.descender
 
     if (context->sequences.size > 0u)
     {
         last_sequence = &((struct shape_sequence_t *) context->sequences.data)[context->sequences.size - 1u];
         last_sequence->biggest_line_space_26_6 = KAN_MAX (last_sequence->biggest_line_space_26_6, line_space_26_6);
+        last_sequence->biggest_ascender_26_6 = KAN_MAX (last_sequence->biggest_ascender_26_6, font_extents.ascender);
+        // Descenders are negative, therefore KAN_MIN selects the bigger absolute descender.
+        last_sequence->biggest_descender_26_6 = KAN_MIN (last_sequence->biggest_descender_26_6, font_extents.descender);
     }
     else
     {
@@ -1542,13 +1886,6 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
     // Remark: below we approximate sequence lengths through advances, which might not be correct in all cases,
     // but should be good enough for the most cases in most fonts. And it makes estimation easier as well.
 
-    // As harfbuzz always orders output in left-to-right top-to-bottom order, right-to-left and bottom-to-top
-    // sequences must be processed in reversed order to break the sequences correctly. However, we don't have
-    // bottom-to-top support for now, therefore it is only right-to-left.
-    const bool forward_string_processing =
-        context->request->orientation == KAN_TEXT_ORIENTATION_VERTICAL ||
-        context->request->reading_direction == KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
-
     const struct line_break_t *breaks = (struct line_break_t *) context->line_breaks.data;
     const struct line_break_t *breaks_end = breaks ? breaks + context->line_breaks.size : NULL;
     context->last_read_cluster = KAN_INT_MAX (kan_instance_size_t);
@@ -1557,7 +1894,7 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
     {
         // Forward-ordered breaking processing.
         kan_instance_size_t next_unprocessed_glyph_index =
-            forward_string_processing ? 0u : ((kan_instance_size_t) glyph_count) - 1u;
+            context->forward_string_processing ? 0u : ((kan_instance_size_t) glyph_count) - 1u;
         // We do not need to reverse breaks in reversed processing, only harfbuzz glyphs.
         const struct line_break_t *next_break = breaks;
 
@@ -1595,7 +1932,8 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
                     break;
                 }
 
-                if (current_grabbed_length_26_6 + advance > grab_limit && last_sequence->length_26_6 != 0u)
+                if (context->request->allow_breaks && current_grabbed_length_26_6 + advance > grab_limit &&
+                    last_sequence->length_26_6 != 0u)
                 {
                     // Grabbed too much for the current line, start new sequence.
                     // We can just start new sequence like that as we're breaking grabs by line breaks.
@@ -1604,15 +1942,15 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
                 }
 
                 // We always need to grab first glyph and any overlay (zero advance) glyph on top of it.
-                if (current_grabbed_length_26_6 + advance > grab_limit && grab_until != next_unprocessed_glyph_index &&
-                    advance != 0u)
+                if (context->request->allow_breaks && current_grabbed_length_26_6 + advance > grab_limit &&
+                    grab_until != next_unprocessed_glyph_index && advance != 0u)
                 {
                     // We cannot grab anymore and need unconventional break whatever the cost.
                     break;
                 }
 
                 current_grabbed_length_26_6 += advance;
-                if (forward_string_processing)
+                if (context->forward_string_processing)
                 {
                     ++grab_until;
                 }
@@ -1622,12 +1960,12 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
                 }
             }
 
-            if (forward_string_processing)
+            if (context->forward_string_processing)
             {
                 for (kan_loop_size_t index = next_unprocessed_glyph_index; index < grab_until; ++index)
                 {
-                    shape_append_to_sequence (context, last_sequence, true, glyph_infos + index,
-                                              glyph_positions + index);
+                    shape_append_to_sequence (context, glyph_infos + index, glyph_positions + index,
+                                              harfbuzz_direction);
                 }
             }
             else
@@ -1635,12 +1973,12 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
                 // Use the same type for index to make underflow predictable.
                 for (kan_instance_size_t index = next_unprocessed_glyph_index; index != grab_until; --index)
                 {
-                    shape_append_to_sequence (context, last_sequence, false, glyph_infos + index,
-                                              glyph_positions + index);
+                    shape_append_to_sequence (context, glyph_infos + index, glyph_positions + index,
+                                              harfbuzz_direction);
                 }
             }
 
-            if (encountered_break && encountered_break->hard)
+            if (context->request->allow_breaks && encountered_break && encountered_break->hard)
             {
                 NEW_SEQUENCE;
             }
@@ -1666,7 +2004,8 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
             }
         }
 
-        if (last_sequence->length_26_6 + whole_length_26_6 > context->primary_axis_limit_26_6 &&
+        if (context->request->allow_breaks &&
+            last_sequence->length_26_6 + whole_length_26_6 > context->primary_axis_limit_26_6 &&
             // Corner case: sequence is already empty, no need for the new one.
             last_sequence->length_26_6 != 0u)
         {
@@ -1682,22 +2021,42 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
             NEW_SEQUENCE;
         }
 
-        if (forward_string_processing)
+        const kan_instance_size_t first_glyph_index = context->output->glyphs.size;
+        if (context->forward_string_processing)
         {
             for (kan_loop_size_t index = 0u; index < glyph_count; ++index)
             {
-                shape_append_to_sequence (context, last_sequence, true, glyph_infos + index, glyph_positions + index);
+                shape_append_to_sequence (context, glyph_infos + index, glyph_positions + index, harfbuzz_direction);
             }
         }
         else
         {
             for (kan_loop_size_t index = glyph_count - 1u; index != KAN_INT_MAX (kan_loop_size_t); --index)
             {
-                shape_append_to_sequence (context, last_sequence, false, glyph_infos + index, glyph_positions + index);
+                shape_append_to_sequence (context, glyph_infos + index, glyph_positions + index, harfbuzz_direction);
             }
         }
 
-        if (last_sequence->length_26_6 > context->primary_axis_limit_26_6)
+        // If the direction is not matching, we need to invert read indices as we've added glyphs according to global
+        // reading direction instead of this fragment script reading direction. Also, we cannot just append using
+        // script reading direction as it will potentially mess up a lot of other stuff, including shaped data for
+        // edition logic.
+        if (!shape_is_matching_reading_direction (context, harfbuzz_direction) &&
+            first_glyph_index < context->output->glyphs.size)
+        {
+            struct kan_text_shaped_glyph_instance_data_t *first_glyph =
+                &((struct kan_text_shaped_glyph_instance_data_t *) context->output->glyphs.data)[first_glyph_index];
+            const kan_instance_size_t base_read_index = first_glyph->read_index;
+
+            for (kan_loop_size_t index = first_glyph_index; index < context->output->glyphs.size; ++index)
+            {
+                struct kan_text_shaped_glyph_instance_data_t *glyph =
+                    &((struct kan_text_shaped_glyph_instance_data_t *) context->output->glyphs.data)[index];
+                glyph->read_index = base_read_index + context->last_read_index - glyph->read_index;
+            }
+        }
+
+        if (context->request->allow_breaks && last_sequence->length_26_6 > context->primary_axis_limit_26_6)
         {
             NEW_SEQUENCE;
         }
@@ -1738,65 +2097,34 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
             }
         }
     }
+
+    context->edition_index_offset += node->utf8.length;
+    if (context->request->generate_edition_markup && context->output->edition_sequences.size != 0u)
+    {
+        struct kan_text_shaped_edition_sequence_data_t *last_edition =
+            &((struct kan_text_shaped_edition_sequence_data_t *)
+                  context->output->edition_sequences.data)[context->output->edition_sequences.size - 1u];
+        last_edition->end_at_index = context->edition_index_offset;
+    }
 }
 
 static void shape_text_node_icon (struct shape_context_t *context, struct text_node_t *node)
 {
-    hb_direction_t harfbuzz_direction = HB_DIRECTION_LTR;
-    switch (context->request->orientation)
-    {
-    case KAN_TEXT_ORIENTATION_HORIZONTAL:
-        switch (context->request->reading_direction)
-        {
-        case KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT:
-            harfbuzz_direction = HB_DIRECTION_LTR;
-            break;
+    const int32_t width_26_6 = (int32_t) roundf ((float) context->icon_base_width_26_6 * node->icon.x_scale);
+    const int32_t height_26_6 = (int32_t) roundf ((float) context->icon_base_height_26_6 * node->icon.y_scale);
+    const int32_t offset_26_6 = (int32_t) roundf ((float) context->icon_base_y_offset_26_6 * node->icon.y_scale);
 
-        case KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT:
-            harfbuzz_direction = HB_DIRECTION_RTL;
-            break;
-        }
-
-        break;
-
-    case KAN_TEXT_ORIENTATION_VERTICAL:
-        harfbuzz_direction = HB_DIRECTION_TTB;
-        break;
-    }
-
-    hb_codepoint_t harfbuzz_glyph_index;
-    if (!hb_font_get_nominal_glyph (context->harfbuzz_font, node->icon.base_codepoint, &harfbuzz_glyph_index))
-    {
-        KAN_LOG (text, KAN_LOG_ERROR,
-                 "Cannot add icon as codepoint as it was not possible to query glyph index for codepoint %lu.",
-                 (unsigned long) node->icon.base_codepoint)
-        return;
-    }
-
-    hb_glyph_extents_t extents;
-    if (!hb_font_get_glyph_extents_for_origin (context->harfbuzz_font, harfbuzz_glyph_index, harfbuzz_direction,
-                                               &extents))
-    {
-        KAN_LOG (text, KAN_LOG_ERROR,
-                 "Cannot add icon as codepoint as it was not possible to query extents of codepoint %lu.",
-                 (unsigned long) node->icon.base_codepoint)
-        return;
-    }
-
-    const int32_t scaled_x_bearing_26_6 = (int32_t) roundf ((float) extents.x_bearing * node->icon.x_scale);
-    const int32_t scaled_y_bearing_26_6 = (int32_t) roundf ((float) extents.y_bearing * node->icon.y_scale);
-    const int32_t scaled_width_26_6 = (int32_t) roundf ((float) extents.width * node->icon.x_scale);
-    const int32_t scaled_height_26_6 = (int32_t) roundf ((float) extents.height * node->icon.y_scale);
     const int32_t length_26_6 =
-        context->request->orientation == KAN_TEXT_ORIENTATION_HORIZONTAL ? scaled_width_26_6 : scaled_height_26_6;
-
+        context->request->orientation == KAN_TEXT_ORIENTATION_HORIZONTAL ? width_26_6 : height_26_6;
     struct shape_sequence_t *last_sequence = NULL;
+
     if (context->sequences.size > 0u)
     {
         last_sequence = &((struct shape_sequence_t *) context->sequences.data)[context->sequences.size - 1u];
     }
 
-    if (!last_sequence || last_sequence->length_26_6 + length_26_6)
+    if (!last_sequence ||
+        (context->request->allow_breaks && last_sequence->length_26_6 + length_26_6 > context->primary_axis_limit_26_6))
     {
         last_sequence = kan_dynamic_array_add_last (&context->sequences);
         if (!last_sequence)
@@ -1809,16 +2137,41 @@ static void shape_text_node_icon (struct shape_context_t *context, struct text_n
         last_sequence->first_icon_index = context->output->icons.size;
         last_sequence->length_26_6 = 0;
 
+        hb_direction_t harfbuzz_direction = HB_DIRECTION_LTR;
+        switch (context->request->orientation)
+        {
+        case KAN_TEXT_ORIENTATION_HORIZONTAL:
+            switch (context->request->reading_direction)
+            {
+            case KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT:
+                harfbuzz_direction = HB_DIRECTION_LTR;
+                break;
+
+            case KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT:
+                harfbuzz_direction = HB_DIRECTION_RTL;
+                break;
+            }
+
+            break;
+
+        case KAN_TEXT_ORIENTATION_VERTICAL:
+            harfbuzz_direction = HB_DIRECTION_TTB;
+            break;
+        }
+
         struct hb_font_extents_t font_extents;
         hb_font_get_extents_for_direction (context->harfbuzz_font, harfbuzz_direction, &font_extents);
         const int32_t line_space_26_6 = font_extents.ascender - font_extents.descender + font_extents.line_gap;
         last_sequence->biggest_line_space_26_6 = line_space_26_6;
+        last_sequence->biggest_ascender_26_6 = font_extents.ascender;
+        last_sequence->biggest_descender_26_6 = font_extents.descender;
     }
 
     struct kan_text_shaped_icon_instance_data_t *shaped = kan_dynamic_array_add_last (&context->output->icons);
     if (!shaped)
     {
-        kan_dynamic_array_set_capacity (&context->output->icons, context->output->icons.size * 2u);
+        kan_dynamic_array_set_capacity (
+            &context->output->icons, KAN_MAX (context->output->icons.size * 2u, KAN_TEXT_FT_HB_FONT_SHAPED_ICONS_MIN));
         shaped = kan_dynamic_array_add_last (&context->output->icons);
     }
 
@@ -1833,15 +2186,14 @@ static void shape_text_node_icon (struct shape_context_t *context, struct text_n
     switch (context->request->orientation)
     {
     case KAN_TEXT_ORIENTATION_HORIZONTAL:
-        if (context->request->reading_direction == KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT)
+        if (context->forward_string_processing)
         {
             origin_x = last_sequence->length_26_6;
             origin_y = 0;
         }
         else
         {
-            origin_x = context->primary_axis_limit_26_6 - last_sequence->length_26_6 - scaled_width_26_6 -
-                       scaled_x_bearing_26_6;
+            origin_x = -last_sequence->length_26_6 - width_26_6;
             origin_y = 0;
         }
 
@@ -1857,25 +2209,42 @@ static void shape_text_node_icon (struct shape_context_t *context, struct text_n
 
     struct kan_int32_vector_2_t *min_26_6 = (struct kan_int32_vector_2_t *) &shaped->min;
     struct kan_int32_vector_2_t *max_26_6 = (struct kan_int32_vector_2_t *) &shaped->max;
-    min_26_6->x = origin_x + scaled_x_bearing_26_6;
-    min_26_6->y = origin_y + scaled_y_bearing_26_6;
-    max_26_6->x = origin_x + scaled_x_bearing_26_6 + scaled_width_26_6;
-    max_26_6->y = origin_y + scaled_y_bearing_26_6 + scaled_height_26_6;
+    min_26_6->x = origin_x;
+    min_26_6->y = origin_y + offset_26_6;
+    max_26_6->x = origin_x + width_26_6;
+    max_26_6->y = origin_y + offset_26_6 + height_26_6;
 }
 
 static void shape_post_process_sequences (struct shape_context_t *context)
 {
-    context->output->min.x = 0;
-    context->output->min.y = 0;
-    context->output->max.x = 0;
-    context->output->max.y = 0;
-    int32_t baseline_26_6 = 0;
+    int32_t typographic_primary_size_26_6 = context->primary_axis_limit_26_6;
+    for (kan_loop_size_t sequence_index = 0u; sequence_index < context->sequences.size; ++sequence_index)
+    {
+        const struct shape_sequence_t *sequence =
+            &((struct shape_sequence_t *) context->sequences.data)[sequence_index];
+        typographic_primary_size_26_6 = KAN_MAX (typographic_primary_size_26_6, sequence->length_26_6);
+    }
+
+    context->output->typographic_primary_size = (kan_instance_size_t) ceilf (FROM_26_6 (typographic_primary_size_26_6));
+    context->output->typographic_secondary_size = 0u;
+
+#if KAN_TEXT_FT_HB_ROUND_OFFSETS_TO_PIXELS > 0u
+#    define ROUND_GAP(VARIABLE)                                                                                        \
+        VARIABLE = VARIABLE % 64 != 0 ?                                                                                \
+                       (VARIABLE >= 0 ? (VARIABLE + 64 - (VARIABLE % 64)) : (VARIABLE - 64 - (VARIABLE % 64))) :       \
+                       VARIABLE;
+#else
+#    define ROUND_GAP(VARIABLE)
+#endif
+
+    int32_t baseline_26_6 = context->primary_default_ascender_26_6;
+    ROUND_GAP (baseline_26_6);
 
     for (kan_loop_size_t sequence_index = 0u; sequence_index < context->sequences.size; ++sequence_index)
     {
         const struct shape_sequence_t *sequence =
             &((struct shape_sequence_t *) context->sequences.data)[sequence_index];
-        int32_t alignment_offset_26_6 = 0;
+        int32_t alignment_offset_26_6 = context->forward_string_processing ? 0 : typographic_primary_size_26_6;
 
         if (context->request->reading_direction == KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT ||
             context->request->orientation == KAN_TEXT_ORIENTATION_VERTICAL)
@@ -1887,11 +2256,11 @@ static void shape_post_process_sequences (struct shape_context_t *context)
                 break;
 
             case KAN_TEXT_SHAPING_ALIGNMENT_CENTER:
-                alignment_offset_26_6 = (context->primary_axis_limit_26_6 - sequence->length_26_6) / 2;
+                alignment_offset_26_6 = (typographic_primary_size_26_6 - sequence->length_26_6) / 2;
                 break;
 
             case KAN_TEXT_SHAPING_ALIGNMENT_RIGHT:
-                alignment_offset_26_6 = context->primary_axis_limit_26_6 - sequence->length_26_6;
+                alignment_offset_26_6 = typographic_primary_size_26_6 - sequence->length_26_6;
                 break;
             }
         }
@@ -1900,11 +2269,11 @@ static void shape_post_process_sequences (struct shape_context_t *context)
             switch (context->request->alignment)
             {
             case KAN_TEXT_SHAPING_ALIGNMENT_LEFT:
-                alignment_offset_26_6 = sequence->length_26_6 - context->primary_axis_limit_26_6;
+                alignment_offset_26_6 = sequence->length_26_6 - typographic_primary_size_26_6;
                 break;
 
             case KAN_TEXT_SHAPING_ALIGNMENT_CENTER:
-                alignment_offset_26_6 = (sequence->length_26_6 - context->primary_axis_limit_26_6) / 2;
+                alignment_offset_26_6 = (sequence->length_26_6 - typographic_primary_size_26_6) / 2;
                 break;
 
             case KAN_TEXT_SHAPING_ALIGNMENT_RIGHT:
@@ -1913,6 +2282,7 @@ static void shape_post_process_sequences (struct shape_context_t *context)
             }
         }
 
+        ROUND_GAP (alignment_offset_26_6);
         kan_loop_size_t glyph_limit = context->output->glyphs.size;
         kan_loop_size_t icon_limit = context->output->icons.size;
 
@@ -1953,11 +2323,6 @@ static void shape_post_process_sequences (struct shape_context_t *context)
             glyph->min.y = FROM_26_6 (min_26_6->y);
             glyph->max.x = FROM_26_6 (max_26_6->x);
             glyph->max.y = FROM_26_6 (max_26_6->y);
-
-            context->output->min.x = KAN_MIN (context->output->min.x, (int32_t) glyph->min.x);
-            context->output->min.y = KAN_MIN (context->output->min.y, (int32_t) glyph->min.y);
-            context->output->max.x = KAN_MAX (context->output->max.x, (int32_t) glyph->max.x);
-            context->output->max.y = KAN_MAX (context->output->max.y, (int32_t) glyph->max.y);
         }
 
         for (kan_loop_size_t icon_index = sequence->first_icon_index; icon_index < icon_limit; ++icon_index)
@@ -1988,14 +2353,44 @@ static void shape_post_process_sequences (struct shape_context_t *context)
             icon->min.y = roundf (FROM_26_6 (min_26_6->y));
             icon->max.x = roundf (FROM_26_6 (max_26_6->x));
             icon->max.y = roundf (FROM_26_6 (max_26_6->y));
+        }
 
-            context->output->min.x = KAN_MIN (context->output->min.x, (int32_t) icon->min.x);
-            context->output->min.y = KAN_MIN (context->output->min.y, (int32_t) icon->min.y);
-            context->output->max.x = KAN_MAX (context->output->max.x, (int32_t) icon->max.x);
-            context->output->max.y = KAN_MAX (context->output->max.y, (int32_t) icon->max.y);
+        if (context->output->edition_sequences.size > sequence_index)
+        {
+            struct kan_text_shaped_edition_sequence_data_t *edition_sequence =
+                &((struct kan_text_shaped_edition_sequence_data_t *)
+                      context->output->edition_sequences.data)[sequence_index];
+
+            edition_sequence->baseline = (kan_instance_offset_t) roundf (FROM_26_6 (baseline_26_6));
+            edition_sequence->ascender = (kan_instance_offset_t) roundf (FROM_26_6 (sequence->biggest_ascender_26_6));
+            edition_sequence->descender = (kan_instance_offset_t) roundf (FROM_26_6 (sequence->biggest_descender_26_6));
+
+            for (kan_loop_size_t cluster_index = 0u; cluster_index < edition_sequence->clusters.size; ++cluster_index)
+            {
+                struct kan_text_shaped_edition_cluster_data_t *cluster =
+                    &((struct kan_text_shaped_edition_cluster_data_t *) edition_sequence->clusters.data)[cluster_index];
+
+                cluster->visual_min += alignment_offset_26_6;
+                cluster->visual_max += alignment_offset_26_6;
+                cluster->visual_cursor_position += alignment_offset_26_6;
+
+                cluster->visual_min = (kan_instance_offset_t) roundf (FROM_26_6 (cluster->visual_min));
+                cluster->visual_max = (kan_instance_offset_t) roundf (FROM_26_6 (cluster->visual_max));
+                cluster->visual_cursor_position =
+                    (kan_instance_offset_t) roundf (FROM_26_6 (cluster->visual_cursor_position));
+            }
+        }
+
+        if (sequence_index == context->sequences.size - 1u)
+        {
+            int32_t descender_gap = context->primary_default_descender_26_6;
+            ROUND_GAP (descender_gap);
+            context->output->typographic_secondary_size =
+                (kan_instance_size_t) roundf (FROM_26_6 (baseline_26_6 - descender_gap));
         }
 
         baseline_26_6 += sequence->biggest_line_space_26_6;
+        ROUND_GAP (baseline_26_6);
     }
 }
 
@@ -2029,11 +2424,52 @@ bool kan_font_library_shape (kan_font_library_t instance,
         .last_read_index = KAN_INT_MAX (kan_instance_size_t),
         .last_read_cluster = KAN_INT_MAX (kan_instance_size_t),
         .primary_axis_limit_26_6 = (int32_t) TO_26_6 (request->primary_axis_limit),
+        .forward_string_processing = request->orientation == KAN_TEXT_ORIENTATION_VERTICAL ||
+                                     request->reading_direction == KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
 
         .current_category = NULL,
         .harfbuzz_font = NULL,
         .harfbuzz_buffer = hb_buffer_create (),
+        .edition_index_offset = 0u,
     };
+
+    if (context.library->primary_default_category_index < context.library->categories_count)
+    {
+        struct font_library_category_t *category =
+            &context.library->categories[context.library->primary_default_category_index];
+
+        context.script = category->script;
+        shape_do_choose_category (&context, category);
+        hb_direction_t harfbuzz_direction = HB_DIRECTION_LTR;
+
+        switch (request->orientation)
+        {
+        case KAN_TEXT_ORIENTATION_HORIZONTAL:
+            harfbuzz_direction = hb_script_get_horizontal_direction (category->script);
+            break;
+
+        case KAN_TEXT_ORIENTATION_VERTICAL:
+            harfbuzz_direction = HB_DIRECTION_TTB;
+            break;
+        }
+
+        struct hb_font_extents_t font_extents;
+        hb_font_get_extents_for_direction (context.harfbuzz_font, harfbuzz_direction, &font_extents);
+        context.primary_default_ascender_26_6 = font_extents.ascender;
+        context.primary_default_descender_26_6 = font_extents.descender;
+
+        context.icon_base_width_26_6 = font_extents.ascender - font_extents.descender;
+        context.icon_base_height_26_6 = font_extents.ascender - font_extents.descender;
+        context.icon_base_y_offset_26_6 = -font_extents.ascender;
+    }
+    else
+    {
+        context.primary_default_ascender_26_6 = TO_26_6 (request->font_size);
+        context.primary_default_descender_26_6 = 0;
+        context.icon_base_width_26_6 = TO_26_6 (request->font_size);
+        context.icon_base_height_26_6 = TO_26_6 (request->font_size);
+        context.icon_base_y_offset_26_6 = -context.icon_base_height_26_6;
+    }
 
     kan_dynamic_array_init (&context.line_breaks, KAN_TEXT_FT_HB_FONT_SHAPE_LINE_BREAKS_INITIAL,
                             sizeof (struct line_break_t), alignof (struct line_break_t),
@@ -2073,17 +2509,6 @@ bool kan_font_library_shape (kan_font_library_t instance,
             break;
 
         case TEXT_NODE_TYPE_ICON:
-            if (context.script != HB_SCRIPT_COMMON)
-            {
-                shape_reset_category (&context);
-            }
-
-            context.script = HB_SCRIPT_COMMON;
-            if (!shape_choose_category (&context))
-            {
-                return false;
-            }
-
             shape_text_node_icon (&context, text_node);
             break;
 
@@ -2150,8 +2575,9 @@ bool kan_font_library_precache (kan_font_library_t instance, struct kan_text_pre
     KAN_ATOMIC_INT_SCOPED_LOCK_WRITE (&selected_category->glyphs_read_write_lock)
     kan_unicode_codepoint_t codepoint;
     const uint8_t *utf8 = (uint8_t *) request->utf8;
+    const uint8_t *utf8_end = utf8 + strlen (request->utf8);
 
-    while ((codepoint = kan_text_utf8_next (&utf8)))
+    while ((codepoint = kan_text_utf8_next (&utf8, utf8_end)))
     {
         if (codepoint == KAN_TEXT_BIDI_CUSTOM_BREAK_VALUE)
         {

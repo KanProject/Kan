@@ -108,6 +108,9 @@ struct a_bit_of_everything_t
 
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct second_component_t *)
     struct kan_dynamic_array_t dynamic_array;
+
+    const uint64_t const_field;
+    kan_immutable uint64_t immutable_field;
 };
 
 KAN_C_HEADER_END

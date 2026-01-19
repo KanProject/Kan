@@ -255,9 +255,9 @@ static inline kan_resource_third_party_blob_id_t kan_next_resource_third_party_b
 /// \brief Contains common information about resource entry.
 struct kan_resource_generic_entry_t
 {
-    kan_resource_entry_id_t entry_id;
-    kan_interned_string_t type;
-    kan_interned_string_t name;
+    kan_immutable kan_resource_entry_id_t entry_id;
+    kan_immutable kan_interned_string_t type;
+    kan_immutable kan_interned_string_t name;
     kan_instance_size_t usage_counter;
 
     /// \brief If true, entry was removed from file system during hot reload.
@@ -278,8 +278,8 @@ UNIVERSE_RESOURCE_PROVIDER_API void kan_resource_generic_entry_shutdown (struct 
 KAN_REFLECTION_IGNORE
 struct kan_resource_typed_entry_view_t
 {
-    kan_resource_entry_id_t entry_id;
-    kan_interned_string_t name;
+    kan_immutable kan_resource_entry_id_t entry_id;
+    kan_immutable kan_interned_string_t name;
     kan_resource_container_id_t loaded_container_id;
     bool loading_pending;
     kan_resource_container_id_t loading_container_id;
@@ -290,7 +290,7 @@ struct kan_resource_typed_entry_view_t
 KAN_REFLECTION_IGNORE
 struct kan_resource_container_view_t
 {
-    kan_resource_container_id_t container_id;
+    kan_immutable kan_resource_container_id_t container_id;
     kan_allocation_group_t my_allocation_group;
     uint8_t data_begin[];
 };
@@ -304,8 +304,8 @@ struct kan_resource_container_view_t
 /// \brief Contains information about registered third party entry.
 struct kan_resource_third_party_entry_t
 {
-    kan_resource_entry_id_t entry_id;
-    kan_interned_string_t name;
+    kan_immutable kan_resource_entry_id_t entry_id;
+    kan_immutable kan_interned_string_t name;
 
     /// \brief If true, entry was removed from file system during hot reload.
     bool removal_mark;
@@ -324,10 +324,10 @@ UNIVERSE_RESOURCE_PROVIDER_API void kan_resource_third_party_entry_shutdown (
 /// \brief Record that informs resource provider that resource with given type and name is expected to be loaded.
 struct kan_resource_usage_t
 {
-    kan_resource_usage_id_t usage_id;
-    kan_interned_string_t type;
-    kan_interned_string_t name;
-    kan_instance_size_t priority;
+    kan_immutable kan_resource_usage_id_t usage_id;
+    kan_immutable kan_interned_string_t type;
+    kan_immutable kan_interned_string_t name;
+    kan_immutable kan_instance_size_t priority;
 };
 
 UNIVERSE_RESOURCE_PROVIDER_API void kan_resource_usage_init (struct kan_resource_usage_t *instance);
@@ -335,9 +335,9 @@ UNIVERSE_RESOURCE_PROVIDER_API void kan_resource_usage_init (struct kan_resource
 /// \brief Blob record for loading third party resources as binary data into memory.
 struct kan_resource_third_party_blob_t
 {
-    kan_resource_third_party_blob_id_t blob_id;
-    kan_interned_string_t name;
-    kan_instance_size_t priority;
+    kan_immutable kan_resource_third_party_blob_id_t blob_id;
+    kan_immutable kan_interned_string_t name;
+    kan_immutable kan_instance_size_t priority;
 
     /// \brief Flag that is true when blob data is ready to be used.
     /// \warning `available_data` might not be NULL, but still not ready to be used, check this flag first!
@@ -436,7 +436,7 @@ struct kan_resource_third_party_blob_failed_t
         if (resource_container_##NAME)                                                                                 \
         {                                                                                                              \
             NAME = KAN_RESOURCE_PROVIDER_CONTAINER_GET (RESOURCE_TYPE, resource_container_##NAME);                     \
-            KAN_UM_ACCESS_ESCAPE (container_access_if_escaped_##NAME, resource_container_##NAME)                       \
+            KAN_UM_ACCESS_ESCAPE (container_access_if_escaped_##NAME, resource_container_##NAME);                      \
         }                                                                                                              \
     }
 

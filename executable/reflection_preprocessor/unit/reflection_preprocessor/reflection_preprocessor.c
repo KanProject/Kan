@@ -590,7 +590,8 @@ static inline void re2c_yyrestore (void)
  identifier = [A-Za-z_][A-Za-z0-9_]*;
 
  type_prefix =
-     (@const_marker "const" separator+)? ((@struct_marker "struct" separator+) | (@enum_marker "enum" separator+))?;
+     (@const_marker ("const" | "kan_immutable") separator+)?
+     ((@struct_marker "struct" separator+) | (@enum_marker "enum" separator+))?;
  type_pointer_suffix = (@pointer_begin separator* "*"+ separator* @pointer_end);
  type = type_prefix @type_name_begin identifier @type_name_end (type_pointer_suffix | (separator+));
 
@@ -804,7 +805,7 @@ static inline enum parse_status_t continue_into_potential_pragma (bool allow_fil
      }
 
      "pragma" separator_no_nl+ "kan_reflection_visibility_condition_value" separator_no_nl+
-     @value_begin (. \ [\(\)])+ @value_end separators_till_nl
+     @value_begin (. \ [()])+ @value_end separators_till_nl
      {
          struct visibility_condition_value_node_t *node =
              kan_allocate_batched (global.meta_allocation_group, sizeof (struct visibility_condition_value_node_t));
@@ -1014,7 +1015,7 @@ static enum parse_status_t parse_main (void)
              continue;
          }
 
-         "typedef" ((. \ [;\{\}]) | separator)+ ";"
+         "typedef" ((. \ [;{}]) | separator)+ ";"
          {
              // Simple typedef without braces. Add it to declarations if we're parsing target object file.
              if (!meta_storage_is_empty (&parser.current_meta_storage))
@@ -1300,7 +1301,7 @@ static enum parse_status_t parse_enum_declaration (const char *declaration_name_
          }
 
          @name_begin identifier @name_end
-         (separator* "=" separator* ([0-9a-zA-Z_+<>] | separator | "-")+)? separator* ","?
+         (separator* "=" separator* ([0-9a-zA-Z_+<>] | separator | "-" | "|")+)? separator* ","?
          {
              if (parser.current_target_node->type == TARGET_FILE_TYPE_OBJECT)
              {
@@ -1698,6 +1699,9 @@ static inline enum parse_status_t process_struct_field (struct struct_reflection
     kan_trivial_string_buffer_append_char_sequence (&global.bootstrap_section, name_begin,
                                                     (kan_instance_size_t) (name_end - name_begin));
     kan_trivial_string_buffer_append_string (&global.bootstrap_section, "),\n");
+    kan_trivial_string_buffer_append_string (&global.bootstrap_section, "        .is_const = ");
+    kan_trivial_string_buffer_append_string (&global.bootstrap_section, type->is_const ? "true" : "false");
+    kan_trivial_string_buffer_append_string (&global.bootstrap_section, ",\n");
 
     if (array_size_begin)
     {
@@ -2396,11 +2400,16 @@ static inline void finish_function_generation (struct function_reflection_contex
         kan_trivial_string_buffer_append_string (&global.bootstrap_section, context->name);
         kan_trivial_string_buffer_append_string (&global.bootstrap_section, "_return_type");
         kan_trivial_string_buffer_append_string (&global.bootstrap_section, "),\n");
+        kan_trivial_string_buffer_append_string (&global.bootstrap_section, "        .is_const = ");
+        kan_trivial_string_buffer_append_string (&global.bootstrap_section,
+                                                 return_type_info->is_const ? "true" : "false");
+        kan_trivial_string_buffer_append_string (&global.bootstrap_section, ",\n");
         function_argument_bootstrap_archetype_commons (return_type_info, "            ");
     }
     else
     {
         kan_trivial_string_buffer_append_string (&global.bootstrap_section, "            .size = 0u,\n");
+        kan_trivial_string_buffer_append_string (&global.bootstrap_section, "            .is_const = false,\n");
         kan_trivial_string_buffer_append_string (&global.bootstrap_section,
                                                  "            .archetype = KAN_REFLECTION_ARCHETYPE_SIGNED_INT,\n");
     }
@@ -2499,6 +2508,9 @@ static inline enum parse_status_t process_function_argument (struct function_ref
     kan_trivial_string_buffer_append_char_sequence (&global.bootstrap_section, argument_type_begin,
                                                     (kan_instance_size_t) (argument_type_end - argument_type_begin));
     kan_trivial_string_buffer_append_string (&global.bootstrap_section, "),\n");
+    kan_trivial_string_buffer_append_string (&global.bootstrap_section, "        .is_const = ");
+    kan_trivial_string_buffer_append_string (&global.bootstrap_section, type->is_const ? "true" : "false");
+    kan_trivial_string_buffer_append_string (&global.bootstrap_section, ",\n");
 
     function_argument_bootstrap_archetype_commons (type, "        ");
     kan_trivial_string_buffer_append_string (&global.bootstrap_section, "    };\n\n");

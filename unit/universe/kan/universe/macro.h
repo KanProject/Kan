@@ -78,6 +78,10 @@
 ///   won't be closed on scope exit.
 ///
 /// - KAN_UM_ACCESS_DELETE should be used to delete record to which access points if it is supported by the access.
+///
+/// - KAN_UM_ACCESS_CLOSE_IMMEDIATELY should be used to close access to the record right away, without waiting for the
+///   scope exit. It is useful in rare cases where function complexity makes it difficult to just pass pointers and
+///   introduces a lot of internal queries.
 /// \endparblock
 ///
 /// \par Queries
@@ -86,7 +90,7 @@
 ///
 /// - KAN_UMI_SINGLETON_READ and KAN_UMI_SINGLETON_WRITE are provided for singleton access.
 ///
-/// - KAN_UMO_INDEXED_INSERT is provided for indexed insertion query.
+/// - KAN_UMO_INDEXED_INSERT and KAN_UMI_INDEXED_INSERT are provided for indexed insertion query.
 ///
 /// - KAN_UML_(SEQUENCE|VALUE|SIGNAL|INTERVAL_ASCENDING|INTERVAL_DESCENDING)_(READ|UPDATE|DELETE|WRITE) are loop based
 ///   wrappers for listed types of queries with listed access patterns.
@@ -101,44 +105,30 @@
 ///   one result or no result from the query, which is validated using assert. When there is no result, query record
 ///   variable is set to NULL.
 ///
-/// - KAN_UMO_EVENT_INSERT is provided for event insertion.
+/// - KAN_UMO_EVENT_INSERT and KAN_UMO_EVENT_INSERT_INIT are provided for event insertion. KAN_UMO_EVENT_INSERT_INIT is
+///   a special syntax sugar that treats subsequent block as initializer block and not a code block. It simplifies
+///   sending an event and makes it possible to avoid explicitly naming event variable.
 ///
 /// - KAN_UML_EVENT_FETCH is provided for fetching events of given type.
 /// \endparblock
 
 KAN_C_HEADER_BEGIN
 
-#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
-#    define KAN_UM_GENERATE_STATE_QUERIES(STATE_NAME)                                                                  \
-        /* Highlight-autocomplete replacement. */                                                                      \
-        kan_memory_size_t STATE_NAME##_fake_placeholder_field;
-#else
-#    define KAN_UM_GENERATE_STATE_QUERIES(STATE_NAME) CUSHION_STATEMENT_ACCUMULATOR (universe_queries_##STATE_NAME)
-#endif
+#define KAN_UM_GENERATE_STATE_QUERIES(STATE_NAME)                                                                      \
+    KAN_HIGHLIGHT_ONLY (kan_memory_size_t STATE_NAME##_fake_placeholder_field;)                                        \
+    KAN_NOT_IN_HIGHLIGHT (CUSHION_STATEMENT_ACCUMULATOR (universe_queries_##STATE_NAME))
 
-#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
-#    define KAN_UM_BIND_STATE(STATE_NAME, ...) /* No highlight-time replacement. */
-#else
-#    define KAN_UM_BIND_STATE(STATE_NAME, ...)                                                                         \
-        CUSHION_STATEMENT_ACCUMULATOR_REF (universe_queries, universe_queries_##STATE_NAME)                            \
-        CUSHION_SNIPPET (KAN_UM_STATE_PATH, (__VA_ARGS__))
-#endif
+#define KAN_UM_BIND_STATE(STATE_NAME, ...)                                                                             \
+    KAN_NOT_IN_HIGHLIGHT (CUSHION_STATEMENT_ACCUMULATOR_REF (universe_queries, universe_queries_##STATE_NAME))         \
+    KAN_NOT_IN_HIGHLIGHT (CUSHION_SNIPPET (KAN_UM_STATE_PATH, (__VA_ARGS__)))
 
-#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
-#    define KAN_UM_BIND_STATE_FIELDLESS(STATE_NAME, ...) /* No highlight-time replacement. */
-#else
-#    define KAN_UM_BIND_STATE_FIELDLESS(STATE_NAME, ...)                                                               \
-        CUSHION_STATEMENT_ACCUMULATOR_UNREF (universe_queries)                                                         \
-        CUSHION_SNIPPET (KAN_UM_STATE_PATH, (__VA_ARGS__))
-#endif
+#define KAN_UM_BIND_STATE_FIELDLESS(STATE_NAME, ...)                                                                   \
+    KAN_NOT_IN_HIGHLIGHT (CUSHION_STATEMENT_ACCUMULATOR_UNREF (universe_queries))                                      \
+    KAN_NOT_IN_HIGHLIGHT (CUSHION_SNIPPET (KAN_UM_STATE_PATH, (__VA_ARGS__)))
 
-#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
-#    define KAN_UM_UNBIND_STATE /* No highlight-time replacement. */
-#else
-#    define KAN_UM_UNBIND_STATE                                                                                        \
-        CUSHION_STATEMENT_ACCUMULATOR_UNREF (universe_queries)                                                         \
-        CUSHION_SNIPPET (KAN_UM_STATE_PATH, (kan_up_state_path_not_initialized))
-#endif
+#define KAN_UM_UNBIND_STATE                                                                                            \
+    KAN_NOT_IN_HIGHLIGHT (CUSHION_STATEMENT_ACCUMULATOR_UNREF (universe_queries))                                      \
+    KAN_NOT_IN_HIGHLIGHT (CUSHION_SNIPPET (KAN_UM_STATE_PATH, (kan_up_state_path_not_initialized)))
 
 #define KAN_UM_MUTATOR_DEPLOY_SIGNATURE(FUNCTION_NAME, STATE_TYPE)                                                     \
     void FUNCTION_NAME (kan_universe_t universe, kan_universe_world_t world, kan_repository_t world_repository,        \
@@ -194,19 +184,21 @@ KAN_C_HEADER_BEGIN
 
 #define KAN_UM_ACCESS_ESCAPE(TARGET, NAME)                                                                             \
     TARGET = NAME##_access;                                                                                            \
-    *(typeof_unqual (NAME) *) &NAME = NULL;
+    *(typeof_unqual (NAME) *) &NAME = NULL
 
-#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
-#    define KAN_UM_ACCESS_DELETE(NAME)                                                                                 \
-        /* Highlight results in error with "no variable" if query highlight didn't declare this variable marking       \
-         * delete as allowed for this query type. */                                                                   \
-        delete_allowed_for_highlight_##NAME = true;                                                                    \
-        *(typeof_unqual (NAME) *) &NAME = NULL
-#else
-#    define KAN_UM_ACCESS_DELETE(NAME)                                                                                 \
-        KAN_SNIPPET_DELETE_ACCESS_##NAME;                                                                              \
-        *(typeof_unqual (NAME) *) &NAME = NULL
-#endif
+#define KAN_UM_ACCESS_DELETE(NAME)                                                                                     \
+    /* Highlight results in error with "no variable" if query highlight didn't declare this variable marking           \
+     * delete as allowed for this query type. */                                                                       \
+    KAN_HIGHLIGHT_ONLY (delete_allowed_for_highlight_##NAME = true;)                                                   \
+    KAN_NOT_IN_HIGHLIGHT (KAN_SNIPPET_DELETE_ACCESS_##NAME;)                                                           \
+    *(typeof_unqual (NAME) *) &NAME = NULL
+
+#define KAN_UM_ACCESS_CLOSE_IMMEDIATELY(NAME)                                                                          \
+    if (NAME)                                                                                                          \
+    {                                                                                                                  \
+        KAN_NOT_IN_HIGHLIGHT (KAN_SNIPPET_CLOSE_ACCESS_##NAME;)                                                        \
+    }                                                                                                                  \
+    *(typeof_unqual (NAME) *) &NAME = NULL
 
 #define KAN_UM_INTERNAL_STATE_FIELD(QUERY_TYPE, FIELD_NAME)                                                            \
     CUSHION_STATEMENT_ACCUMULATOR_PUSH (universe_queries, unique, optional) { struct QUERY_TYPE FIELD_NAME; }
@@ -272,6 +264,24 @@ KAN_C_HEADER_BEGIN
         }
 #endif
 
+#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
+#    define KAN_UMI_INDEXED_INSERT(NAME, TYPE)                                                                         \
+        /* Highlight-autocomplete replacement. */                                                                      \
+        struct TYPE *NAME = NULL;
+#else
+#    define KAN_UMI_INDEXED_INSERT(NAME, TYPE)                                                                         \
+        KAN_UM_INTERNAL_STATE_FIELD (kan_repository_indexed_insert_query_t,                                            \
+                                     insert__##__CUSHION_EVALUATED_ARGUMENT__ (TYPE))                                  \
+                                                                                                                       \
+        struct kan_repository_indexed_insertion_package_t NAME##_package =                                             \
+            kan_repository_indexed_insert_query_execute (                                                              \
+                &KAN_UM_STATE_PATH->insert__##__CUSHION_EVALUATED_ARGUMENT__ (TYPE));                                  \
+                                                                                                                       \
+        struct TYPE *NAME = kan_repository_indexed_insertion_package_get (&NAME##_package);                            \
+        KAN_ASSERT (NAME)                                                                                              \
+        CUSHION_DEFER { kan_repository_indexed_insertion_package_submit (&NAME##_package); }
+#endif
+
 #define KAN_UM_INTERNAL_SEQUENCE(NAME, TYPE, ACCESS, QUALIFIER)                                                        \
     {                                                                                                                  \
         KAN_UM_INTERNAL_STATE_FIELD (kan_repository_indexed_sequence_##ACCESS##_query_t,                               \
@@ -292,6 +302,8 @@ KAN_C_HEADER_BEGIN
             if (NAME)                                                                                                  \
             {                                                                                                          \
                 KAN_UM_INTERNAL_ACCESS_DEFER (NAME, kan_repository_indexed_sequence_##ACCESS##_access_close)           \
+                CUSHION_SNIPPET (KAN_SNIPPET_CLOSE_ACCESS_##NAME,                                                      \
+                                 kan_repository_indexed_sequence_##ACCESS##_access_close (&NAME##_access))             \
                 CUSHION_SNIPPET (KAN_SNIPPET_DELETE_ACCESS_##NAME,                                                     \
                                  kan_repository_indexed_sequence_##ACCESS##_access_delete (&NAME##_access))            \
                                                                                                                        \
@@ -371,6 +383,8 @@ KAN_C_HEADER_BEGIN
             if (NAME)                                                                                                  \
             {                                                                                                          \
                 KAN_UM_INTERNAL_ACCESS_DEFER (NAME, kan_repository_indexed_value_##ACCESS_TYPE##_access_close)         \
+                CUSHION_SNIPPET (KAN_SNIPPET_CLOSE_ACCESS_##NAME,                                                      \
+                                 kan_repository_indexed_value_##ACCESS_TYPE##_access_close (&NAME##_access))           \
                 CUSHION_SNIPPET (KAN_SNIPPET_DELETE_ACCESS_##NAME,                                                     \
                                  kan_repository_indexed_value_##ACCESS_TYPE##_access_delete (&NAME##_access))          \
                                                                                                                        \
@@ -488,6 +502,8 @@ KAN_C_HEADER_BEGIN
     KAN_ASSERT (NAME); /* Require macro expects that there is always one value. */                                     \
     KAN_UM_INTERNAL_ACCESS_DEFER (NAME, kan_repository_indexed_value_##ACCESS_TYPE##_access_close)                     \
                                                                                                                        \
+    CUSHION_SNIPPET (KAN_SNIPPET_CLOSE_ACCESS_##NAME,                                                                  \
+                     kan_repository_indexed_value_##ACCESS_TYPE##_access_close (&NAME##_access))                       \
     CUSHION_SNIPPET (KAN_SNIPPET_DELETE_ACCESS_##NAME,                                                                 \
                      kan_repository_indexed_value_##ACCESS_TYPE##_access_delete (&NAME##_access))                      \
                                                                                                                        \
@@ -585,6 +601,8 @@ KAN_C_HEADER_BEGIN
     QUALIFIER struct TYPE *const NAME = kan_repository_indexed_value_##ACCESS_TYPE##_access_resolve (&NAME##_access);  \
     KAN_UM_INTERNAL_ACCESS_DEFER (NAME, kan_repository_indexed_value_##ACCESS_TYPE##_access_close)                     \
                                                                                                                        \
+    CUSHION_SNIPPET (KAN_SNIPPET_CLOSE_ACCESS_##NAME,                                                                  \
+                     kan_repository_indexed_value_##ACCESS_TYPE##_access_close (&NAME##_access))                       \
     CUSHION_SNIPPET (KAN_SNIPPET_DELETE_ACCESS_##NAME,                                                                 \
                      kan_repository_indexed_value_##ACCESS_TYPE##_access_delete (&NAME##_access))                      \
                                                                                                                        \
@@ -693,6 +711,8 @@ KAN_C_HEADER_BEGIN
             if (NAME)                                                                                                  \
             {                                                                                                          \
                 KAN_UM_INTERNAL_ACCESS_DEFER (NAME, kan_repository_indexed_signal_##ACCESS##_access_close)             \
+                CUSHION_SNIPPET (KAN_SNIPPET_CLOSE_ACCESS_##NAME,                                                      \
+                                 kan_repository_indexed_signal_##ACCESS##_access_close (&NAME##_access))               \
                 CUSHION_SNIPPET (KAN_SNIPPET_DELETE_ACCESS_##NAME,                                                     \
                                  kan_repository_indexed_signal_##ACCESS##_access_delete (&NAME##_access))              \
                                                                                                                        \
@@ -780,6 +800,8 @@ KAN_C_HEADER_BEGIN
             if (NAME)                                                                                                  \
             {                                                                                                          \
                 KAN_UM_INTERNAL_ACCESS_DEFER (NAME, kan_repository_indexed_interval_##ACCESS##_access_close)           \
+                CUSHION_SNIPPET (KAN_SNIPPET_CLOSE_ACCESS_##NAME,                                                      \
+                                 kan_repository_indexed_interval_##ACCESS##_access_close (&NAME##_access))             \
                 CUSHION_SNIPPET (KAN_SNIPPET_DELETE_ACCESS_##NAME,                                                     \
                                  kan_repository_indexed_interval_##ACCESS##_access_delete (&NAME##_access))            \
                                                                                                                        \
@@ -946,6 +968,31 @@ KAN_C_HEADER_BEGIN
             {                                                                                                          \
                 CUSHION_DEFER { kan_repository_event_insertion_package_submit (&NAME##_package); }                     \
                 __CUSHION_WRAPPED__                                                                                    \
+            }                                                                                                          \
+        }
+#endif
+
+#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
+#    define KAN_UMO_EVENT_INSERT_INIT(TYPE)                                                                            \
+        /* Highlight-autocomplete replacement. Uses max int instead of NULL to confuse error highlight. */             \
+        *(struct TYPE *) KAN_INT_MAX (kan_memory_size_t) = (struct TYPE)
+#else
+#    define KAN_UMO_EVENT_INSERT_INIT(TYPE)                                                                            \
+        {                                                                                                              \
+            KAN_UM_INTERNAL_STATE_FIELD (kan_repository_event_insert_query_t,                                          \
+                                         insert__##__CUSHION_EVALUATED_ARGUMENT__ (TYPE))                              \
+                                                                                                                       \
+            struct kan_repository_event_insertion_package_t kan_umos_unnamed_event_package =                           \
+                kan_repository_event_insert_query_execute (                                                            \
+                    &KAN_UM_STATE_PATH->insert__##__CUSHION_EVALUATED_ARGUMENT__ (TYPE));                              \
+                                                                                                                       \
+            struct TYPE *const kan_umos_unnamed_event =                                                                \
+                kan_repository_event_insertion_package_get (&kan_umos_unnamed_event_package);                          \
+                                                                                                                       \
+            if (kan_umos_unnamed_event)                                                                                \
+            {                                                                                                          \
+                *kan_umos_unnamed_event = (struct TYPE) {__CUSHION_WRAPPED__};                                         \
+                kan_repository_event_insertion_package_submit (&kan_umos_unnamed_event_package);                       \
             }                                                                                                          \
         }
 #endif

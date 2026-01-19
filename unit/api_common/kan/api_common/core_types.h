@@ -77,6 +77,22 @@ static_assert (true == 1u, "True is one.");
 #    define alignof _Alignof
 #endif
 
+/// \brief Noop qualifier that is used to mark fields that should not be modifier after initialization.
+/// \details In short, if you're seeing this in universe/repository records, then you're expected to never modify
+///          values of fields marked by this after record insertion. Long description and explanation below.
+///
+///          Using const qualifier on fields that should not change after initialization seems like a logical decision,
+///          however it is quite unwieldy in practice: const fields can only be initialized with full struct
+///          initializer, which is difficult to use for dynamically allocated memory, or through casts for every field.
+///          It also forbids struct assignment through "=", which is why it can't be used on dynamically allocated
+///          memory when struct has const fields. That means that initialization of these fields in dynamically
+///          allocated structs in high level code (like universe units) will be really painful. But we have a lot of
+///          fields that we'd like to visibly mark for the user as "do not modify" and also inform reflection-driven
+///          code like repository that we do not expect any changes there. Therefore, we've decided to introduce this
+///          noop macro that is treated like const qualifier for reflection scans and also visibly informs user that
+///          changes are not expected here.
+#define kan_immutable __CUSHION_PRESERVE__
+
 /// \brief File coordinates are always 64 bit due to large file sizes.
 typedef uint64_t kan_file_size_t;
 

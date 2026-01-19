@@ -225,7 +225,7 @@ void render_backend_system_destroy_buffer (struct render_backend_system_t *syste
 kan_render_buffer_t kan_render_buffer_create (kan_render_context_t context,
                                               enum kan_render_buffer_type_t type,
                                               vulkan_size_t full_size,
-                                              void *optional_initial_data,
+                                              const void *optional_initial_data,
                                               kan_interned_string_t tracking_name)
 {
     kan_cpu_static_sections_ensure_initialized ();

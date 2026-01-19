@@ -752,8 +752,8 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
         push_data.projection_view =
             kan_orthographic_projection (0.0f, (float) TEST_WIDTH, (float) TEST_HEIGHT, 0.0f, 0.01f, 5000.0f);
 
-        push_data.element_offset.x = 100.0f - (float) shaped_data.min.x;
-        push_data.element_offset.y = 100.0f - (float) shaped_data.min.y;
+        push_data.element_offset.x = 100.0f;
+        push_data.element_offset.y = 100.0f;
         push_data.element_offset.z = 0.0f;
         push_data.element_offset.w = 0.0f;
         kan_render_pass_instance_push_constant (text_instance, &push_data);
@@ -798,19 +798,24 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
 KAN_TEST_CASE (english_left)
 {
     struct kan_text_item_t text_content[] = {
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "Robert Guiscard also referred to as Robert de Hauteville, was a Norman adventurer remembered for "
-                    "his conquest of southern Italy and Sicily in the 11th century.\n"
-                    "\n"
-                    "Robert was born into the Hauteville family in Normandy, the sixth son of Tancred de Hauteville "
-                    "and his wife Fressenda. He inherited the County of Apulia and Calabria from his brother in 1057, "
-                    "and in 1059 he was made Duke of Apulia and Calabria and Lord of Sicily by Pope Nicholas II. He "
-                    "was also briefly Prince of Benevento (1078–1081), before returning the title to the papacy.\n",
-        },
+        KAN_INIT_TEXT_ITEM_UTF8 (
+            "Robert Guiscard also referred to as Robert de Hauteville, was a Norman adventurer remembered for "
+            "his conquest of southern Italy and Sicily in the 11th century.\n"
+            "\n"
+            "Robert was born into the Hauteville family in Normandy, the sixth son of Tancred de Hauteville "
+            "and his wife Fressenda. He inherited the County of Apulia and Calabria from his brother in 1057, "
+            "and in 1059 he was made Duke of Apulia and Calabria and Lord of Sicily by Pope Nicholas II. He "
+            "was also briefly Prince of Benevento (1078–1081), before returning the title to the papacy.\n"),
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -824,6 +829,8 @@ KAN_TEST_CASE (english_left)
         .reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT,
         .primary_axis_limit = 600u,
+        .allow_breaks = true,
+        .generate_edition_markup = false,
         .text = text,
     };
 
@@ -833,19 +840,24 @@ KAN_TEST_CASE (english_left)
 KAN_TEST_CASE (english_center)
 {
     struct kan_text_item_t text_content[] = {
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "Robert Guiscard also referred to as Robert de Hauteville, was a Norman adventurer remembered for "
-                    "his conquest of southern Italy and Sicily in the 11th century.\n"
-                    "\n"
-                    "Robert was born into the Hauteville family in Normandy, the sixth son of Tancred de Hauteville "
-                    "and his wife Fressenda. He inherited the County of Apulia and Calabria from his brother in 1057, "
-                    "and in 1059 he was made Duke of Apulia and Calabria and Lord of Sicily by Pope Nicholas II. He "
-                    "was also briefly Prince of Benevento (1078–1081), before returning the title to the papacy.\n",
-        },
+        KAN_INIT_TEXT_ITEM_UTF8 (
+            "Robert Guiscard also referred to as Robert de Hauteville, was a Norman adventurer remembered for "
+            "his conquest of southern Italy and Sicily in the 11th century.\n"
+            "\n"
+            "Robert was born into the Hauteville family in Normandy, the sixth son of Tancred de Hauteville "
+            "and his wife Fressenda. He inherited the County of Apulia and Calabria from his brother in 1057, "
+            "and in 1059 he was made Duke of Apulia and Calabria and Lord of Sicily by Pope Nicholas II. He "
+            "was also briefly Prince of Benevento (1078–1081), before returning the title to the papacy.\n"),
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -859,6 +871,8 @@ KAN_TEST_CASE (english_center)
         .reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER,
         .primary_axis_limit = 600u,
+        .allow_breaks = true,
+        .generate_edition_markup = false,
         .text = text,
     };
 
@@ -868,19 +882,24 @@ KAN_TEST_CASE (english_center)
 KAN_TEST_CASE (english_right)
 {
     struct kan_text_item_t text_content[] = {
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "Robert Guiscard also referred to as Robert de Hauteville, was a Norman adventurer remembered for "
-                    "his conquest of southern Italy and Sicily in the 11th century.\n"
-                    "\n"
-                    "Robert was born into the Hauteville family in Normandy, the sixth son of Tancred de Hauteville "
-                    "and his wife Fressenda. He inherited the County of Apulia and Calabria from his brother in 1057, "
-                    "and in 1059 he was made Duke of Apulia and Calabria and Lord of Sicily by Pope Nicholas II. He "
-                    "was also briefly Prince of Benevento (1078–1081), before returning the title to the papacy.\n",
-        },
+        KAN_INIT_TEXT_ITEM_UTF8 (
+            "Robert Guiscard also referred to as Robert de Hauteville, was a Norman adventurer remembered for "
+            "his conquest of southern Italy and Sicily in the 11th century.\n"
+            "\n"
+            "Robert was born into the Hauteville family in Normandy, the sixth son of Tancred de Hauteville "
+            "and his wife Fressenda. He inherited the County of Apulia and Calabria from his brother in 1057, "
+            "and in 1059 he was made Duke of Apulia and Calabria and Lord of Sicily by Pope Nicholas II. He "
+            "was also briefly Prince of Benevento (1078–1081), before returning the title to the papacy.\n"),
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -894,6 +913,8 @@ KAN_TEST_CASE (english_right)
         .reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_RIGHT,
         .primary_axis_limit = 600u,
+        .allow_breaks = true,
+        .generate_edition_markup = false,
         .text = text,
     };
 
@@ -903,13 +924,17 @@ KAN_TEST_CASE (english_right)
 KAN_TEST_CASE (english_vertical)
 {
     struct kan_text_item_t text_content[] = {
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "Robert Guiscard",
-        },
+        KAN_INIT_TEXT_ITEM_UTF8 ("Robert Guiscard"),
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -923,6 +948,8 @@ KAN_TEST_CASE (english_vertical)
         .reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT,
         .primary_axis_limit = 600u,
+        .allow_breaks = true,
+        .generate_edition_markup = false,
         .text = text,
     };
 
@@ -932,63 +959,31 @@ KAN_TEST_CASE (english_vertical)
 KAN_TEST_CASE (english_styles)
 {
     struct kan_text_item_t text_content[] = {
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = kan_string_intern (FONT_STYLE_NAME_BOLD),
-                    .mark = 1u,
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "Robert Guiscard",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = 0u,
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = " also referred to as ",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = kan_string_intern (FONT_STYLE_NAME_BOLD),
-                    .mark = 1u,
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "Robert de Hauteville",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = 0u,
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = ", was a Norman adventurer remembered for "
-                    "his conquest of southern Italy and Sicily in the 11th century.\n"
-                    "\n"
-                    "Robert was born into the Hauteville family in Normandy, the sixth son of Tancred de Hauteville "
-                    "and his wife Fressenda. He inherited the County of Apulia and Calabria from his brother in 1057, "
-                    "and in 1059 he was made Duke of Apulia and Calabria and Lord of Sicily by Pope Nicholas II. He "
-                    "was also briefly Prince of Benevento (1078–1081), before returning the title to the papacy.\n",
-        },
+        KAN_INIT_TEXT_ITEM_STYLE (kan_string_intern (FONT_STYLE_NAME_BOLD), 1u),
+        KAN_INIT_TEXT_ITEM_UTF8 ("Robert Guiscard"),
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, 0u),
+        KAN_INIT_TEXT_ITEM_UTF8 (" also referred to as "),
+        KAN_INIT_TEXT_ITEM_STYLE (kan_string_intern (FONT_STYLE_NAME_BOLD), 1u),
+        KAN_INIT_TEXT_ITEM_UTF8 ("Robert de Hauteville"),
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, 0u),
+        KAN_INIT_TEXT_ITEM_UTF8 (
+            ", was a Norman adventurer remembered for "
+            "his conquest of southern Italy and Sicily in the 11th century.\n"
+            "\n"
+            "Robert was born into the Hauteville family in Normandy, the sixth son of Tancred de Hauteville "
+            "and his wife Fressenda. He inherited the County of Apulia and Calabria from his brother in 1057, "
+            "and in 1059 he was made Duke of Apulia and Calabria and Lord of Sicily by Pope Nicholas II. He "
+            "was also briefly Prince of Benevento (1078–1081), before returning the title to the papacy.\n"),
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -1002,6 +997,8 @@ KAN_TEST_CASE (english_styles)
         .reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT,
         .primary_axis_limit = 600u,
+        .allow_breaks = true,
+        .generate_edition_markup = false,
         .text = text,
     };
 
@@ -1011,66 +1008,33 @@ KAN_TEST_CASE (english_styles)
 KAN_TEST_CASE (russian)
 {
     struct kan_text_item_t text_content[] = {
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = kan_string_intern (FONT_STYLE_NAME_BOLD),
-                    .mark = 1u,
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "Роберт Отви́ль",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = 0u,
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = " по прозвищу ",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = kan_string_intern (FONT_STYLE_NAME_BOLD),
-                    .mark = 1u,
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "Гвиска́р",
-        },
-        {
-            .type = KAN_TEXT_ITEM_STYLE,
-            .style =
-                {
-                    .style = NULL,
-                    .mark = 0u,
-                },
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 =
-                " (старофр. Robert Viscart, лат. Robertus de Altavilla, Robertus cognomento Guiscardus o Viscardus;"
-                " 1016, Hauteville-la-Guichard[вд], Королевство Франция — 17 июля 1085, Кефалиния, Византия) — "
-                "четвёртый граф (с 1057 года) и первый герцог Апулии (1059—1085) из дома Отвилей.\n"
-                "\n"
-                "Окончательно изгнал из Италии византийцев (1071), захватил княжество Салерно (1077) и, тем самым, "
-                "завершил завоевание нормандцами Южной Италии. Совместно с младшим братом Рожером I начал завоевание "
-                "Сицилии (1061). Оказывая помощь папе Григорию VII, овладел Римом и сжёг город (1084). В конце жизни "
-                "предпринял попытку завоевать Византию. Был прозван Гвискаром, что переводится со старофранцузского "
-                "как «Хитрец».",
-        },
+        KAN_INIT_TEXT_ITEM_STYLE (kan_string_intern (FONT_STYLE_NAME_BOLD), 1u),
+        KAN_INIT_TEXT_ITEM_UTF8 ("Роберт Отви́ль"),
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, 0u),
+        KAN_INIT_TEXT_ITEM_UTF8 (" по прозвищу "),
+        KAN_INIT_TEXT_ITEM_STYLE (kan_string_intern (FONT_STYLE_NAME_BOLD), 1u),
+        KAN_INIT_TEXT_ITEM_UTF8 ("Гвиска́р"),
+        KAN_INIT_TEXT_ITEM_STYLE (NULL, 0u),
+        KAN_INIT_TEXT_ITEM_UTF8 (
+            " (старофр. Robert Viscart, лат. Robertus de Altavilla, Robertus cognomento Guiscardus o Viscardus;"
+            " 1016, Hauteville-la-Guichard[вд], Королевство Франция — 17 июля 1085, Кефалиния, Византия) — "
+            "четвёртый граф (с 1057 года) и первый герцог Апулии (1059—1085) из дома Отвилей.\n"
+            "\n"
+            "Окончательно изгнал из Италии византийцев (1071), захватил княжество Салерно (1077) и, тем самым, "
+            "завершил завоевание нормандцами Южной Италии. Совместно с младшим братом Рожером I начал завоевание "
+            "Сицилии (1061). Оказывая помощь папе Григорию VII, овладел Римом и сжёг город (1084). В конце жизни "
+            "предпринял попытку завоевать Византию. Был прозван Гвискаром, что переводится со старофранцузского "
+            "как «Хитрец»."),
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -1084,6 +1048,8 @@ KAN_TEST_CASE (russian)
         .reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT,
         .primary_axis_limit = 600u,
+        .allow_breaks = true,
+        .generate_edition_markup = false,
         .text = text,
     };
 
@@ -1093,14 +1059,18 @@ KAN_TEST_CASE (russian)
 KAN_TEST_CASE (persian)
 {
     struct kan_text_item_t text_content[] = {
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "اگر به روزی دردی رسید به تو\n"
-                    "دگرگونی ز دست تو بر می\u200Cآید\n",
-        },
+        KAN_INIT_TEXT_ITEM_UTF8 ("اگر به روزی دردی رسید به تو\n"
+                                 "دگرگونی ز دست تو بر می\u200Cآید\n"),
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = false,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -1116,6 +1086,8 @@ KAN_TEST_CASE (persian)
         .reading_direction = KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT,
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_RIGHT,
         .primary_axis_limit = 600u,
+        .allow_breaks = true,
+        .generate_edition_markup = false,
         .text = text,
     };
 
@@ -1125,15 +1097,19 @@ KAN_TEST_CASE (persian)
 KAN_TEST_CASE (ltr_inside_rtl)
 {
     struct kan_text_item_t text_content[] = {
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "اگر به روزی دردی رسید به تو"
-                    " " KAN_TEXT_BIDI_CUSTOM_BREAK "test me" KAN_TEXT_BIDI_CUSTOM_BREAK " "
-                    "دگرگونی ز دست تو بر می\u200Cآید\n",
-        },
+        KAN_INIT_TEXT_ITEM_UTF8 ("اگر به روزی دردی رسید به تو"
+                                 " test me "
+                                 "دگرگونی ز دست تو بر می\u200Cآید\n"),
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = true,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -1146,6 +1122,8 @@ KAN_TEST_CASE (ltr_inside_rtl)
         .orientation = KAN_TEXT_ORIENTATION_HORIZONTAL,
         .reading_direction = KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT,
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_RIGHT,
+        .allow_breaks = true,
+        .generate_edition_markup = false,
         .primary_axis_limit = 600u,
         .text = text,
     };
@@ -1156,21 +1134,20 @@ KAN_TEST_CASE (ltr_inside_rtl)
 KAN_TEST_CASE (ltr_3_langs)
 {
     struct kan_text_item_t text_content[] = {
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "дратуте! ",
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = KAN_TEXT_BIDI_CUSTOM_BREAK "نوع مفتوح" KAN_TEXT_BIDI_CUSTOM_BREAK,
-        },
-        {
-            .type = KAN_TEXT_ITEM_UTF8,
-            .utf8 = "\nkan_font_library_t font_library = kan_font_library_create (\n&font_library_description);\n;",
-        },
+        KAN_INIT_TEXT_ITEM_UTF8 ("дратуте! "),
+        KAN_INIT_TEXT_ITEM_UTF8 ("نوع مفتوح"),
+        KAN_INIT_TEXT_ITEM_UTF8 (
+            "\nkan_font_library_t font_library = kan_font_library_create (\n&font_library_description);\n;"),
     };
 
-    kan_text_t text = kan_text_create (sizeof (text_content) / sizeof (text_content[0u]), text_content);
+    struct kan_text_description_t description = {
+        .items_count = sizeof (text_content) / sizeof (text_content[0u]),
+        .items = text_content,
+        .guide_bidi_with_direction = true,
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
+    };
+
+    kan_text_t text = kan_text_create (&description);
     CUSHION_DEFER { kan_text_destroy (text); }
 
     struct kan_text_shaped_data_t shaped_data;
@@ -1183,6 +1160,8 @@ KAN_TEST_CASE (ltr_3_langs)
         .orientation = KAN_TEXT_ORIENTATION_HORIZONTAL,
         .reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,
         .alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER,
+        .allow_breaks = true,
+        .generate_edition_markup = false,
         .primary_axis_limit = 600u,
         .text = text,
     };

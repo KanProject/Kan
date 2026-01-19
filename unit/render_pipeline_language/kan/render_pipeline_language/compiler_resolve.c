@@ -370,11 +370,7 @@ static struct compile_time_evaluation_value_t evaluate_compile_time_expression (
                     break;
 
                 case COMPILE_TIME_EVALUATION_VALUE_TYPE_FLOAT:
-                    KAN_LOG (rpl_compiler_context, KAN_LOG_ERROR,
-                             "[%s:%s:%s:%ld] Operator \"%%\" has floating operand types which is not supported.",
-                             context->log_name, intermediate->log_name, expression->source_name,
-                             (long) expression->source_line)
-                    result.type = COMPILE_TIME_EVALUATION_VALUE_TYPE_ERROR;
+                    result.float_value = fmodf (left_operand.float_value, right_operand.float_value);
                     break;
                 }
             }
@@ -4489,6 +4485,15 @@ static inline bool resolve_binary_operation (struct rpl_compiler_context_t *cont
                  get_type_name_for_logging (&right->output))
         return false;
 
+    case KAN_RPL_BINARY_OPERATION_MODULUS:
+        result_expression->type = COMPILER_INSTANCE_EXPRESSION_TYPE_OPERATION_MODULUS;
+        CANNOT_EXECUTE_ON_ARRAYS ("%%")
+        CAN_ONLY_EXECUTE_ON_MATCHING_BUILTIN ("%%")
+        NEEDS_TO_READ_LEFT ("%%")
+        NEEDS_TO_READ_RIGHT ("%%")
+        COPY_TYPE_FROM_LEFT_FOR_ELEMENTAL_OPERATION;
+        return true;
+
 #define INTEGER_ONLY_VECTOR_OPERATION(OPERATION_STRING)                                                                \
     CANNOT_EXECUTE_ON_ARRAYS (OPERATION_STRING)                                                                        \
     CAN_ONLY_EXECUTE_ON_MATCHING_BUILTIN (OPERATION_STRING)                                                            \
@@ -4509,11 +4514,6 @@ static inline bool resolve_binary_operation (struct rpl_compiler_context_t *cont
     }                                                                                                                  \
                                                                                                                        \
     COPY_TYPE_FROM_LEFT_FOR_ELEMENTAL_OPERATION
-
-    case KAN_RPL_BINARY_OPERATION_MODULUS:
-        result_expression->type = COMPILER_INSTANCE_EXPRESSION_TYPE_OPERATION_MODULUS;
-        INTEGER_ONLY_VECTOR_OPERATION ("%%");
-        return true;
 
     case KAN_RPL_BINARY_OPERATION_ASSIGN:
         result_expression->type = COMPILER_INSTANCE_EXPRESSION_TYPE_OPERATION_ASSIGN;

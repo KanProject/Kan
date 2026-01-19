@@ -46,11 +46,21 @@ KAN_C_HEADER_BEGIN
 
 KAN_TYPED_ID_32_DEFINE (kan_text_shaping_unit_id_t);
 
-/// \brief Contains counter for shaping unit ids.
+/// \brief Contains font library selection and counter for shaping unit ids.
+/// \details As well as shaping units, should only be used in leaf worlds to avoid confusion.
 struct kan_text_shaping_singleton_t
 {
     /// \brief Atomic counter for assigning shaping unit ids. Safe to be modified from different threads.
     struct kan_atomic_int_t unit_id_counter;
+
+    /// \brief Usage class of font library if application expects several font libraries.
+    /// \details Used for all shaping units in this world and worlds that are children of this world.
+    ///          Should be left at default NULL value in most cases.
+    kan_interned_string_t library_usage_class;
+
+    /// \brief Non-owned handle to used font library atlas.
+    /// \details Should only be accessed after `KAN_TEXT_SHAPING_END_CHECKPOINT` as it is updated by shaping.
+    kan_render_image_t font_library_sdf_atlas;
 };
 
 UNIVERSE_TEXT_API void kan_text_shaping_singleton_init (struct kan_text_shaping_singleton_t *instance);
@@ -95,15 +105,13 @@ struct kan_text_shaped_unstable_data_t
 ///          text uploading should be managed manually by the user, for example through frame lifetime allocator.
 struct kan_text_shaping_unit_t
 {
-    kan_text_shaping_unit_id_t id;
-
-    /// \brief Usage class of font library if application expects several font libraries.
-    /// \details Should be left at default NULL value in most cases.
-    kan_interned_string_t library_usage_class;
+    kan_immutable kan_text_shaping_unit_id_t id;
 
     /// \brief Shaping request. Text inside is owner by the shaping unit.
     /// \warning `reading_direction` field is automatically reset to the appropriate value from locale when shaping is
     ///          started, therefore it doesn't matter which value user sets there.
+    /// \warning If `primary_axis_limit` is zero, it is treated as "do not shape" configuration. It is useful for the
+    ///          cases when full shaping configuration will be prepared later, for example during laying out UI.
     struct kan_text_shaping_request_t request;
 
     /// \brief Whether this text should be shaped as stable text.
@@ -118,13 +126,8 @@ struct kan_text_shaping_unit_t
     /// \brief If `shaped`, tells whether it was `stable` when it was last shaped.
     bool shaped_as_stable;
 
-    /// \brief If shaped, library that was used for shaping. Needed for things like getting atlas.
-    /// \warning Not owned, therefore might be already destroyed during hot reload.
-    ///          Only access this field after text shaping as text shaping takes care of reshaping after hot reload!
-    kan_font_library_t shaped_with_library;
-
-    struct kan_int32_vector_2_t shaped_min;
-    struct kan_int32_vector_2_t shaped_max;
+    kan_instance_size_t shaped_primary_size;
+    kan_instance_size_t shaped_secondary_size;
 
     union
     {
@@ -136,10 +139,96 @@ struct kan_text_shaping_unit_t
         KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (false)
         struct kan_text_shaped_unstable_data_t shaped_unstable;
     };
+
+    /// \brief Edition sequence data from shaping if it was requested by the user, always ordered by baseline value.
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_text_shaped_edition_sequence_data_t)
+    struct kan_dynamic_array_t shaped_edition_sequences;
+
+    kan_allocation_group_t allocation_group;
 };
 
 UNIVERSE_TEXT_API void kan_text_shaping_unit_init (struct kan_text_shaping_unit_t *instance);
 
 UNIVERSE_TEXT_API void kan_text_shaping_unit_shutdown (struct kan_text_shaping_unit_t *instance);
+
+/// \brief Event that is sent when text unit shaping is executed.
+struct kan_text_shaped_t
+{
+    kan_text_shaping_unit_id_t id;
+};
+
+/// \brief Macro for creating shaping units that is mostly used as part of other macros,
+///        but can be used directly as well.
+/// \details Uses inline insertion, therefore unit can be customized after this macro.
+/// \warning Expects `kan_text_shaping_singleton_t` pointer in `text_shaping` variable!
+#define KAN_NEW_TEXT_SHAPING_UNIT(NAME)                                                                                \
+    KAN_UMI_INDEXED_INSERT (NAME##_shaping_unit, kan_text_shaping_unit_t)                                              \
+    NAME##_shaping_unit->id = kan_next_text_shaping_unit_id (text_shaping);                                            \
+                                                                                                                       \
+    /* Settings below are defaults that user should override if they need to. */                                       \
+    NAME##_shaping_unit->request.font_size = 24u;                                                                      \
+    NAME##_shaping_unit->request.render_format = KAN_FONT_GLYPH_RENDER_FORMAT_SDF;                                     \
+    NAME##_shaping_unit->request.orientation = KAN_TEXT_ORIENTATION_HORIZONTAL;                                        \
+    NAME##_shaping_unit->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;                         \
+    NAME##_shaping_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT;                                          \
+    NAME##_shaping_unit->request.primary_axis_limit = 0u;                                                              \
+    NAME##_shaping_unit->request.allow_breaks = true;                                                                  \
+    NAME##_shaping_unit->request.generate_edition_markup = false;                                                      \
+    NAME##_shaping_unit->stable = true
+
+/// \brief Macro for creating text objects for shaping units that is mostly used as part of other macros,
+///        but can be used directly as well.
+/// \details Text object creation is also deferred, therefore it can be customized.
+#define KAN_NEW_TEXT_SHAPING_UNIT_CUSTOM_TEXT(NAME)                                                                    \
+    struct kan_text_description_t NAME##_text_description = {                                                          \
+        .items_count = 0u,                                                                                             \
+        .items = NULL,                                                                                                 \
+        .guide_bidi_with_direction = false,                                                                            \
+        .direction_to_guide_bidi = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT,                                           \
+    };                                                                                                                 \
+                                                                                                                       \
+    /* Defer text creation so user can customize it. */                                                                \
+    CUSHION_DEFER                                                                                                      \
+    {                                                                                                                  \
+        KAN_NOT_IN_HIGHLIGHT (NAME##_text_description.items_count =                                                    \
+                                  sizeof (NAME##_text_items) / sizeof (NAME##_text_items[0u]);)                        \
+        KAN_NOT_IN_HIGHLIGHT (NAME##_text_description.items = NAME##_text_items;)                                      \
+        NAME##_shaping_unit->request.text = kan_text_create (&NAME##_text_description);                                \
+    }                                                                                                                  \
+    struct kan_text_item_t NAME##_text_items[] =
+
+/// \brief Convenience macro for applying locale-specific config to shaping unit create from these helper macros.
+#define KAN_NEW_TEXT_SHAPING_UNIT_APPLY_LOCALE(NAME, LOCALE)                                                           \
+    if (LOCALE)                                                                                                        \
+    {                                                                                                                  \
+        NAME##_text_description.guide_bidi_with_direction = true;                                                      \
+        NAME##_text_description.direction_to_guide_bidi =                                                              \
+            (LOCALE)->resource.preferred_direction == KAN_LOCALE_PREFERRED_TEXT_DIRECTION_LEFT_TO_RIGHT ?              \
+                KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT :                                                             \
+                KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT;                                                              \
+                                                                                                                       \
+        /* We do not need to alter reading direction in request as it should be applied automatically. */              \
+    }
+
+/// \brief Convenience macro for creating text shaping unit for string literal.
+/// \invariant Should never be used in places that need to be localized.
+/// \warning Expects `kan_text_shaping_singleton_t` pointer in `text_shaping` variable!
+#define KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL(NAME, LITERAL, MARK)                                                    \
+    KAN_NEW_TEXT_SHAPING_UNIT (NAME);                                                                                  \
+    KAN_NEW_TEXT_SHAPING_UNIT_CUSTOM_TEXT (NAME)                                                                       \
+    {                                                                                                                  \
+        {                                                                                                              \
+            .type = KAN_TEXT_ITEM_STYLE,                                                                               \
+            .style =                                                                                                   \
+                {                                                                                                      \
+                    .style = NULL,                                                                                     \
+                    .mark = MARK,                                                                                      \
+                },                                                                                                     \
+        },                                                                                                             \
+            {                                                                                                          \
+                .type = KAN_TEXT_ITEM_UTF8,                                                                            \
+                .utf8 = LITERAL,                                                                                       \
+            },                                                                                                         \
+    }
 
 KAN_C_HEADER_END

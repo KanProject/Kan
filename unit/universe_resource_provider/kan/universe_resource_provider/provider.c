@@ -951,7 +951,7 @@ static void process_blob_insert (struct resource_provider_state_t *state,
     {
         KAN_LOG (universe_resource_provider, KAN_LOG_ERROR,
                  "Failed to add blob for third party resource \"%s\": entry is not found.", blob->name)
-        KAN_UMO_EVENT_INSERT (event, kan_resource_third_party_blob_failed_t) { event->blob_id = blob_id; }
+        KAN_UMO_EVENT_INSERT_INIT (kan_resource_third_party_blob_failed_t) {.blob_id = blob_id};
         return;
     }
 
@@ -959,7 +959,7 @@ static void process_blob_insert (struct resource_provider_state_t *state,
     {
         KAN_LOG (universe_resource_provider, KAN_LOG_ERROR,
                  "Failed to add blob for third party resource \"%s\": entry is removed.", blob->name)
-        KAN_UMO_EVENT_INSERT (event, kan_resource_third_party_blob_failed_t) { event->blob_id = blob_id; }
+        KAN_UMO_EVENT_INSERT_INIT (kan_resource_third_party_blob_failed_t) {.blob_id = blob_id};
         return;
     }
 
@@ -1137,8 +1137,7 @@ static inline void process_file_added_third_party (struct resource_provider_stat
         }
 
         existing->removal_mark = false;
-        KAN_UMO_EVENT_INSERT (event, kan_resource_third_party_updated_event_t) { event->name = scan_result.name; }
-
+        KAN_UMO_EVENT_INSERT_INIT (kan_resource_third_party_updated_event_t) {.name = scan_result.name};
         // No usage counter update, no reload, therefore should exit right away.
         return;
     }
@@ -1245,8 +1244,7 @@ static void process_file_modified (struct resource_provider_state_t *state,
     {
         if (strcmp (third_party->path, path) == 0)
         {
-            KAN_UMO_EVENT_INSERT (event, kan_resource_third_party_updated_event_t) { event->name = third_party->name; }
-
+            KAN_UMO_EVENT_INSERT_INIT (kan_resource_third_party_updated_event_t) {.name = third_party->name};
             return;
         }
     }
@@ -1526,7 +1524,7 @@ static inline enum resource_provider_serve_operation_status_t execute_shared_ser
     }
 
     blob->available = true;
-    KAN_UMO_EVENT_INSERT (event, kan_resource_third_party_blob_available_t) { event->blob_id = blob->blob_id; }
+    KAN_UMO_EVENT_INSERT_INIT (kan_resource_third_party_blob_available_t) {.blob_id = blob->blob_id};
     return RESOURCE_PROVIDER_SERVE_OPERATION_STATUS_FINISHED;
 }
 
@@ -1601,10 +1599,9 @@ static void execute_shared_serve (kan_functor_user_data_t user_data)
             status = execute_shared_serve_load_third_party (state, operation);
             if (status == RESOURCE_PROVIDER_SERVE_OPERATION_STATUS_FAILED)
             {
-                KAN_UMO_EVENT_INSERT (event, kan_resource_third_party_blob_failed_t)
-                {
-                    event->blob_id = operation->third_party.blob_id;
-                }
+                KAN_UMO_EVENT_INSERT_INIT (kan_resource_third_party_blob_failed_t) {
+                    .blob_id = operation->third_party.blob_id,
+                };
             }
         }
 
@@ -1750,7 +1747,7 @@ UNIVERSE_RESOURCE_PROVIDER_API KAN_UM_MUTATOR_EXECUTE_SIGNATURE (mutator_templat
     state->execution_shared_state.concurrency_lock = kan_atomic_int_init (0);
 
     state->execution_shared_state.private = private;
-    KAN_UM_ACCESS_ESCAPE (state->execution_shared_state.private_access, private)
+    KAN_UM_ACCESS_ESCAPE (state->execution_shared_state.private_access, private);
 
     state->execution_shared_state.operation_cursor = kan_repository_indexed_interval_write_query_execute_descending (
         &state->write_interval__resource_provider_operation__priority, NULL, NULL);

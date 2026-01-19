@@ -20,6 +20,12 @@ KAN_C_HEADER_BEGIN
 #define KAN_PI CGLM_PI
 #define KAN_PI_2 CGLM_PI_2
 
+/// \brief Tolerance that can be used for generic floating point comparison.
+#define KAN_FLOATING_TOLERANCE 1e-10f
+
+/// \brief Checks if two floating points are almost equal using `KAN_FLOATING_TOLERANCE`.
+#define KAN_FLOATING_IS_NEAR(A, B) (((A) - (B)) >= -KAN_FLOATING_TOLERANCE && ((A) - (B)) <= KAN_FLOATING_TOLERANCE)
+
 /// \brief 2 dimensional uint32 vector type.
 struct kan_uint32_vector_2_t
 {
@@ -603,6 +609,57 @@ static inline bool kan_are_colors_different (uint32_t first, uint32_t second, ui
     CHECK (24u);
 #undef CHECK
     return tolerance < (uint32_t) difference;
+}
+
+/// \brief Helper structure for unpacked linear RGB colors.
+struct kan_color_linear_t
+{
+    float r;
+    float g;
+    float b;
+    float a;
+};
+
+/// \brief Convenience constructor function for kan_color_linear_t.
+static inline struct kan_color_linear_t kan_make_color_linear (float r, float g, float b, float a)
+{
+    struct kan_color_linear_t color;
+    color.r = r;
+    color.g = g;
+    color.b = b;
+    color.a = a;
+    return color;
+}
+
+/// \brief Helper structure for unpacked SRGB color space colors.
+struct kan_color_srgb_t
+{
+    float r;
+    float g;
+    float b;
+    float a;
+};
+
+/// \brief Helper to convert linear color to srgb color.
+static inline struct kan_color_srgb_t kan_color_linear_to_srgb (const struct kan_color_linear_t value)
+{
+    return (struct kan_color_srgb_t) {
+        .r = kan_color_transfer_rgb_to_srgb (value.r),
+        .g = kan_color_transfer_rgb_to_srgb (value.g),
+        .b = kan_color_transfer_rgb_to_srgb (value.b),
+        .a = value.a,
+    };
+}
+
+/// \brief Helper to convert srgb color to linear color.
+static inline struct kan_color_linear_t kan_color_srgb_to_linear (const struct kan_color_srgb_t value)
+{
+    return (struct kan_color_linear_t) {
+        .r = kan_color_transfer_srgb_to_rgb (value.r),
+        .g = kan_color_transfer_srgb_to_rgb (value.g),
+        .b = kan_color_transfer_srgb_to_rgb (value.b),
+        .a = value.a,
+    };
 }
 
 KAN_C_HEADER_END

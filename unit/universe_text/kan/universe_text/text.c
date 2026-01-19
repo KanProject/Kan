@@ -252,17 +252,19 @@ static void update_font_blob_usage (struct text_management_state_t *state,
         KAN_ASSERT (resource)
         loaded_library->selected_categories.size = 0u;
 
-        for (kan_loop_size_t category_index = 0u; category_index < resource->categories.size; ++category_index)
+        // We have to honor order in locale to make sure that font library categories order matches order of languages
+        // in locale resource to avoid unexpected behaviors.
+        for (kan_loop_size_t locale_language_index = 0u; locale_language_index < locale->resource.font_languages.size;
+             ++locale_language_index)
         {
-            const struct kan_resource_font_category_t *category =
-                &((struct kan_resource_font_category_t *) resource->categories.data)[category_index];
-            bool filtered_in = false;
-
-            for (kan_loop_size_t category_language_index = 0u;
-                 category_language_index < category->used_for_languages.size; ++category_language_index)
+            for (kan_loop_size_t category_index = 0u; category_index < resource->categories.size; ++category_index)
             {
-                for (kan_loop_size_t locale_language_index = 0u;
-                     locale_language_index < locale->resource.font_languages.size; ++locale_language_index)
+                const struct kan_resource_font_category_t *category =
+                    &((struct kan_resource_font_category_t *) resource->categories.data)[category_index];
+                bool filtered_in = false;
+
+                for (kan_loop_size_t category_language_index = 0u;
+                     category_language_index < category->used_for_languages.size; ++category_language_index)
                 {
                     if (((kan_interned_string_t *) category->used_for_languages.data)[category_language_index] ==
                         ((kan_interned_string_t *) locale->resource.font_languages.data)[locale_language_index])
@@ -272,52 +274,47 @@ static void update_font_blob_usage (struct text_management_state_t *state,
                     }
                 }
 
-                if (filtered_in)
+                if (!filtered_in)
                 {
-                    break;
-                }
-            }
-
-            if (!filtered_in)
-            {
-                continue;
-            }
-
-            kan_instance_size_t *spot = kan_dynamic_array_add_last (&loaded_library->selected_categories);
-            if (!spot)
-            {
-                kan_dynamic_array_set_capacity (&loaded_library->selected_categories,
-                                                KAN_MAX (1u, loaded_library->selected_categories.size * 2u));
-                spot = kan_dynamic_array_add_last (&loaded_library->selected_categories);
-            }
-
-            *spot = category_index;
-            for (kan_loop_size_t style_index = 0u; style_index < category->styles.size; ++style_index)
-            {
-                const struct kan_resource_font_style_t *style =
-                    &((struct kan_resource_font_style_t *) category->styles.data)[style_index];
-
-                KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_blob, font_blob_t, name, &style->font_data_file)
-                if (existing_blob)
-                {
-                    existing_blob->used_for_loading = true;
-                    if (!KAN_TYPED_ID_32_IS_VALID (existing_blob->loading) &&
-                        !KAN_TYPED_ID_32_IS_VALID (existing_blob->current))
-                    {
-                        font_blob_start_new_loading (state, provider, existing_blob);
-                    }
-
                     continue;
                 }
 
-                KAN_UMO_INDEXED_INSERT (new_blob, font_blob_t)
+                kan_instance_size_t *spot = kan_dynamic_array_add_last (&loaded_library->selected_categories);
+                if (!spot)
                 {
-                    new_blob->name = style->font_data_file;
-                    new_blob->current = KAN_TYPED_ID_32_SET_INVALID (kan_resource_third_party_blob_id_t);
-                    new_blob->loading = KAN_TYPED_ID_32_SET_INVALID (kan_resource_third_party_blob_id_t);
-                    new_blob->used_in_current = false;
-                    new_blob->used_for_loading = true;
-                    font_blob_start_new_loading (state, provider, new_blob);
+                    kan_dynamic_array_set_capacity (&loaded_library->selected_categories,
+                                                    KAN_MAX (1u, loaded_library->selected_categories.size * 2u));
+                    spot = kan_dynamic_array_add_last (&loaded_library->selected_categories);
+                }
+
+                *spot = category_index;
+                for (kan_loop_size_t style_index = 0u; style_index < category->styles.size; ++style_index)
+                {
+                    const struct kan_resource_font_style_t *style =
+                        &((struct kan_resource_font_style_t *) category->styles.data)[style_index];
+
+                    KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_blob, font_blob_t, name, &style->font_data_file)
+                    if (existing_blob)
+                    {
+                        existing_blob->used_for_loading = true;
+                        if (!KAN_TYPED_ID_32_IS_VALID (existing_blob->loading) &&
+                            !KAN_TYPED_ID_32_IS_VALID (existing_blob->current))
+                        {
+                            font_blob_start_new_loading (state, provider, existing_blob);
+                        }
+
+                        continue;
+                    }
+
+                    KAN_UMO_INDEXED_INSERT (new_blob, font_blob_t)
+                    {
+                        new_blob->name = style->font_data_file;
+                        new_blob->current = KAN_TYPED_ID_32_SET_INVALID (kan_resource_third_party_blob_id_t);
+                        new_blob->loading = KAN_TYPED_ID_32_SET_INVALID (kan_resource_third_party_blob_id_t);
+                        new_blob->used_in_current = false;
+                        new_blob->used_for_loading = true;
+                        font_blob_start_new_loading (state, provider, new_blob);
+                    }
                 }
             }
         }
@@ -571,7 +568,7 @@ static void advance_font_libraries_from_waiting_blobs (struct text_management_st
         }
     }
 
-    KAN_UMO_EVENT_INSERT (event, font_libraries_loaded_event_t) { event->stub = 0u; }
+    KAN_UMO_EVENT_INSERT_INIT (font_libraries_loaded_event_t) {.stub = 0u};
     private->font_library_loading_state = FONT_LIBRARY_LOADING_STATE_READY;
     KAN_LOG (text_management, KAN_LOG_DEBUG, "Advanced font library loading to ready state.")
 }
@@ -714,7 +711,8 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_management)
         {
         case FONT_LIBRARY_LOADING_STATE_INITIAL:
         case FONT_LIBRARY_LOADING_STATE_READY:
-            KAN_ASSERT (false)
+            KAN_ASSERT_FORMATTED (
+                false, "Failed to advance text management routine as there is no available font libraries at all.", );
             break;
 
         case FONT_LIBRARY_LOADING_STATE_WAITING_MAIN:
@@ -808,23 +806,36 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_DEPLOY (text_shaping)
 
 static inline void shaping_unit_clean_shaped_data (struct kan_text_shaping_unit_t *unit)
 {
-    if (unit->shaped_as_stable)
+    if (unit->shaped)
     {
-        if (KAN_HANDLE_IS_VALID (unit->shaped_stable.glyphs))
+        if (unit->shaped_as_stable)
         {
-            kan_render_buffer_destroy (unit->shaped_stable.glyphs);
-        }
+            if (KAN_HANDLE_IS_VALID (unit->shaped_stable.glyphs))
+            {
+                kan_render_buffer_destroy (unit->shaped_stable.glyphs);
+            }
 
-        if (KAN_HANDLE_IS_VALID (unit->shaped_stable.icons))
+            if (KAN_HANDLE_IS_VALID (unit->shaped_stable.icons))
+            {
+                kan_render_buffer_destroy (unit->shaped_stable.icons);
+            }
+        }
+        else
         {
-            kan_render_buffer_destroy (unit->shaped_stable.icons);
+            kan_dynamic_array_shutdown (&unit->shaped_unstable.glyphs);
+            kan_dynamic_array_shutdown (&unit->shaped_unstable.icons);
         }
     }
-    else
+
+    for (kan_loop_size_t index = 0u; index < unit->shaped_edition_sequences.size; ++index)
     {
-        kan_dynamic_array_shutdown (&unit->shaped_unstable.glyphs);
-        kan_dynamic_array_shutdown (&unit->shaped_unstable.icons);
+        struct kan_text_shaped_edition_sequence_data_t *data =
+            &((struct kan_text_shaped_edition_sequence_data_t *) unit->shaped_edition_sequences.data)[index];
+        kan_text_shaped_edition_sequence_data_shutdown (data);
     }
+
+    unit->shaped_edition_sequences.size = 0u;
+    kan_dynamic_array_set_capacity (&unit->shaped_edition_sequences, 0u);
 }
 
 static void shaping_unit_on_failed (struct kan_text_shaping_unit_t *unit)
@@ -832,45 +843,19 @@ static void shaping_unit_on_failed (struct kan_text_shaping_unit_t *unit)
     shaping_unit_clean_shaped_data (unit);
     unit->shaped = false;
     unit->shaped_as_stable = false;
-    unit->shaped_with_library = KAN_HANDLE_SET_INVALID (kan_font_library_t);
 }
 
 static void shape_unit (struct text_shaping_state_t *state,
                         struct kan_text_shaping_unit_t *unit,
                         const struct kan_locale_t *locale,
+                        kan_font_library_t font_library,
                         kan_render_context_t render_context)
 {
     unit->dirty = false;
-    bool shaped_successfully = false;
-
-    CUSHION_DEFER
+    if (unit->request.primary_axis_limit == 0u)
     {
-        if (shaped_successfully)
-        {
-            unit->shaped = true;
-            unit->shaped_as_stable = unit->stable;
-        }
-        else
-        {
-            shaping_unit_on_failed (unit);
-        }
-    }
-
-    unit->shaped_with_library = KAN_HANDLE_SET_INVALID (kan_font_library_t);
-    KAN_UML_SEQUENCE_READ (font_library, font_library_t)
-    {
-        if (font_library->usage_class == unit->library_usage_class)
-        {
-            unit->shaped_with_library = font_library->library;
-            break;
-        }
-    }
-
-    if (!KAN_HANDLE_IS_VALID (unit->shaped_with_library))
-    {
-        KAN_LOG (text_shaping, KAN_LOG_ERROR,
-                 "Failed to execute text shaping as font library with usage class \"%s\" is not found.",
-                 unit->library_usage_class)
+        // Silent failure that is actually an expected skip by the docs.
+        shaping_unit_on_failed (unit);
         return;
     }
 
@@ -886,18 +871,20 @@ static void shape_unit (struct text_shaping_state_t *state,
     }
 
     struct kan_text_shaped_data_t shaped_data;
+    kan_allocation_group_stack_push (unit->allocation_group);
     kan_text_shaped_data_init (&shaped_data);
+    kan_allocation_group_stack_pop ();
 
-    if (!kan_font_library_shape (unit->shaped_with_library, &unit->request, &shaped_data))
+    if (!kan_font_library_shape (font_library, &unit->request, &shaped_data))
     {
         kan_text_shaped_data_shutdown (&shaped_data);
-        KAN_LOG (text_shaping, KAN_LOG_ERROR, "Failed to execute text shaping due to errors in backend.",
-                 unit->library_usage_class)
+        KAN_LOG (text_shaping, KAN_LOG_ERROR, "Failed to execute text shaping due to errors in backend.")
+        shaping_unit_on_failed (unit);
         return;
     }
 
-    unit->shaped_min = shaped_data.min;
-    unit->shaped_max = shaped_data.max;
+    unit->shaped_primary_size = shaped_data.typographic_primary_size;
+    unit->shaped_secondary_size = shaped_data.typographic_secondary_size;
 
     if (unit->stable)
     {
@@ -963,8 +950,10 @@ static void shape_unit (struct text_shaping_state_t *state,
             }
         }
 
+        KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (unit->shaped_edition_sequences,
+                                                    kan_text_shaped_edition_sequence_data)
+        kan_dynamic_array_init_move (&unit->shaped_edition_sequences, &shaped_data.edition_sequences);
         kan_text_shaped_data_shutdown (&shaped_data);
-        shaped_successfully = true;
     }
     else
     {
@@ -972,12 +961,20 @@ static void shape_unit (struct text_shaping_state_t *state,
         // On purpose: just copy pointers and go, do not shutdown shaped data on stack.
         unit->shaped_unstable.glyphs = shaped_data.glyphs;
         unit->shaped_unstable.icons = shaped_data.icons;
-        shaped_successfully = true;
+
+        KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (unit->shaped_edition_sequences,
+                                                    kan_text_shaped_edition_sequence_data)
+        unit->shaped_edition_sequences = shaped_data.edition_sequences;
     }
+
+    unit->shaped = true;
+    unit->shaped_as_stable = unit->stable;
+    KAN_UMO_EVENT_INSERT_INIT (kan_text_shaped_t) {.id = unit->id};
 }
 
 UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
 {
+    KAN_UMI_SINGLETON_WRITE (public, kan_text_shaping_singleton_t)
     KAN_UMI_SINGLETON_READ (private, text_management_singleton_t)
     KAN_UMI_SINGLETON_READ (locale_singleton, kan_locale_singleton_t)
 
@@ -994,11 +991,37 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
         return;
     }
 
+    public->font_library_sdf_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
+    kan_font_library_t selected_font_library = KAN_HANDLE_SET_INVALID (kan_font_library_t);
+
+    KAN_UML_SEQUENCE_READ (font_library, font_library_t)
+    {
+        if (font_library->usage_class == public->library_usage_class)
+        {
+            selected_font_library = font_library->library;
+            break;
+        }
+    }
+
+    if (!KAN_HANDLE_IS_VALID (selected_font_library))
+    {
+        KAN_LOG (text_shaping, KAN_LOG_ERROR,
+                 "Failed to execute text shaping as font library with usage class \"%s\" is not found.",
+                 selected_font_library)
+        return;
+    }
+
     KAN_UMI_SINGLETON_READ (render_context, kan_render_context_singleton_t)
     KAN_ASSERT (KAN_HANDLE_IS_VALID (render_context->render_context))
 
     bool after_loading_reshape = false;
     KAN_UML_EVENT_FETCH (loaded_event, font_libraries_loaded_event_t) { after_loading_reshape = true; }
+
+    // Right now, shaping mutator implementation is intentionally not multithreaded:
+    // We do not expect to get that many shaping requests per frame in order to make multithreading justified.
+    // Nothing in implementation blocks multithreading and shaping can be safely done from batched tasks.
+    // However, no sense to migrate it to batched tasks for now if we are rarely going to reshape more than 10 small
+    // unstable units per frame.
 
     if (after_loading_reshape)
     {
@@ -1011,7 +1034,7 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
                 continue;
             }
 
-            shape_unit (state, unit, locale, render_context->render_context);
+            shape_unit (state, unit, locale, selected_font_library, render_context->render_context);
         }
     }
 
@@ -1019,7 +1042,7 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
         KAN_CPU_SCOPED_STATIC_SECTION (shape_unstable)
         KAN_UML_SIGNAL_UPDATE (unit, kan_text_shaping_unit_t, stable, false)
         {
-            shape_unit (state, unit, locale, render_context->render_context);
+            shape_unit (state, unit, locale, selected_font_library, render_context->render_context);
         }
     }
 
@@ -1034,27 +1057,31 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
                 continue;
             }
 
-            shape_unit (state, unit, locale, render_context->render_context);
+            shape_unit (state, unit, locale, selected_font_library, render_context->render_context);
         }
     }
+
+    public->font_library_sdf_atlas = kan_font_library_get_sdf_atlas (selected_font_library);
 }
 
 void kan_text_shaping_singleton_init (struct kan_text_shaping_singleton_t *instance)
 {
     instance->unit_id_counter = kan_atomic_int_init (1);
+    instance->library_usage_class = NULL;
+    instance->font_library_sdf_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
 }
 
 void kan_text_shaping_unit_init (struct kan_text_shaping_unit_t *instance)
 {
     instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_text_shaping_unit_id_t);
-    instance->library_usage_class = NULL;
-
     instance->request.font_size = 24u;
     instance->request.render_format = KAN_FONT_GLYPH_RENDER_FORMAT_SDF;
     instance->request.orientation = KAN_TEXT_ORIENTATION_HORIZONTAL;
     instance->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
     instance->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_LEFT;
-    instance->request.primary_axis_limit = 200u;
+    instance->request.primary_axis_limit = 0u;
+    instance->request.allow_breaks = true;
+    instance->request.generate_edition_markup = false;
     instance->request.text = KAN_HANDLE_SET_INVALID (kan_text_t);
 
     instance->stable = true;
@@ -1062,16 +1089,18 @@ void kan_text_shaping_unit_init (struct kan_text_shaping_unit_t *instance)
     instance->shaped = false;
     instance->shaped_as_stable = true;
 
-    instance->shaped_with_library = KAN_HANDLE_SET_INVALID (kan_font_library_t);
-    instance->shaped_min.x = 0;
-    instance->shaped_min.y = 0;
-    instance->shaped_max.x = 0;
-    instance->shaped_max.y = 0;
+    instance->shaped_primary_size = 0u;
+    instance->shaped_secondary_size = 0u;
 
     instance->shaped_stable.glyphs_count = 0u;
     instance->shaped_stable.icons_count = 0u;
     instance->shaped_stable.glyphs = KAN_HANDLE_SET_INVALID (kan_render_buffer_t);
     instance->shaped_stable.icons = KAN_HANDLE_SET_INVALID (kan_render_buffer_t);
+
+    kan_dynamic_array_init (
+        &instance->shaped_edition_sequences, 0u, sizeof (struct kan_text_shaped_edition_sequence_data_t),
+        alignof (struct kan_text_shaped_edition_sequence_data_t), kan_allocation_group_stack_get ());
+    instance->allocation_group = kan_allocation_group_stack_get ();
 }
 
 void kan_text_shaping_unit_shutdown (struct kan_text_shaping_unit_t *instance)
@@ -1082,4 +1111,6 @@ void kan_text_shaping_unit_shutdown (struct kan_text_shaping_unit_t *instance)
     }
 
     shaping_unit_clean_shaped_data (instance);
+    KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->shaped_edition_sequences,
+                                                kan_text_shaped_edition_sequence_data)
 }

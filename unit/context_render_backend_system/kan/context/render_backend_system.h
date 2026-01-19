@@ -615,7 +615,7 @@ CONTEXT_RENDER_BACKEND_SYSTEM_API void kan_render_pass_instance_attributes (kan_
                                                                             kan_instance_size_t start_at_binding,
                                                                             kan_instance_size_t buffers_count,
                                                                             kan_render_buffer_t *buffers,
-                                                                            kan_instance_size_t *buffer_offsets);
+                                                                            const kan_instance_size_t *buffer_offsets);
 
 /// \brief Submits indices to the render pass.
 CONTEXT_RENDER_BACKEND_SYSTEM_API void kan_render_pass_instance_indices (kan_render_pass_instance_t pass_instance,
@@ -1120,7 +1120,7 @@ enum kan_render_buffer_type_t
 CONTEXT_RENDER_BACKEND_SYSTEM_API kan_render_buffer_t kan_render_buffer_create (kan_render_context_t context,
                                                                                 enum kan_render_buffer_type_t type,
                                                                                 kan_instance_size_t full_size,
-                                                                                void *optional_initial_data,
+                                                                                const void *optional_initial_data,
                                                                                 kan_interned_string_t tracking_name);
 
 /// \brief Declares intent to patch buffer slice with given offset and size.

@@ -26,4 +26,11 @@
 #    define CUSHION_STATEMENT_ACCUMULATOR_UNREF(REF_NAME)
 #    define CUSHION_SNIPPET(NAME, ...)
 #    define CUSHION_START_NS_X64 0u
+
+#    define KAN_HIGHLIGHT_ONLY(...) __VA_ARGS__
+#    define KAN_NOT_IN_HIGHLIGHT(...)
+
+#else
+#    define KAN_HIGHLIGHT_ONLY(...)
+#    define KAN_NOT_IN_HIGHLIGHT(...) __VA_ARGS__
 #endif

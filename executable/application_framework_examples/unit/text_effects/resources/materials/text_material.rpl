@@ -98,7 +98,7 @@ void text_fragment_main (void)
         color = mix_f4 (setup.palette[palette_index].color_outline, color, f4 {alpha_bound});
         alpha_bound = alpha_outline;
     }
-
+    
     color.w = color.w * alpha_bound;
     color_output.color = color;
 }

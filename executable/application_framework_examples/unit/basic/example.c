@@ -9,6 +9,7 @@
 #include <kan/log/logging.h>
 #include <kan/precise_time/precise_time.h>
 #include <kan/resource_pipeline/meta.h>
+#include <kan/test_routine/test_routine.h>
 #include <kan/universe/macro.h>
 #include <kan/universe/universe.h>
 #include <kan/universe_resource_provider/provider.h>
@@ -50,58 +51,25 @@ struct example_basic_state_t
 {
     KAN_UM_GENERATE_STATE_QUERIES (example_basic)
     KAN_UM_BIND_STATE (example_basic, state)
-
     kan_context_system_t application_system_handle;
-    kan_context_system_t application_framework_system_handle;
-
-    bool test_mode;
-    bool test_passed;
-    bool test_asset_loaded;
-    kan_instance_size_t test_frames_count;
 };
 
 APPLICATION_FRAMEWORK_EXAMPLES_BASIC_API KAN_UM_MUTATOR_DEPLOY (example_basic)
 {
     kan_static_interned_ids_ensure_initialized ();
     kan_context_t context = kan_universe_get_context (universe);
-
     state->application_system_handle = kan_context_query (context, KAN_CONTEXT_APPLICATION_SYSTEM_NAME);
-    state->application_framework_system_handle =
-        kan_context_query (context, KAN_CONTEXT_APPLICATION_FRAMEWORK_SYSTEM_NAME);
-
-    if (KAN_HANDLE_IS_VALID (state->application_framework_system_handle))
-    {
-        const kan_instance_size_t arguments_count =
-            kan_application_framework_system_get_arguments_count (state->application_framework_system_handle);
-        char **arguments = kan_application_framework_system_get_arguments (state->application_framework_system_handle);
-
-        for (kan_loop_size_t index = 1u; index < arguments_count; ++index)
-        {
-            if (strcmp (arguments[index], "--test") == 0)
-            {
-                state->test_mode = true;
-                break;
-            }
-        }
-    }
-    else
-    {
-        state->test_mode = false;
-    }
-
-    state->test_passed = true;
-    state->test_asset_loaded = false;
-    state->test_frames_count = 0u;
 }
 
 APPLICATION_FRAMEWORK_EXAMPLES_BASIC_API KAN_UM_MUTATOR_EXECUTE (example_basic)
 {
+    KAN_UMI_SINGLETON_WRITE (test, test_routine_singleton_t)
     KAN_UMI_SINGLETON_WRITE (singleton, example_basic_singleton_t)
 
     if (!KAN_HANDLE_IS_VALID (singleton->window_handle))
     {
         enum kan_platform_window_flag_t flags = KAN_PLATFORM_WINDOW_FLAG_SUPPORTS_VULKAN;
-        if (state->test_mode)
+        if (test->test_mode_enabled)
         {
             flags |= KAN_PLATFORM_WINDOW_FLAG_HIDDEN;
         }
@@ -135,14 +103,17 @@ APPLICATION_FRAMEWORK_EXAMPLES_BASIC_API KAN_UM_MUTATOR_EXECUTE (example_basic)
 
         if (loaded)
         {
-            state->test_asset_loaded = true;
             x = loaded->x;
             y = loaded->y;
 
             if (x != 3u || y != 5u)
             {
-                state->test_passed = false;
+                test->manual_result = TEST_ROUTINE_MANUAL_RESULT_FAILED;
                 KAN_LOG (application_framework_examples_basic, KAN_LOG_INFO, "Unexpected x or y.")
+            }
+            else
+            {
+                test->manual_result = TEST_ROUTINE_MANUAL_RESULT_PASSED;
             }
         }
     }
@@ -158,27 +129,4 @@ APPLICATION_FRAMEWORK_EXAMPLES_BASIC_API KAN_UM_MUTATOR_EXECUTE (example_basic)
     singleton->last_frame_time_ns = current_time_ns;
     kan_application_system_window_set_title (state->application_system_handle, singleton->window_handle, buffer);
 #undef TITLE_BUFFER_SIZE
-
-    if (state->test_mode)
-    {
-        if (60u < ++state->test_frames_count)
-        {
-            KAN_LOG (application_framework_examples_basic, KAN_LOG_INFO, "Shutting down...")
-            if (!state->test_asset_loaded)
-            {
-                state->test_passed = false;
-                KAN_LOG (application_framework_examples_basic, KAN_LOG_ERROR, "Failed to load asset.")
-            }
-
-            KAN_ASSERT (KAN_HANDLE_IS_VALID (state->application_framework_system_handle))
-            if (state->test_passed)
-            {
-                kan_application_framework_system_request_exit (state->application_framework_system_handle, 0);
-            }
-            else
-            {
-                kan_application_framework_system_request_exit (state->application_framework_system_handle, 1);
-            }
-        }
-    }
 }

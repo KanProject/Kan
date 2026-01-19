@@ -249,7 +249,8 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                 target_pixel[0u] = kan_color_transfer_srgb_to_rgb ((float) source_pixel[0u] / 255.0f);
                 target_pixel[1u] = kan_color_transfer_srgb_to_rgb ((float) source_pixel[1u] / 255.0f);
                 target_pixel[2u] = kan_color_transfer_srgb_to_rgb ((float) source_pixel[2u] / 255.0f);
-                target_pixel[3u] = kan_color_transfer_srgb_to_rgb ((float) source_pixel[3u] / 255.0f);
+                // Alpha is not in sRGB color space.
+                target_pixel[3u] = (float) source_pixel[3u] / 255.0f;
             }
 
             break;
@@ -302,11 +303,11 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
         const float *source_data = image_mips[next_mip - 1u];
         float *target_data = image_mips[next_mip];
 
-        for (kan_loop_size_t x = 0u; x < (kan_loop_size_t) mip_width; ++x)
+        for (kan_loop_size_t y = 0u; y < (kan_loop_size_t) mip_height; ++y)
         {
-            for (kan_loop_size_t y = 0u; y < (kan_loop_size_t) mip_height; ++y)
+            for (kan_loop_size_t x = 0u; x < (kan_loop_size_t) mip_width; ++x)
             {
-                float *mip_pixel = target_data + image_channels * (x * mip_height + y);
+                float *mip_pixel = target_data + image_channels * (y * mip_width + x);
                 for (kan_loop_size_t channel = 0u; channel < image_channels; ++channel)
                 {
                     switch (preset->mip_generation)
@@ -326,9 +327,9 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                 }
 
                 kan_loop_size_t average_samples = 0u;
-                for (kan_loop_size_t offset_x = 0u; offset_x < 2u; ++offset_x)
+                for (kan_loop_size_t offset_y = 0u; offset_y < 2u; ++offset_y)
                 {
-                    for (kan_loop_size_t offset_y = 0u; offset_y < 2u; ++offset_y)
+                    for (kan_loop_size_t offset_x = 0u; offset_x < 2u; ++offset_x)
                     {
                         const kan_loop_size_t sample_x = x * 2u + offset_x;
                         const kan_loop_size_t sample_y = y * 2u + offset_y;
@@ -336,7 +337,7 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                         if (sample_x < source_width && sample_y < source_height)
                         {
                             const float *sample_pixel =
-                                source_data + image_channels * (sample_x * source_height + sample_y);
+                                source_data + image_channels * (sample_y * source_width + sample_x);
                             ++average_samples;
 
                             for (kan_loop_size_t channel = 0u; channel < image_channels; ++channel)
@@ -540,7 +541,8 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                     target_pixel[0u] = CLAMPED_UINT_COLOR (kan_color_transfer_rgb_to_srgb (source_pixel[0u]));
                     target_pixel[1u] = CLAMPED_UINT_COLOR (kan_color_transfer_rgb_to_srgb (source_pixel[1u]));
                     target_pixel[2u] = CLAMPED_UINT_COLOR (kan_color_transfer_rgb_to_srgb (source_pixel[2u]));
-                    target_pixel[3u] = CLAMPED_UINT_COLOR (kan_color_transfer_rgb_to_srgb (source_pixel[3u]));
+                    // Alpha is not in sRGB color space.
+                    target_pixel[3u] = CLAMPED_UINT_COLOR (source_pixel[3u]);
                 }
 
                 break;

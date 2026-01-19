@@ -1,0 +1,106 @@
+constant atlas_entry_flag_nine_slice = 1u << 0u;
+constant atlas_entry_flag_color_multiplier = 1u << 1u;
+
+constant atlas_entry_nine_slice_flag_tiled_x = 1u << 0u;
+constant atlas_entry_nine_slice_flag_tiled_y = 1u << 1u;
+
+struct atlas_entry
+{
+    u1 flags;
+    u1 page;
+    f2 uv_min;
+    f2 uv_max;
+    f2 pixel_size;
+    u1 nine_slice_flags;
+    f1 nine_slice_left;
+    f1 nine_slice_right;
+    f1 nine_slice_top;
+    f1 nine_slice_bottom;
+    u1 color_table_multiplier_index;
+};
+
+// We're passing full struct which technically causes struct interning in shader code (this is standard behavior not
+// only for our compiler, but for glslang too). However, benchmarks do not show significant difference in performance
+// as vendor software is usually good at optimizing SPIRV.
+f2 calculate_atlas_entry_uv (in atlas_entry entry, in f2 element_uv, in f2 element_size, in f2 element_pixel)
+{
+    f2 base_uv = element_uv;
+    if ((entry.flags & atlas_entry_flag_nine_slice) != 0u)
+    {
+        f2 entry_space = f2 {0.0};
+        f2 borders = f2 {
+            entry.nine_slice_left + entry.nine_slice_right, 
+            entry.nine_slice_top + entry.nine_slice_bottom};
+        f2 center_size = entry.pixel_size - borders;
+        
+        if (element_size.x > borders.x)
+        {
+            if (element_pixel.x < entry.nine_slice_left)
+            {
+                entry_space.x = element_pixel.x;
+            }
+            else if (element_size.x - element_pixel.x < entry.nine_slice_right)
+            {
+                entry_space.x = entry.pixel_size.x - (element_size.x - element_pixel.x);
+            }
+            else if ((entry.nine_slice_flags & atlas_entry_nine_slice_flag_tiled_x) != 0u)
+            {
+                entry_space.x = entry.nine_slice_left + (element_pixel.x - entry.nine_slice_left) % center_size.x;
+            }
+            else
+            {
+                f1 stretch_element = (element_pixel.x - entry.nine_slice_left) / (element_size.x - borders.x);
+                entry_space.x = entry.nine_slice_left + stretch_element * (entry.pixel_size.x - borders.x);
+            }
+        }
+        else
+        {
+            f1 edge = element_size.x * entry.nine_slice_left / borders.x;
+            if (element_pixel.x < edge)
+            {
+                entry_space.x = element_pixel.x;
+            }
+            else
+            {
+                entry_space.x = entry.pixel_size.x - (element_size.x - element_pixel.x);
+            }
+        }
+            
+        if (element_size.y > borders.y)
+        {
+            if (element_pixel.y < entry.nine_slice_top)
+            {
+                entry_space.y = element_pixel.y;
+            }
+            else if (element_size.y - element_pixel.y < entry.nine_slice_bottom)
+            {
+                entry_space.y = entry.pixel_size.y - (element_size.y - element_pixel.y);
+            }
+            else if ((entry.nine_slice_flags & atlas_entry_nine_slice_flag_tiled_y) != 0u)
+            {
+                entry_space.y = entry.nine_slice_top + (element_pixel.y - entry.nine_slice_top) % center_size.y;
+            }
+            else
+            {
+                f1 stretch_element = (element_pixel.y - entry.nine_slice_top) / (element_size.y - borders.y);
+                entry_space.y = entry.nine_slice_top + stretch_element * (entry.pixel_size.y - borders.y);
+            }
+        }
+        else
+        {
+            f1 edge = element_size.y * entry.nine_slice_top / borders.y;
+            if (element_pixel.y < edge)
+            {
+                entry_space.y = element_pixel.y;
+            }
+            else
+            {
+                entry_space.y = entry.pixel_size.y - (element_size.y - element_pixel.y);
+            }
+        }
+        
+        base_uv = entry_space / entry.pixel_size;
+    }
+    
+    return entry.uv_min + base_uv * (entry.uv_max - entry.uv_min);
+}

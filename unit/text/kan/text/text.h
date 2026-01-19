@@ -70,7 +70,23 @@ typedef uint32_t kan_unicode_codepoint_t;
 
 /// \brief Returns next unicode codepoint or 0 when iteration ended or text is malformed.
 /// \param iterator Pointer to pointer that is used as string iterator and modified by this function.
-TEXT_API kan_unicode_codepoint_t kan_text_utf8_next (const uint8_t **iterator);
+/// \param boundary Used as text-end mark and this function will return error if boundary interrupts codepoint.
+TEXT_API kan_unicode_codepoint_t kan_text_utf8_next (const uint8_t **iterator, const uint8_t *boundary);
+
+/// \brief Returns pointer to the previous codepoint seen from given current codepoint. Returns `NULL` on error.
+/// \param from Pointer to the current codepoint for which we're searching previous one.
+/// \param boundary Used as text-start mark and this function will return error if boundary interrupts codepoint.
+TEXT_API const uint8_t *kan_text_utf8_find_previous (const uint8_t *from, const uint8_t *boundary);
+
+/// \brief Result container for `kan_text_codepoint_to_utf8`.
+struct kan_text_utf8_result_t
+{
+    kan_instance_size_t length;
+    char data[4u];
+};
+
+/// \brief Converts unicode codepoint to utf8. Result has zero length if error has occurred.
+TEXT_API struct kan_text_utf8_result_t kan_text_utf32_to_utf8 (kan_unicode_codepoint_t codepoint);
 
 /// \brief Custom break character for the simplified manual bidi.
 /// \details We do not perform full scale bidi for utf8 text fragments. Instead, neutral characters are assigned to
@@ -116,18 +132,16 @@ enum kan_text_item_type_t
 };
 
 /// \brief Contains data for the text icon item.
+/// \details Icon item y bearing is equal to primary default `ascender * y_scale`.
 struct kan_text_item_icon_t
 {
     /// \brief Icon indices are passed to the user render code so it can choose the proper icon.
     uint32_t icon_index;
 
-    /// \brief Codepoint used to calculate proper extents for the icon. Special characters like 0x25A0 are advised.
-    uint32_t base_codepoint;
-
-    /// \brief Applies scale to the x size of the icon codepoint.
+    /// \brief Icon item width is primary default `(ascender - descender) * x_scale`.
     float x_scale;
 
-    /// \brief Applies scale to the y size of the icon codepoint.
+    /// \brief Icon item height is primary default `(ascender - descender) * y_scale`.
     float y_scale;
 };
 
@@ -148,13 +162,62 @@ struct kan_text_item_t
     union
     {
         const char *utf8;
+        const kan_unicode_codepoint_t *utf32;
         struct kan_text_item_icon_t icon;
         struct kan_text_item_style_t style;
     };
 };
 
+/// \brief Convenience macro for filling out empty text item.
+#define KAN_INIT_TEXT_ITEM_EMPTY                                                                                       \
+    (struct kan_text_item_t) { .type = KAN_TEXT_ITEM_EMPTY, }
+
+/// \brief Convenience macro for filling out utf8 text item.
+#define KAN_INIT_TEXT_ITEM_UTF8(DATA)                                                                                  \
+    (struct kan_text_item_t) { .type = KAN_TEXT_ITEM_UTF8, .utf8 = (DATA), }
+
+/// \brief Convenience macro for filling out icon text item.
+#define KAN_INIT_TEXT_ITEM_ICON(INDEX, X_SCALE, Y_SCALE)                                                               \
+    (struct kan_text_item_t)                                                                                           \
+    {                                                                                                                  \
+        .type = KAN_TEXT_ITEM_ICON,                                                                                    \
+        .icon = {                                                                                                      \
+            .icon_index = (INDEX),                                                                                     \
+            .x_scale = (X_SCALE),                                                                                      \
+            .y_scale = (Y_SCALE),                                                                                      \
+        },                                                                                                             \
+    }
+
+/// \brief Convenience macro for filling out style text item.
+#define KAN_INIT_TEXT_ITEM_STYLE(STYLE, MARK)                                                                          \
+    (struct kan_text_item_t)                                                                                           \
+    {                                                                                                                  \
+        .type = KAN_TEXT_ITEM_STYLE, .style = {                                                                        \
+            .style = (STYLE),                                                                                          \
+            .mark = (MARK),                                                                                            \
+        }                                                                                                              \
+    }
+
+/// \brief Describes how to construct text object.
+struct kan_text_description_t
+{
+    kan_instance_size_t items_count;
+    struct kan_text_item_t *items;
+
+    /// \brief If true, tries to use given direction to automatically exclude common script codepoints like whitespaces
+    ///        from bidi-inverted sequences.
+    bool guide_bidi_with_direction;
+
+    /// \brief If `guide_bidi_with_direction`, scripts with direction that do not match this one will only include
+    ///        common-script codepoints if that codepoints are not followed by direction-matching script.
+    /// \details This behavior alteration should allow us to solve the issue of bidi+common-script which is a common
+    ///          case for custom bidi break insertion. Solving this automatically means that bidi should work better
+    ///          for user input like text edits.
+    enum kan_text_reading_direction_t direction_to_guide_bidi;
+};
+
 /// \brief Builds text object from provided array of items.
-TEXT_API kan_text_t kan_text_create (kan_instance_size_t items_count, struct kan_text_item_t *items);
+TEXT_API kan_text_t kan_text_create (const struct kan_text_description_t *description);
 
 /// \brief Destroys given text object immediately.
 TEXT_API void kan_text_destroy (kan_text_t instance);
@@ -174,24 +237,89 @@ struct kan_text_shaped_glyph_instance_data_t
 /// \brief Describes shaped instance of one icon from text.
 struct kan_text_shaped_icon_instance_data_t
 {
-    struct kan_float_vector_4_t min;
-    struct kan_float_vector_4_t max;
+    struct kan_float_vector_2_t min;
+    struct kan_float_vector_2_t max;
     uint32_t icon_index;
     uint32_t mark;
     uint32_t read_index;
 };
 
+/// \brief Contains information about one visual cluster for the text edition logic.
+/// \details Cluster is a one or more glyphs that form one visual letter that is perceived by the user as one letter in
+///          most cases. It is important nail down how clusters interact with text editing operations:
+///          - Clusters are used to calculate cursor visual and data positions.
+///          - Text input is applied at data position and has nothing to do with clusters.
+///          - Backspace and Delete keys are applied at data position and operate on codepoint level.
+///            They can modify multi-codepoint clusters by removing overlay glyphs from them that way and it is an
+///            expected text editing behavior.
+///          - Selection operates by converting pointer positions to data positions and then treating codepoints between
+///            these data positions as selected. It is expected as any other behavior would break when bidi is present.
+///          - Left/Right arrow keys operate purely on cluster level and move cursor between clusters when on horizontal
+///            orientation is used.
+///          - Top/Down arrow keys operate by changing sequence and then matching old visual cursor positions as pointer
+///            position in order to select proper cluster when horizontal orientation is used.
+struct kan_text_shaped_edition_cluster_data_t
+{
+    kan_instance_offset_t visual_min;
+    kan_instance_offset_t visual_max;
+
+    /// \brief Cursor position when cursor is at `start_at_index` content location.
+    kan_instance_offset_t visual_cursor_position;
+
+    /// \brief Used to mark cluster that have inverted direction relative to requested reading direction.
+    bool matching_reading_direction;
+
+    /// \brief Index of byte from which codepoints that form this cluster start if all strings passed into text during
+    ///        creation are treated as one continuous string.
+    /// \details Shaping-level logic has no info about original text items as they were merged or separated during text
+    ///          object creation. Therefore, cluster data start index is computed as if all input strings were merged
+    ///          into one string, which is usually the case for text edition and therefore is fine.
+    kan_instance_size_t start_at_index;
+};
+
+/// \brief Contains data about one shaped sequence -- line or column -- needed for editing that text sequence.
+struct kan_text_shaped_edition_sequence_data_t
+{
+    kan_instance_offset_t baseline;
+    kan_instance_offset_t ascender;
+    kan_instance_offset_t descender;
+
+    /// \brief Index of byte since which content no longer belongs to this sequence.
+    /// \details Follows the same indexing rules as `kan_text_shaped_edition_cluster_data_t::start_at_index`.
+    ///          Used to simplify pointer-to-content-index conversion.
+    kan_instance_size_t end_at_index;
+
+    /// \brief List of clusters in that line/column sequence.
+    /// \details Ordered by how clusters are read judging by requested reading direction. Clusters from bidi fragments
+    ///          are still ordered by reading direction in request, not by their actual direction! Which means that
+    ///          visual min/max is monotone ascending for left-ro-right and monotone-descending for right-to-left.
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_text_shaped_edition_cluster_data_t)
+    struct kan_dynamic_array_t clusters;
+};
+
+TEXT_API void kan_text_shaped_edition_sequence_data_init (struct kan_text_shaped_edition_sequence_data_t *instance);
+
+TEXT_API void kan_text_shaped_edition_sequence_data_shutdown (struct kan_text_shaped_edition_sequence_data_t *instance);
+
 /// \brief Contains shaped data for rendering the whole text object.
 struct kan_text_shaped_data_t
 {
-    struct kan_int32_vector_2_t min;
-    struct kan_int32_vector_2_t max;
+    /// \brief Size on the primary direction.
+    kan_instance_size_t typographic_primary_size;
+
+    /// \brief Size on the secondary direction.
+    kan_instance_size_t typographic_secondary_size;
 
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_text_shaped_glyph_instance_data_t)
     struct kan_dynamic_array_t glyphs;
 
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_text_shaped_icon_instance_data_t)
     struct kan_dynamic_array_t icons;
+
+    /// \brief List of lines/columns for edition implementation, always ordered by baseline value.
+    /// \warning Non-empty only if `kan_text_shaping_request_t::generate_edition_markup` is true.
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_text_shaped_edition_sequence_data_t)
+    struct kan_dynamic_array_t edition_sequences;
 };
 
 TEXT_API void kan_text_shaped_data_init (struct kan_text_shaped_data_t *instance);
@@ -217,6 +345,7 @@ struct kan_font_library_category_t
 };
 
 /// \brief Creates new font library with given categories.
+/// \details Category order matters as first category with NULL style is treated as primary default category.
 TEXT_API kan_font_library_t kan_font_library_create (kan_render_context_t render_context,
                                                      kan_instance_size_t categories_count,
                                                      struct kan_font_library_category_t *categories);
@@ -252,7 +381,7 @@ enum kan_text_shaping_alignment_t
 struct kan_text_shaping_request_t
 {
     /// \brief Font size for calculating glyph sizes for shaping.
-    uint32_t font_size;
+    kan_instance_size_t font_size;
 
     /// \brief Glyph render format for all glyphs in the text.
     enum kan_font_glyph_render_format_t render_format;
@@ -274,6 +403,14 @@ struct kan_text_shaping_request_t
     /// \details Shaping algorithm tries as hard as possible to fit text data into this limit,
     ///          introducing line breaks whenever possible.
     kan_instance_size_t primary_axis_limit;
+
+    /// \brief True if line/column breaks are allowed.
+    /// \details When breaks are not allowed, primary axis limit is still used for alignment
+    ///          if shaped text primary size is less than limit.
+    bool allow_breaks;
+
+    /// \brief If true, then additional markup needed for text edition implementation will be generated as well.
+    bool generate_edition_markup;
 
     /// \brief Text object to be shaped into data for rendering.
     kan_text_t text;

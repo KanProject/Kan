@@ -338,23 +338,14 @@ void kan_render_context_singleton_init (struct kan_render_context_singleton_t *i
                             alignof (struct kan_color_linear_t), kan_allocation_group_stack_get ());
 
     // Add basic colors as a temporary filler just in case.
-    struct kan_color_linear_t *red = kan_dynamic_array_add_last (&instance->color_table_values);
-    red->r = 1.0f;
-    red->g = 0.0f;
-    red->b = 0.0f;
-    red->a = 1.0f;
-
-    struct kan_color_linear_t *green = kan_dynamic_array_add_last (&instance->color_table_values);
-    green->r = 0.0f;
-    green->g = 1.0f;
-    green->b = 0.0f;
-    green->a = 1.0f;
-
-    struct kan_color_linear_t *blue = kan_dynamic_array_add_last (&instance->color_table_values);
-    blue->r = 0.0f;
-    blue->g = 0.0f;
-    blue->b = 1.0f;
-    blue->a = 1.0f;
+    *(struct kan_color_linear_t *) kan_dynamic_array_add_last (&instance->color_table_values) =
+        kan_make_color_linear (1.0f, 0.0f, 0.0f, 1.0f);
+    
+    *(struct kan_color_linear_t *) kan_dynamic_array_add_last (&instance->color_table_values) =
+        kan_make_color_linear (0.0f, 1.0f, 0.0f, 1.0f);
+    
+    *(struct kan_color_linear_t *) kan_dynamic_array_add_last (&instance->color_table_values) =
+        kan_make_color_linear (0.0f, 0.0f, 1.0f, 1.0f);
 }
 
 void kan_render_context_singleton_shutdown (struct kan_render_context_singleton_t *instance)

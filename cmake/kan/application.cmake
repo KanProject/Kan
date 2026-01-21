@@ -19,7 +19,7 @@ set (KAN_APPLICATION_PACKAGED_WORLD_DIRECTORY_NAME "world")
 # Path to application program launcher statics ecosystem subdirectory.
 # Launchers statics are split into ecosystems in order to put them into flattened binary directories.
 set (KAN_APPLICATION_PROGRAM_LAUNCHER_STATICS_ECOSYSTEM
-        "${PROJECT_SOURCE_DIR}/cmake/kan/application_program_launcher_statics_ecosystem")
+        "${CMAKE_CURRENT_LIST_DIR}/application_program_launcher_statics_ecosystem")
 
 # Name of the used application framework static launcher implementation.
 set (KAN_APPLICATION_PROGRAM_LAUNCHER_IMPLEMENTATION "sdl")
@@ -34,6 +34,13 @@ set (KAN_APPLICATION_AUTO_BUILD_DELAY_NS "1000000000" CACHE STRING
 # Whether to enable code hot reload verification target generation.
 option (KAN_APPLICATION_GENERATE_CODE_HOT_RELOAD_TEST
         "Whether to enable code hot reload verification target generation." ON)
+
+# Path to application utility program configuration for testing hot reload integrity.
+set (KAN_APPLICATION_VERIFY_HOT_RELOAD_CONFIGURATION
+        "${CMAKE_CURRENT_LIST_DIR}/verify_code_hot_reload_configuration.rd")
+
+# Path to application utility world configuration for testing hot reload integrity.
+set (KAN_APPLICATION_VERIFY_HOT_RELOAD_WORLD "${CMAKE_CURRENT_LIST_DIR}/verify_code_hot_reload_world.rd")
 
 # Target properties, used to store application framework related data. Shouldn't be directly modified by user.
 
@@ -224,9 +231,7 @@ function (application_set_world_directory DIRECTORY)
             file (MAKE_DIRECTORY "${DIRECTORY}/optional")
         endif ()
 
-        file (COPY_FILE
-                "${PROJECT_SOURCE_DIR}/cmake/kan/verify_code_hot_reload_world.rd"
-                "${DIRECTORY}/optional/verify_code_hot_reload.rd")
+        file (COPY_FILE "${KAN_APPLICATION_VERIFY_HOT_RELOAD_WORLD}" "${DIRECTORY}/optional/verify_code_hot_reload.rd")
     endif ()
 endfunction ()
 
@@ -576,7 +581,7 @@ function (private_generate_code_hot_reload_test)
     # Register verification program.
 
     register_application_program (verify_code_hot_reload)
-    application_program_set_configuration ("${PROJECT_SOURCE_DIR}/cmake/kan/verify_code_hot_reload_configuration.rd")
+    application_program_set_configuration ("${KAN_APPLICATION_VERIFY_HOT_RELOAD_CONFIGURATION}")
     application_program_use_as_test_in_development_mode (
             ARGUMENTS
             "${CMAKE_COMMAND}" "${CMAKE_BINARY_DIR}"
@@ -601,8 +606,7 @@ function (private_core_configurator_common_content)
     cmake_parse_arguments (ARG "" "OUTPUT;HOT_RELOAD;AUTO_BUILD" "PLUGINS;TAGS" ${ARGV})
     if (DEFINED ARG_UNPARSED_ARGUMENTS OR
             NOT DEFINED ARG_OUTPUT OR
-            NOT DEFINED ARG_PLUGINS OR
-            NOT DEFINED ARG_TAGS)
+            NOT DEFINED ARG_PLUGINS)
         message (FATAL_ERROR "Incorrect function arguments!")
     endif ()
 
@@ -1113,7 +1117,7 @@ function (application_generate)
         # Add program executable to tests if request.
 
         get_target_property (IS_TEST "${PROGRAM}" APPLICATION_PROGRAM_USE_AS_TEST_IN_DEVELOPMENT_MODE)
-        if (${IS_TEST})
+        if (IS_TEST)
             get_target_property (TEST_ARGUMENTS "${PROGRAM}" APPLICATION_PROGRAM_TEST_IN_DEVELOPMENT_MODE_ARGUMENTS)
             if (NOT TEST_ARGUMENTS)
                 set (TEST_ARGUMENTS)
@@ -1439,7 +1443,7 @@ function (application_generate)
             # Add program executable to tests if request.
 
             get_target_property (IS_TEST "${PROGRAM}" APPLICATION_PROGRAM_USE_AS_TEST_IN_PACKAGED_MODE)
-            if (${IS_TEST})
+            if (IS_TEST)
                 get_target_property (TEST_ARGUMENTS "${PROGRAM}" APPLICATION_PROGRAM_TEST_IN_PACKAGED_MODE_ARGUMENTS)
                 if (NOT TEST_ARGUMENTS)
                     set (TEST_ARGUMENTS)

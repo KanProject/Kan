@@ -1,6 +1,5 @@
 # We use a lot of smaller files to define our build framework, therefore it is easier to put all raw includes into one
 # CMake module and include this module where it is needed than including all the small modules everywhere.
-
 include_guard (GLOBAL)
 
 # Include CMake Unit Framework.

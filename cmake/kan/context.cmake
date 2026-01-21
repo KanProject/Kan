@@ -2,7 +2,7 @@
 
 # Path to context statics ecosystem subdirectory.
 # Context statics are split into ecosystems in order to put them into flattened binary directories.
-set (KAN_CONTEXT_STATICS_ECOSYSTEM "${PROJECT_SOURCE_DIR}/cmake/kan/context_statics_ecosystem")
+set (KAN_CONTEXT_STATICS_ECOSYSTEM "${CMAKE_CURRENT_LIST_DIR}/context_statics_ecosystem")
 
 # Directory with generated files that should be added to context unit includes.
 set (KAN_CONTEXT_ALL_SYSTEM_NAMES_INCLUDE_BASE "${CMAKE_BINARY_DIR}/Generated/context/all_systems")

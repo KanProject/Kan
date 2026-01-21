@@ -4,7 +4,7 @@ concrete_sources (GLOB "*.c")
 
 concrete_require (
         SCOPE PUBLIC
-        ABSTRACT file_system image log precise_time
+        ABSTRACT file_system log precise_time
         CONCRETE_INTERFACE
         application_framework context_application_system resource_test_expectation test_routine
         universe universe_locale universe_render_foundation universe_resource_provider universe_text universe_ui)

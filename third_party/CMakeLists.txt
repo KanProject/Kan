@@ -63,6 +63,10 @@ add_subdirectory (re2c)
 
 # Cushion. 
 # Must always be registered after re2c.
+# Enable Cushion tests for easier patching and iteration.
+set (CUSHION_TEST ON CACHE BOOL "We use double-set with cache to override options for good.")
+set (CUSHION_TEST ON)
+
 set (CUSHION_EXTENSIONS ON CACHE BOOL "We use double-set with cache to override options for good.")
 set (CUSHION_EXTENSIONS ON)
 

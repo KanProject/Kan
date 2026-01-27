@@ -664,9 +664,9 @@ static void try_render_frame (struct text_effects_render_state_t *state,
         {
             .color =
                 {
-                    kan_color_transfer_rgb_to_srgb_approximate (20.0f / 255.0f),
-                    kan_color_transfer_rgb_to_srgb_approximate (140.0f / 255.0f),
-                    kan_color_transfer_rgb_to_srgb_approximate (190.0f / 255.0f),
+                    kan_color_transfer_srgb_to_rgb (12.0f / 255.0f),
+                    kan_color_transfer_srgb_to_rgb (141.0f / 255.0f),
+                    kan_color_transfer_srgb_to_rgb (191.0f / 255.0f),
                     1.0f,
                 },
         },

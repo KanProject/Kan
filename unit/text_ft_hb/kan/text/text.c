@@ -938,7 +938,7 @@ struct font_library_t
     struct font_library_category_t categories[];
 };
 
-static const struct kan_render_clear_color_t sdf_atlas_clear_color = {
+static const struct kan_color_linear_t sdf_atlas_clear_color = {
     .r = 0.0f,
     .g = 0.0f,
     .b = 0.0f,

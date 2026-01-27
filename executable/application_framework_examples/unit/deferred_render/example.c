@@ -774,9 +774,7 @@ static bool try_render_ambient_lighting (struct deferred_render_state_t *state,
     KAN_ASSERT (ambient_material->vertex_attribute_sources.size == 1u)
     KAN_ASSERT (!ambient_material->has_instanced_attribute_source)
 
-    const struct kan_float_vector_4_t ambient_modifier = {kan_color_transfer_rgb_to_srgb_approximate (0.05f),
-                                                          kan_color_transfer_rgb_to_srgb_approximate (0.05f),
-                                                          kan_color_transfer_rgb_to_srgb_approximate (0.05f), 1.0f};
+    const struct kan_float_vector_4_t ambient_modifier = {0.001373f, 0.001373f, 0.001373f, 1.0f};
     kan_render_pass_instance_push_constant (pass_instance, &ambient_modifier);
 
     kan_render_buffer_t attribute_buffers[] = {singleton->full_screen_quad_vertex_buffer};
@@ -825,9 +823,9 @@ static bool try_render_directional_lighting (struct deferred_render_state_t *sta
         .shadow_map_projection_view = singleton->directional_light_shadow_projection_view,
         .color =
             {
-                .x = kan_color_transfer_rgb_to_srgb_approximate (0.2f),
-                .y = kan_color_transfer_rgb_to_srgb_approximate (0.2f),
-                .z = kan_color_transfer_rgb_to_srgb_approximate (0.4f),
+                .x = 0.028991f,
+                .y = 0.028991f,
+                .z = 0.133209f,
                 .w = 0.0f,
             },
         .direction =
@@ -902,9 +900,7 @@ static bool try_render_point_lighting (struct deferred_render_state_t *state,
     {
         instanced_data_output->position_and_distance = kan_extend_float_vector_3_t (
             singleton->point_lights_with_shadows_positions[point_light_index], POINT_LIGHTS_WITH_SHADOWS_DISTANCE);
-        instanced_data_output->color = kan_make_float_vector_3_t (kan_color_transfer_rgb_to_srgb_approximate (1.0f),
-                                                                  kan_color_transfer_rgb_to_srgb_approximate (1.0f),
-                                                                  kan_color_transfer_rgb_to_srgb_approximate (1.0f));
+        instanced_data_output->color = kan_make_float_vector_3_t (1.0f, 1.0f, 1.0f);
         instanced_data_output->shadow_map_index = (int32_t) point_light_index;
         ++instanced_data_output;
     }
@@ -929,31 +925,22 @@ static bool try_render_point_lighting (struct deferred_render_state_t *state,
             switch (light_index % 6u)
             {
             case 0u:
-                instanced_data_output->color =
-                    kan_make_float_vector_3_t (kan_color_transfer_rgb_to_srgb_approximate (1.0f), 0.0f, 0.0f);
+                instanced_data_output->color = kan_make_float_vector_3_t (1.0f, 0.0f, 0.0f);
                 break;
             case 1u:
-                instanced_data_output->color =
-                    kan_make_float_vector_3_t (0.0f, kan_color_transfer_rgb_to_srgb_approximate (1.0f), 0.0f);
+                instanced_data_output->color = kan_make_float_vector_3_t (0.0f, 1.0f, 0.0f);
                 break;
             case 2u:
-                instanced_data_output->color =
-                    kan_make_float_vector_3_t (0.0f, 0.0f, kan_color_transfer_rgb_to_srgb_approximate (1.0f));
+                instanced_data_output->color = kan_make_float_vector_3_t (0.0f, 0.0f, 1.0f);
                 break;
             case 3u:
-                instanced_data_output->color =
-                    kan_make_float_vector_3_t (kan_color_transfer_rgb_to_srgb_approximate (1.0f),
-                                               kan_color_transfer_rgb_to_srgb_approximate (1.0f), 0.0f);
+                instanced_data_output->color = kan_make_float_vector_3_t (1.0f, 1.0f, 0.0f);
                 break;
             case 4u:
-                instanced_data_output->color =
-                    kan_make_float_vector_3_t (0.0f, kan_color_transfer_rgb_to_srgb_approximate (1.0f),
-                                               kan_color_transfer_rgb_to_srgb_approximate (1.0f));
+                instanced_data_output->color = kan_make_float_vector_3_t (0.0f, 1.0f, 1.0f);
                 break;
             case 5u:
-                instanced_data_output->color =
-                    kan_make_float_vector_3_t (kan_color_transfer_rgb_to_srgb_approximate (1.0f), 0.0f,
-                                               kan_color_transfer_rgb_to_srgb_approximate (1.0f));
+                instanced_data_output->color = kan_make_float_vector_3_t (1.0f, 0.0f, 1.0f);
                 break;
             }
 
@@ -1804,15 +1791,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
                                                           state->g_buffer_pass_name, config);
 
         struct kan_render_clear_value_t lighting_clear_values[] = {
-            {
-                .color =
-                    {
-                        kan_color_transfer_rgb_to_srgb_approximate (0.1f),
-                        kan_color_transfer_rgb_to_srgb_approximate (0.1f),
-                        kan_color_transfer_rgb_to_srgb_approximate (0.2f),
-                        1.0f,
-                    },
-            },
+            {.color = kan_make_color_linear_from_web (0x131330FF)},
             {
                 // Should not be cleared, actually.
                 .depth_stencil = {0.0f, 0u},

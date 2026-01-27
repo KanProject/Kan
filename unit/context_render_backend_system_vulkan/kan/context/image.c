@@ -245,7 +245,7 @@ static inline struct scheduled_image_upload_t *find_or_add_image_upload_to_sched
 void kan_render_image_clear_color (kan_render_image_t image,
                                    kan_instance_size_t layer,
                                    uint8_t mip,
-                                   const struct kan_render_clear_color_t *clear_color)
+                                   const struct kan_color_linear_t *clear_color)
 {
     struct render_backend_image_t *image_data = KAN_HANDLE_GET (image);
     KAN_CPU_SCOPED_STATIC_SECTION (render_backend_image_upload)

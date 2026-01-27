@@ -337,7 +337,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_EXECUTE (ui_example_
         locale->selected_locale = kan_string_intern ("en");
 
         KAN_UMI_SINGLETON_WRITE (ui_render_graph, kan_ui_render_graph_singleton_t)
-        ui_render_graph->clear_color = kan_color_linear_to_srgb (kan_make_color_linear (0.0f, 1.0f, 1.0f, 1.0f));
+        ui_render_graph->clear_color = kan_make_color_linear (0.0f, 1.0f, 1.0f, 1.0f);
 
         render_context->color_table_values_dirty = true;
         render_context->color_table_values.size = 0u;
@@ -347,7 +347,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_EXECUTE (ui_example_
         struct kan_color_linear_t *color_positive = kan_dynamic_array_add_last (&render_context->color_table_values);
         struct kan_color_linear_t *color_neutral = kan_dynamic_array_add_last (&render_context->color_table_values);
 
-        *color_negative = kan_make_color_linear (0.8f, 0.0f, 0.0f, 1.0);
+        *color_negative = kan_make_color_linear (0.8f, 0.0f, 0.0f, 1.0f);
         *color_positive = kan_make_color_linear (0.8f, 0.8f, 0.0f, 1.0f);
         *color_neutral = kan_make_color_linear (0.0f, 0.8f, 0.8f, 1.0f);
     }

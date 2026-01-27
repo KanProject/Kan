@@ -7,6 +7,7 @@
 #include <kan/container/interned_string.h>
 #include <kan/context/application_system.h>
 #include <kan/context/context.h>
+#include <kan/inline_math/inline_math.h>
 
 ///// \file
 /// \brief Contains full API of render backed context system with functional basic graphics interface.
@@ -543,15 +544,6 @@ struct kan_render_viewport_bounds_t
     float depth_max;
 };
 
-/// \brief Describes color for clearing.
-struct kan_render_clear_color_t
-{
-    float r;
-    float g;
-    float b;
-    float a;
-};
-
 /// \brief Describes depth and stencil values for clearing.
 struct kan_render_clear_depth_stencil_t
 {
@@ -564,7 +556,7 @@ struct kan_render_clear_value_t
 {
     union
     {
-        struct kan_render_clear_color_t color;
+        struct kan_color_linear_t color;
         struct kan_render_clear_depth_stencil_t depth_stencil;
     };
 };
@@ -1206,11 +1198,10 @@ kan_render_image_create (kan_render_context_t context, struct kan_render_image_d
 /// \invariant Should not be used on render target images.
 /// \warning Is executed on GPU before any other command for this image. Only last clear this frame is applied.
 ///          Therefore, order of execution might be different from order of CPU calls.
-CONTEXT_RENDER_BACKEND_SYSTEM_API void kan_render_image_clear_color (
-    kan_render_image_t image,
-    kan_instance_size_t layer,
-    uint8_t mip,
-    const struct kan_render_clear_color_t *clear_color);
+CONTEXT_RENDER_BACKEND_SYSTEM_API void kan_render_image_clear_color (kan_render_image_t image,
+                                                                     kan_instance_size_t layer,
+                                                                     uint8_t mip,
+                                                                     const struct kan_color_linear_t *clear_color);
 
 /// \brief Schedules data upload to given image layer and mip.
 /// \warning Is executed on GPU after clear and before all copy and mip generation commands.

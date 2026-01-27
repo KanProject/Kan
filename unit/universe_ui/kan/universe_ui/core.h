@@ -722,7 +722,7 @@ struct kan_ui_render_graph_singleton_t
     kan_render_image_t final_image;
 
     /// \brief Clear color for UI viewport render target image.
-    struct kan_color_srgb_t clear_color;
+    struct kan_color_linear_t clear_color;
 };
 
 UNIVERSE_UI_API void kan_ui_render_graph_singleton_init (struct kan_ui_render_graph_singleton_t *instance);

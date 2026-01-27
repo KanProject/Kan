@@ -2039,17 +2039,9 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
         .height = (kan_instance_size_t) ui_singleton->viewport_height,
     };
 
-    struct kan_render_clear_value_t clear_values[] = {
-        {
-            .color =
-                {
-                    public->clear_color.r,
-                    public->clear_color.g,
-                    public->clear_color.b,
-                    public->clear_color.a,
-                },
-        },
-    };
+    struct kan_render_clear_value_t clear_values[] = {{
+        .color = public->clear_color,
+    }};
 
     public->final_pass_instance = kan_render_pass_instantiate (pass->pass, public->allocation->frame_buffers[0u],
                                                                &viewport_bounds, &scissor, clear_values);

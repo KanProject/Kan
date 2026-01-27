@@ -1,6 +1,8 @@
 register_abstract (context_render_backend_system)
 abstract_include ("${CMAKE_CURRENT_SOURCE_DIR}")
-abstract_require (CONCRETE_INTERFACE container context context_application_system INTERFACE api_common platform)
+abstract_require (
+        CONCRETE_INTERFACE container context context_application_system inline_math 
+        INTERFACE api_common platform)
 
 if (Vulkan_FOUND)
     abstract_register_implementation (

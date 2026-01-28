@@ -38,73 +38,79 @@
 
 KAN_C_HEADER_BEGIN
 
-/// \brief Describes one material instance parameter.
-KAN_MUTE_STRUCTURE_PADDED_WARNINGS_BEGIN
-struct kan_resource_material_parameter_t
+#define KAN_RESOURCE_MATERIAL_PARAMETER_TYPE(NAME, TYPE)                                                               \
+    struct kan_resource_material_parameter_##NAME##_t                                                                  \
+    {                                                                                                                  \
+        kan_interned_string_t name;                                                                                    \
+        TYPE value;                                                                                                    \
+    }
+
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (f1, float);
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (f2, struct kan_float_vector_2_t);
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (f3, struct kan_float_vector_3_t);
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (f4, struct kan_float_vector_4_t);
+
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (u1, uint32_t);
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (u2, struct kan_uint32_vector_2_t);
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (u3, struct kan_uint32_vector_3_t);
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (u4, struct kan_uint32_vector_4_t);
+
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (s1, int32_t);
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (s2, struct kan_int32_vector_2_t);
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (s3, struct kan_int32_vector_3_t);
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (s4, struct kan_int32_vector_4_t);
+
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (f3x3, struct kan_float_matrix_3x3_t);
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (f4x4, struct kan_float_matrix_4x4_t);
+
+/// \brief Hex-represented web-compatible color (hex value is SRGB), that is converted to f4 vector with linear values.
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (color_linear, uint32_t);
+
+/// \brief Hex-represented web-compatible color (hex value is SRGB), that is converted to f4 vector with srgb values.
+KAN_RESOURCE_MATERIAL_PARAMETER_TYPE (color_srgb, uint32_t);
+
+#undef KAN_RESOURCE_MATERIAL_PARAMETER_TYPE
+
+/// \brief Container of typed parameter containers.
+/// \details This approach looks weird in code, but makes it possible for the user to add parameters in much more
+///          readable format, for example `+parameters.linear_color { name = my_name value = 0xFFFFFFFF }`, which makes
+///          working with material instance resources from text editor much more convenient. Also, this format is only
+///          used during resource build, therefore we do not need to optimize its memory layout.
+struct kan_resource_material_parameter_container_t
 {
-    kan_interned_string_t name;
-    enum kan_rpl_meta_variable_type_t type;
+#define KAN_RESOURCE_MATERIAL_PARAMETER_FIELD(NAME)                                                                    \
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_material_parameter_##NAME##_t)                              \
+    struct kan_dynamic_array_t NAME
 
-    union
-    {
-        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
-        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_META_VARIABLE_TYPE_F1)
-        float value_f1;
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (f1);
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (f2);
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (f3);
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (f4);
 
-        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
-        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_META_VARIABLE_TYPE_F2)
-        struct kan_float_vector_2_t value_f2;
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (u1);
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (u2);
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (u3);
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (u4);
 
-        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
-        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_META_VARIABLE_TYPE_F3)
-        struct kan_float_vector_3_t value_f3;
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (s1);
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (s2);
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (s3);
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (s4);
 
-        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
-        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_META_VARIABLE_TYPE_F4)
-        struct kan_float_vector_4_t value_f4;
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (f3x3);
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (f4x4);
 
-        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
-        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_META_VARIABLE_TYPE_U1)
-        uint32_t value_u1;
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (color_linear);
+    KAN_RESOURCE_MATERIAL_PARAMETER_FIELD (color_srgb);
 
-        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
-        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_META_VARIABLE_TYPE_U2)
-        struct kan_uint32_vector_2_t value_u2;
-
-        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
-        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_META_VARIABLE_TYPE_U3)
-        struct kan_uint32_vector_3_t value_u3;
-
-        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
-        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_META_VARIABLE_TYPE_U4)
-        struct kan_uint32_vector_4_t value_u4;
-
-        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
-        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_META_VARIABLE_TYPE_S1)
-        int32_t value_s1;
-
-        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
-        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_META_VARIABLE_TYPE_S2)
-        struct kan_int32_vector_2_t value_s2;
-
-        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
-        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_META_VARIABLE_TYPE_S3)
-        struct kan_int32_vector_3_t value_s3;
-
-        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
-        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_META_VARIABLE_TYPE_S4)
-        struct kan_int32_vector_4_t value_s4;
-
-        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
-        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_META_VARIABLE_TYPE_F3X3)
-        struct kan_float_matrix_3x3_t value_f3x3;
-
-        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
-        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_META_VARIABLE_TYPE_F4X4)
-        struct kan_float_matrix_4x4_t value_f4x4;
-    };
+#undef KAN_RESOURCE_MATERIAL_PARAMETER_FIELD
 };
-KAN_MUTE_STRUCTURE_PADDED_WARNINGS_END
+
+RESOURCE_RENDER_FOUNDATION_BUILD_API void kan_resource_material_parameter_container_init (
+    struct kan_resource_material_parameter_container_t *instance);
+
+RESOURCE_RENDER_FOUNDATION_BUILD_API void kan_resource_material_parameter_container_shutdown (
+    struct kan_resource_material_parameter_container_t *instance);
 
 /// \brief Data structure for setting tail item parameters at particular index.
 struct kan_resource_material_tail_set_t
@@ -114,8 +120,7 @@ struct kan_resource_material_tail_set_t
 
     kan_instance_size_t index;
 
-    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_material_parameter_t)
-    struct kan_dynamic_array_t parameters;
+    struct kan_resource_material_parameter_container_t parameters;
 };
 
 RESOURCE_RENDER_FOUNDATION_BUILD_API void kan_resource_material_tail_set_init (
@@ -130,8 +135,7 @@ struct kan_resource_material_tail_append_t
     /// \brief Corresponds to `kan_rpl_meta_buffer_t::tail_name`.
     kan_interned_string_t tail_name;
 
-    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_material_parameter_t)
-    struct kan_dynamic_array_t parameters;
+    struct kan_resource_material_parameter_container_t parameters;
 };
 
 RESOURCE_RENDER_FOUNDATION_BUILD_API void kan_resource_material_tail_append_init (
@@ -170,9 +174,7 @@ RESOURCE_RENDER_FOUNDATION_BUILD_API void kan_resource_material_image_init (
 struct kan_resource_material_variant_raw_t
 {
     kan_interned_string_t name;
-
-    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_material_parameter_t)
-    struct kan_dynamic_array_t parameters;
+    struct kan_resource_material_parameter_container_t parameters;
 };
 
 RESOURCE_RENDER_FOUNDATION_BUILD_API void kan_resource_material_variant_raw_init (
@@ -194,9 +196,8 @@ struct kan_resource_material_instance_raw_t
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (kan_interned_string_t)
     struct kan_dynamic_array_t use_mixins;
 
-    /// \brief Array of parameters for material set buffers.
-    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_material_parameter_t)
-    struct kan_dynamic_array_t parameters;
+    /// \brief Container for parameters for material set buffers.
+    struct kan_resource_material_parameter_container_t parameters;
 
     /// \brief Array of tail item sets (parameter write at particular index).
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_material_tail_set_t)
@@ -232,9 +233,8 @@ RESOURCE_RENDER_FOUNDATION_BUILD_API void kan_resource_material_instance_raw_shu
 ///          identical for several instances. In that case, mixin should be used to avoid duplication.
 struct kan_resource_material_instance_mixin_t
 {
-    /// \brief Array of parameters for material set buffers.
-    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_material_parameter_t)
-    struct kan_dynamic_array_t parameters;
+    /// \brief Container for parameters for material set buffers.
+    struct kan_resource_material_parameter_container_t parameters;
 
     /// \brief Array of tail item sets (parameter write at particular index).
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_material_tail_set_t)

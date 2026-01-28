@@ -625,6 +625,12 @@ static inline struct kan_color_linear_t kan_make_color_linear (float r, float g,
     return color;
 }
 
+/// \brief Convenience cast from linear color to float 4 vector.
+static inline struct kan_float_vector_4_t kan_color_linear_as_vector (const struct kan_color_linear_t value)
+{
+    return (struct kan_float_vector_4_t) {.x = value.r, .y = value.g, .z = value.b, .w = value.a};
+}
+
 /// \brief Helper structure for unpacked SRGB color space colors.
 struct kan_color_srgb_t
 {
@@ -633,6 +639,12 @@ struct kan_color_srgb_t
     float b;
     float a;
 };
+
+/// \brief Convenience cast from SRGB color to float 4 vector.
+static inline struct kan_float_vector_4_t kan_color_srgb_as_vector (const struct kan_color_srgb_t value)
+{
+    return (struct kan_float_vector_4_t) {.x = value.r, .y = value.g, .z = value.b, .w = value.a};
+}
 
 /// \brief Helper to convert linear color to srgb color.
 static inline struct kan_color_srgb_t kan_color_linear_to_srgb (const struct kan_color_linear_t value)

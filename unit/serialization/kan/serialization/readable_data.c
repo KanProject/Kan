@@ -462,8 +462,28 @@ static inline bool read_to_signed_integer (struct reader_state_t *reader_state,
                                            kan_instance_size_t integer_size,
                                            void *address)
 {
-    if (parsed_event->type != KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER)
+    kan_instance_offset_t value = 0;
+    switch (parsed_event->type)
     {
+    case KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER:
+        if (source_node->unsigned_integer > KAN_INT_MAX (kan_instance_offset_t))
+        {
+            KAN_LOG (serialization_readable_data, KAN_LOG_ERROR,
+                     "Elemental setter attempts to set value at path \"%s\" (index -- %llu), where value is unsigned "
+                     "and bigger than signed type can hold.",
+                     parsed_event->output_target.identifier,
+                     (unsigned long long) parsed_event->output_target.array_index)
+            return false;
+        }
+
+        value = (kan_instance_offset_t) source_node->unsigned_integer;
+        break;
+
+    case KAN_READABLE_DATA_EVENT_ELEMENTAL_SIGNED_INTEGER_SETTER:
+        value = source_node->signed_integer;
+        break;
+
+    default:
         KAN_LOG (serialization_readable_data, KAN_LOG_ERROR,
                  "Elemental setter attempts to set value at path \"%s\" (index -- %llu), but it is an integer and "
                  "therefore only integer setters are allowed.",
@@ -471,7 +491,6 @@ static inline bool read_to_signed_integer (struct reader_state_t *reader_state,
         return false;
     }
 
-    const kan_instance_offset_t value = source_node->integer;
     switch (integer_size)
     {
     case 1u:
@@ -531,23 +550,32 @@ static inline bool read_to_unsigned_integer (struct reader_state_t *reader_state
                                              kan_instance_size_t integer_size,
                                              void *address)
 {
-    if (parsed_event->type != KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER)
+    kan_instance_size_t value = 0u;
+    switch (parsed_event->type)
     {
+    case KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER:
+        value = source_node->unsigned_integer;
+        break;
+
+    case KAN_READABLE_DATA_EVENT_ELEMENTAL_SIGNED_INTEGER_SETTER:
+        if (source_node->signed_integer < 0)
+        {
+            KAN_LOG (serialization_readable_data, KAN_LOG_ERROR,
+                     "Elemental setter attempts to set value at path \"%s\" (index -- %llu), where value is signed "
+                     "negative integer, but target field only accepts non-negative integers.",
+                     parsed_event->output_target.identifier,
+                     (unsigned long long) parsed_event->output_target.array_index)
+            return false;
+        }
+
+        value = (kan_instance_size_t) source_node->signed_integer;
+        break;
+
+    default:
         KAN_LOG (serialization_readable_data, KAN_LOG_ERROR,
                  "Elemental setter attempts to set value at path \"%s\" (index -- %llu), but it is an integer and "
                  "therefore only integer setters are allowed.",
                  parsed_event->output_target.identifier, (unsigned long long) parsed_event->output_target.array_index)
-        return false;
-    }
-
-    const kan_instance_offset_t value = source_node->integer;
-    if (value < 0)
-    {
-        KAN_LOG (serialization_readable_data, KAN_LOG_ERROR,
-                 "Elemental setter attempts to set value at path \"%s\" (index -- %llu), but receiver is an unsigned "
-                 "integer and cannot hold value %lld.",
-                 parsed_event->output_target.identifier, (long long) parsed_event->output_target.array_index,
-                 (long long) value)
         return false;
     }
 
@@ -2101,7 +2129,8 @@ enum kan_serialization_state_t kan_serialization_rd_reader_step (kan_serializati
     {
     case KAN_READABLE_DATA_EVENT_ELEMENTAL_IDENTIFIER_SETTER:
     case KAN_READABLE_DATA_EVENT_ELEMENTAL_STRING_SETTER:
-    case KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER:
+    case KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER:
+    case KAN_READABLE_DATA_EVENT_ELEMENTAL_SIGNED_INTEGER_SETTER:
     case KAN_READABLE_DATA_EVENT_ELEMENTAL_FLOATING_SETTER:
         if (!read_elemental_setter (reader_state, parsed_event, top_state))
         {
@@ -2229,35 +2258,35 @@ static inline bool emit_single_signed_integer_setter (struct writer_state_t *wri
                                                       const void *address)
 {
     struct kan_readable_data_event_t event;
-    event.type = KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER;
+    event.type = KAN_READABLE_DATA_EVENT_ELEMENTAL_SIGNED_INTEGER_SETTER;
     event.output_target.identifier = name;
     event.output_target.array_index = array_index;
 
     struct kan_readable_data_value_node_t value_node = {
         .next = NULL,
-        .integer = extract_signed_integer_value (size, address),
+        .signed_integer = extract_signed_integer_value (size, address),
     };
 
     event.setter_value_first = &value_node;
     return kan_readable_data_emitter_step (writer_state->emitter, &event);
 }
 
-static inline kan_instance_offset_t extract_unsigned_integer_value (kan_instance_size_t size, const void *address)
+static inline kan_instance_size_t extract_unsigned_integer_value (kan_instance_size_t size, const void *address)
 {
     switch (size)
     {
     case 1u:
-        return (kan_instance_offset_t) * ((uint8_t *) address);
+        return (kan_instance_size_t) * ((uint8_t *) address);
 
     case 2u:
-        return (kan_instance_offset_t) * ((uint16_t *) address);
+        return (kan_instance_size_t) * ((uint16_t *) address);
 
     case 4u:
-        return (kan_instance_offset_t) * ((uint32_t *) address);
+        return (kan_instance_size_t) * ((uint32_t *) address);
 
     case 8u:
-        KAN_ASSERT (*((uint64_t *) address) <= KAN_INT_MAX (kan_instance_offset_t))
-        return (kan_instance_offset_t) * ((uint64_t *) address);
+        KAN_ASSERT (*((uint64_t *) address) <= KAN_INT_MAX (kan_instance_size_t))
+        return (kan_instance_size_t) * ((uint64_t *) address);
     }
 
     KAN_ASSERT (false)
@@ -2271,13 +2300,13 @@ static inline bool emit_single_unsigned_integer_setter (struct writer_state_t *w
                                                         const void *address)
 {
     struct kan_readable_data_event_t event;
-    event.type = KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER;
+    event.type = KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER;
     event.output_target.identifier = name;
     event.output_target.array_index = array_index;
 
     struct kan_readable_data_value_node_t value_node = {
         .next = NULL,
-        .integer = extract_unsigned_integer_value (size, address),
+        .unsigned_integer = extract_unsigned_integer_value (size, address),
     };
 
     event.setter_value_first = &value_node;
@@ -2605,13 +2634,13 @@ static inline bool write_packed_array (struct writer_state_t *writer_state,
     switch (archetype)
     {
     case KAN_REFLECTION_ARCHETYPE_SIGNED_INT:
-        event.type = KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER;
+        event.type = KAN_READABLE_DATA_EVENT_ELEMENTAL_SIGNED_INTEGER_SETTER;
 
         while (begin < end)
         {
             KAN_ASSERT (value_nodes_count < KAN_SERIALIZATION_RD_WRITE_MAX_PACKED_ARRAY_SIZE)
             value_nodes[value_nodes_count].next = &value_nodes[value_nodes_count + 1u];
-            value_nodes[value_nodes_count].integer = extract_signed_integer_value (item_size, begin);
+            value_nodes[value_nodes_count].signed_integer = extract_signed_integer_value (item_size, begin);
             ++value_nodes_count;
             begin = ((uint8_t *) begin) + item_size;
         }
@@ -2621,13 +2650,13 @@ static inline bool write_packed_array (struct writer_state_t *writer_state,
 
     case KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT:
     case KAN_REFLECTION_ARCHETYPE_PACKED_ELEMENTAL:
-        event.type = KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER;
+        event.type = KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER;
 
         while (begin < end)
         {
             KAN_ASSERT (value_nodes_count < KAN_SERIALIZATION_RD_WRITE_MAX_PACKED_ARRAY_SIZE)
             value_nodes[value_nodes_count].next = &value_nodes[value_nodes_count + 1u];
-            value_nodes[value_nodes_count].integer = extract_unsigned_integer_value (item_size, begin);
+            value_nodes[value_nodes_count].unsigned_integer = extract_unsigned_integer_value (item_size, begin);
             ++value_nodes_count;
             begin = ((uint8_t *) begin) + item_size;
         }

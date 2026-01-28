@@ -106,7 +106,8 @@ static void parse_file_and_check (const struct kan_readable_data_event_t *events
                 break;
             }
 
-            case KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER:
+            case KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER:
+            case KAN_READABLE_DATA_EVENT_ELEMENTAL_SIGNED_INTEGER_SETTER:
             {
                 KAN_TEST_CHECK (
                     strcmp (expected_event->output_target.identifier, parsed_event->output_target.identifier) == 0)
@@ -117,7 +118,15 @@ static void parse_file_and_check (const struct kan_readable_data_event_t *events
 
                 while (expected_node && parsed_node)
                 {
-                    KAN_TEST_CHECK (expected_node->integer == parsed_node->integer)
+                    if (expected_event->type == KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER)
+                    {
+                        KAN_TEST_CHECK (expected_node->unsigned_integer == parsed_node->unsigned_integer)
+                    }
+                    else
+                    {
+                        KAN_TEST_CHECK (expected_node->signed_integer == parsed_node->signed_integer)
+                    }
+
                     expected_node = expected_node->next;
                     parsed_node = parsed_node->next;
                 }
@@ -175,7 +184,7 @@ static void parse_file_and_check (const struct kan_readable_data_event_t *events
 
 KAN_TEST_CASE (emit_and_parse_all_elemental_setters)
 {
-#define TEST_EVENTS_COUNT 6u
+#define TEST_EVENTS_COUNT 7u
     struct kan_readable_data_event_t events_to_emit[TEST_EVENTS_COUNT];
 
     struct kan_readable_data_value_node_t movement_config_identifier_node = {
@@ -250,17 +259,32 @@ KAN_TEST_CASE (emit_and_parse_all_elemental_setters)
 
     struct kan_readable_data_value_node_t health_max_node = {
         .next = NULL,
-        .integer = 100,
+        .unsigned_integer = 100u,
     };
 
     events_to_emit[4u] = (struct kan_readable_data_event_t) {
-        .type = KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER,
+        .type = KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER,
         .output_target =
             {
                 .identifier = "health_max",
                 .array_index = KAN_READABLE_DATA_ARRAY_INDEX_NONE,
             },
         .setter_value_first = &health_max_node,
+    };
+
+    struct kan_readable_data_value_node_t health_buff_node = {
+        .next = NULL,
+        .signed_integer = -15,
+    };
+
+    events_to_emit[5u] = (struct kan_readable_data_event_t) {
+        .type = KAN_READABLE_DATA_EVENT_ELEMENTAL_SIGNED_INTEGER_SETTER,
+        .output_target =
+            {
+                .identifier = "health_buff",
+                .array_index = KAN_READABLE_DATA_ARRAY_INDEX_NONE,
+            },
+        .setter_value_first = &health_buff_node,
     };
 
     struct kan_readable_data_value_node_t position_y_node = {
@@ -273,7 +297,7 @@ KAN_TEST_CASE (emit_and_parse_all_elemental_setters)
         .floating = -1.34f,
     };
 
-    events_to_emit[5u] = (struct kan_readable_data_event_t) {
+    events_to_emit[6u] = (struct kan_readable_data_event_t) {
         .type = KAN_READABLE_DATA_EVENT_ELEMENTAL_FLOATING_SETTER,
         .output_target =
             {
@@ -427,15 +451,15 @@ KAN_TEST_CASE (emit_and_parse_complex_setters)
 
 KAN_TEST_CASE (human_input_corner_cases)
 {
-#define TEST_EVENTS_COUNT 6u
-    struct kan_readable_data_event_t events_to_emit[TEST_EVENTS_COUNT];
+#define TEST_EVENTS_COUNT 8u
+    struct kan_readable_data_event_t events[TEST_EVENTS_COUNT];
 
     struct kan_readable_data_value_node_t movement_config_identifier_node = {
         .next = NULL,
         .identifier = "mc_warrior",
     };
 
-    events_to_emit[0u] = (struct kan_readable_data_event_t) {
+    events[0u] = (struct kan_readable_data_event_t) {
         .type = KAN_READABLE_DATA_EVENT_ELEMENTAL_IDENTIFIER_SETTER,
         .output_target =
             {
@@ -460,7 +484,7 @@ KAN_TEST_CASE (human_input_corner_cases)
         .identifier = "BITFLAG_FIRST",
     };
 
-    events_to_emit[1u] = (struct kan_readable_data_event_t) {
+    events[1u] = (struct kan_readable_data_event_t) {
         .type = KAN_READABLE_DATA_EVENT_ELEMENTAL_IDENTIFIER_SETTER,
         .output_target =
             {
@@ -475,7 +499,7 @@ KAN_TEST_CASE (human_input_corner_cases)
         .string = "Hello world!",
     };
 
-    events_to_emit[2u] = (struct kan_readable_data_event_t) {
+    events[2u] = (struct kan_readable_data_event_t) {
         .type = KAN_READABLE_DATA_EVENT_ELEMENTAL_STRING_SETTER,
         .output_target =
             {
@@ -490,7 +514,7 @@ KAN_TEST_CASE (human_input_corner_cases)
         .string = "Hello readable data!",
     };
 
-    events_to_emit[3u] = (struct kan_readable_data_event_t) {
+    events[3u] = (struct kan_readable_data_event_t) {
         .type = KAN_READABLE_DATA_EVENT_ELEMENTAL_STRING_SETTER,
         .output_target =
             {
@@ -502,17 +526,47 @@ KAN_TEST_CASE (human_input_corner_cases)
 
     struct kan_readable_data_value_node_t health_max_node = {
         .next = NULL,
-        .integer = 100,
+        .unsigned_integer = 100u,
     };
 
-    events_to_emit[4u] = (struct kan_readable_data_event_t) {
-        .type = KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER,
+    events[4u] = (struct kan_readable_data_event_t) {
+        .type = KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER,
         .output_target =
             {
                 .identifier = "health_max",
                 .array_index = KAN_READABLE_DATA_ARRAY_INDEX_NONE,
             },
         .setter_value_first = &health_max_node,
+    };
+
+    struct kan_readable_data_value_node_t health_buff_node = {
+        .next = NULL,
+        .signed_integer = -15,
+    };
+
+    events[5u] = (struct kan_readable_data_event_t) {
+        .type = KAN_READABLE_DATA_EVENT_ELEMENTAL_SIGNED_INTEGER_SETTER,
+        .output_target =
+            {
+                .identifier = "health_buff",
+                .array_index = KAN_READABLE_DATA_ARRAY_INDEX_NONE,
+            },
+        .setter_value_first = &health_buff_node,
+    };
+
+    struct kan_readable_data_value_node_t color_node = {
+        .next = NULL,
+        .unsigned_integer = 0x2F6A42FF,
+    };
+
+    events[6u] = (struct kan_readable_data_event_t) {
+        .type = KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER,
+        .output_target =
+            {
+                .identifier = "color",
+                .array_index = KAN_READABLE_DATA_ARRAY_INDEX_NONE,
+            },
+        .setter_value_first = &color_node,
     };
 
     struct kan_readable_data_value_node_t position_y_node = {
@@ -525,7 +579,7 @@ KAN_TEST_CASE (human_input_corner_cases)
         .floating = -1.34f,
     };
 
-    events_to_emit[5u] = (struct kan_readable_data_event_t) {
+    events[7u] = (struct kan_readable_data_event_t) {
         .type = KAN_READABLE_DATA_EVENT_ELEMENTAL_FLOATING_SETTER,
         .output_target =
             {
@@ -547,8 +601,10 @@ KAN_TEST_CASE (human_input_corner_cases)
         "// Split everything here just for fun.\n"
         "\" readable\" \" data!\"\n"
         "health_max =     100\n"
+        "health_buff = -15\n"
+        "color =  0x2F6A42FF \n"
         "transform.position   = -1.34, 5.5\n");
 
-    parse_file_and_check (events_to_emit, TEST_EVENTS_COUNT);
+    parse_file_and_check (events, TEST_EVENTS_COUNT);
 #undef TEST_EVENTS_COUNT
 }

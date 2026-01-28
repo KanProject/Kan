@@ -38,14 +38,16 @@
 /// output_target ::= identifier array_index?
 ///
 /// string_literal ::= ".*" (".*")*
-/// integer_literal ::= (+ | -)? [0-9]+
+/// unsigned_literal = ([0-9]+) | (0x[0-9a-fA-F]+) | (0b[01]+)
+/// signed_literal = (+ | -)? [0-9]+
 /// floating_literal ::= (+ | -)? [0-9]*\.[0-9]+
 ///
 /// value_identifier ::= identifier (, identifier)*
 /// value_string ::= string_literal (, string_literal)*
-/// value_integer :: integer_literal (, integer_literal)*
+/// value_unsigned :: unsigned_literal (, unsigned_literal)*
+/// value_signed :: signed_literal (, signed_literal)*
 /// value_floating :: floating_literal (, floating_literal)*
-/// value ::= value_identifier | value_string | value_integer | value_floating
+/// value ::= value_identifier | value_string | value_unsigned | value_signed | value_floating
 ///
 /// elemental_setter ::= output_target = value
 /// structural_setter ::= output_target { any_setter* }
@@ -65,7 +67,10 @@
 /// - KAN_READABLE_DATA_EVENT_ELEMENTAL_IDENTIFIER_SETTER indicates operation of setting one or more identifiers to
 ///   target.
 /// - KAN_READABLE_DATA_EVENT_ELEMENTAL_STRING_SETTER indicates operation of setting one or more strings to target.
-/// - KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER indicates operation of setting one or more integers to target.
+/// - KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER indicates operation of setting one or more unsigned
+///   integers to target.
+/// - KAN_READABLE_DATA_EVENT_ELEMENTAL_SIGNED_INTEGER_SETTER indicates operation of setting one or more signed
+///   integers to target.
 /// - KAN_READABLE_DATA_EVENT_ELEMENTAL_FLOATING_SETTER indicates operation of setting one or more floating point
 ///   numbers to target.
 /// - KAN_READABLE_DATA_EVENT_STRUCTURAL_SETTER_BEGIN indicates that its output structure should be pushed on top of
@@ -136,8 +141,11 @@ enum kan_readable_data_event_type_t
     /// \brief Sets one or more values to output target in form of strings.
     KAN_READABLE_DATA_EVENT_ELEMENTAL_STRING_SETTER,
 
-    /// \brief Sets one or more values to output target in form of integers.
-    KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER,
+    /// \brief Sets one or more values to output target in form of unsigned integers.
+    KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER,
+
+    /// \brief Sets one or more values to output target in form of signed integers.
+    KAN_READABLE_DATA_EVENT_ELEMENTAL_SIGNED_INTEGER_SETTER,
 
     /// \brief Sets one or more values to output target in form of floating point numbers.
     KAN_READABLE_DATA_EVENT_ELEMENTAL_FLOATING_SETTER,
@@ -173,7 +181,8 @@ struct kan_readable_data_value_node_t
     {
         const char *identifier;
         const char *string;
-        kan_instance_offset_t integer;
+        kan_instance_size_t unsigned_integer;
+        kan_instance_offset_t signed_integer;
         kan_floating_t floating;
     };
 };
@@ -187,9 +196,7 @@ struct kan_readable_data_event_t
     struct kan_readable_data_output_target_t output_target;
 
     /// \brief Node with first setter value.
-    /// \details Guaranteed to be not NULL for KAN_READABLE_DATA_EVENT_ELEMENTAL_IDENTIFIER_SETTER,
-    ///          KAN_READABLE_DATA_EVENT_ELEMENTAL_STRING_SETTER, KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER and
-    ///          KAN_READABLE_DATA_EVENT_ELEMENTAL_FLOATING_SETTER. Uninitialized for other types.
+    /// \details Guaranteed to be not NULL for setter events. Uninitialized for other types.
     struct kan_readable_data_value_node_t *setter_value_first;
 };
 

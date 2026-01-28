@@ -189,7 +189,10 @@ static inline void re2c_restore_saved_cursor (struct parser_t *parser)
 
  string_literal_block = "\"" ((. \ [\x22]) | "\\\"")* "\"";
  string_literal = string_literal_block ((separator | comment)* string_literal_block)*;
- integer_literal = ("+" | "-")? [0-9]+;
+ unsigned_dec_literal = [0-9]+;
+ unsigned_hex_literal = "0x" [0-9a-fA-F]+;
+ unsigned_bin_literal = "0b" [01]+;
+ signed_dec_literal = ("+" | "-")? [0-9]+;
  floating_literal = ("+" | "-")? [0-9]* "." [0-9]+;
  */
 
@@ -199,7 +202,9 @@ static enum kan_readable_data_parser_response_t re2c_parse_next_identifier_value
 
 static enum kan_readable_data_parser_response_t re2c_parse_next_string_value (struct parser_t *parser);
 
-static enum kan_readable_data_parser_response_t re2c_parse_next_integer_value (struct parser_t *parser);
+static enum kan_readable_data_parser_response_t re2c_parse_next_unsigned_integer_value (struct parser_t *parser);
+
+static enum kan_readable_data_parser_response_t re2c_parse_next_signed_integer_value (struct parser_t *parser);
 
 static enum kan_readable_data_parser_response_t re2c_parse_next_floating_value (struct parser_t *parser);
 
@@ -326,11 +331,103 @@ static inline const char *re2c_internalize_string_literal (struct parser_t *pars
     return copy;
 }
 
-static inline kan_instance_offset_t re2c_parse_integer (const char *begin, const char *end)
+static inline kan_instance_size_t re2c_parse_unsigned_decimal (const char *begin, const char *end, bool *overflow_flag)
 {
-    kan_instance_offset_t result = 0u;
-    bool positive = true;
+    *overflow_flag = false;
+    kan_instance_size_t result = 0u;
 
+    while (begin < end)
+    {
+        KAN_ASSERT (*begin >= '0' && *begin <= '9')
+        kan_instance_size_t digit = (kan_instance_size_t) (*begin - '0');
+
+        const kan_instance_size_t old_result = result;
+        result = result * 10u + digit;
+
+        if (old_result > result)
+        {
+            *overflow_flag = true;
+            return 0u;
+        }
+
+        ++begin;
+    }
+
+    return result;
+}
+
+static inline kan_instance_size_t re2c_parse_unsigned_hex (const char *begin, const char *end, bool *overflow_flag)
+{
+    *overflow_flag = false;
+    KAN_ASSERT (begin + 2 < end)
+    begin += 2u; // Skip 0x.
+    kan_instance_size_t result = 0u;
+
+    while (begin < end)
+    {
+        kan_instance_size_t digit = 0;
+        if (*begin >= '0' && *begin <= '9')
+        {
+            digit = (kan_instance_size_t) (*begin - '0');
+        }
+        else if (*begin >= 'a' && *begin <= 'f')
+        {
+            digit = 10u + (kan_instance_size_t) (*begin - 'a');
+        }
+        else if (*begin >= 'A' && *begin <= 'F')
+        {
+            digit = 10u + (kan_instance_size_t) (*begin - 'A');
+        }
+        else
+        {
+            KAN_ASSERT (false)
+        }
+
+        const kan_instance_size_t old_result = result;
+        result = result * 16u + digit;
+
+        if (old_result > result)
+        {
+            *overflow_flag = true;
+            return 0u;
+        }
+
+        ++begin;
+    }
+
+    return result;
+}
+
+static inline kan_instance_size_t re2c_parse_unsigned_binary (const char *begin, const char *end, bool *overflow_flag)
+{
+    *overflow_flag = false;
+    KAN_ASSERT (begin + 2 < end)
+    begin += 2u; // Skip 0b.
+    kan_instance_size_t result = 0u;
+
+    while (begin < end)
+    {
+        KAN_ASSERT (*begin == '0' || *begin == '1')
+        kan_instance_size_t digit = (kan_instance_size_t) (*begin - '0');
+
+        const kan_instance_size_t old_result = result;
+        result = result * 2u + digit;
+
+        if (old_result > result)
+        {
+            *overflow_flag = true;
+            return 0u;
+        }
+
+        ++begin;
+    }
+
+    return result;
+}
+
+static inline kan_instance_offset_t re2c_parse_signed_decimal (const char *begin, const char *end, bool *overflow_flag)
+{
+    bool positive = true;
     if (*begin == '-')
     {
         positive = false;
@@ -341,17 +438,21 @@ static inline kan_instance_offset_t re2c_parse_integer (const char *begin, const
         ++begin;
     }
 
-    while (begin < end)
+    const kan_instance_size_t unsigned_value = re2c_parse_unsigned_decimal (begin, end, overflow_flag);
+    if (*overflow_flag)
     {
-        kan_instance_offset_t digit = *begin - '0';
-        KAN_ASSERT (digit >= 0 && digit <= 9)
-        result = result * 10u + digit;
-        ++begin;
+        return 0;
     }
 
+    if (unsigned_value > INT32_MAX)
+    {
+        *overflow_flag = true;
+        return 0;
+    }
+
+    kan_instance_offset_t result = (kan_instance_offset_t) unsigned_value;
     if (!positive)
     {
-        KAN_ASSERT (result >= 0)
         result = -result;
     }
 
@@ -405,7 +506,7 @@ static inline kan_floating_t re2c_parse_floating (const char *begin, const char 
     return result;
 }
 
-static inline void re2c_save_output_target_to_event (struct parser_t *parser,
+static inline bool re2c_save_output_target_to_event (struct parser_t *parser,
                                                      struct kan_readable_data_output_target_t *output_target,
                                                      const char *output_target_identifier_begin,
                                                      const char *output_target_identifier_end,
@@ -417,15 +518,33 @@ static inline void re2c_save_output_target_to_event (struct parser_t *parser,
 
     if (output_target_array_index_begin)
     {
-        kan_instance_offset_t parsed_index =
-            re2c_parse_integer (output_target_array_index_begin, output_target_array_index_end);
-        KAN_ASSERT (parsed_index >= 0)
-        output_target->array_index = (kan_instance_size_t) parsed_index;
+        bool overflow_flag = false;
+        output_target->array_index = re2c_parse_unsigned_decimal (output_target_array_index_begin,
+                                                                  output_target_array_index_end, &overflow_flag);
+
+        if (overflow_flag)
+        {
+            KAN_LOG (readable_data, KAN_LOG_ERROR,
+                     "Error. [%ld:%ld]: Encountered overflow while parsing array index.\n", (long) parser->cursor_line,
+                     (long) parser->cursor_symbol)
+            return false;
+        }
+
+        if (output_target->array_index == KAN_READABLE_DATA_ARRAY_INDEX_NONE)
+        {
+            KAN_LOG (readable_data, KAN_LOG_ERROR,
+                     "Error. [%ld:%ld]: Output array index cannot be %llu as it is reserved value.\n",
+                     (long) parser->cursor_line, (long) parser->cursor_symbol,
+                     (unsigned long long) output_target->array_index)
+            return false;
+        }
     }
     else
     {
         output_target->array_index = KAN_READABLE_DATA_ARRAY_INDEX_NONE;
     }
+
+    return true;
 }
 
 static enum kan_readable_data_parser_response_t re2c_verify_blocks_on_input_end (struct parser_t *parser)
@@ -458,18 +577,26 @@ static enum kan_readable_data_parser_response_t re2c_parse_next_event (struct pa
 
          output_target separator* "=" separator*
          {
-             re2c_save_output_target_to_event (parser, &parser->current_event.output_target,
-                     output_target_identifier_begin, output_target_identifier_end, output_target_array_index_begin,
-                     output_target_array_index_end);
+             if (!re2c_save_output_target_to_event (parser, &parser->current_event.output_target,
+                      output_target_identifier_begin, output_target_identifier_end, output_target_array_index_begin,
+                      output_target_array_index_end))
+             {
+                 return KAN_READABLE_DATA_PARSER_RESPONSE_FAILED;
+             }
+
              return re2c_parse_first_value (parser);
          }
 
          output_target separator* "{"
          {
              parser->current_event.type = KAN_READABLE_DATA_EVENT_STRUCTURAL_SETTER_BEGIN;
-             re2c_save_output_target_to_event (parser, &parser->current_event.output_target,
-                     output_target_identifier_begin, output_target_identifier_end, output_target_array_index_begin,
-                     output_target_array_index_end);
+             if (!re2c_save_output_target_to_event (parser, &parser->current_event.output_target,
+                      output_target_identifier_begin, output_target_identifier_end, output_target_array_index_begin,
+                      output_target_array_index_end))
+             {
+                 return KAN_READABLE_DATA_PARSER_RESPONSE_FAILED;
+             }
+
              ++parser->opened_blocks;
              return KAN_READABLE_DATA_PARSER_RESPONSE_NEW_EVENT;
          }
@@ -477,9 +604,13 @@ static enum kan_readable_data_parser_response_t re2c_parse_next_event (struct pa
          "+" output_target separator* "{"
          {
              parser->current_event.type = KAN_READABLE_DATA_EVENT_ARRAY_APPENDER_BEGIN;
-             re2c_save_output_target_to_event (parser, &parser->current_event.output_target,
-                     output_target_identifier_begin, output_target_identifier_end, output_target_array_index_begin,
-                     output_target_array_index_end);
+             if (!re2c_save_output_target_to_event (parser, &parser->current_event.output_target,
+                      output_target_identifier_begin, output_target_identifier_end, output_target_array_index_begin,
+                      output_target_array_index_end))
+             {
+                 return KAN_READABLE_DATA_PARSER_RESPONSE_FAILED;
+             }
+
              ++parser->opened_blocks;
              return KAN_READABLE_DATA_PARSER_RESPONSE_NEW_EVENT;
          }
@@ -556,12 +687,86 @@ static inline void re2c_add_string_node (struct parser_t *parser, const char *li
     re2c_add_value_node (parser, new_node);
 }
 
-static inline void re2c_add_integer_node (struct parser_t *parser, const char *literal_begin, const char *literal_end)
+static inline bool re2c_add_unsigned_decimal_node (struct parser_t *parser,
+                                                   const char *literal_begin,
+                                                   const char *literal_end)
 {
     struct kan_readable_data_value_node_t *new_node =
         KAN_STACK_GROUP_ALLOCATOR_ALLOCATE_TYPED (&parser->temporary_allocator, struct kan_readable_data_value_node_t);
-    new_node->integer = re2c_parse_integer (literal_begin, literal_end);
+
+    bool overflow_flag = false;
+    new_node->unsigned_integer = re2c_parse_unsigned_decimal (literal_begin, literal_end, &overflow_flag);
     re2c_add_value_node (parser, new_node);
+
+    if (overflow_flag)
+    {
+        KAN_LOG (readable_data, KAN_LOG_ERROR,
+                 "Error. [%ld:%ld]: Encountered overflow while parsing unsigned decimal.\n", (long) parser->cursor_line,
+                 (long) parser->cursor_symbol)
+    }
+
+    return !overflow_flag;
+}
+
+static inline bool re2c_add_unsigned_hex_node (struct parser_t *parser,
+                                               const char *literal_begin,
+                                               const char *literal_end)
+{
+    struct kan_readable_data_value_node_t *new_node =
+        KAN_STACK_GROUP_ALLOCATOR_ALLOCATE_TYPED (&parser->temporary_allocator, struct kan_readable_data_value_node_t);
+
+    bool overflow_flag = false;
+    new_node->unsigned_integer = re2c_parse_unsigned_hex (literal_begin, literal_end, &overflow_flag);
+    re2c_add_value_node (parser, new_node);
+
+    if (overflow_flag)
+    {
+        KAN_LOG (readable_data, KAN_LOG_ERROR, "Error. [%ld:%ld]: Encountered overflow while parsing unsigned hex.\n",
+                 (long) parser->cursor_line, (long) parser->cursor_symbol)
+    }
+
+    return !overflow_flag;
+}
+
+static inline bool re2c_add_unsigned_binary_node (struct parser_t *parser,
+                                                  const char *literal_begin,
+                                                  const char *literal_end)
+{
+    struct kan_readable_data_value_node_t *new_node =
+        KAN_STACK_GROUP_ALLOCATOR_ALLOCATE_TYPED (&parser->temporary_allocator, struct kan_readable_data_value_node_t);
+
+    bool overflow_flag = false;
+    new_node->unsigned_integer = re2c_parse_unsigned_binary (literal_begin, literal_end, &overflow_flag);
+    re2c_add_value_node (parser, new_node);
+
+    if (overflow_flag)
+    {
+        KAN_LOG (readable_data, KAN_LOG_ERROR,
+                 "Error. [%ld:%ld]: Encountered overflow while parsing unsigned binary.\n", (long) parser->cursor_line,
+                 (long) parser->cursor_symbol)
+    }
+
+    return !overflow_flag;
+}
+
+static inline bool re2c_add_signed_decimal_node (struct parser_t *parser,
+                                                 const char *literal_begin,
+                                                 const char *literal_end)
+{
+    struct kan_readable_data_value_node_t *new_node =
+        KAN_STACK_GROUP_ALLOCATOR_ALLOCATE_TYPED (&parser->temporary_allocator, struct kan_readable_data_value_node_t);
+
+    bool overflow_flag = false;
+    new_node->signed_integer = re2c_parse_signed_decimal (literal_begin, literal_end, &overflow_flag);
+    re2c_add_value_node (parser, new_node);
+
+    if (overflow_flag)
+    {
+        KAN_LOG (readable_data, KAN_LOG_ERROR, "Error. [%ld:%ld]: Encountered overflow while parsing signed decimal.\n",
+                 (long) parser->cursor_line, (long) parser->cursor_symbol)
+    }
+
+    return !overflow_flag;
 }
 
 static inline void re2c_add_floating_node (struct parser_t *parser, const char *literal_begin, const char *literal_end)
@@ -597,12 +802,56 @@ static enum kan_readable_data_parser_response_t re2c_parse_first_value (struct p
              return re2c_parse_next_string_value (parser);
          }
 
-         @literal_begin integer_literal @literal_end
+         @literal_begin unsigned_dec_literal @literal_end
          {
-             parser->current_event.type = KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER;
+             parser->current_event.type = KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER;
              parser->current_event.setter_value_first = NULL;
-             re2c_add_integer_node (parser, literal_begin, literal_end);
-             return re2c_parse_next_integer_value (parser);
+
+             if (!re2c_add_unsigned_decimal_node (parser, literal_begin, literal_end))
+             {
+                 return KAN_READABLE_DATA_PARSER_RESPONSE_FAILED;
+             }
+
+             return re2c_parse_next_unsigned_integer_value (parser);
+         }
+
+         @literal_begin unsigned_hex_literal @literal_end
+         {
+             parser->current_event.type = KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER;
+             parser->current_event.setter_value_first = NULL;
+
+             if (!re2c_add_unsigned_hex_node (parser, literal_begin, literal_end))
+             {
+                 return KAN_READABLE_DATA_PARSER_RESPONSE_FAILED;
+             }
+
+             return re2c_parse_next_unsigned_integer_value (parser);
+         }
+
+         @literal_begin unsigned_bin_literal @literal_end
+         {
+             parser->current_event.type = KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER;
+             parser->current_event.setter_value_first = NULL;
+
+             if (!re2c_add_unsigned_binary_node (parser, literal_begin, literal_end))
+             {
+                 return KAN_READABLE_DATA_PARSER_RESPONSE_FAILED;
+             }
+
+             return re2c_parse_next_unsigned_integer_value (parser);
+         }
+
+         @literal_begin signed_dec_literal @literal_end
+         {
+             parser->current_event.type = KAN_READABLE_DATA_EVENT_ELEMENTAL_SIGNED_INTEGER_SETTER;
+             parser->current_event.setter_value_first = NULL;
+
+             if (!re2c_add_signed_decimal_node (parser, literal_begin, literal_end))
+             {
+                 return KAN_READABLE_DATA_PARSER_RESPONSE_FAILED;
+             }
+
+             return re2c_parse_next_signed_integer_value (parser);
          }
 
          @literal_begin floating_literal @literal_end
@@ -706,7 +955,7 @@ static enum kan_readable_data_parser_response_t re2c_parse_next_string_value (st
     }
 }
 
-static enum kan_readable_data_parser_response_t re2c_parse_next_integer_value (struct parser_t *parser)
+static enum kan_readable_data_parser_response_t re2c_parse_next_unsigned_integer_value (struct parser_t *parser)
 {
     while (true)
     {
@@ -716,9 +965,73 @@ static enum kan_readable_data_parser_response_t re2c_parse_next_integer_value (s
         re2c_save_cursor (parser);
 
         /*!re2c
-         "," separator* @literal_begin integer_literal @literal_end
+         "," separator* @literal_begin unsigned_dec_literal @literal_end
          {
-             re2c_add_integer_node (parser, literal_begin, literal_end);
+             if (!re2c_add_unsigned_decimal_node (parser, literal_begin, literal_end))
+             {
+                 return KAN_READABLE_DATA_PARSER_RESPONSE_FAILED;
+             }
+
+             continue;
+         }
+
+         "," separator* @literal_begin unsigned_hex_literal @literal_end
+         {
+             if (!re2c_add_unsigned_hex_node (parser, literal_begin, literal_end))
+             {
+                 return KAN_READABLE_DATA_PARSER_RESPONSE_FAILED;
+             }
+
+             continue;
+         }
+
+         "," separator* @literal_begin unsigned_bin_literal @literal_end
+         {
+             if (!re2c_add_unsigned_binary_node (parser, literal_begin, literal_end))
+             {
+                 return KAN_READABLE_DATA_PARSER_RESPONSE_FAILED;
+             }
+
+             continue;
+         }
+
+         separator+ { continue; }
+
+         comment { continue; }
+
+         *
+         {
+             // We've reached end of setter, it is okay.
+             re2c_restore_saved_cursor (parser);
+             return KAN_READABLE_DATA_PARSER_RESPONSE_NEW_EVENT;
+         }
+
+         $
+         {
+             // Still have new event to present even if input is completed.
+             return KAN_READABLE_DATA_PARSER_RESPONSE_NEW_EVENT;
+         }
+         */
+    }
+}
+
+static enum kan_readable_data_parser_response_t re2c_parse_next_signed_integer_value (struct parser_t *parser)
+{
+    while (true)
+    {
+        parser->token = parser->cursor;
+        const char *literal_begin = NULL;
+        const char *literal_end = NULL;
+        re2c_save_cursor (parser);
+
+        /*!re2c
+         "," separator* @literal_begin signed_dec_literal @literal_end
+         {
+             if (!re2c_add_signed_decimal_node (parser, literal_begin, literal_end))
+             {
+                 return KAN_READABLE_DATA_PARSER_RESPONSE_FAILED;
+             }
+
              continue;
          }
 
@@ -925,7 +1238,17 @@ static inline bool emit_string_literal (struct emitter_t *emitter, const char *l
     return true;
 }
 
-static inline bool emit_integer_literal (struct emitter_t *emitter, kan_instance_offset_t literal)
+static inline bool emit_unsigned_integer_literal (struct emitter_t *emitter, kan_instance_size_t literal)
+{
+    const kan_instance_size_t formatted_length =
+        (kan_instance_size_t) snprintf (emitter->formatting_buffer, KAN_READABLE_DATA_EMIT_FORMATTING_BUFFER_SIZE,
+                                        "%llu", (unsigned long long) literal);
+
+    return emitter->stream->operations->write (emitter->stream, formatted_length, emitter->formatting_buffer) ==
+           formatted_length;
+}
+
+static inline bool emit_signed_integer_literal (struct emitter_t *emitter, kan_instance_offset_t literal)
 {
     const kan_instance_size_t formatted_length = (kan_instance_size_t) snprintf (
         emitter->formatting_buffer, KAN_READABLE_DATA_EMIT_FORMATTING_BUFFER_SIZE, "%lld", (signed long long) literal);
@@ -1036,7 +1359,8 @@ bool kan_readable_data_emitter_step (kan_readable_data_emitter_t emitter, struct
         break;
     }
 
-    case KAN_READABLE_DATA_EVENT_ELEMENTAL_INTEGER_SETTER:
+    case KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER:
+    case KAN_READABLE_DATA_EVENT_ELEMENTAL_SIGNED_INTEGER_SETTER:
     {
         if (!emit_event->setter_value_first)
         {
@@ -1069,9 +1393,19 @@ bool kan_readable_data_emitter_step (kan_readable_data_emitter_t emitter, struct
                 }
             }
 
-            if (!emit_integer_literal (data, node->integer))
+            if (emit_event->type == KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER)
             {
-                return false;
+                if (!emit_unsigned_integer_literal (data, node->unsigned_integer))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                if (!emit_signed_integer_literal (data, node->signed_integer))
+                {
+                    return false;
+                }
             }
 
             node = node->next;

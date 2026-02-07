@@ -4618,24 +4618,46 @@ static void build_task (kan_functor_user_data_t user_data)
             should_propagate_cache = item->entry->header.cache_mark;
         }
 
+        bool marks_successful = true;
         if (!repeated_task && output.status != RESOURCE_STATUS_UNAVAILABLE)
         {
             if (should_propagate_deployment)
             {
-                mark_resource_references_for_deployment (item->state, item->entry, NULL);
+                marks_successful &= mark_resource_references_for_deployment (item->state, item->entry, NULL);
             }
 
             if (should_propagate_deployment || should_propagate_cache)
             {
-                mark_resource_build_dependencies_for_cache (item->state, item->entry, NULL);
+                marks_successful &= mark_resource_build_dependencies_for_cache (item->state, item->entry, NULL);
             }
         }
 
-        KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                 "[Target \"%s\"] Finished build task \"%s\" execution for resource \"%s\" of type \"%s\" with "
-                 "successful build exit.",
-                 item->entry->target->name, get_resource_entry_next_build_task_name (task_to_execute),
-                 item->entry->name, item->entry->type->name)
+        if (marks_successful)
+        {
+            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                     "[Target \"%s\"] Finished build task \"%s\" execution for resource \"%s\" of type \"%s\" with "
+                     "successful build exit.",
+                     item->entry->target->name, get_resource_entry_next_build_task_name (task_to_execute),
+                     item->entry->name, item->entry->type->name)
+        }
+        else
+        {
+            struct build_info_list_item_t *info =
+                kan_allocate_batched (build_queue_allocation_group, sizeof (struct build_info_list_item_t));
+            info->entry = item->entry;
+
+            {
+                KAN_ATOMIC_INT_SCOPED_LOCK (&item->state->build_queue_lock)
+                kan_bd_list_add (&item->state->failed_list, NULL, &info->node);
+            }
+
+            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                     "[Target \"%s\"] Finished build task \"%s\" execution for resource \"%s\" of type \"%s\" with "
+                     "failed post-build marking routine.",
+                     item->entry->target->name, get_resource_entry_next_build_task_name (task_to_execute),
+                     item->entry->name, item->entry->type->name)
+        }
+
         break;
     }
 
@@ -4650,11 +4672,14 @@ static void build_task (kan_functor_user_data_t user_data)
 
         struct build_info_list_item_t *info =
             kan_allocate_batched (build_queue_allocation_group, sizeof (struct build_info_list_item_t));
-
         info->entry = item->entry;
-        kan_bd_list_add (&item->state->failed_list, NULL, &info->node);
-        unblock_dependant_entries (item->state, item->entry);
 
+        {
+            KAN_ATOMIC_INT_SCOPED_LOCK (&item->state->build_queue_lock)
+            kan_bd_list_add (&item->state->failed_list, NULL, &info->node);
+        }
+
+        unblock_dependant_entries (item->state, item->entry);
         KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
                  "[Target \"%s\"] Finished build task \"%s\" execution for resource \"%s\" of type \"%s\" with "
                  "failed build exit.",

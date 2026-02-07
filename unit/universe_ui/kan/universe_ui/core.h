@@ -92,6 +92,11 @@ KAN_C_HEADER_BEGIN
 /// \brief Group that is used to add all ui core mutators: both layout and render ones.
 #define KAN_UI_CORE_MUTATOR_GROUP "ui_core"
 
+/// \brief Group that is used to add all ui bundle management mutators.
+/// \details Bundle management should be done in as-high-as-possible game worlds, therefore it is separated into special
+///          mutator group.
+#define KAN_UI_BUNDLE_MANAGEMENT_MUTATOR_GROUP "ui_bundle_management"
+
 /// \brief Checkpoint, after which ui ui time update mutators are executed.
 #define KAN_UI_TIME_BEGIN_CHECKPOINT "ui_time_begin"
 

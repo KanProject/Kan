@@ -1,0 +1,37 @@
+push_constant push
+{
+    f4 offset_and_size;
+    alias (offset, offset_and_size.xy)
+    alias (size, offset_and_size.zw)
+    u4 meta;
+    alias (ui_mark, meta.x)
+    f4 float_meta;
+    alias (local_time, float_meta.x)
+};
+
+vertex_attribute_container vertex
+{
+    f2 position;
+};
+
+set_object sampler render_target_sampler;
+set_object image_color_2d render_target;
+
+state_container state
+{
+    f2 uv;
+};
+
+void ui_vertex_main (void)
+{
+    state.uv = vertex.position;
+    f2 position = push.offset + vertex.position * push.size;
+    vertex_stage_output_position (pass_view_data.projection_view * f4 {position, 0.5, 1.0});
+}
+
+void ui_fragment_main (void)
+{
+    f4 color = sample (render_target_sampler, render_target, state.uv);       
+    f4 modifier = calculate_ui_mark_color_modifier (push.ui_mark, push.local_time);
+    color_output.color = color * modifier;
+}

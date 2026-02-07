@@ -26,6 +26,9 @@ KAN_C_HEADER_BEGIN
 /// \brief Checks if two floating points are almost equal using `KAN_FLOATING_TOLERANCE`.
 #define KAN_FLOATING_IS_NEAR(A, B) (((A) - (B)) >= -KAN_FLOATING_TOLERANCE && ((A) - (B)) <= KAN_FLOATING_TOLERANCE)
 
+/// \brief Approximate value of sqrt(3), which is used a lot for hexagonal map calculations.
+#define KAN_SQRT_3 1.732050776481628f
+
 /// \brief 2 dimensional uint32 vector type.
 struct kan_uint32_vector_2_t
 {
@@ -230,6 +233,29 @@ struct kan_transform_3_t
     struct kan_float_vector_3_t location;
     struct kan_float_vector_3_t scale;
 };
+
+/// \brief Convenience constructor function for kan_uint32_vector_2_t.
+static inline struct kan_uint32_vector_2_t kan_make_uint32_vector_2_t (uint32_t x, uint32_t y)
+{
+    return (struct kan_uint32_vector_2_t) {.x = x, .y = y};
+}
+
+/// \brief Convenience constructor function for kan_uint32_vector_3_t.
+static inline struct kan_uint32_vector_3_t kan_make_uint32_vector_3_t (uint32_t x, uint32_t y, uint32_t z)
+{
+    return (struct kan_uint32_vector_3_t) {.x = x, .y = y, .z = z};
+}
+
+/// \brief Convenience constructor function for kan_uint32_vector_4_t.
+static inline struct kan_uint32_vector_4_t kan_make_uint32_vector_4_t (uint32_t x, uint32_t y, uint32_t z, uint32_t w)
+{
+    struct kan_uint32_vector_4_t vector;
+    vector.x = x;
+    vector.y = y;
+    vector.z = z;
+    vector.w = w;
+    return vector;
+}
 
 /// \brief Convenience constructor function for kan_float_vector_2_t.
 static inline struct kan_float_vector_2_t kan_make_float_vector_2_t (float x, float y)

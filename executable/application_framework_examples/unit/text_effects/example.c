@@ -176,6 +176,16 @@ static void example_text_effects_singleton_initialize_object_buffers (struct exa
 APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API void example_text_effects_singleton_shutdown (
     struct example_text_effects_singleton_t *instance)
 {
+    if (KAN_HANDLE_IS_VALID (instance->glyph_vertex_buffer))
+    {
+        kan_render_buffer_destroy (instance->glyph_vertex_buffer);
+    }
+
+    if (KAN_HANDLE_IS_VALID (instance->glyph_index_buffer))
+    {
+        kan_render_buffer_destroy (instance->glyph_index_buffer);
+    }
+
     if (KAN_HANDLE_IS_VALID (instance->instanced_data_allocator))
     {
         kan_render_frame_lifetime_buffer_allocator_destroy (instance->instanced_data_allocator);
@@ -611,6 +621,10 @@ static void try_render_frame (struct text_effects_render_state_t *state,
                                 .address_mode_u = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
                                 .address_mode_v = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
                                 .address_mode_w = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                                .depth_compare_enabled = false,
+                                .anisotropy_enabled = false,
+                                .depth_compare = KAN_RENDER_COMPARE_OPERATION_NEVER,
+                                .anisotropy_max = 0.0f,
                             },
                     },
             }};

@@ -37,6 +37,7 @@
 /// - `kan_ui_node_text_behavior_t` for managing synchronization between UI nodes and shaping units.
 /// - `kan_ui_node_scroll_behavior_t` for implementing scroll pane widgets.
 /// - `kan_ui_node_line_edit_behavior_t` for implementing text line edit widgets.
+/// - `kan_ui_node_map_behavior_t` for map-like pane widgets.
 /// \endparblock
 
 KAN_C_HEADER_BEGIN
@@ -134,7 +135,7 @@ struct kan_ui_node_hit_box_t
     kan_immutable bool interactable;
 
     /// \brief If true, this hit box will ignored when processing mouse scroll event in order to pass this event to
-    ///        scroll pane hit box below if such hit box exists.
+    ///        hit boxes below, for example to scroll pane hit box.
     kan_immutable bool scroll_passthrough;
 
     /// \brief Name of the `kan_resource_ui_hit_box_interaction_style_t` in bundle for hover and press visualization.
@@ -185,6 +186,20 @@ struct kan_ui_press_begin_t
     kan_instance_offset_t at_y;
 };
 
+/// \brief Event that is sent when pointer motion was detected during valid press interaction.
+struct kan_ui_press_motion_t
+{
+    kan_ui_node_id_t node_id;
+    uint32_t mouse_button_down_flags;
+    uint32_t mouse_button_down_inclusive_flags;
+
+    kan_instance_offset_t at_x;
+    kan_instance_offset_t at_y;
+
+    kan_instance_offset_t delta_x;
+    kan_instance_offset_t delta_y;
+};
+
 /// \brief Event that is sent when valid press interaction was finished.
 struct kan_ui_press_end_t
 {
@@ -194,6 +209,17 @@ struct kan_ui_press_end_t
     /// \brief True only and if only press began and ended on the same element.
     bool continuous_press;
 
+    kan_instance_offset_t at_x;
+    kan_instance_offset_t at_y;
+};
+
+/// \brief Event that is sent when valid scroll, for example mouse scroll, interaction was detected.
+struct kan_ui_scroll_t
+{
+    kan_ui_node_id_t node_id;
+    float scroll_x;
+    float scroll_y;
+    float delta_time_s;
     kan_instance_offset_t at_x;
     kan_instance_offset_t at_y;
 };
@@ -381,5 +407,84 @@ UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_set_content (struct kan_ui_n
                                                                  uint32_t content_mark);
 
 UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_shutdown (struct kan_ui_node_line_edit_behavior_t *instance);
+
+/// \brief Behavior for map-like views that can be zoomed and scrolled by grabbing.
+/// \details Map-like controls can be encountered more often than it feels: it is not only a minimap or 2d game map,
+///          it could also be a skill tree, a crafting recipe tree and so on. All of these controls usually can be
+///          zoomed and scrolled in both directions, therefore it was decided to make this part of the UI unit.
+///
+///          Map operates in its own virtual coordinates like 2d camera. These coordinate are floating point numbers in
+///          bounds [0, map_width] for X and [0, map_height] for Y with top-down Y direction like UI element. Zoom is
+///          applied by modifying camera half height: just like it would work for game 2d orthographic camera.
+///          Movement is also applied to camera origin.
+///
+///          When user modifies map behavior from outside and sets dirty flag, camera origin and half height are
+///          sanitized to prevent camera-out-of-bounds issues and map-visuals-not-touching-any-element-border issues.
+///
+///          Map-placed elements should be attached to the map as children of frame layout with `kan_ui_node_map_pin_t`
+///          record that describes how to automatically reposition and resize the element.
+struct kan_ui_node_map_behavior_t
+{
+    kan_immutable kan_ui_node_id_t id;
+
+    /// \brief If true, user will be able to move around the map by pressing and moving pointer.
+    bool movement_enabled;
+
+    /// \brief If true, user will be able to zoom in and out using scroll input like mouse wheel.
+    bool zoom_enabled;
+
+    /// \brief Should be set to `true` by outside logic if outside logic has changed any of the fields below.
+    bool dirty;
+
+    /// \brief Origin location of the virtual orthographic camera on the map.
+    struct kan_float_vector_2_t camera_origin;
+
+    /// \brief Half height of the virtual orthographic camera on the map.
+    float camera_half_height;
+
+    /// \brief Camera half height will never become less than this value from user input.
+    /// \details Can still become less than this value on very small maps due to
+    ///          map-visuals-not-touching-any-element-border prevention.
+    float camera_min_half_height;
+
+    /// \brief Camera half height will never become greater than this value from user input.
+    /// \details If it should be possible for the user to view full map at once, this value can be left arbitrary high
+    ///          as map-visuals-not-touching-any-element-border prevention will limit maximum half height on full map
+    ///          view automatically.
+    float camera_max_half_height;
+
+    /// \brief Speed modifier for zooming in and out.
+    /// \details Zoom speed is dependant on half height: the greater half height is, the greater zoom speed it.
+    ///          Zoom input is applied by multiplying half height by zoom strength, when zoom strength is
+    ///          `1.0 - zoom_input * delta_time * scroll_zoom_speed`.
+    float scroll_zoom_speed;
+
+    /// \brief Width of the map in virtual map coordinates.
+    float width;
+
+    /// \brief Height of the map in virtual map coordinates.
+    float height;
+};
+
+UNIVERSE_UI_API void kan_ui_node_map_behavior_init (struct kan_ui_node_map_behavior_t *instance);
+
+/// \brief Used to attach UI node size or location to `kan_ui_node_map_behavior_t` logic.
+/// \details Useful for different markers and interactable elements that are placed on the map.
+struct kan_ui_node_map_pin_t
+{
+    kan_immutable kan_ui_node_id_t id;
+    kan_immutable kan_ui_node_id_t map_id;
+
+    /// \brief Location in map coordinate system, applied as frame offset if `sync_location`.
+    struct kan_float_vector_2_t location;
+
+    /// \brief Size in map coordinate system, applied if `sync_size`.
+    struct kan_float_vector_2_t size;
+
+    bool sync_location;
+    bool sync_size;
+};
+
+UNIVERSE_UI_API void kan_ui_node_map_pin_init (struct kan_ui_node_map_pin_t *instance);
 
 KAN_C_HEADER_END

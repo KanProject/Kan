@@ -55,6 +55,20 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t
         .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
 };
 
+KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_map_behavior_cascade_deletion = {
+    .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+    .child_type_name = "kan_ui_node_map_behavior_t",
+    .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+};
+
+KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_map_pin_cascade_deletion = {
+    .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+    .child_type_name = "kan_ui_node_map_pin_t",
+    .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+};
+
 struct kan_ui_node_down_mark_t
 {
     kan_ui_node_id_t id;
@@ -1583,9 +1597,29 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
     return selected_sequence->end_at_index;
 }
 
+static void on_map_behavior_press_motion (struct ui_controls_input_state_t *state,
+                                          struct kan_ui_node_map_behavior_t *behavior,
+                                          float x_relative,
+                                          float y_relative)
+{
+    KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &behavior->id)
+    if (!behavior->movement_enabled || !drawable || drawable->height <= 0 || behavior->camera_half_height <= 0.0f)
+    {
+        return;
+    }
+
+    const float px_to_unit = behavior->camera_half_height * 2.0f / (float) drawable->height;
+    // As we're dragging the map by pressing and moving pointer, direction is inverted.
+    behavior->camera_origin.x -= x_relative * px_to_unit;
+    behavior->camera_origin.y -= y_relative * px_to_unit;
+    behavior->dirty = true;
+}
+
 static void on_press_motion_internal (struct ui_controls_input_state_t *state,
                                       struct kan_ui_input_singleton_t *public,
-                                      const struct kan_ui_singleton_t *ui)
+                                      const struct kan_ui_singleton_t *ui,
+                                      float x_relative,
+                                      float y_relative)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
     KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id, &public->press_started_on_id)
@@ -1595,7 +1629,9 @@ static void on_press_motion_internal (struct ui_controls_input_state_t *state,
         place_scroll_line_knob_at_press (state, public, private, ui, scroll_line_state);
     }
 
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
+                                   &public->press_started_on_id)
+
     if (line_edit_behavior)
     {
         private->line_edit_press_moved = true;
@@ -1610,6 +1646,12 @@ static void on_press_motion_internal (struct ui_controls_input_state_t *state,
         line_edit_behavior->selection_content_max =
             KAN_MAX (private->line_edit_press_start_content_location, current_content_location);
         line_edit_behavior->text_visuals_dirty = true;
+    }
+
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (map_behavior, kan_ui_node_map_behavior_t, id, &public->press_started_on_id)
+    if (map_behavior)
+    {
+        on_map_behavior_press_motion (state, map_behavior, x_relative, y_relative);
     }
 }
 
@@ -1777,6 +1819,40 @@ static void on_press_end_internal (struct ui_controls_input_state_t *state,
     }
 }
 
+static void on_map_behavior_zoom (struct ui_controls_input_state_t *state,
+                                  struct kan_ui_input_singleton_t *public,
+                                  const struct kan_ui_singleton_t *ui,
+                                  struct kan_ui_node_map_behavior_t *behavior,
+                                  float zoom)
+{
+    KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &behavior->id)
+    if (!behavior->zoom_enabled || !drawable || drawable->height <= 0 || behavior->camera_half_height <= 0.0f)
+    {
+        return;
+    }
+
+    // We'd like to cache pre-zoom mouse position in order to move camera after zoom to keep mouse position relation to
+    // the map, as it is usually done on web maps.
+    float px_to_unit = behavior->camera_half_height * 2.0f / (float) drawable->height;
+    const kan_instance_offset_t mouse_relative_x = public->last_mouse_x - drawable->global_x - drawable->width / 2;
+    const kan_instance_offset_t mouse_relative_y = public->last_mouse_y - drawable->global_y - drawable->height / 2;
+
+    const float mouse_location_x = behavior->camera_origin.x + px_to_unit * (float) mouse_relative_x;
+    const float mouse_location_y = behavior->camera_origin.y + px_to_unit * (float) mouse_relative_y;
+
+    // Apply zoom value to half height.
+    const float strength = KAN_MAX (0.0f, 1.0f - zoom * behavior->scroll_zoom_speed);
+
+    behavior->camera_half_height = KAN_CLAMP (behavior->camera_half_height * strength, behavior->camera_min_half_height,
+                                              behavior->camera_max_half_height);
+
+    // Now calculate origin back from mouse location.
+    px_to_unit = behavior->camera_half_height * 2.0f / (float) drawable->height;
+    behavior->camera_origin.x = mouse_location_x - px_to_unit * (float) mouse_relative_x;
+    behavior->camera_origin.y = mouse_location_y - px_to_unit * (float) mouse_relative_y;
+    behavior->dirty = true;
+}
+
 static void process_events (struct ui_controls_input_state_t *state,
                             struct kan_ui_input_singleton_t *public,
                             const struct kan_ui_singleton_t *ui,
@@ -1861,7 +1937,18 @@ static void process_events (struct ui_controls_input_state_t *state,
 
                 if (public->press_filtered_in)
                 {
-                    on_press_motion_internal (state, public, ui);
+                    KAN_UMO_EVENT_INSERT_INIT (kan_ui_press_motion_t) {
+                        .node_id = public->press_started_on_id,
+                        .mouse_button_down_flags = public->mouse_button_down_flags,
+                        .mouse_button_down_inclusive_flags = public->mouse_button_down_inclusive_flags,
+                        .at_x = public->last_mouse_x,
+                        .at_y = public->last_mouse_y,
+                        .delta_x = (kan_instance_offset_t) event->mouse_motion.window_x_relative,
+                        .delta_y = (kan_instance_offset_t) event->mouse_motion.window_y_relative,
+                    };
+
+                    on_press_motion_internal (state, public, ui, event->mouse_motion.window_x_relative,
+                                              event->mouse_motion.window_y_relative);
                 }
             }
 
@@ -1912,6 +1999,14 @@ static void process_events (struct ui_controls_input_state_t *state,
                     public->mouse_button_down_flags &= ~flag;
                     if (new_press)
                     {
+                        KAN_UMO_EVENT_INSERT_INIT (kan_ui_press_end_t) {
+                            .node_id = public->press_started_on_id,
+                            .mouse_button_down_inclusive_flags = public->mouse_button_down_inclusive_flags,
+                            .continuous_press = true,
+                            .at_x = public->last_mouse_x,
+                            .at_y = public->last_mouse_y,
+                        };
+
                         public->press_filtered_in = false;
                         public->press_started_on_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
                     }
@@ -2014,10 +2109,22 @@ static void process_events (struct ui_controls_input_state_t *state,
                 const struct kan_ui_node_hit_box_t *element = find_hit_box_at (
                     state, HIT_BOX_SEARCH_MODE_SCROLL, public->last_mouse_x, public->last_mouse_y, &element_access);
 
+                if (!element || element->interactable)
+                {
+                    KAN_UMO_EVENT_INSERT_INIT (kan_ui_scroll_t) {
+                        .node_id = element ? element->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t),
+                        .scroll_x = event->mouse_wheel.wheel_x,
+                        .scroll_y = event->mouse_wheel.wheel_y,
+                        .delta_time_s = ui->animation_delta_time_s,
+                        .at_x = public->last_mouse_x,
+                        .at_y = public->last_mouse_y,
+                    };
+                }
+
                 if (element)
                 {
                     KAN_UMI_VALUE_READ_OPTIONAL (scroll_behaviour, kan_ui_node_scroll_behavior_t, id, &element->id)
-                    if (scroll_behaviour)
+                    if (scroll_behaviour && element->interactable)
                     {
                         const float speed_x =
                             kan_ui_calculate_coordinate_floating (ui, scroll_behaviour->mouse_speed_x);
@@ -2028,6 +2135,13 @@ static void process_events (struct ui_controls_input_state_t *state,
                                                      event->mouse_wheel.wheel_x * speed_x * ui->animation_delta_time_s,
                                                      event->mouse_wheel.wheel_y * speed_y * ui->animation_delta_time_s,
                                                      true);
+                    }
+
+                    KAN_UMI_VALUE_UPDATE_OPTIONAL (map_behavior, kan_ui_node_map_behavior_t, id, &element->id)
+                    if (map_behavior && element->interactable)
+                    {
+                        on_map_behavior_zoom (state, public, ui, map_behavior,
+                                              event->mouse_wheel.wheel_y * ui->animation_delta_time_s);
                     }
 
                     kan_repository_indexed_sequence_read_access_close (&element_access);
@@ -2357,6 +2471,113 @@ static void sync_ui_size_from_text_secondary (struct ui_controls_pre_layout_stat
     drawable->hidden = false;
 }
 
+/// \details Intentionally not dependant on mutator as adjustment can be needed on pre render during
+///          rare laid out cases.
+static inline void map_behavior_sanitize_camera (struct kan_ui_node_map_behavior_t *map_behavior,
+                                                 const struct kan_ui_node_drawable_t *drawable)
+{
+    if (drawable->width <= 0 || drawable->height <= 0)
+    {
+        return;
+    }
+
+    KAN_ASSERT (map_behavior->camera_min_half_height > 0.0f)
+    const float ratio = (float) drawable->width / (float) drawable->height;
+
+    map_behavior->camera_half_height = KAN_CLAMP (
+        map_behavior->camera_half_height, map_behavior->camera_min_half_height, map_behavior->camera_max_half_height);
+
+    // Limit half height to avoid situation when map does not touch any of the borders when user provided infinitely
+    // high max half height (which is expected for the cases when whole map should be visible).
+    const float visible_height = map_behavior->camera_half_height * 2.0f;
+    const float visible_width = ratio * visible_height;
+
+    if (visible_width > map_behavior->width && visible_height > map_behavior->height)
+    {
+        const float fit_height_value = map_behavior->height * 0.5f;
+        const float fit_width_value = map_behavior->width * 0.5f / ratio;
+        map_behavior->camera_half_height = KAN_MAX (fit_height_value, fit_width_value);
+    }
+
+    // Adjust origin to prevent camera from flying outside of borders (when possible with current half height).
+    const float camera_half_height = map_behavior->camera_half_height;
+    const float camera_half_width = ratio * camera_half_height;
+
+    if (camera_half_width * 2.0f >= map_behavior->width)
+    {
+        // Rare whole map case, place origin in the map center.
+        map_behavior->camera_origin.x = map_behavior->width * 0.5f;
+    }
+    else if (map_behavior->camera_origin.x - camera_half_width < 0.0f)
+    {
+        map_behavior->camera_origin.x = camera_half_width;
+    }
+    else if (map_behavior->camera_origin.x + camera_half_width > map_behavior->width)
+    {
+        map_behavior->camera_origin.x = map_behavior->width - camera_half_width;
+    }
+
+    if (camera_half_height * 2.0f >= map_behavior->height)
+    {
+        // Rare whole map case, place origin in the map center.
+        map_behavior->camera_origin.y = map_behavior->height * 0.5f;
+    }
+    else if (map_behavior->camera_origin.y - camera_half_height < 0.0f)
+    {
+        map_behavior->camera_origin.y = camera_half_height;
+    }
+    else if (map_behavior->camera_origin.y + camera_half_height > map_behavior->height)
+    {
+        map_behavior->camera_origin.y = map_behavior->height - camera_half_height;
+    }
+}
+
+static void make_map_pin_hierarchy_visible (struct ui_controls_pre_layout_state_t *state,
+                                            const struct kan_ui_node_t *node)
+{
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &node->id)
+    if (drawable)
+    {
+        drawable->hidden = false;
+    }
+
+    KAN_UML_VALUE_READ (child, kan_ui_node_t, parent_id, &node->id) { make_map_pin_hierarchy_visible (state, child); }
+}
+
+static void resolve_dirty_map_behavior (struct ui_controls_pre_layout_state_t *state,
+                                        struct kan_ui_node_map_behavior_t *map_behavior)
+{
+    KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &map_behavior->id)
+    if (!drawable || drawable->width <= 0 || drawable->height <= 0 || map_behavior->width <= 0.0f ||
+        map_behavior->height <= 0.0f)
+    {
+        return;
+    }
+
+    map_behavior_sanitize_camera (map_behavior, drawable);
+    const float unit_to_px = (float) drawable->height / (map_behavior->camera_half_height * 2.0f);
+
+    KAN_UML_VALUE_READ (pin, kan_ui_node_map_pin_t, map_id, &map_behavior->id)
+    {
+        KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &pin->id)
+        if (pin->sync_location)
+        {
+            node->element.frame_offset_x = KAN_UI_VALUE_PX (pin->location.x * unit_to_px);
+            node->element.frame_offset_y = KAN_UI_VALUE_PX (pin->location.y * unit_to_px);
+        }
+
+        if (pin->sync_size)
+        {
+            node->element.width = KAN_UI_VALUE_PX (pin->size.x * unit_to_px);
+            node->element.width = KAN_UI_VALUE_PX (pin->size.y * unit_to_px);
+        }
+
+        make_map_pin_hierarchy_visible (state, node);
+    }
+
+    map_behavior->dirty = false;
+}
+
 UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_pre_layout)
 {
     KAN_UML_EVENT_FETCH (text_behavior_on_insert, kan_ui_node_text_behavior_on_insert_event_t)
@@ -2389,6 +2610,11 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_pre_layout)
             KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &text_behavior->id)
             sync_ui_size_from_text_secondary (state, node, text_behavior);
         }
+    }
+
+    KAN_UML_SIGNAL_UPDATE (map_behavior, kan_ui_node_map_behavior_t, dirty, true)
+    {
+        resolve_dirty_map_behavior (state, map_behavior);
     }
 }
 
@@ -2465,6 +2691,36 @@ static void text_behavior_post_laid_out (struct ui_controls_post_layout_state_t 
     }
 }
 
+static void make_map_pin_hierarchy_hidden (struct ui_controls_post_layout_state_t *state,
+                                           const struct kan_ui_node_t *node)
+{
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &node->id)
+    if (drawable)
+    {
+        drawable->hidden = true;
+    }
+
+    KAN_UML_VALUE_READ (child, kan_ui_node_t, parent_id, &node->id) { make_map_pin_hierarchy_visible (state, child); }
+}
+
+static void map_behavior_post_laid_out (struct ui_controls_post_layout_state_t *state,
+                                        const struct kan_ui_node_drawable_t *drawable,
+                                        struct kan_ui_node_map_behavior_t *map_behavior)
+{
+    map_behavior_sanitize_camera (map_behavior, drawable);
+    map_behavior->dirty = true;
+
+    // When map was laid out, it means that we cannot update pins properly this frame and need to hide them for one
+    // frame. It is technically not the best decision, but the easiest one due to the fact that we do not expect maps
+    // to be laid out often -- only when initializing UI and when UI scale was changed, therefore it was decided to
+    // stick to this decision as the easiest one.
+    KAN_UML_VALUE_READ (pin, kan_ui_node_map_pin_t, map_id, &map_behavior->id)
+    {
+        KAN_UMI_VALUE_READ_REQUIRED (node, kan_ui_node_t, id, &pin->id)
+        make_map_pin_hierarchy_hidden (state, node);
+    }
+}
+
 UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_post_layout)
 {
     KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
@@ -2490,6 +2746,12 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_post_layout)
             // Need to update text edition visuals for the new text size even if shaping was not triggered by this.
             // Mostly a safeguard logic.
             line_edit_behavior->text_visuals_dirty = true;
+        }
+
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (map_behavior, kan_ui_node_map_behavior_t, id, &laid_out_event->node_id)
+        if (map_behavior)
+        {
+            map_behavior_post_laid_out (state, drawable, map_behavior);
         }
     }
 }
@@ -2914,4 +3176,33 @@ void kan_ui_node_line_edit_behavior_set_content (struct kan_ui_node_line_edit_be
 void kan_ui_node_line_edit_behavior_shutdown (struct kan_ui_node_line_edit_behavior_t *instance)
 {
     kan_dynamic_array_shutdown (&instance->content_utf8);
+}
+
+void kan_ui_node_map_behavior_init (struct kan_ui_node_map_behavior_t *instance)
+{
+    instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->movement_enabled = true;
+    instance->zoom_enabled = true;
+    instance->dirty = true;
+
+    instance->camera_origin = kan_make_float_vector_2_t (0.0f, 0.0f);
+    instance->camera_half_height = 1.0f;
+    instance->camera_min_half_height = 1.0f;
+    instance->camera_max_half_height = 1.0f;
+
+    instance->scroll_zoom_speed = 10.0f;
+    instance->width = 1.0f;
+    instance->height = 1.0f;
+}
+
+void kan_ui_node_map_pin_init (struct kan_ui_node_map_pin_t *instance)
+{
+    instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->map_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+
+    instance->location = kan_make_float_vector_2_t (0.0f, 0.0f);
+    instance->size = kan_make_float_vector_2_t (0.0f, 0.0f);
+
+    instance->sync_location = true;
+    instance->sync_size = false;
 }

@@ -313,6 +313,62 @@ struct kan_ui_node_scroll_behavior_t
 
 UNIVERSE_UI_API void kan_ui_node_scroll_behavior_init (struct kan_ui_node_scroll_behavior_t *instance);
 
+/// \brief Enumerates supported content types for `kan_ui_node_line_edit_behavior_t`.
+enum kan_ui_node_line_edit_content_type_t
+{
+    /// \brief Any textual content, no restrictions and no post processing.
+    KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_ANY = 0u,
+    
+    /// \brief Content will be parsed as unsigned integer.
+    /// \details Supports decimal numbers, 0x... hex numbers and 0b binary numbers.
+    ///          Whitespaces are ignored during parsing.
+    ///          If user deselects line edit and leaves content empty, content will become "0" automatically.
+    KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT,
+    
+    /// \brief Content will be parsed as signed integer.
+    /// \details Supports decimal numbers. Whitespaces are ignored during parsing.
+    ///          If user deselects line edit and leaves content empty, content will become "0" automatically.
+    KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT,
+    
+    /// \brief Content will be parsed as floating point number.
+    /// \details Supports decimal numbers. Whitespaces are ignored during parsing.
+    ///          If user deselects line edit and leaves content empty, content will become "0" automatically.
+    KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_FLOAT,
+};
+
+/// \brief Describes additional configuration for `kan_ui_node_line_edit_behavior_t` for unsigned integer content.
+struct kan_ui_node_line_edit_content_type_uint_t
+{
+    bool has_parsed_content;
+    bool has_limits;
+
+    kan_instance_size_t parsed_content;
+    kan_instance_size_t min;
+    kan_instance_size_t max;
+};
+
+/// \brief Describes additional configuration for `kan_ui_node_line_edit_behavior_t` for signed integer content.
+struct kan_ui_node_line_edit_content_type_sint_t
+{
+    bool has_parsed_content;
+    bool has_limits;
+
+    kan_instance_offset_t parsed_content;
+    kan_instance_offset_t min;
+    kan_instance_offset_t max;
+};
+
+/// \brief Describes additional configuration for `kan_ui_node_line_edit_behavior_t` for floating point content.
+struct kan_ui_node_line_edit_content_type_float_t
+{
+    bool has_parsed_content;
+    bool has_limits;
+
+    kan_floating_t parsed_content;
+    kan_floating_t min;
+    kan_floating_t max;
+};
+
 /// \brief Provides behavior that implements line edit widget interactions.
 /// \invariant Should be inserted in the same frame as connected ui node.
 ///            Appending to an existent node is not supported.
@@ -396,6 +452,30 @@ struct kan_ui_node_line_edit_behavior_t
     /// \details `KAN_INT_MAX (kan_instance_size_t)` if no selection right now.
     /// \invariant Should not be edited by user, expected to be only modified by inner logic.
     kan_instance_size_t selection_content_max;
+
+    /// \brief Content type can be used to additionally validate and post process content.
+    enum kan_ui_node_line_edit_content_type_t content_type;
+    
+    /// \brief Will be used instead of `content_style` if content is deemed invalid by `content_type`.
+    kan_interned_string_t content_style_when_invalid;
+    
+    /// \brief Will be used instead of `content_mark` if content is deemed invalid by `content_type`.
+    uint32_t content_mark_when_invalid;
+
+    union
+    {
+        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (content_type)
+        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT)
+        struct kan_ui_node_line_edit_content_type_uint_t content_uint;
+
+        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (content_type)
+        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT)
+        struct kan_ui_node_line_edit_content_type_sint_t content_sint;
+
+        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (content_type)
+        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_FLOAT)
+        struct kan_ui_node_line_edit_content_type_float_t content_float;
+    };
 };
 
 UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_init (struct kan_ui_node_line_edit_behavior_t *instance);
@@ -405,6 +485,28 @@ UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_set_content (struct kan_ui_n
                                                                  const char *null_terminated_utf8_content,
                                                                  kan_interned_string_t content_style,
                                                                  uint32_t content_mark);
+
+/// \brief Helper for setting line edit content type from outside.
+UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_set_content_type (
+    struct kan_ui_node_line_edit_behavior_t *instance,
+    enum kan_ui_node_line_edit_content_type_t content_type,
+    kan_interned_string_t content_style_when_invalid,
+    uint32_t content_mark_when_invalid);
+
+/// \brief Helper for setting line edit unsigned int content limits.
+/// \invariant Line edit content type is KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT.
+UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_set_content_uint_limits (
+    struct kan_ui_node_line_edit_behavior_t *instance, kan_instance_size_t min, kan_instance_size_t max);
+
+/// \brief Helper for setting line edit signed int content limits.
+/// \invariant Line edit content type is KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT.
+UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_set_content_sint_limits (
+    struct kan_ui_node_line_edit_behavior_t *instance, kan_instance_offset_t min, kan_instance_offset_t max);
+
+/// \brief Helper for setting line edit floating point content limits.
+/// \invariant Line edit content type is KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_FLOAT.
+UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_set_content_float_limits (
+    struct kan_ui_node_line_edit_behavior_t *instance, kan_floating_t min, kan_floating_t max);
 
 UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_shutdown (struct kan_ui_node_line_edit_behavior_t *instance);
 

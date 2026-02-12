@@ -60,6 +60,7 @@ struct example_ui_interaction_singleton_t
     enum example_ui_interaction_test_stage_t test_stage;
 
     kan_ui_node_id_t second_button_in_list_id;
+    kan_ui_node_id_t scroll_outer_id;
     kan_ui_node_id_t scroll_container_id;
     kan_ui_node_id_t line_edit_id;
 
@@ -76,6 +77,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_INTERACTION_API void example_ui_interaction_si
     instance->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_START;
 
     instance->second_button_in_list_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->scroll_outer_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     instance->scroll_container_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     instance->line_edit_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
 
@@ -203,6 +205,8 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
     KAN_UIM_CHILDREN (center_window)
     {
         KAN_UIM_WIDGET_SCROLL_PANE (info);
+        singleton->scroll_outer_id = info_outer_node->id;
+
         info_outer_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;
         info_outer_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;
 
@@ -569,7 +573,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_INTERACTION_API KAN_UM_MUTATOR_EXECUTE (ui_exa
     case EXAMPLE_UI_INTERACTION_TEST_STAGE_HOVER_CHECK_2:
     {
         singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_SCROLL;
-        TEST_CHECK_EXPECTATION (!KAN_TYPED_ID_32_IS_VALID (ui_input->current_hovered_id))
+        TEST_CHECK_EXPECTATION (KAN_TYPED_ID_32_IS_EQUAL (ui_input->current_hovered_id, singleton->scroll_outer_id))
 
         KAN_UMI_VALUE_READ_REQUIRED (scroll_container_node, kan_ui_node_t, id, &singleton->scroll_container_id)
         TEST_CHECK_EXPECTATION (scroll_container_node->render.scroll_y.type == KAN_UI_PT)

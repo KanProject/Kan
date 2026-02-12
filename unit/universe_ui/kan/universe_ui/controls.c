@@ -771,6 +771,27 @@ static void clear_line_edit_selection_visuals (struct ui_controls_input_state_t 
     hit_box->interactable_style = behavior->interactable_style_regular;
 }
 
+static void line_edit_sanitize_content_on_node_deselection (struct kan_ui_node_line_edit_behavior_t *behavior)
+{
+    switch (behavior->content_type)
+    {
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_ANY:
+        break;
+
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT:
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT:
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_FLOAT:
+        // Size is 1 for zero terminator.
+        if (behavior->content_utf8.size <= 1u)
+        {
+            // Do not leave numeric content at "unparseable empty string" state, add zero.
+            kan_ui_node_line_edit_behavior_set_content (behavior, "0", behavior->content_style, behavior->content_mark);
+        }
+
+        break;
+    }
+}
+
 static void process_line_edit_content_dirty_outer (struct ui_controls_input_state_t *state,
                                                    struct kan_ui_input_singleton_t *public)
 {
@@ -789,6 +810,7 @@ static void process_line_edit_content_dirty_outer (struct ui_controls_input_stat
         {
             public->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
             clear_line_edit_selection_visuals (state, behavior);
+            line_edit_sanitize_content_on_node_deselection (behavior);
         }
     }
 }
@@ -1663,6 +1685,7 @@ static inline void deselect_input_receiver_behavior (struct ui_controls_input_st
     if (line_edit_behavior)
     {
         clear_line_edit_selection_visuals (state, line_edit_behavior);
+        line_edit_sanitize_content_on_node_deselection (line_edit_behavior);
     }
 
     if (private->input_receiver_requested_text_input && KAN_HANDLE_IS_VALID (public->linked_window_handle))
@@ -2233,6 +2256,359 @@ static void process_events (struct ui_controls_input_state_t *state,
     }
 }
 
+/// \details Just a helper that skips whitespaces in user input,
+static inline kan_unicode_codepoint_t line_edit_parse_numeric_next_codepoint (const uint8_t **iterator,
+                                                                              const uint8_t *boundary)
+{
+    while (true)
+    {
+        const kan_unicode_codepoint_t codepoint = kan_text_utf8_next (iterator, boundary);
+        if (codepoint == ' ' || codepoint == '\t')
+        {
+            continue;
+        }
+
+        return codepoint;
+    }
+}
+
+static inline kan_instance_size_t line_edit_parse_positive_decimal (const uint8_t **iterator,
+                                                                    const uint8_t *boundary,
+                                                                    bool *output_success)
+{
+    kan_instance_size_t result = 0u;
+    *output_success = false;
+    kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+
+    if (!codepoint)
+    {
+        // Empty input.
+        return 0u;
+    }
+
+    while (codepoint)
+    {
+        if (codepoint < '0' || codepoint > '9')
+        {
+            return 0u;
+        }
+
+        const kan_instance_size_t new_result = result * 10u + (codepoint - '0');
+        if (new_result < result)
+        {
+            // Overflow.
+            return 0u;
+        }
+
+        result = new_result;
+        codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+    }
+
+    *output_success = true;
+    return result;
+}
+
+static inline kan_instance_size_t line_edit_parse_binary_after_prefix (const uint8_t **iterator,
+                                                                       const uint8_t *boundary,
+                                                                       bool *output_success)
+{
+    kan_instance_size_t result = 0u;
+    *output_success = false;
+    kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+
+    if (!codepoint)
+    {
+        // Empty input.
+        return 0u;
+    }
+
+    while (codepoint)
+    {
+        if (codepoint != '0' && codepoint != '1')
+        {
+            return 0u;
+        }
+
+        const kan_instance_size_t new_result = result * 2u + (codepoint - '0');
+        if (new_result < result)
+        {
+            // Overflow.
+            return 0u;
+        }
+
+        result = new_result;
+        codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+    }
+
+    *output_success = true;
+    return result;
+}
+
+static inline kan_instance_size_t line_edit_parse_hex_after_prefix (const uint8_t **iterator,
+                                                                    const uint8_t *boundary,
+                                                                    bool *output_success)
+{
+    kan_instance_size_t result = 0u;
+    *output_success = false;
+    kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+
+    if (!codepoint)
+    {
+        // Empty input.
+        return 0u;
+    }
+
+    while (codepoint)
+    {
+        kan_instance_size_t digit = 0u;
+        switch (codepoint)
+        {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            digit = codepoint - '0';
+            break;
+
+        case 'a':
+        case 'b':
+        case 'c':
+        case 'd':
+        case 'e':
+        case 'f':
+            digit = 10u + (codepoint - 'a');
+            break;
+
+        case 'A':
+        case 'B':
+        case 'C':
+        case 'D':
+        case 'E':
+        case 'F':
+            digit = 10u + (codepoint - 'A');
+            break;
+
+        default:
+            return 0u;
+        }
+
+        const kan_instance_size_t new_result = result * 16u + digit;
+        if (new_result < result)
+        {
+            // Overflow.
+            return 0u;
+        }
+
+        result = new_result;
+        codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+    }
+
+    *output_success = true;
+    return result;
+}
+
+static bool line_edit_parse_uint (struct kan_ui_node_line_edit_behavior_t *behavior)
+{
+    behavior->content_uint.has_parsed_content = false;
+    const uint8_t *iterator = behavior->content_utf8.data;
+    const uint8_t *boundary = behavior->content_utf8.data + behavior->content_utf8.size;
+
+    if (!iterator)
+    {
+        return false;
+    }
+
+    const uint8_t *pre_lookup_iterator = iterator;
+    kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (&iterator, boundary);
+
+    if (codepoint == '0')
+    {
+        codepoint = line_edit_parse_numeric_next_codepoint (&iterator, boundary);
+        switch (codepoint)
+        {
+        case 'x':
+        case 'X':
+            behavior->content_uint.parsed_content =
+                line_edit_parse_hex_after_prefix (&iterator, boundary, &behavior->content_uint.has_parsed_content);
+            break;
+
+        case 'b':
+        case 'B':
+            behavior->content_uint.parsed_content =
+                line_edit_parse_binary_after_prefix (&iterator, boundary, &behavior->content_uint.has_parsed_content);
+            break;
+
+        default:
+            // Lookup didn't find prefix, parse as regular decimal.
+            iterator = pre_lookup_iterator;
+            behavior->content_uint.parsed_content =
+                line_edit_parse_positive_decimal (&iterator, boundary, &behavior->content_uint.has_parsed_content);
+            break;
+        }
+    }
+    else
+    {
+        // No prefix, parse as regular decimal.
+        iterator = pre_lookup_iterator;
+        behavior->content_uint.parsed_content =
+            line_edit_parse_positive_decimal (&iterator, boundary, &behavior->content_uint.has_parsed_content);
+    }
+
+    if (behavior->content_uint.has_parsed_content && behavior->content_uint.has_limits)
+    {
+        behavior->content_uint.has_parsed_content =
+            behavior->content_uint.parsed_content >= behavior->content_uint.min &&
+            behavior->content_uint.parsed_content < behavior->content_uint.max;
+    }
+
+    return behavior->content_uint.has_parsed_content;
+}
+
+static bool line_edit_parse_sint (struct kan_ui_node_line_edit_behavior_t *behavior)
+{
+    behavior->content_sint.has_parsed_content = false;
+    const uint8_t *iterator = behavior->content_utf8.data;
+    const uint8_t *boundary = behavior->content_utf8.data + behavior->content_utf8.size;
+
+    if (!iterator)
+    {
+        return false;
+    }
+
+    const uint8_t *pre_lookup_iterator = iterator;
+    kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (&iterator, boundary);
+
+    if (codepoint == '-')
+    {
+        // Negative value, parse as positive and invert.
+        const kan_instance_size_t positive_value =
+            line_edit_parse_positive_decimal (&iterator, boundary, &behavior->content_sint.has_parsed_content);
+
+        if (behavior->content_sint.has_parsed_content)
+        {
+            const kan_instance_size_t inverted_value = KAN_INT_MAX (kan_instance_size_t) - positive_value + 1u;
+            behavior->content_sint.has_parsed_content = inverted_value > KAN_INT_MAX (kan_instance_offset_t);
+            behavior->content_sint.parsed_content = (kan_instance_offset_t) inverted_value;
+        }
+    }
+    else
+    {
+        // Regular positive number as lookup didn't find anything.
+        iterator = pre_lookup_iterator;
+        const kan_instance_size_t positive_value =
+            line_edit_parse_positive_decimal (&iterator, boundary, &behavior->content_sint.has_parsed_content);
+
+        if (behavior->content_sint.has_parsed_content)
+        {
+            behavior->content_sint.has_parsed_content = positive_value <= KAN_INT_MAX (kan_instance_offset_t);
+            behavior->content_sint.parsed_content = (kan_instance_offset_t) positive_value;
+        }
+    }
+
+    if (behavior->content_sint.has_parsed_content && behavior->content_sint.has_limits)
+    {
+        behavior->content_sint.has_parsed_content =
+            behavior->content_sint.parsed_content >= behavior->content_sint.min &&
+            behavior->content_sint.parsed_content < behavior->content_sint.max;
+    }
+
+    return behavior->content_sint.has_parsed_content;
+}
+
+static inline kan_floating_t line_edit_parse_positive_floating (const uint8_t **iterator,
+                                                                const uint8_t *boundary,
+                                                                bool *output_success)
+{
+    kan_floating_t result = 0.0f;
+    *output_success = false;
+    kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+
+    if (!codepoint)
+    {
+        // Empty input.
+        return 0u;
+    }
+
+    bool reading_fractional = false;
+    float fractional_modifier = 0.1f;
+
+    while (codepoint)
+    {
+        if (codepoint == '.')
+        {
+            if (reading_fractional)
+            {
+                // Second dot, error.
+                return 0.0f;
+            }
+
+            reading_fractional = true;
+            codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+            continue;
+        }
+
+        if (reading_fractional)
+        {
+            result += fractional_modifier * (float) (codepoint - '0');
+            fractional_modifier *= 0.1f;
+        }
+        else
+        {
+            result = result * 10.0f + (float) (codepoint - '0');
+        }
+
+        codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+    }
+
+    *output_success = true;
+    return result;
+}
+
+static bool line_edit_parse_float (struct kan_ui_node_line_edit_behavior_t *behavior)
+{
+    behavior->content_float.has_parsed_content = false;
+    const uint8_t *iterator = behavior->content_utf8.data;
+    const uint8_t *boundary = behavior->content_utf8.data + behavior->content_utf8.size;
+
+    if (!iterator)
+    {
+        return false;
+    }
+
+    const uint8_t *pre_lookup_iterator = iterator;
+    kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (&iterator, boundary);
+
+    if (codepoint == '-')
+    {
+        // Negative value, parse as positive and invert.
+        behavior->content_float.parsed_content =
+            line_edit_parse_positive_floating (&iterator, boundary, &behavior->content_float.has_parsed_content);
+        behavior->content_float.parsed_content = -behavior->content_float.parsed_content;
+    }
+    else
+    {
+        // Regular positive number as lookup didn't find anything.
+        iterator = pre_lookup_iterator;
+        behavior->content_float.parsed_content =
+            line_edit_parse_positive_floating (&iterator, boundary, &behavior->content_float.has_parsed_content);
+    }
+
+    if (behavior->content_float.has_parsed_content && behavior->content_float.has_limits)
+    {
+        behavior->content_float.has_parsed_content =
+            behavior->content_float.parsed_content >= behavior->content_float.min &&
+            behavior->content_float.parsed_content < behavior->content_float.max;
+    }
+
+    return behavior->content_float.has_parsed_content;
+}
+
 static void process_line_edit_content_dirty_inner (struct ui_controls_input_state_t *state)
 {
     KAN_UMI_SINGLETON_READ (locale_singleton, kan_locale_singleton_t)
@@ -2254,8 +2630,28 @@ static void process_line_edit_content_dirty_inner (struct ui_controls_input_stat
             kan_text_destroy (shaping_unit->request.text);
         }
 
+        bool content_valid = true;
+        switch (behavior->content_type)
+        {
+        case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_ANY:
+            break;
+
+        case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT:
+            content_valid = line_edit_parse_uint (behavior);
+            break;
+
+        case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT:
+            content_valid = line_edit_parse_sint (behavior);
+            break;
+
+        case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_FLOAT:
+            content_valid = line_edit_parse_float (behavior);
+            break;
+        }
+
         struct kan_text_item_t new_text_items[] = {
-            KAN_INIT_TEXT_ITEM_STYLE (behavior->content_style, behavior->content_mark),
+            KAN_INIT_TEXT_ITEM_STYLE (content_valid ? behavior->content_style : behavior->content_style_when_invalid,
+                                      content_valid ? behavior->content_mark : behavior->content_mark_when_invalid),
             KAN_INIT_TEXT_ITEM_UTF8 ((const char *) behavior->content_utf8.data),
         };
 
@@ -3155,6 +3551,10 @@ void kan_ui_node_line_edit_behavior_init (struct kan_ui_node_line_edit_behavior_
     instance->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
     instance->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
     instance->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
+
+    instance->content_type = KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_ANY;
+    instance->content_style_when_invalid = NULL;
+    instance->content_mark_when_invalid = 0u;
 }
 
 void kan_ui_node_line_edit_behavior_set_content (struct kan_ui_node_line_edit_behavior_t *instance,
@@ -3170,6 +3570,81 @@ void kan_ui_node_line_edit_behavior_set_content (struct kan_ui_node_line_edit_be
 
     instance->content_style = content_style;
     instance->content_mark = content_mark;
+    instance->content_dirty = true;
+}
+
+void kan_ui_node_line_edit_behavior_set_content_type (struct kan_ui_node_line_edit_behavior_t *instance,
+                                                      enum kan_ui_node_line_edit_content_type_t content_type,
+                                                      kan_interned_string_t content_style_when_invalid,
+                                                      uint32_t content_mark_when_invalid)
+{
+    instance->content_type = content_type;
+    instance->content_style_when_invalid = content_style_when_invalid;
+    instance->content_mark_when_invalid = content_mark_when_invalid;
+
+    switch (content_type)
+    {
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_ANY:
+        break;
+
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT:
+        instance->content_uint.has_parsed_content = false;
+        instance->content_uint.has_limits = false;
+        instance->content_uint.parsed_content = 0u;
+        instance->content_uint.min = 0u;
+        instance->content_uint.max = 0u;
+        break;
+
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT:
+        instance->content_sint.has_parsed_content = false;
+        instance->content_sint.has_limits = false;
+        instance->content_sint.parsed_content = 0;
+        instance->content_sint.min = 0;
+        instance->content_sint.max = 0;
+        break;
+
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_FLOAT:
+        instance->content_float.has_parsed_content = false;
+        instance->content_float.has_limits = false;
+        instance->content_float.parsed_content = 0.0f;
+        instance->content_float.min = 0.0f;
+        instance->content_float.max = 0.0f;
+        break;
+    }
+
+    instance->content_dirty = true;
+}
+
+void kan_ui_node_line_edit_behavior_set_content_uint_limits (struct kan_ui_node_line_edit_behavior_t *instance,
+                                                             kan_instance_size_t min,
+                                                             kan_instance_size_t max)
+{
+    KAN_ASSERT (instance->content_type == KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT)
+    instance->content_uint.has_limits = true;
+    instance->content_uint.min = min;
+    instance->content_uint.max = max;
+    instance->content_dirty = true;
+}
+
+void kan_ui_node_line_edit_behavior_set_content_sint_limits (struct kan_ui_node_line_edit_behavior_t *instance,
+                                                             kan_instance_offset_t min,
+                                                             kan_instance_offset_t max)
+{
+    KAN_ASSERT (instance->content_type == KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT)
+    instance->content_sint.has_limits = true;
+    instance->content_sint.min = min;
+    instance->content_sint.max = max;
+    instance->content_dirty = true;
+}
+
+void kan_ui_node_line_edit_behavior_set_content_float_limits (struct kan_ui_node_line_edit_behavior_t *instance,
+                                                              kan_floating_t min,
+                                                              kan_floating_t max)
+{
+    KAN_ASSERT (instance->content_type == KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_FLOAT)
+    instance->content_float.has_limits = true;
+    instance->content_float.min = min;
+    instance->content_float.max = max;
     instance->content_dirty = true;
 }
 

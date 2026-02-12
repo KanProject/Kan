@@ -219,7 +219,8 @@ struct kan_uim_parent_stack_info_t
     KAN_UIM_NEW_NODE (NAME##_outer);                                                                                   \
     NAME##_outer_node->layout.layout = KAN_UI_LAYOUT_FRAME;                                                            \
     NAME##_outer_node->render.clip = true;                                                                             \
-    KAN_UIM_HIT_BOX_BLOCKING (NAME##_outer);                                                                           \
+    /* Hit box should be interactable in order to receive and process scroll input events. */                          \
+    KAN_UIM_HIT_BOX_INTERACTABLE (NAME##_outer, NULL);                                                                 \
                                                                                                                        \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_container);                                                                 \
     NAME##_container_node->parent_id = NAME##_outer_node->id;                                                          \
@@ -333,12 +334,12 @@ struct kan_uim_parent_stack_info_t
     NAME##_line_edit_behavior->interactable_style_selected = (STYLE_SELECTED);                                         \
                                                                                                                        \
     /* Usually these variable values are connected. */                                                                 \
-    NAME##_line_edit_behavior->cursor_safe_space = (FONT_SIZE);
+    NAME##_line_edit_behavior->cursor_safe_space = (FONT_SIZE)
 
 /// \brief Helper for calculating line edit selection leeway when enlarging effect like outline is used.
 #define KAN_UIM_WIDGET_LINE_EDIT_CALCULATE_LEEWAY(NAME, ENLARGE_FACTOR)                                                \
     NAME##_line_edit_behavior->selection_leeway = NAME##_text_behavior->font_size;                                     \
-    NAME##_line_edit_behavior->selection_leeway.value *= (ENLARGE_FACTOR) - 1.0f;
+    NAME##_line_edit_behavior->selection_leeway.value *= (ENLARGE_FACTOR) - 1.0f
 
 /// \brief Helper for calculating line edit height so text would fit inside properly.
 #define KAN_UIM_WIDGET_LINE_EDIT_CALCULATE_HEIGHT(NAME, ENLARGE_FACTOR)                                                \
@@ -350,6 +351,6 @@ struct kan_uim_parent_stack_info_t
     NAME##_node->element.height = NAME##_text_behavior->font_size;                                                     \
     NAME##_node->element.height.value *= (ENLARGE_FACTOR) / 0.75f;                                                     \
     NAME##_node->element.height.value +=                                                                               \
-        NAME##_node->layout.padding.top.value + NAME##_node->layout.padding.bottom.value;
+        NAME##_node->layout.padding.top.value + NAME##_node->layout.padding.bottom.value
 
 KAN_C_HEADER_END

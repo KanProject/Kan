@@ -1953,19 +1953,30 @@ static bool parse_expression_signed_literal (struct rpl_parser_t *parser,
     const kan_instance_size_t positive_literal =
         parse_unsigned_integer_value (parser, state, literal_begin, literal_end);
 
-    if (positive_literal > KAN_INT_MAX (kan_instance_offset_t))
-    {
-        KAN_LOG (rpl_parser, KAN_LOG_ERROR,
-                 "[%s:%s] [%ld:%ld]: Encountered integer literal that is bigger than maximum allowed %lld.",
-                 parser->log_name, state->source_log_name, (long) state->cursor_line, (long) state->cursor_symbol,
-                 (long long) INT64_MAX)
-        return false;
-    }
-
-    node->signed_literal = (kan_instance_offset_t) positive_literal;
     if (is_negative)
     {
-        node->signed_literal = -node->signed_literal;
+        const kan_instance_size_t inverted_value = KAN_INT_MAX (kan_instance_size_t) - positive_literal + 1u;
+        if (inverted_value <= KAN_INT_MAX (kan_instance_offset_t))
+        {
+            KAN_LOG (rpl_parser, KAN_LOG_ERROR,
+                     "[%s:%s] [%ld:%ld]: Encountered integer literal that does not fit into signed integer bounds.",
+                     parser->log_name, state->source_log_name, (long) state->cursor_line, (long) state->cursor_symbol)
+            return false;
+        }
+
+        node->signed_literal = (kan_instance_offset_t) inverted_value;
+    }
+    else
+    {
+        if (positive_literal > KAN_INT_MAX (kan_instance_offset_t))
+        {
+            KAN_LOG (rpl_parser, KAN_LOG_ERROR,
+                     "[%s:%s] [%ld:%ld]: Encountered integer literal that does not fit into signed integer bounds.",
+                     parser->log_name, state->source_log_name, (long) state->cursor_line, (long) state->cursor_symbol)
+            return false;
+        }
+
+        node->signed_literal = (kan_instance_offset_t) positive_literal;
     }
 
     expression_parse_state->expecting_operand = false;

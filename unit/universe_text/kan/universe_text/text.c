@@ -852,7 +852,7 @@ static void shape_unit (struct text_shaping_state_t *state,
                         kan_render_context_t render_context)
 {
     unit->dirty = false;
-    if (unit->request.primary_axis_limit == 0u)
+    if (unit->request.primary_axis_limit == 0u || !KAN_HANDLE_IS_VALID (unit->request.text))
     {
         // Silent failure that is actually an expected skip by the docs.
         shaping_unit_on_failed (unit);

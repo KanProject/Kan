@@ -1279,6 +1279,20 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
                                          struct kan_ui_node_drawable_t *drawable)
 {
     struct layout_temporary_data_t *data = drawable->temporary_data;
+    if (!KAN_TYPED_ID_32_IS_VALID (node->parent_id))
+    {
+        // When child of root, parent clip rect is always full viewport rect.
+        drawable->cached.parent_clip_rect.x = 0;
+        drawable->cached.parent_clip_rect.y = 0;
+        drawable->cached.parent_clip_rect.width = state->transient.ui->viewport_width;
+        drawable->cached.parent_clip_rect.height = state->transient.ui->viewport_height;
+        drawable->cached.hidden_by_parent = false;
+    }
+
+    // Restore clip rect to initially received from parent. It is important for partial passes as if we do not restore
+    // parent clip rect, toggling this node clip flag on and off will result in broken clip rect logic.
+    drawable->clip_rect = drawable->cached.parent_clip_rect;
+
     if (node->render.clip)
     {
         struct kan_ui_clip_rect_t my_rect = {
@@ -1288,22 +1302,33 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
             .height = drawable->height,
         };
 
-        struct kan_ui_clip_rect_t new_clip_rect = drawable->clip_rect;
-        new_clip_rect.x = KAN_MAX (drawable->clip_rect.x, my_rect.x);
-        new_clip_rect.y = KAN_MAX (drawable->clip_rect.y, my_rect.y);
+        drawable->clip_rect.x = KAN_MAX (drawable->cached.parent_clip_rect.x, my_rect.x);
+        drawable->clip_rect.y = KAN_MAX (drawable->cached.parent_clip_rect.y, my_rect.y);
 
-        new_clip_rect.width =
-            KAN_MIN (drawable->clip_rect.x + drawable->clip_rect.width, my_rect.x + my_rect.width) - new_clip_rect.x;
+        drawable->clip_rect.width =
+            KAN_MIN (drawable->cached.parent_clip_rect.x + drawable->cached.parent_clip_rect.width,
+                     my_rect.x + my_rect.width) -
+            drawable->clip_rect.x;
 
-        new_clip_rect.height =
-            KAN_MIN (drawable->clip_rect.y + drawable->clip_rect.height, my_rect.y + my_rect.height) - new_clip_rect.y;
-        drawable->clip_rect = new_clip_rect;
+        drawable->clip_rect.height =
+            KAN_MIN (drawable->cached.parent_clip_rect.y + drawable->cached.parent_clip_rect.height,
+                     my_rect.y + my_rect.height) -
+            drawable->clip_rect.y;
     }
+
+    const bool hidden_by_hierarchy = node->render.hidden || drawable->cached.hidden_by_parent;
+    const bool clipped_out = drawable->global_x + drawable->width < drawable->clip_rect.x ||
+                             drawable->global_x >= drawable->clip_rect.x + drawable->clip_rect.width ||
+                             drawable->global_y + drawable->height < drawable->clip_rect.y ||
+                             drawable->global_y >= drawable->clip_rect.y + drawable->clip_rect.height;
+    drawable->hidden_permanently = hidden_by_hierarchy || clipped_out;
 
     for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         struct layout_child_access_t *access = &data->sorted_children[index];
-        access->drawable->clip_rect = drawable->clip_rect;
+        access->drawable->cached.parent_clip_rect = drawable->clip_rect;
+        // We do not include `clipped_out` to `hidden_by_parent` as child may technically have other borders.
+        access->drawable->cached.hidden_by_parent = hidden_by_hierarchy || node->render.hide_children;
 
         access->drawable->global_x = drawable->global_x -
                                      kan_ui_calculate_coordinate (state->transient.ui, node->render.scroll_x) +
@@ -1312,12 +1337,6 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
         access->drawable->global_y = drawable->global_y -
                                      kan_ui_calculate_coordinate (state->transient.ui, node->render.scroll_y) +
                                      access->drawable->local_y;
-
-        access->drawable->fully_clipped_out =
-            access->drawable->global_x + access->drawable->width < drawable->clip_rect.x ||
-            access->drawable->global_x >= drawable->clip_rect.x + drawable->clip_rect.width ||
-            access->drawable->global_y + access->drawable->height < drawable->clip_rect.y ||
-            access->drawable->global_y >= drawable->clip_rect.y + drawable->clip_rect.height;
 
         layout_render_finalize_pass (state, access->child, access->drawable);
 
@@ -2830,7 +2849,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
 
     KAN_UML_INTERVAL_ASCENDING_READ (node, kan_ui_node_drawable_t, draw_index, NULL, NULL)
     {
-        if (node->fully_clipped_out || node->hidden)
+        if (node->hidden_permanently || node->hidden_temporary)
         {
             continue;
         }
@@ -3326,9 +3345,11 @@ void kan_ui_node_init (struct kan_ui_node_t *instance)
     instance->layout.layout = KAN_UI_LAYOUT_FRAME;
     instance->layout.padding = KAN_UI_RECT_PT (0.0f, 0.0f, 0.0f, 0.0f);
 
-    instance->render.clip = false;
     instance->render.scroll_x = KAN_UI_VALUE_PX (0.0f);
     instance->render.scroll_y = KAN_UI_VALUE_PX (0.0f);
+    instance->render.clip = false;
+    instance->render.hidden = false;
+    instance->render.hide_children = false;
 }
 
 void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
@@ -3336,8 +3357,8 @@ void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
     instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     instance->draw_index = 0u;
 
-    instance->fully_clipped_out = false;
-    instance->hidden = false;
+    instance->hidden_permanently = false;
+    instance->hidden_temporary = false;
 
     instance->clip_rect.x = 0;
     instance->clip_rect.y = 0;
@@ -3367,6 +3388,11 @@ void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
     instance->cached.compound_margin_right = 0;
     instance->cached.compound_margin_top = 0;
     instance->cached.compound_margin_bottom = 0;
+    instance->cached.parent_clip_rect.x = 0;
+    instance->cached.parent_clip_rect.y = 0;
+    instance->cached.parent_clip_rect.width = 0;
+    instance->cached.parent_clip_rect.height = 0;
+    instance->cached.hidden_by_parent = false;
 
     instance->temporary_data = NULL;
     instance->layout_dirt_level = KAN_UI_LAYOUT_DIRT_LEVEL_NONE;

@@ -268,6 +268,8 @@ struct kan_ui_node_scroll_behavior_t
     /// \invariant `horizontal` must be `true`.
     /// \invariant Must have interactable hit box in order to process user input.
     /// \invariant `horizontal_knob_id` must be a valid id.
+    /// \warning Is not hidden itself due to being interactable, but hides children instead,
+    ///          therefore background must be a separate child node with drawable.
     kan_immutable kan_ui_node_id_t horizontal_line_id;
 
     /// \brief If `horizontal_line_id` is valid id, then this node represents knob on that line.
@@ -277,6 +279,8 @@ struct kan_ui_node_scroll_behavior_t
     /// \invariant `vertical` must be `true`.
     /// \invariant Must have interactable hit box in order to process user input.
     /// \invariant `vertical_knob_id` must be a valid id.
+    /// \warning Is not hidden itself due to being interactable, but hides children instead,
+    ///          therefore background must be a separate child node with drawable.
     kan_immutable kan_ui_node_id_t vertical_line_id;
 
     /// \brief If `vertical_line_id` is valid id, then this node represents knob on that line.
@@ -318,18 +322,18 @@ enum kan_ui_node_line_edit_content_type_t
 {
     /// \brief Any textual content, no restrictions and no post processing.
     KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_ANY = 0u,
-    
+
     /// \brief Content will be parsed as unsigned integer.
     /// \details Supports decimal numbers, 0x... hex numbers and 0b binary numbers.
     ///          Whitespaces are ignored during parsing.
     ///          If user deselects line edit and leaves content empty, content will become "0" automatically.
     KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT,
-    
+
     /// \brief Content will be parsed as signed integer.
     /// \details Supports decimal numbers. Whitespaces are ignored during parsing.
     ///          If user deselects line edit and leaves content empty, content will become "0" automatically.
     KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT,
-    
+
     /// \brief Content will be parsed as floating point number.
     /// \details Supports decimal numbers. Whitespaces are ignored during parsing.
     ///          If user deselects line edit and leaves content empty, content will become "0" automatically.
@@ -455,10 +459,10 @@ struct kan_ui_node_line_edit_behavior_t
 
     /// \brief Content type can be used to additionally validate and post process content.
     enum kan_ui_node_line_edit_content_type_t content_type;
-    
+
     /// \brief Will be used instead of `content_style` if content is deemed invalid by `content_type`.
     kan_interned_string_t content_style_when_invalid;
-    
+
     /// \brief Will be used instead of `content_mark` if content is deemed invalid by `content_type`.
     uint32_t content_mark_when_invalid;
 

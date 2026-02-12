@@ -417,6 +417,21 @@ struct kan_ui_node_render_setup_t
 
     /// \brief If true, use self bounds to clip self and all children.
     bool clip;
+
+    /// \brief If true, this node and all its children will not be rendered and will not be interactable.
+    /// \details It is advised to use this feature sparingly as hidden nodes are still processed and all logic connected
+    ///          to them is still processed, although discarded due to hidden status. General rule of thumb is that it
+    ///          is okay to use hidden nodes for small situational parts of the UI like drop downs, tooltips and error
+    ///          icons, but having whole big layouts like sub-screens or tabs as hidden must be avoided.
+    bool hidden;
+
+    /// \brief Does the same thing as `hidden`, but only applies to children, not to the node itself.
+    /// \details Mostly used for convenience in some cases as it makes implementation for that cases easier and does
+    ///          not make core logic more difficult. Typical use case for that is "appear when mouse enters" elements
+    ///          where root element is just a hit box without drawable and all children should be hidden unless this
+    ///          hit box is focused: we cannot hide hit box as it won't be interactable then, but we'd like an easy
+    ///          way to hide all the children.
+    bool hide_children;
 };
 
 /// \brief Node is a building block of UI elements hierarchy and used to define anything that is added to the ui.
@@ -650,6 +665,8 @@ struct kan_ui_layout_cached_t
     kan_instance_offset_t compound_margin_right;
     kan_instance_offset_t compound_margin_top;
     kan_instance_offset_t compound_margin_bottom;
+    struct kan_ui_clip_rect_t parent_clip_rect;
+    bool hidden_by_parent;
 };
 
 /// \brief Internal enum for deciding how much we need to recalculate in layout update.
@@ -668,14 +685,15 @@ struct kan_ui_node_drawable_t
     /// \brief Internal index that is used to sort draw commands.
     kan_instance_size_t draw_index;
 
-    /// \brief True if fully clipped out and can never be visible.
-    bool fully_clipped_out;
+    /// \brief True if permanently hidden until next time this node is laid out again.
+    /// \details Happens when fully clipped out by clip rects or hidden by `kan_ui_node_render_setup_t::hidden`.
+    bool hidden_permanently;
 
     /// \brief If true, drawable will not be rendered.
     /// \details Does not affect children. Mostly intended to be used by controls for temporary hide/show logic.
-    ///          For the high level ui node management logic, it is advised to just delete nodes that should not
-    ///          be visible, for example HUD elements that are only shown when user clicks on some button.
-    bool hidden;
+    ///          For the high level ui node management logic, it is advised to either delete hidden nodes or use
+    ///          `kan_ui_node_render_setup_t::hidden` as it applies to the hierarchies.
+    bool hidden_temporary;
 
     /// \brief Clip rect that should be used to render this element.
     struct kan_ui_clip_rect_t clip_rect;

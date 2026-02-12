@@ -249,7 +249,6 @@ struct kan_uim_parent_stack_info_t
 /// \param LINE_HEIGHT Fixed height for scrolling line and its knob.
 #define KAN_UIM_WIDGET_SCROLL_PANE_HORIZONTAL_LINE(NAME, STYLE, LINE_IMAGE, LINE_HEIGHT)                               \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_horizontal_line);                                                           \
-    KAN_UIM_DRAWABLE_IMAGE (NAME##_horizontal_line, (LINE_IMAGE));                                                     \
     KAN_UIM_HIT_BOX_INTERACTABLE (NAME##_horizontal_line, (STYLE));                                                    \
     NAME##_horizontal_line_hit_box->scroll_passthrough = true;                                                         \
     NAME##_horizontal_line_node->parent_id = NAME##_outer_node->id;                                                    \
@@ -261,11 +260,21 @@ struct kan_uim_parent_stack_info_t
     NAME##_horizontal_line_node->local_element_order = 1;                                                              \
     NAME##_horizontal_line_node->layout.layout = KAN_UI_LAYOUT_FRAME;                                                  \
                                                                                                                        \
+    KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_horizontal_background);                                                     \
+    KAN_UIM_DRAWABLE_IMAGE (NAME##_horizontal_background, (LINE_IMAGE));                                               \
+    KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME##_horizontal_line, NAME##_horizontal_background);                          \
+    NAME##_horizontal_background_node->parent_id = NAME##_horizontal_line_node->id;                                    \
+                                                                                                                       \
+    NAME##_horizontal_background_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                    \
+    NAME##_horizontal_background_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                   \
+    NAME##_horizontal_line_node->local_element_order = 0;                                                              \
+                                                                                                                       \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_horizontal_knob);                                                           \
-    NAME##_horizontal_knob_node->parent_id = NAME##_horizontal_line_node->id;                                          \
-    NAME##_horizontal_knob_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                         \
     KAN_UIM_DRAWABLE_IMAGE (NAME##_horizontal_knob, KAN_UI_IMAGE_COMMAND_NONE);                                        \
     KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME##_horizontal_line, NAME##_horizontal_knob);                                \
+    NAME##_horizontal_knob_node->parent_id = NAME##_horizontal_line_node->id;                                          \
+    NAME##_horizontal_knob_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                         \
+    NAME##_horizontal_knob_node->local_element_order = 1;                                                              \
                                                                                                                        \
     NAME##_scroll_behavior->horizontal_line_id = NAME##_horizontal_line_node->id;                                      \
     NAME##_scroll_behavior->horizontal_knob_id = NAME##_horizontal_knob_node->id
@@ -277,7 +286,6 @@ struct kan_uim_parent_stack_info_t
 /// \param LINE_WIDTH Fixed width for scrolling line and its knob.
 #define KAN_UIM_WIDGET_SCROLL_PANE_VERTICAL_LINE(NAME, STYLE, LINE_IMAGE, LINE_WIDTH)                                  \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_vertical_line);                                                             \
-    KAN_UIM_DRAWABLE_IMAGE (NAME##_vertical_line, (LINE_IMAGE));                                                       \
     KAN_UIM_HIT_BOX_INTERACTABLE (NAME##_vertical_line, (STYLE));                                                      \
     NAME##_vertical_line_hit_box->scroll_passthrough = true;                                                           \
     NAME##_vertical_line_node->parent_id = NAME##_outer_node->id;                                                      \
@@ -289,11 +297,21 @@ struct kan_uim_parent_stack_info_t
     NAME##_vertical_line_node->local_element_order = 2;                                                                \
     NAME##_vertical_line_node->layout.layout = KAN_UI_LAYOUT_FRAME;                                                    \
                                                                                                                        \
+    KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_vertical_background);                                                       \
+    KAN_UIM_DRAWABLE_IMAGE (NAME##_vertical_background, (LINE_IMAGE));                                                 \
+    KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME##_vertical_line, NAME##_vertical_background);                              \
+    NAME##_vertical_background_node->parent_id = NAME##_vertical_line_node->id;                                        \
+                                                                                                                       \
+    NAME##_vertical_background_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                      \
+    NAME##_vertical_background_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                     \
+    NAME##_vertical_line_node->local_element_order = 0;                                                                \
+                                                                                                                       \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_vertical_knob);                                                             \
-    NAME##_vertical_knob_node->parent_id = NAME##_vertical_line_node->id;                                              \
-    NAME##_vertical_knob_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                            \
     KAN_UIM_DRAWABLE_IMAGE (NAME##_vertical_knob, KAN_UI_IMAGE_COMMAND_NONE);                                          \
     KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME##_vertical_line, NAME##_vertical_knob);                                    \
+    NAME##_vertical_knob_node->parent_id = NAME##_vertical_line_node->id;                                              \
+    NAME##_vertical_knob_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                            \
+    NAME##_vertical_knob_node->local_element_order = 1;                                                                \
                                                                                                                        \
     NAME##_scroll_behavior->vertical_line_id = NAME##_vertical_line_node->id;                                          \
     NAME##_scroll_behavior->vertical_knob_id = NAME##_vertical_knob_node->id

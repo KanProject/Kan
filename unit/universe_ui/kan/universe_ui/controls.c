@@ -284,7 +284,8 @@ static const struct kan_ui_node_hit_box_t *find_hit_box_at (
     KAN_UML_SEQUENCE_READ (hit_box, kan_ui_node_hit_box_t)
     {
         KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &hit_box->id)
-        if (!drawable || drawable->fully_clipped_out || (found && found_index > drawable->draw_index))
+        if (!drawable || drawable->hidden_permanently || drawable->hidden_temporary ||
+            (found && found_index > drawable->draw_index))
         {
             continue;
         }
@@ -455,16 +456,10 @@ static void update_interacted_scroll_line_visibility (struct ui_controls_input_s
     if (KAN_FLOATING_IS_NEAR (line_state->visible_until_s, 0.0f))
     {
         // If was invisible, make visible again.
-        KAN_UMI_VALUE_UPDATE_OPTIONAL (line_drawable, kan_ui_node_drawable_t, id, &line_state->id)
-        if (line_drawable)
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (line_node, kan_ui_node_t, id, &line_state->id)
+        if (line_node)
         {
-            line_drawable->hidden = false;
-        }
-
-        KAN_UMI_VALUE_UPDATE_OPTIONAL (knob_drawable, kan_ui_node_drawable_t, id, &line_state->knob_id)
-        if (knob_drawable)
-        {
-            knob_drawable->hidden = false;
+            line_node->render.hide_children = false;
         }
     }
 
@@ -631,16 +626,10 @@ static void ensure_scroll_is_in_limits (struct ui_controls_input_state_t *state,
 static void hide_scroll_line (struct ui_controls_input_state_t *state,
                               struct kan_ui_node_scroll_line_state_t *line_state)
 {
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_drawable, kan_ui_node_drawable_t, id, &line_state->id)
-    if (line_drawable)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_node, kan_ui_node_t, id, &line_state->id)
+    if (line_node)
     {
-        line_drawable->hidden = true;
-    }
-
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (knob_drawable, kan_ui_node_drawable_t, id, &line_state->knob_id)
-    if (knob_drawable)
-    {
-        knob_drawable->hidden = true;
+        line_node->render.hide_children = true;
     }
 
     line_state->visible_until_s = 0.0f;
@@ -738,27 +727,6 @@ static void process_line_edit_behavior_lifetime (struct ui_controls_input_state_
     }
 }
 
-static void sanitize_input_receiver_selection (struct ui_controls_input_state_t *state,
-                                               struct kan_ui_input_singleton_t *public)
-{
-    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
-    {
-        KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &public->input_receiver_id)
-        if (!node)
-        {
-            if (private->input_receiver_requested_text_input && KAN_HANDLE_IS_VALID (public->linked_window_handle))
-            {
-                kan_application_window_remove_text_listener (state->application_system_handle,
-                                                             public->linked_window_handle);
-            }
-
-            public->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
-            private->input_receiver_requested_text_input = false;
-        }
-    }
-}
-
 static void clear_line_edit_selection_visuals (struct ui_controls_input_state_t *state,
                                                struct kan_ui_node_line_edit_behavior_t *behavior)
 {
@@ -789,6 +757,48 @@ static void line_edit_sanitize_content_on_node_deselection (struct kan_ui_node_l
         }
 
         break;
+    }
+}
+
+static inline void deselect_input_receiver_behavior (struct ui_controls_input_state_t *state,
+                                                     struct kan_ui_input_singleton_t *public,
+                                                     struct ui_controls_input_private_singleton_t *private)
+{
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
+    if (line_edit_behavior)
+    {
+        clear_line_edit_selection_visuals (state, line_edit_behavior);
+        line_edit_sanitize_content_on_node_deselection (line_edit_behavior);
+    }
+
+    if (private->input_receiver_requested_text_input && KAN_HANDLE_IS_VALID (public->linked_window_handle))
+    {
+        kan_application_window_remove_text_listener (state->application_system_handle, public->linked_window_handle);
+    }
+
+    public->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    private->input_receiver_requested_text_input = false;
+}
+
+static void sanitize_input_receiver_selection (struct ui_controls_input_state_t *state,
+                                               struct kan_ui_input_singleton_t *public)
+{
+    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
+    if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
+    {
+        KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &public->input_receiver_id)
+        if (!node)
+        {
+            deselect_input_receiver_behavior (state, public, private);
+            return;
+        }
+
+        KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &public->input_receiver_id)
+        if (!drawable || drawable->hidden_permanently || drawable->hidden_temporary)
+        {
+            deselect_input_receiver_behavior (state, public, private);
+            return;
+        }
     }
 }
 
@@ -1317,8 +1327,12 @@ static void apply_scroll_relative_input (struct ui_controls_input_state_t *state
             kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_x, new_scroll_px);
         update_scroll_horizontal_knob (state, behavior, main_drawable, container_drawable, new_scroll_px);
 
-        KAN_UMI_VALUE_UPDATE_REQUIRED (line_state, kan_ui_node_scroll_line_state_t, id, &behavior->horizontal_line_id)
-        update_interacted_scroll_line_visibility (state, public, line_state, behavior, false);
+        if (KAN_TYPED_ID_32_IS_VALID (behavior->horizontal_line_id))
+        {
+            KAN_UMI_VALUE_UPDATE_REQUIRED (line_state, kan_ui_node_scroll_line_state_t, id,
+                                           &behavior->horizontal_line_id)
+            update_interacted_scroll_line_visibility (state, public, line_state, behavior, false);
+        }
     }
 
     if (behavior->vertical && !KAN_FLOATING_IS_NEAR (delta_y_px, 0.0f))
@@ -1332,8 +1346,11 @@ static void apply_scroll_relative_input (struct ui_controls_input_state_t *state
             kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_y, new_scroll_px);
         update_scroll_vertical_knob (state, behavior, main_drawable, container_drawable, new_scroll_px);
 
-        KAN_UMI_VALUE_UPDATE_REQUIRED (line_state, kan_ui_node_scroll_line_state_t, id, &behavior->vertical_line_id)
-        update_interacted_scroll_line_visibility (state, public, line_state, behavior, false);
+        if (KAN_TYPED_ID_32_IS_VALID (behavior->vertical_line_id))
+        {
+            KAN_UMI_VALUE_UPDATE_REQUIRED (line_state, kan_ui_node_scroll_line_state_t, id, &behavior->vertical_line_id)
+            update_interacted_scroll_line_visibility (state, public, line_state, behavior, false);
+        }
     }
 }
 
@@ -1675,26 +1692,6 @@ static void on_press_motion_internal (struct ui_controls_input_state_t *state,
     {
         on_map_behavior_press_motion (state, map_behavior, x_relative, y_relative);
     }
-}
-
-static inline void deselect_input_receiver_behavior (struct ui_controls_input_state_t *state,
-                                                     struct kan_ui_input_singleton_t *public,
-                                                     struct ui_controls_input_private_singleton_t *private)
-{
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
-    if (line_edit_behavior)
-    {
-        clear_line_edit_selection_visuals (state, line_edit_behavior);
-        line_edit_sanitize_content_on_node_deselection (line_edit_behavior);
-    }
-
-    if (private->input_receiver_requested_text_input && KAN_HANDLE_IS_VALID (public->linked_window_handle))
-    {
-        kan_application_window_remove_text_listener (state->application_system_handle, public->linked_window_handle);
-    }
-
-    public->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
-    private->input_receiver_requested_text_input = false;
 }
 
 static void on_press_begin_internal (struct ui_controls_input_state_t *state,
@@ -2723,16 +2720,10 @@ static void update_scroll_line_visibility (struct ui_controls_input_state_t *sta
              // Check for animation time overflow loop.
              ui->animation_global_time_s < ui->animation_delta_time_s))
         {
-            KAN_UMI_VALUE_UPDATE_OPTIONAL (line_drawable, kan_ui_node_drawable_t, id, &line_state->id)
-            if (line_drawable)
+            KAN_UMI_VALUE_UPDATE_OPTIONAL (line_node, kan_ui_node_t, id, &line_state->id)
+            if (line_node)
             {
-                line_drawable->hidden = true;
-            }
-
-            KAN_UMI_VALUE_UPDATE_OPTIONAL (knob_drawable, kan_ui_node_drawable_t, id, &line_state->knob_id)
-            if (knob_drawable)
-            {
-                knob_drawable->hidden = true;
+                line_node->render.hide_children = true;
             }
 
             line_state->visible_until_s = 0.0f;
@@ -2864,7 +2855,7 @@ static void sync_ui_size_from_text_secondary (struct ui_controls_pre_layout_stat
     }
 
     KAN_UMI_VALUE_UPDATE_REQUIRED (drawable, kan_ui_node_drawable_t, id, &node->id)
-    drawable->hidden = false;
+    drawable->hidden_temporary = false;
 }
 
 /// \details Intentionally not dependant on mutator as adjustment can be needed on pre render during
@@ -2934,7 +2925,7 @@ static void make_map_pin_hierarchy_visible (struct ui_controls_pre_layout_state_
     KAN_UMI_VALUE_UPDATE_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &node->id)
     if (drawable)
     {
-        drawable->hidden = false;
+        drawable->hidden_temporary = false;
     }
 
     KAN_UML_VALUE_READ (child, kan_ui_node_t, parent_id, &node->id) { make_map_pin_hierarchy_visible (state, child); }
@@ -3082,8 +3073,8 @@ static void text_behavior_post_laid_out (struct ui_controls_post_layout_state_t 
 
     if (shaping_unit->dirty && text_behavior->sync_ui_size_from_text_secondary)
     {
-        // Will be shown again once
-        drawable->hidden = true;
+        // Will be shown again once more.
+        drawable->hidden_temporary = true;
     }
 }
 
@@ -3093,7 +3084,7 @@ static void make_map_pin_hierarchy_hidden (struct ui_controls_post_layout_state_
     KAN_UMI_VALUE_UPDATE_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &node->id)
     if (drawable)
     {
-        drawable->hidden = true;
+        drawable->hidden_temporary = true;
     }
 
     KAN_UML_VALUE_READ (child, kan_ui_node_t, parent_id, &node->id) { make_map_pin_hierarchy_visible (state, child); }

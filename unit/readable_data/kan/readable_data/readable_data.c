@@ -444,19 +444,27 @@ static inline kan_instance_offset_t re2c_parse_signed_decimal (const char *begin
         return 0;
     }
 
-    if (unsigned_value > INT32_MAX)
+    if (positive)
     {
-        *overflow_flag = true;
-        return 0;
-    }
+        if (unsigned_value > KAN_INT_MAX (kan_instance_offset_t))
+        {
+            *overflow_flag = true;
+            return 0;
+        }
 
-    kan_instance_offset_t result = (kan_instance_offset_t) unsigned_value;
-    if (!positive)
+        return (kan_instance_offset_t) unsigned_value;
+    }
+    else
     {
-        result = -result;
-    }
+        const kan_instance_size_t inverted_value = KAN_INT_MAX (kan_instance_size_t) - unsigned_value + 1u;
+        if (inverted_value <= KAN_INT_MAX (kan_instance_offset_t))
+        {
+            *overflow_flag = true;
+            return 0;
+        }
 
-    return result;
+        return (kan_instance_offset_t) inverted_value;
+    }
 }
 
 static inline kan_floating_t re2c_parse_floating (const char *begin, const char *end)

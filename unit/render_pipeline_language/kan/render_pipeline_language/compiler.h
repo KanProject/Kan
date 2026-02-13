@@ -84,8 +84,8 @@ struct kan_rpl_graphics_classic_pipeline_settings_t
     bool depth_write;
     bool depth_bounds_test;
     enum kan_rpl_compare_operation_t depth_compare_operation;
-    float depth_min;
-    float depth_max;
+    kan_floating_t depth_min;
+    kan_floating_t depth_max;
 
     bool stencil_test;
     enum kan_rpl_stencil_operation_t stencil_front_on_fail;
@@ -425,10 +425,10 @@ static inline struct kan_rpl_meta_color_output_t kan_rpl_meta_color_output_defau
 /// \brief Contains constants for color blending operations.
 struct kan_rpl_color_blend_constants_t
 {
-    float r;
-    float g;
-    float b;
-    float a;
+    kan_floating_t r;
+    kan_floating_t g;
+    kan_floating_t b;
+    kan_floating_t a;
 };
 
 /// \brief Provides full metadata about resolved pipeline.

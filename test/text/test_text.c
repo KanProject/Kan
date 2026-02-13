@@ -475,22 +475,22 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
     }
 
     kan_render_backend_system_select_device (render_backend_system, picked_device);
-    float open_sans_regular_variable_axis[] = {
+    kan_floating_t open_sans_regular_variable_axis[] = {
         400.0f,
         100.0f,
     };
 
-    float open_sans_bold_variable_axis[] = {
+    kan_floating_t open_sans_bold_variable_axis[] = {
         700.0f,
         100.0f,
     };
 
-    float cairo_regular_variable_axis[] = {
+    kan_floating_t cairo_regular_variable_axis[] = {
         400.0f,
         5.0f,
     };
 
-    float cairo_bold_variable_axis[] = {
+    kan_floating_t cairo_bold_variable_axis[] = {
         700.0f,
         5.0f,
     };
@@ -701,8 +701,8 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
         struct kan_render_viewport_bounds_t text_viewport_bounds = {
             .x = 0.0f,
             .y = 0.0f,
-            .width = (float) TEST_WIDTH,
-            .height = (float) TEST_HEIGHT,
+            .width = (kan_floating_t) TEST_WIDTH,
+            .height = (kan_floating_t) TEST_HEIGHT,
             .depth_min = 0.0f,
             .depth_max = 1.0f,
         };
@@ -753,8 +753,8 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
                                              &slice.buffer, &slice.slice_offset);
 
         struct text_push_data_t push_data;
-        push_data.projection_view =
-            kan_orthographic_projection (0.0f, (float) TEST_WIDTH, (float) TEST_HEIGHT, 0.0f, 0.01f, 5000.0f);
+        push_data.projection_view = kan_orthographic_projection (0.0f, (kan_floating_t) TEST_WIDTH,
+                                                                 (kan_floating_t) TEST_HEIGHT, 0.0f, 0.01f, 5000.0f);
 
         push_data.element_offset.x = 100.0f;
         push_data.element_offset.y = 100.0f;

@@ -229,7 +229,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_time)
     if (public->last_time_ns != KAN_INT_MAX (kan_time_size_t))
     {
         const kan_time_size_t delta_ns = kan_precise_time_get_elapsed_nanoseconds () - public->last_time_ns;
-        const float delta_s = 1e-9f * (float) delta_ns;
+        const kan_floating_t delta_s = 1e-9f * (kan_floating_t) delta_ns;
 
         public->animation_global_time_s =
             fmodf (public->animation_global_time_s + delta_s, public->animation_global_time_loop_s);
@@ -1663,8 +1663,8 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
     struct kan_render_viewport_bounds_t viewport_bounds = {
         .x = 0.0f,
         .y = 0.0f,
-        .width = (float) ui_singleton->viewport_width,
-        .height = (float) ui_singleton->viewport_height,
+        .width = (kan_floating_t) ui_singleton->viewport_width,
+        .height = (kan_floating_t) ui_singleton->viewport_height,
         .depth_min = 0.0f,
         .depth_max = 1.0f,
     };

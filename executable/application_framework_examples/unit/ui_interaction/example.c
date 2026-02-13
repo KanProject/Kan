@@ -64,8 +64,8 @@ struct example_ui_interaction_singleton_t
     kan_ui_node_id_t scroll_container_id;
     kan_ui_node_id_t line_edit_id;
 
-    float test_last_mouse_x;
-    float test_last_mouse_y;
+    kan_floating_t test_last_mouse_x;
+    kan_floating_t test_last_mouse_y;
 };
 
 APPLICATION_FRAMEWORK_EXAMPLES_UI_INTERACTION_API void example_ui_interaction_singleton_init (
@@ -149,7 +149,7 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
     KAN_UIM_PREPARE_ROOT;
 
     const uint32_t default_text_mark = KAN_UI_DEFAULT_TEXT_MAKE_MARK (0u, KAN_UI_DEFAULT_TEXT_MARK_FLAG_OUTLINE);
-    const float outline_enlarge_factor = 1.0625f;
+    const kan_floating_t outline_enlarge_factor = 1.0625f;
 
     KAN_UIM_WIDGET_IMAGE (left_window, KAN_UI_IMAGE_COMMAND_DEFAULT (image_window));
     KAN_UIM_HIT_BOX_BLOCKING (left_window);

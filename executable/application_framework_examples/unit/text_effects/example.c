@@ -661,8 +661,8 @@ static void try_render_frame (struct text_effects_render_state_t *state,
     struct kan_render_viewport_bounds_t viewport_bounds = {
         .x = 0.0f,
         .y = 0.0f,
-        .width = (float) FIXED_WIDTH,
-        .height = (float) FIXED_HEIGHT,
+        .width = (kan_floating_t) FIXED_WIDTH,
+        .height = (kan_floating_t) FIXED_HEIGHT,
         .depth_min = 0.0f,
         .depth_max = 1.0f,
     };

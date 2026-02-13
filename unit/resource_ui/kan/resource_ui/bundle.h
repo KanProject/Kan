@@ -28,7 +28,7 @@ struct kan_resource_ui_hit_box_interaction_style_t
     kan_interned_string_t down_image;
 
     /// \brief For how much time hit box should be rendered as down after being pressed.
-    float down_state_s;
+    kan_floating_t down_state_s;
 };
 
 /// \brief Describes ui bundle resource.

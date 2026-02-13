@@ -1750,8 +1750,8 @@ static void try_render_frame (struct deferred_render_state_t *state,
         struct kan_render_viewport_bounds_t viewport_bounds = {
             .x = 0.0f,
             .y = 0.0f,
-            .width = (float) viewport_width,
-            .height = (float) viewport_height,
+            .width = (kan_floating_t) viewport_width,
+            .height = (kan_floating_t) viewport_height,
             .depth_min = 0.0f,
             .depth_max = 1.0f,
         };
@@ -1845,8 +1845,8 @@ static void try_render_frame (struct deferred_render_state_t *state,
         struct kan_render_viewport_bounds_t viewport_bounds = {
             .x = 0.0f,
             .y = 0.0f,
-            .width = (float) DIRECTIONAL_SHADOW_MAP_WIDTH,
-            .height = (float) DIRECTIONAL_SHADOW_MAP_HEIGHT,
+            .width = (kan_floating_t) DIRECTIONAL_SHADOW_MAP_WIDTH,
+            .height = (kan_floating_t) DIRECTIONAL_SHADOW_MAP_HEIGHT,
             .depth_min = 0.0f,
             .depth_max = 1.0f,
         };

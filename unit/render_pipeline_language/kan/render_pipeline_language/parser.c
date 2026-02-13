@@ -32,7 +32,7 @@ struct parser_option_t
         bool flag_default_value;
         kan_instance_size_t uint_default_value;
         kan_instance_offset_t sint_default_value;
-        float float_default_value;
+        kan_floating_t float_default_value;
         struct parser_option_enum_value_t *first_enum_value;
     };
 };
@@ -125,7 +125,7 @@ struct parser_expression_tree_node_t
 
         kan_instance_offset_t signed_literal;
 
-        float floating_literal;
+        kan_floating_t floating_literal;
 
         kan_interned_string_t string_literal;
 
@@ -1009,12 +1009,12 @@ static inline kan_instance_size_t parse_hex_unsigned_integer_value (struct rpl_p
     return value;
 }
 
-static inline float parse_unsigned_floating_value (struct rpl_parser_t *parser,
-                                                   struct dynamic_parser_state_t *state,
-                                                   const char *literal_begin,
-                                                   const char *literal_end)
+static inline kan_floating_t parse_unsigned_floating_value (struct rpl_parser_t *parser,
+                                                            struct dynamic_parser_state_t *state,
+                                                            const char *literal_begin,
+                                                            const char *literal_end)
 {
-    float value = 0.0f;
+    kan_floating_t value = 0.0f;
     while (literal_begin < literal_end)
     {
         if (*literal_begin == '.')
@@ -1027,7 +1027,7 @@ static inline float parse_unsigned_floating_value (struct rpl_parser_t *parser,
         ++literal_begin;
     }
 
-    float modifier = 0.1f;
+    kan_floating_t modifier = 0.1f;
     while (literal_begin < literal_end)
     {
         value += modifier * (float) (*literal_begin - '0');
@@ -1841,7 +1841,7 @@ static bool parse_expression_floating_literal (struct rpl_parser_t *parser,
         ++literal_begin;
     }
 
-    const float positive_literal = parse_unsigned_floating_value (parser, state, literal_begin, literal_end);
+    const kan_floating_t positive_literal = parse_unsigned_floating_value (parser, state, literal_begin, literal_end);
     node->floating_literal = positive_literal;
 
     if (is_negative)

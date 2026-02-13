@@ -677,7 +677,9 @@ void kan_render_pass_instance_indices (kan_render_pass_instance_t pass_instance,
     vkCmdBindIndexBuffer (instance->command_buffer, index_buffer->buffer, 0u, index_type);
 }
 
-void kan_render_pass_instance_depth_bounds (kan_render_pass_instance_t pass_instance, float min, float max)
+void kan_render_pass_instance_depth_bounds (kan_render_pass_instance_t pass_instance,
+                                            kan_floating_t min,
+                                            kan_floating_t max)
 {
     struct render_backend_pass_instance_t *instance = KAN_HANDLE_GET (pass_instance);
     struct render_backend_command_state_t *command_state =

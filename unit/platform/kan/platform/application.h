@@ -121,10 +121,10 @@ struct kan_platform_application_event_mouse_motion_t
 {
     kan_platform_window_id_t window_id;
     uint8_t button_state;
-    float window_x;
-    float window_y;
-    float window_x_relative;
-    float window_y_relative;
+    kan_floating_t window_x;
+    kan_floating_t window_y;
+    kan_floating_t window_x_relative;
+    kan_floating_t window_y_relative;
 };
 
 /// \brief Suffix structure for mouse button events.
@@ -133,18 +133,18 @@ struct kan_platform_application_event_mouse_button_t
     kan_platform_window_id_t window_id;
     enum kan_platform_mouse_button_t button;
     uint8_t clicks;
-    float window_x;
-    float window_y;
+    kan_floating_t window_x;
+    kan_floating_t window_y;
 };
 
 /// \brief Suffix structure for mouse wheel events.
 struct kan_platform_application_event_mouse_wheel_t
 {
     kan_platform_window_id_t window_id;
-    float wheel_x;
-    float wheel_y;
-    float window_x;
-    float window_y;
+    kan_floating_t wheel_x;
+    kan_floating_t wheel_y;
+    kan_floating_t window_x;
+    kan_floating_t window_y;
 };
 
 /// \brief Describes event received from platform.
@@ -206,8 +206,8 @@ struct kan_platform_display_mode_t
     enum kan_platform_pixel_format_t pixel_format;
     kan_instance_size_t width;
     kan_instance_size_t height;
-    float pixel_density;
-    float refresh_rate;
+    kan_floating_t pixel_density;
+    kan_floating_t refresh_rate;
 };
 
 /// \brief Enumerates supported window flags.
@@ -274,7 +274,7 @@ PLATFORM_API enum kan_platform_display_orientation_t kan_platform_application_ge
     kan_platform_display_id_t display_id);
 
 /// \brief Queries display content scale.
-PLATFORM_API float kan_platform_application_get_display_content_scale (kan_platform_display_id_t display_id);
+PLATFORM_API kan_floating_t kan_platform_application_get_display_content_scale (kan_platform_display_id_t display_id);
 
 /// \brief Queries display modes for full screen rendering and outputs them into given array.
 PLATFORM_API void kan_platform_application_get_fullscreen_display_modes (kan_platform_display_id_t display_id,
@@ -299,10 +299,10 @@ PLATFORM_API kan_platform_display_id_t
 kan_platform_application_window_get_display_id (kan_platform_window_id_t window_id);
 
 /// \brief Queries pixel density for given window.
-PLATFORM_API float kan_platform_application_window_get_pixel_density (kan_platform_window_id_t window_id);
+PLATFORM_API kan_floating_t kan_platform_application_window_get_pixel_density (kan_platform_window_id_t window_id);
 
 /// \brief Queries display scale for given window.
-PLATFORM_API float kan_platform_application_window_get_display_scale (kan_platform_window_id_t window_id);
+PLATFORM_API kan_floating_t kan_platform_application_window_get_display_scale (kan_platform_window_id_t window_id);
 
 /// \brief Queries pixel format for given window.
 PLATFORM_API enum kan_platform_pixel_format_t kan_platform_application_window_get_pixel_format (
@@ -414,10 +414,11 @@ PLATFORM_API bool kan_platform_application_window_set_keyboard_grab (kan_platfor
                                                                      bool grab_keyboard);
 
 /// \brief Sets given window opacity.
-PLATFORM_API bool kan_platform_application_window_set_opacity (kan_platform_window_id_t window_id, float opacity);
+PLATFORM_API bool kan_platform_application_window_set_opacity (kan_platform_window_id_t window_id,
+                                                               kan_floating_t opacity);
 
 /// \brief Queries given window opacity.
-PLATFORM_API float kan_platform_application_window_get_opacity (kan_platform_window_id_t window_id);
+PLATFORM_API kan_floating_t kan_platform_application_window_get_opacity (kan_platform_window_id_t window_id);
 
 /// \brief Sets whether given window is focusable.
 PLATFORM_API void kan_platform_application_window_set_focusable (kan_platform_window_id_t window_id, bool focusable);
@@ -443,16 +444,18 @@ PLATFORM_API void kan_platform_application_window_destroy_vulkan_surface (kan_pl
 PLATFORM_API void kan_platform_application_window_destroy (kan_platform_window_id_t window_id);
 
 /// \brief Queries mouse state and position local to focus window.
-PLATFORM_API uint8_t kan_platform_application_get_mouse_state_local_to_focus (float *x, float *y);
+PLATFORM_API uint8_t kan_platform_application_get_mouse_state_local_to_focus (kan_floating_t *x, kan_floating_t *y);
 
 /// \brief Queries mouse state and position in global coordinates.
-PLATFORM_API uint8_t kan_platform_application_get_global_mouse_state (float *x, float *y);
+PLATFORM_API uint8_t kan_platform_application_get_global_mouse_state (kan_floating_t *x, kan_floating_t *y);
 
 /// \brief Warps mouse to given position in given window.
-PLATFORM_API void kan_platform_application_warp_mouse_in_window (kan_platform_window_id_t window_id, float x, float y);
+PLATFORM_API void kan_platform_application_warp_mouse_in_window (kan_platform_window_id_t window_id,
+                                                                 kan_floating_t x,
+                                                                 kan_floating_t y);
 
 /// \brief Warps mouse to given global position.
-PLATFORM_API void kan_platform_application_warp_mouse_global (float x, float y);
+PLATFORM_API void kan_platform_application_warp_mouse_global (kan_floating_t x, kan_floating_t y);
 
 /// \brief Sets whether cursor is visible.
 PLATFORM_API void kan_platform_application_set_cursor_visible (bool visible);

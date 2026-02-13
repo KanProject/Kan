@@ -53,7 +53,7 @@ struct compile_time_evaluation_value_t
         bool boolean_value;
         kan_instance_size_t uint_value;
         kan_instance_offset_t sint_value;
-        float float_value;
+        kan_floating_t float_value;
         kan_interned_string_t string_value;
     };
 };
@@ -520,7 +520,7 @@ struct compiler_instance_expression_node_t
         struct compiler_instance_structured_access_suffix_t structured_access;
         struct compiler_instance_swizzle_suffix_t swizzle;
         struct compiler_instance_container_field_node_t *container_field_access;
-        float floating_literal;
+        kan_floating_t floating_literal;
         kan_instance_size_t unsigned_literal;
         kan_instance_offset_t signed_literal;
         struct compiler_instance_variable_declaration_suffix_t variable_declaration;

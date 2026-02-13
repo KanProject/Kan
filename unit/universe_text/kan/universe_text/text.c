@@ -466,7 +466,7 @@ static void advance_font_libraries_from_waiting_blobs (struct text_management_st
                 setup->script = category->script;
                 setup->style = style->style;
                 setup->variable_axis_count = style->variable_font_axes.size;
-                setup->variable_axis = (float *) style->variable_font_axes.data;
+                setup->variable_axis = (kan_floating_t *) style->variable_font_axes.data;
 
                 KAN_UMI_VALUE_READ_REQUIRED (font_blob, font_blob_t, name, &style->font_data_file)
                 KAN_ASSERT (font_blob->used_for_loading)

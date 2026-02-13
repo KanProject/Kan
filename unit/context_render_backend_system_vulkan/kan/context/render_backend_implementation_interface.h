@@ -501,8 +501,8 @@ struct render_backend_graphics_pipeline_t
     struct render_backend_pipeline_layout_t *layout;
 
     struct render_backend_pass_t *pass;
-    float min_depth;
-    float max_depth;
+    kan_floating_t min_depth;
+    kan_floating_t max_depth;
 
     enum kan_render_pipeline_compilation_priority_t compilation_priority;
     enum pipeline_compilation_state_t compilation_state;
@@ -892,7 +892,7 @@ struct render_backend_system_t
     VkDescriptorSetLayout empty_descriptor_set_layout;
 
 #if defined(KAN_CONTEXT_RENDER_BACKEND_VULKAN_PRINT_FRAME_TIMES)
-    float timestamp_period;
+    kan_floating_t timestamp_period;
     bool timestamp_queries_supported;
 #endif
 

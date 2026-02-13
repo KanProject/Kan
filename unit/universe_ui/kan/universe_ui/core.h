@@ -138,19 +138,19 @@ struct kan_ui_singleton_t
     struct kan_atomic_int_t node_id_counter;
 
     /// \brief Affects point-based UI coordinates..
-    float scale;
+    kan_floating_t scale;
 
     kan_instance_offset_t viewport_width;
     kan_instance_offset_t viewport_height;
 
     /// \brief Global time for UI gpu-based animations.
-    float animation_global_time_s;
+    kan_floating_t animation_global_time_s;
 
     /// \brief Delta time for UI animations and for delta time bound input.
-    float animation_delta_time_s;
+    kan_floating_t animation_delta_time_s;
 
     /// \brief Global time for UI animations loops back to zero when it becomes higher than this value.
-    float animation_global_time_loop_s;
+    kan_floating_t animation_global_time_loop_s;
 
     /// \brief Use to calculate deltas for `animation_global_time_s`.
     kan_time_size_t last_time_ns;
@@ -226,7 +226,7 @@ enum kan_ui_coordinate_type_t
 struct kan_ui_coordinate_t
 {
     enum kan_ui_coordinate_type_t type;
-    float value;
+    kan_floating_t value;
 };
 
 #define KAN_UI_VALUE_BUILD(TYPE, VALUE) ((struct kan_ui_coordinate_t) {.type = TYPE, .value = (VALUE)})
@@ -235,10 +235,10 @@ struct kan_ui_coordinate_t
 #define KAN_UI_VALUE_VH(VALUE) KAN_UI_VALUE_BUILD (KAN_UI_VH, VALUE)
 #define KAN_UI_VALUE_VW(VALUE) KAN_UI_VALUE_BUILD (KAN_UI_VW, VALUE)
 
-static inline float kan_ui_calculate_coordinate_floating (const struct kan_ui_singleton_t *ui,
-                                                          struct kan_ui_coordinate_t coordinate)
+static inline kan_floating_t kan_ui_calculate_coordinate_floating (const struct kan_ui_singleton_t *ui,
+                                                                   struct kan_ui_coordinate_t coordinate)
 {
-    float floating_value = 0.0f;
+    kan_floating_t floating_value = 0.0f;
     switch (coordinate.type)
     {
     case KAN_UI_PT:
@@ -250,11 +250,11 @@ static inline float kan_ui_calculate_coordinate_floating (const struct kan_ui_si
         break;
 
     case KAN_UI_VH:
-        floating_value = coordinate.value * (float) ui->viewport_height;
+        floating_value = coordinate.value * (kan_floating_t) ui->viewport_height;
         break;
 
     case KAN_UI_VW:
-        floating_value = coordinate.value * (float) ui->viewport_width;
+        floating_value = coordinate.value * (kan_floating_t) ui->viewport_width;
         break;
     }
 
@@ -269,7 +269,7 @@ static inline kan_instance_offset_t kan_ui_calculate_coordinate (const struct ka
 
 static inline struct kan_ui_coordinate_t kan_ui_coordinate_from_pixels (const struct kan_ui_singleton_t *ui,
                                                                         enum kan_ui_coordinate_type_t type,
-                                                                        float pixels)
+                                                                        kan_floating_t pixels)
 {
     struct kan_ui_coordinate_t result = {
         .type = type,
@@ -287,11 +287,11 @@ static inline struct kan_ui_coordinate_t kan_ui_coordinate_from_pixels (const st
         break;
 
     case KAN_UI_VH:
-        result.value = pixels / (float) ui->viewport_height;
+        result.value = pixels / (kan_floating_t) ui->viewport_height;
         break;
 
     case KAN_UI_VW:
-        result.value = pixels / (float) ui->viewport_width;
+        result.value = pixels / (kan_floating_t) ui->viewport_width;
         break;
     }
 
@@ -627,7 +627,7 @@ struct kan_ui_draw_command_data_t
 
     /// \brief Used to calculate local time for primitive animation on GPU if any animation is used.
     /// \details Relative to `kan_ui_render_graph_singleton_t::animation_global_time_s`.
-    float animation_start_time_s;
+    kan_floating_t animation_start_time_s;
 
     /// \brief If inside `kan_ui_node_drawable_t::additional_draw_commands`, setting this to true results in this
     ///        command being executed prior to `kan_ui_node_drawable_t::main_draw_command`.

@@ -884,7 +884,7 @@ bool kan_render_backend_system_select_device (kan_context_system_t render_backen
         return false;
     }
 
-    float queues_priorities = 0.0f;
+    kan_floating_t queues_priorities = 0.0f;
     VkDeviceQueueCreateInfo queues_create_info[] = {
         {
             .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -3894,8 +3894,8 @@ bool kan_render_backend_system_next_frame (kan_context_system_t render_backend_s
 
             if (GET_AVAILABILITY (0u) && GET_AVAILABILITY (1u))
             {
-                const float difference_ns_float =
-                    system->timestamp_period * (float) (GET_TIMESTAMP (1u) - GET_TIMESTAMP (0u));
+                const kan_floating_t difference_ns_float =
+                    system->timestamp_period * (kan_floating_t) (GET_TIMESTAMP (1u) - GET_TIMESTAMP (0u));
                 const kan_time_size_t difference_ns = lroundf (difference_ns_float);
 
                 KAN_LOG (render_backend_system_vulkan, KAN_LOG_INFO, "Recovered GPU frame time: %lu ns.",

@@ -26,7 +26,7 @@
 KAN_LOG_DEFINE_CATEGORY (text);
 
 #define TO_26_6(VALUE) ((VALUE) * 64)
-#define FROM_26_6(VALUE) ((float) (VALUE) / 64.0f)
+#define FROM_26_6(VALUE) ((kan_floating_t) (VALUE) / 64.0f)
 #define MISSING_GLYPH 0u
 
 KAN_USE_STATIC_CPU_SECTIONS
@@ -447,8 +447,8 @@ struct text_icon_t
 {
     kan_interned_string_t style;
     uint32_t icon_index;
-    float x_scale;
-    float y_scale;
+    kan_floating_t x_scale;
+    kan_floating_t y_scale;
 };
 
 struct text_style_t
@@ -897,7 +897,7 @@ struct font_library_category_t
     hb_face_t *harfbuzz_face;
 
     kan_instance_size_t variable_axis_count;
-    float *variable_axis;
+    kan_floating_t *variable_axis;
 
     struct kan_atomic_int_t glyphs_read_write_lock;
     struct kan_hash_storage_t glyphs;
@@ -1062,8 +1062,9 @@ kan_font_library_t kan_font_library_create (kan_render_context_t render_context,
         if (source->variable_axis_count)
         {
             target->variable_axis = kan_stack_group_allocator_allocate (
-                &library->allocator, sizeof (float) * source->variable_axis_count, alignof (float));
-            memcpy (target->variable_axis, source->variable_axis, sizeof (float) * source->variable_axis_count);
+                &library->allocator, sizeof (kan_floating_t) * source->variable_axis_count, alignof (kan_floating_t));
+            memcpy (target->variable_axis, source->variable_axis,
+                    sizeof (kan_floating_t) * source->variable_axis_count);
 
             FT_Fixed *freetype_axis = kan_stack_group_allocator_allocate (
                 &library->allocator, sizeof (FT_Fixed) * source->variable_axis_count, alignof (FT_Fixed));
@@ -1348,11 +1349,12 @@ static inline void shape_apply_rendered_data_to_glyph (struct shape_context_t *c
     case KAN_FONT_GLYPH_RENDER_FORMAT_SDF:
         if (context->request->font_size != KAN_TEXT_FT_HB_SDF_ATLAS_FONT_SIZE)
         {
-            const float scale = (float) context->request->font_size / (float) KAN_TEXT_FT_HB_SDF_ATLAS_FONT_SIZE;
-            bearing_x = (int32_t) roundf (scale * (float) bearing_x);
-            bearing_y = (int32_t) roundf (scale * (float) bearing_y);
-            width = (int32_t) roundf (scale * (float) width);
-            height = (int32_t) roundf (scale * (float) height);
+            const kan_floating_t scale =
+                (kan_floating_t) context->request->font_size / (kan_floating_t) KAN_TEXT_FT_HB_SDF_ATLAS_FONT_SIZE;
+            bearing_x = (int32_t) roundf (scale * (kan_floating_t) bearing_x);
+            bearing_y = (int32_t) roundf (scale * (kan_floating_t) bearing_y);
+            width = (int32_t) roundf (scale * (kan_floating_t) width);
+            height = (int32_t) roundf (scale * (kan_floating_t) height);
         }
 
         break;
@@ -1702,10 +1704,12 @@ static void font_library_render_sdf_unsafe (struct font_library_t *library,
     rendered->bitmap_bearing.y = TO_26_6 ((int32_t) slot->bitmap_top);
     rendered->bitmap_size.x = TO_26_6 ((int32_t) glyph_width);
     rendered->bitmap_size.y = TO_26_6 ((int32_t) glyph_height);
-    rendered->uv_min.x = (float) atlas->current_row_x / (float) atlas_width;
-    rendered->uv_min.y = (float) atlas->current_row_y / (float) atlas_height;
-    rendered->uv_max.x = ((float) atlas->current_row_x + (float) glyph_width) / (float) atlas_width;
-    rendered->uv_max.y = ((float) atlas->current_row_y + (float) glyph_height) / (float) atlas_height;
+    rendered->uv_min.x = (kan_floating_t) atlas->current_row_x / (kan_floating_t) atlas_width;
+    rendered->uv_min.y = (kan_floating_t) atlas->current_row_y / (kan_floating_t) atlas_height;
+    rendered->uv_max.x =
+        ((kan_floating_t) atlas->current_row_x + (kan_floating_t) glyph_width) / (kan_floating_t) atlas_width;
+    rendered->uv_max.y =
+        ((kan_floating_t) atlas->current_row_y + (kan_floating_t) glyph_height) / (kan_floating_t) atlas_height;
 
     // Update cursor. Overflows will be handled during next glyph render.
     atlas->current_row_x += glyph_width + KAN_TEXT_FT_HB_SDF_ATLAS_GLYPH_BORDER;
@@ -2110,9 +2114,10 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
 
 static void shape_text_node_icon (struct shape_context_t *context, struct text_node_t *node)
 {
-    const int32_t width_26_6 = (int32_t) roundf ((float) context->icon_base_width_26_6 * node->icon.x_scale);
-    const int32_t height_26_6 = (int32_t) roundf ((float) context->icon_base_height_26_6 * node->icon.y_scale);
-    const int32_t offset_26_6 = (int32_t) roundf ((float) context->icon_base_y_offset_26_6 * node->icon.y_scale);
+    const int32_t width_26_6 = (int32_t) roundf ((kan_floating_t) context->icon_base_width_26_6 * node->icon.x_scale);
+    const int32_t height_26_6 = (int32_t) roundf ((kan_floating_t) context->icon_base_height_26_6 * node->icon.y_scale);
+    const int32_t offset_26_6 =
+        (int32_t) roundf ((kan_floating_t) context->icon_base_y_offset_26_6 * node->icon.y_scale);
 
     const int32_t length_26_6 =
         context->request->orientation == KAN_TEXT_ORIENTATION_HORIZONTAL ? width_26_6 : height_26_6;

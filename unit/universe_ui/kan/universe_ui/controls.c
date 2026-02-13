@@ -72,7 +72,7 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_n
 struct kan_ui_node_down_mark_t
 {
     kan_ui_node_id_t id;
-    float down_until_s;
+    kan_floating_t down_until_s;
 };
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
@@ -192,7 +192,7 @@ struct kan_ui_node_scroll_line_state_t
     kan_ui_node_id_t behavior_id;
     kan_ui_node_id_t knob_id;
     enum kan_ui_node_scroll_line_class_t class;
-    float visible_until_s;
+    kan_floating_t visible_until_s;
 };
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
@@ -518,19 +518,20 @@ static void update_scroll_horizontal_knob (struct ui_controls_input_state_t *sta
                                            const struct kan_ui_node_scroll_behavior_t *behavior,
                                            const struct kan_ui_node_drawable_t *main_drawable,
                                            const struct kan_ui_node_drawable_t *container_drawable,
-                                           float scroll_value_px)
+                                           kan_floating_t scroll_value_px)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (horizontal_line_drawable, kan_ui_node_drawable_t, id, &behavior->horizontal_line_id)
     KAN_UMI_VALUE_UPDATE_OPTIONAL (horizontal_knob_node, kan_ui_node_t, id, &behavior->horizontal_knob_id)
 
     if (horizontal_line_drawable && horizontal_knob_node)
     {
-        const float knob_size_ratio = KAN_MIN (1.0f, (float) main_drawable->width / (float) container_drawable->width);
-        const float knob_size_px = knob_size_ratio * (float) horizontal_line_drawable->width;
+        const kan_floating_t knob_size_ratio =
+            KAN_MIN (1.0f, (kan_floating_t) main_drawable->width / (kan_floating_t) container_drawable->width);
+        const kan_floating_t knob_size_px = knob_size_ratio * (kan_floating_t) horizontal_line_drawable->width;
         horizontal_knob_node->element.width = KAN_UI_VALUE_PX (knob_size_px);
 
-        const float knob_offset_ratio = scroll_value_px / (float) container_drawable->width;
-        const float knob_offset_px = knob_offset_ratio * (float) horizontal_line_drawable->width;
+        const kan_floating_t knob_offset_ratio = scroll_value_px / (kan_floating_t) container_drawable->width;
+        const kan_floating_t knob_offset_px = knob_offset_ratio * (kan_floating_t) horizontal_line_drawable->width;
         horizontal_knob_node->element.frame_offset_x = KAN_UI_VALUE_PX (knob_offset_px);
     }
 }
@@ -539,20 +540,20 @@ static void update_scroll_vertical_knob (struct ui_controls_input_state_t *state
                                          const struct kan_ui_node_scroll_behavior_t *behavior,
                                          const struct kan_ui_node_drawable_t *main_drawable,
                                          const struct kan_ui_node_drawable_t *container_drawable,
-                                         float scroll_value_px)
+                                         kan_floating_t scroll_value_px)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (vertical_line_drawable, kan_ui_node_drawable_t, id, &behavior->vertical_line_id)
     KAN_UMI_VALUE_UPDATE_OPTIONAL (vertical_knob_node, kan_ui_node_t, id, &behavior->vertical_knob_id)
 
     if (vertical_line_drawable && vertical_knob_node)
     {
-        const float knob_size_ratio =
-            KAN_MIN (1.0f, (float) main_drawable->height / (float) container_drawable->height);
-        const float knob_size_px = knob_size_ratio * (float) vertical_line_drawable->height;
+        const kan_floating_t knob_size_ratio =
+            KAN_MIN (1.0f, (kan_floating_t) main_drawable->height / (kan_floating_t) container_drawable->height);
+        const kan_floating_t knob_size_px = knob_size_ratio * (kan_floating_t) vertical_line_drawable->height;
         vertical_knob_node->element.height = KAN_UI_VALUE_PX (knob_size_px);
 
-        const float knob_offset_ratio = scroll_value_px / (float) container_drawable->height;
-        const float knob_offset_px = knob_offset_ratio * (float) vertical_line_drawable->height;
+        const kan_floating_t knob_offset_ratio = scroll_value_px / (kan_floating_t) container_drawable->height;
+        const kan_floating_t knob_offset_px = knob_offset_ratio * (kan_floating_t) vertical_line_drawable->height;
         vertical_knob_node->element.frame_offset_y = KAN_UI_VALUE_PX (knob_offset_px);
     }
 }
@@ -563,10 +564,10 @@ static inline void update_horizontal_scroll_absolute (struct ui_controls_input_s
                                                       const struct kan_ui_node_drawable_t *main_drawable,
                                                       struct kan_ui_node_t *container_node,
                                                       const struct kan_ui_node_drawable_t *container_drawable,
-                                                      float value_px)
+                                                      kan_floating_t value_px)
 {
-    const float new_scroll_px =
-        KAN_CLAMP (value_px, 0.0f, (float) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
+    const kan_floating_t new_scroll_px =
+        KAN_CLAMP (value_px, 0.0f, (kan_floating_t) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
     container_node->render.scroll_x =
         kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_x, new_scroll_px);
     update_scroll_horizontal_knob (state, behavior, main_drawable, container_drawable, new_scroll_px);
@@ -578,10 +579,10 @@ static inline void update_vertical_scroll_absolute (struct ui_controls_input_sta
                                                     const struct kan_ui_node_drawable_t *main_drawable,
                                                     struct kan_ui_node_t *container_node,
                                                     const struct kan_ui_node_drawable_t *container_drawable,
-                                                    float value_px)
+                                                    kan_floating_t value_px)
 {
-    const float new_scroll_px =
-        KAN_CLAMP (value_px, 0.0f, (float) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
+    const kan_floating_t new_scroll_px =
+        KAN_CLAMP (value_px, 0.0f, (kan_floating_t) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
     container_node->render.scroll_y =
         kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_y, new_scroll_px);
     update_scroll_vertical_knob (state, behavior, main_drawable, container_drawable, new_scroll_px);
@@ -602,9 +603,10 @@ static void ensure_scroll_is_in_limits (struct ui_controls_input_state_t *state,
 
     if (behavior->horizontal)
     {
-        const float current_scroll_px = kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_x);
-        const float new_scroll_px = KAN_CLAMP (current_scroll_px, 0.0f,
-                                               (float) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
+        const kan_floating_t current_scroll_px =
+            kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_x);
+        const kan_floating_t new_scroll_px = KAN_CLAMP (
+            current_scroll_px, 0.0f, (kan_floating_t) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
 
         container_node->render.scroll_x =
             kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_x, new_scroll_px);
@@ -613,9 +615,11 @@ static void ensure_scroll_is_in_limits (struct ui_controls_input_state_t *state,
 
     if (behavior->vertical)
     {
-        const float current_scroll_px = kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_y);
-        const float new_scroll_px = KAN_CLAMP (
-            current_scroll_px, 0.0f, (float) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
+        const kan_floating_t current_scroll_px =
+            kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_y);
+        const kan_floating_t new_scroll_px =
+            KAN_CLAMP (current_scroll_px, 0.0f,
+                       (kan_floating_t) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
 
         container_node->render.scroll_y =
             kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_y, new_scroll_px);
@@ -1298,8 +1302,8 @@ static void apply_scroll_relative_input (struct ui_controls_input_state_t *state
                                          struct kan_ui_input_singleton_t *public,
                                          const struct kan_ui_singleton_t *ui,
                                          const struct kan_ui_node_scroll_behavior_t *behavior,
-                                         float delta_x_px,
-                                         float delta_y_px,
+                                         kan_floating_t delta_x_px,
+                                         kan_floating_t delta_y_px,
                                          bool allow_y_to_x)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (main_drawable, kan_ui_node_drawable_t, id, &behavior->id)
@@ -1319,9 +1323,11 @@ static void apply_scroll_relative_input (struct ui_controls_input_state_t *state
 
     if (behavior->horizontal && !KAN_FLOATING_IS_NEAR (delta_x_px, 0.0f))
     {
-        const float current_scroll_px = kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_x);
-        const float new_scroll_px = KAN_CLAMP (current_scroll_px + delta_x_px, 0.0f,
-                                               (float) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
+        const kan_floating_t current_scroll_px =
+            kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_x);
+        const kan_floating_t new_scroll_px =
+            KAN_CLAMP (current_scroll_px + delta_x_px, 0.0f,
+                       (kan_floating_t) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
 
         container_node->render.scroll_x =
             kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_x, new_scroll_px);
@@ -1337,10 +1343,11 @@ static void apply_scroll_relative_input (struct ui_controls_input_state_t *state
 
     if (behavior->vertical && !KAN_FLOATING_IS_NEAR (delta_y_px, 0.0f))
     {
-        const float current_scroll_px = kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_y);
-        const float new_scroll_px =
+        const kan_floating_t current_scroll_px =
+            kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_y);
+        const kan_floating_t new_scroll_px =
             KAN_CLAMP (current_scroll_px + delta_y_px, 0.0f,
-                       (float) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
+                       (kan_floating_t) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
 
         container_node->render.scroll_y =
             kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_y, new_scroll_px);
@@ -1359,7 +1366,7 @@ static void apply_scroll_absolute_horizontal (struct ui_controls_input_state_t *
                                               const struct kan_ui_singleton_t *ui,
                                               const struct kan_ui_node_scroll_behavior_t *behavior,
                                               struct kan_ui_node_scroll_line_state_t *line_state,
-                                              float value_px)
+                                              kan_floating_t value_px)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (main_drawable, kan_ui_node_drawable_t, id, &behavior->id)
     KAN_UMI_VALUE_UPDATE_REQUIRED (container_node, kan_ui_node_t, id, &behavior->container_id)
@@ -1372,8 +1379,8 @@ static void apply_scroll_absolute_horizontal (struct ui_controls_input_state_t *
 
     if (behavior->horizontal)
     {
-        const float new_scroll_px =
-            KAN_CLAMP (value_px, 0.0f, (float) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
+        const kan_floating_t new_scroll_px = KAN_CLAMP (
+            value_px, 0.0f, (kan_floating_t) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
 
         container_node->render.scroll_x =
             kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_x, new_scroll_px);
@@ -1388,7 +1395,7 @@ static void apply_scroll_absolute_vertical (struct ui_controls_input_state_t *st
                                             const struct kan_ui_singleton_t *ui,
                                             const struct kan_ui_node_scroll_behavior_t *behavior,
                                             struct kan_ui_node_scroll_line_state_t *line_state,
-                                            float value_px)
+                                            kan_floating_t value_px)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (main_drawable, kan_ui_node_drawable_t, id, &behavior->id)
     KAN_UMI_VALUE_UPDATE_REQUIRED (container_node, kan_ui_node_t, id, &behavior->container_id)
@@ -1401,8 +1408,8 @@ static void apply_scroll_absolute_vertical (struct ui_controls_input_state_t *st
 
     if (behavior->vertical)
     {
-        const float new_scroll_px =
-            KAN_CLAMP (value_px, 0.0f, (float) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
+        const kan_floating_t new_scroll_px = KAN_CLAMP (
+            value_px, 0.0f, (kan_floating_t) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
 
         container_node->render.scroll_y =
             kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_y, new_scroll_px);
@@ -1430,8 +1437,9 @@ static void place_scroll_line_knob_at_press (struct ui_controls_input_state_t *s
         {
             const kan_instance_offset_t local_offset =
                 KAN_MAX (0, public->last_mouse_x - line_drawable->global_x - private->press_knob_offset);
-            const float target_px =
-                (float) local_offset * (float) container_drawable->width / (float) line_drawable->width;
+            const kan_floating_t target_px = (kan_floating_t) local_offset *
+                                             (kan_floating_t) container_drawable->width /
+                                             (kan_floating_t) line_drawable->width;
 
             // Due to access from inside interacted visibility update, a little bit ad-hoc.
             KAN_UM_ACCESS_CLOSE_IMMEDIATELY (line_drawable);
@@ -1443,8 +1451,9 @@ static void place_scroll_line_knob_at_press (struct ui_controls_input_state_t *s
         {
             const kan_instance_offset_t local_offset =
                 KAN_MAX (0, public->last_mouse_y - line_drawable->global_y - private->press_knob_offset);
-            const float target_px =
-                (float) local_offset * (float) container_drawable->height / (float) line_drawable->height;
+            const kan_floating_t target_px = (kan_floating_t) local_offset *
+                                             (kan_floating_t) container_drawable->height /
+                                             (kan_floating_t) line_drawable->height;
 
             // Due to access from inside interacted visibility update, a little bit ad-hoc.
             KAN_UM_ACCESS_CLOSE_IMMEDIATELY (line_drawable);
@@ -1638,8 +1647,8 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
 
 static void on_map_behavior_press_motion (struct ui_controls_input_state_t *state,
                                           struct kan_ui_node_map_behavior_t *behavior,
-                                          float x_relative,
-                                          float y_relative)
+                                          kan_floating_t x_relative,
+                                          kan_floating_t y_relative)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &behavior->id)
     if (!behavior->movement_enabled || !drawable || drawable->height <= 0 || behavior->camera_half_height <= 0.0f)
@@ -1647,7 +1656,7 @@ static void on_map_behavior_press_motion (struct ui_controls_input_state_t *stat
         return;
     }
 
-    const float px_to_unit = behavior->camera_half_height * 2.0f / (float) drawable->height;
+    const kan_floating_t px_to_unit = behavior->camera_half_height * 2.0f / (kan_floating_t) drawable->height;
     // As we're dragging the map by pressing and moving pointer, direction is inverted.
     behavior->camera_origin.x -= x_relative * px_to_unit;
     behavior->camera_origin.y -= y_relative * px_to_unit;
@@ -1657,8 +1666,8 @@ static void on_map_behavior_press_motion (struct ui_controls_input_state_t *stat
 static void on_press_motion_internal (struct ui_controls_input_state_t *state,
                                       struct kan_ui_input_singleton_t *public,
                                       const struct kan_ui_singleton_t *ui,
-                                      float x_relative,
-                                      float y_relative)
+                                      kan_floating_t x_relative,
+                                      kan_floating_t y_relative)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
     KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id, &public->press_started_on_id)
@@ -1843,7 +1852,7 @@ static void on_map_behavior_zoom (struct ui_controls_input_state_t *state,
                                   struct kan_ui_input_singleton_t *public,
                                   const struct kan_ui_singleton_t *ui,
                                   struct kan_ui_node_map_behavior_t *behavior,
-                                  float zoom)
+                                  kan_floating_t zoom)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &behavior->id)
     if (!behavior->zoom_enabled || !drawable || drawable->height <= 0 || behavior->camera_half_height <= 0.0f)
@@ -1853,23 +1862,23 @@ static void on_map_behavior_zoom (struct ui_controls_input_state_t *state,
 
     // We'd like to cache pre-zoom mouse position in order to move camera after zoom to keep mouse position relation to
     // the map, as it is usually done on web maps.
-    float px_to_unit = behavior->camera_half_height * 2.0f / (float) drawable->height;
+    kan_floating_t px_to_unit = behavior->camera_half_height * 2.0f / (kan_floating_t) drawable->height;
     const kan_instance_offset_t mouse_relative_x = public->last_mouse_x - drawable->global_x - drawable->width / 2;
     const kan_instance_offset_t mouse_relative_y = public->last_mouse_y - drawable->global_y - drawable->height / 2;
 
-    const float mouse_location_x = behavior->camera_origin.x + px_to_unit * (float) mouse_relative_x;
-    const float mouse_location_y = behavior->camera_origin.y + px_to_unit * (float) mouse_relative_y;
+    const kan_floating_t mouse_location_x = behavior->camera_origin.x + px_to_unit * (kan_floating_t) mouse_relative_x;
+    const kan_floating_t mouse_location_y = behavior->camera_origin.y + px_to_unit * (kan_floating_t) mouse_relative_y;
 
     // Apply zoom value to half height.
-    const float strength = KAN_MAX (0.0f, 1.0f - zoom * behavior->scroll_zoom_speed);
+    const kan_floating_t strength = KAN_MAX (0.0f, 1.0f - zoom * behavior->scroll_zoom_speed);
 
     behavior->camera_half_height = KAN_CLAMP (behavior->camera_half_height * strength, behavior->camera_min_half_height,
                                               behavior->camera_max_half_height);
 
     // Now calculate origin back from mouse location.
-    px_to_unit = behavior->camera_half_height * 2.0f / (float) drawable->height;
-    behavior->camera_origin.x = mouse_location_x - px_to_unit * (float) mouse_relative_x;
-    behavior->camera_origin.y = mouse_location_y - px_to_unit * (float) mouse_relative_y;
+    px_to_unit = behavior->camera_half_height * 2.0f / (kan_floating_t) drawable->height;
+    behavior->camera_origin.x = mouse_location_x - px_to_unit * (kan_floating_t) mouse_relative_x;
+    behavior->camera_origin.y = mouse_location_y - px_to_unit * (kan_floating_t) mouse_relative_y;
     behavior->dirty = true;
 }
 
@@ -2146,9 +2155,9 @@ static void process_events (struct ui_controls_input_state_t *state,
                     KAN_UMI_VALUE_READ_OPTIONAL (scroll_behaviour, kan_ui_node_scroll_behavior_t, id, &element->id)
                     if (scroll_behaviour && element->interactable)
                     {
-                        const float speed_x =
+                        const kan_floating_t speed_x =
                             kan_ui_calculate_coordinate_floating (ui, scroll_behaviour->mouse_speed_x);
-                        const float speed_y =
+                        const kan_floating_t speed_y =
                             kan_ui_calculate_coordinate_floating (ui, scroll_behaviour->mouse_speed_y);
 
                         apply_scroll_relative_input (state, public, ui, scroll_behaviour,
@@ -2533,7 +2542,7 @@ static inline kan_floating_t line_edit_parse_positive_floating (const uint8_t **
     }
 
     bool reading_fractional = false;
-    float fractional_modifier = 0.1f;
+    kan_floating_t fractional_modifier = 0.1f;
 
     while (codepoint)
     {
@@ -2552,12 +2561,12 @@ static inline kan_floating_t line_edit_parse_positive_floating (const uint8_t **
 
         if (reading_fractional)
         {
-            result += fractional_modifier * (float) (codepoint - '0');
+            result += fractional_modifier * (kan_floating_t) (codepoint - '0');
             fractional_modifier *= 0.1f;
         }
         else
         {
-            result = result * 10.0f + (float) (codepoint - '0');
+            result = result * 10.0f + (kan_floating_t) (codepoint - '0');
         }
 
         codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
@@ -2845,11 +2854,11 @@ static void sync_ui_size_from_text_secondary (struct ui_controls_pre_layout_stat
         switch (shaping_unit->request.orientation)
         {
         case KAN_TEXT_ORIENTATION_HORIZONTAL:
-            node->element.height = KAN_UI_VALUE_PX ((float) shaping_unit->shaped_secondary_size);
+            node->element.height = KAN_UI_VALUE_PX ((kan_floating_t) shaping_unit->shaped_secondary_size);
             break;
 
         case KAN_TEXT_ORIENTATION_VERTICAL:
-            node->element.width = KAN_UI_VALUE_PX ((float) shaping_unit->shaped_secondary_size);
+            node->element.width = KAN_UI_VALUE_PX ((kan_floating_t) shaping_unit->shaped_secondary_size);
             break;
         }
     }
@@ -2869,26 +2878,26 @@ static inline void map_behavior_sanitize_camera (struct kan_ui_node_map_behavior
     }
 
     KAN_ASSERT (map_behavior->camera_min_half_height > 0.0f)
-    const float ratio = (float) drawable->width / (float) drawable->height;
+    const kan_floating_t ratio = (kan_floating_t) drawable->width / (kan_floating_t) drawable->height;
 
     map_behavior->camera_half_height = KAN_CLAMP (
         map_behavior->camera_half_height, map_behavior->camera_min_half_height, map_behavior->camera_max_half_height);
 
     // Limit half height to avoid situation when map does not touch any of the borders when user provided infinitely
     // high max half height (which is expected for the cases when whole map should be visible).
-    const float visible_height = map_behavior->camera_half_height * 2.0f;
-    const float visible_width = ratio * visible_height;
+    const kan_floating_t visible_height = map_behavior->camera_half_height * 2.0f;
+    const kan_floating_t visible_width = ratio * visible_height;
 
     if (visible_width > map_behavior->width && visible_height > map_behavior->height)
     {
-        const float fit_height_value = map_behavior->height * 0.5f;
-        const float fit_width_value = map_behavior->width * 0.5f / ratio;
+        const kan_floating_t fit_height_value = map_behavior->height * 0.5f;
+        const kan_floating_t fit_width_value = map_behavior->width * 0.5f / ratio;
         map_behavior->camera_half_height = KAN_MAX (fit_height_value, fit_width_value);
     }
 
     // Adjust origin to prevent camera from flying outside of borders (when possible with current half height).
-    const float camera_half_height = map_behavior->camera_half_height;
-    const float camera_half_width = ratio * camera_half_height;
+    const kan_floating_t camera_half_height = map_behavior->camera_half_height;
+    const kan_floating_t camera_half_width = ratio * camera_half_height;
 
     if (camera_half_width * 2.0f >= map_behavior->width)
     {
@@ -2942,7 +2951,7 @@ static void resolve_dirty_map_behavior (struct ui_controls_pre_layout_state_t *s
     }
 
     map_behavior_sanitize_camera (map_behavior, drawable);
-    const float unit_to_px = (float) drawable->height / (map_behavior->camera_half_height * 2.0f);
+    const kan_floating_t unit_to_px = (kan_floating_t) drawable->height / (map_behavior->camera_half_height * 2.0f);
 
     KAN_UML_VALUE_READ (pin, kan_ui_node_map_pin_t, map_id, &map_behavior->id)
     {

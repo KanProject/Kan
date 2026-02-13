@@ -98,7 +98,7 @@ struct spirv_generation_floating_constant_t
 {
     struct spirv_generation_floating_constant_t *next;
     spirv_size_t spirv_id;
-    float value;
+    kan_floating_t value;
 };
 
 struct spirv_generation_unsigned_constant_t
@@ -705,7 +705,7 @@ static bool spirv_finalize_generation_context (struct spirv_generation_context_t
 static spirv_size_t spirv_find_or_generate_vector_type (struct spirv_generation_context_t *context,
                                                         kan_instance_size_t type_index);
 
-static spirv_size_t spirv_request_f1_constant (struct spirv_generation_context_t *context, float value)
+static spirv_size_t spirv_request_f1_constant (struct spirv_generation_context_t *context, kan_floating_t value)
 {
     struct spirv_generation_floating_constant_t *existent_constant = context->first_floating_constant;
     while (existent_constant)

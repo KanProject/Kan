@@ -217,9 +217,9 @@ struct kan_ui_press_end_t
 struct kan_ui_scroll_t
 {
     kan_ui_node_id_t node_id;
-    float scroll_x;
-    float scroll_y;
-    float delta_time_s;
+    kan_floating_t scroll_x;
+    kan_floating_t scroll_y;
+    kan_floating_t delta_time_s;
     kan_instance_offset_t at_x;
     kan_instance_offset_t at_y;
 };
@@ -312,7 +312,7 @@ struct kan_ui_node_scroll_behavior_t
     kan_immutable bool lines_always_visible;
 
     /// \brief Scroll line are visible for this amount of seconds after interaction.
-    kan_immutable float line_visibility_s;
+    kan_immutable kan_floating_t line_visibility_s;
 };
 
 UNIVERSE_UI_API void kan_ui_node_scroll_behavior_init (struct kan_ui_node_scroll_behavior_t *instance);
@@ -546,30 +546,30 @@ struct kan_ui_node_map_behavior_t
     struct kan_float_vector_2_t camera_origin;
 
     /// \brief Half height of the virtual orthographic camera on the map.
-    float camera_half_height;
+    kan_floating_t camera_half_height;
 
     /// \brief Camera half height will never become less than this value from user input.
     /// \details Can still become less than this value on very small maps due to
     ///          map-visuals-not-touching-any-element-border prevention.
-    float camera_min_half_height;
+    kan_floating_t camera_min_half_height;
 
     /// \brief Camera half height will never become greater than this value from user input.
     /// \details If it should be possible for the user to view full map at once, this value can be left arbitrary high
     ///          as map-visuals-not-touching-any-element-border prevention will limit maximum half height on full map
     ///          view automatically.
-    float camera_max_half_height;
+    kan_floating_t camera_max_half_height;
 
     /// \brief Speed modifier for zooming in and out.
     /// \details Zoom speed is dependant on half height: the greater half height is, the greater zoom speed it.
     ///          Zoom input is applied by multiplying half height by zoom strength, when zoom strength is
     ///          `1.0 - zoom_input * delta_time * scroll_zoom_speed`.
-    float scroll_zoom_speed;
+    kan_floating_t scroll_zoom_speed;
 
     /// \brief Width of the map in virtual map coordinates.
-    float width;
+    kan_floating_t width;
 
     /// \brief Height of the map in virtual map coordinates.
-    float height;
+    kan_floating_t height;
 };
 
 UNIVERSE_UI_API void kan_ui_node_map_behavior_init (struct kan_ui_node_map_behavior_t *instance);

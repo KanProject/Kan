@@ -65,15 +65,17 @@ struct render_backend_descriptor_set_allocation_t render_backend_descriptor_set_
     if (allocator->pools.first)
     {
         // Can calculate better count of sets from history.
-        const float total_allocations_float = (float) allocator->total_set_allocations;
+        const kan_floating_t total_allocations_float = (kan_floating_t) allocator->total_set_allocations;
         uniform_buffer_bindings =
-            (kan_instance_size_t) (((float) allocator->uniform_buffer_binding_allocations) / total_allocations_float);
+            (kan_instance_size_t) (((kan_floating_t) allocator->uniform_buffer_binding_allocations) /
+                                   total_allocations_float);
         storage_buffer_bindings =
-            (kan_instance_size_t) (((float) allocator->storage_buffer_binding_allocations) / total_allocations_float);
+            (kan_instance_size_t) (((kan_floating_t) allocator->storage_buffer_binding_allocations) /
+                                   total_allocations_float);
         sampler_bindings =
-            (kan_instance_size_t) (((float) allocator->sampler_binding_allocations) / total_allocations_float);
+            (kan_instance_size_t) (((kan_floating_t) allocator->sampler_binding_allocations) / total_allocations_float);
         image_bindings =
-            (kan_instance_size_t) (((float) allocator->image_binding_allocations) / total_allocations_float);
+            (kan_instance_size_t) (((kan_floating_t) allocator->image_binding_allocations) / total_allocations_float);
     }
     else
     {

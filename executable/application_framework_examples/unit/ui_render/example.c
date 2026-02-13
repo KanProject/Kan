@@ -113,7 +113,7 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
     KAN_UIM_CLEAR_EVERYTHING
     const uint32_t default_text_mark = KAN_UI_DEFAULT_TEXT_MAKE_MARK (0u, KAN_UI_DEFAULT_TEXT_MARK_FLAG_OUTLINE);
     const kan_instance_size_t button_images[] = {image_button_negative, image_button_positive, image_button_neutral};
-    const float button_sizes[] = {0.25f, 0.20f, 0.15f};
+    const kan_floating_t button_sizes[] = {0.25f, 0.20f, 0.15f};
     const char *button_texts[] = {"Evil color!", "Good color!", "Neutral!"};
 
     KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
@@ -266,8 +266,8 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
 
     KAN_UIM_CHILDREN (tiled_column)
     {
-        const float widths[] = {0.8f, 0.4f, 0.2f};
-        const float heights[] = {0.2f, 0.1f, 0.4f};
+        const kan_floating_t widths[] = {0.8f, 0.4f, 0.2f};
+        const kan_floating_t heights[] = {0.2f, 0.1f, 0.4f};
 
         for (kan_loop_size_t index = 0u; index < sizeof (widths) / sizeof (widths[0u]); ++index)
         {

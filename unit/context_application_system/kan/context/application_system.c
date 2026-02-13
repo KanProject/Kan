@@ -132,7 +132,7 @@ struct window_set_boolean_parameter_suffix_t
 struct window_set_floating_point_parameter_suffix_t
 {
     kan_application_system_window_t window_handle;
-    float value;
+    kan_floating_t value;
 };
 
 struct window_add_resource_suffix_t
@@ -150,15 +150,15 @@ struct window_remove_resource_suffix_t
 
 struct warp_mouse_global_suffix_t
 {
-    float global_x;
-    float global_y;
+    kan_floating_t global_x;
+    kan_floating_t global_y;
 };
 
 struct warp_mouse_to_window_suffix_t
 {
     kan_application_system_window_t window_handle;
-    float local_x;
-    float local_y;
+    kan_floating_t local_x;
+    kan_floating_t local_y;
 };
 
 struct set_cursor_visible_suffix_t
@@ -1372,7 +1372,7 @@ void kan_application_system_window_set_keyboard_grab (kan_context_system_t syste
 
 void kan_application_system_window_set_opacity (kan_context_system_t system_handle,
                                                 kan_application_system_window_t window_handle,
-                                                float opacity)
+                                                kan_floating_t opacity)
 {
     struct application_system_t *system = KAN_HANDLE_GET (system_handle);
     KAN_ATOMIC_INT_SCOPED_LOCK (&system->operation_submission_lock)
@@ -1486,7 +1486,9 @@ const struct kan_application_system_mouse_state_t *kan_application_system_get_mo
     return &system->mouse_state;
 }
 
-void kan_application_system_warp_mouse_global (kan_context_system_t system_handle, float global_x, float global_y)
+void kan_application_system_warp_mouse_global (kan_context_system_t system_handle,
+                                               kan_floating_t global_x,
+                                               kan_floating_t global_y)
 {
     struct application_system_t *system = KAN_HANDLE_GET (system_handle);
     KAN_ATOMIC_INT_SCOPED_LOCK (&system->operation_submission_lock)
@@ -1501,8 +1503,8 @@ void kan_application_system_warp_mouse_global (kan_context_system_t system_handl
 
 void kan_application_system_warp_mouse_to_window (kan_context_system_t system_handle,
                                                   kan_application_system_window_t window_handle,
-                                                  float local_x,
-                                                  float local_y)
+                                                  kan_floating_t local_x,
+                                                  kan_floating_t local_y)
 {
     struct application_system_t *system = KAN_HANDLE_GET (system_handle);
     KAN_ATOMIC_INT_SCOPED_LOCK (&system->operation_submission_lock)

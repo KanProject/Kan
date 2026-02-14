@@ -333,6 +333,8 @@ struct kan_uim_parent_stack_info_t
                                                                                                                        \
     NAME##_inner_node->parent_id = NAME##_node->id;                                                                    \
     NAME##_inner_node->render.clip = true;                                                                             \
+    NAME##_inner_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;                                                   \
+    NAME##_inner_node->element.height_flags |= KAN_UI_SIZE_FLAG_GROW;                                                  \
                                                                                                                        \
     NAME##_inner_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;                                          \
     NAME##_inner_drawable->main_draw_command.text.shaping_unit = NAME##_shaping_unit->id;                              \

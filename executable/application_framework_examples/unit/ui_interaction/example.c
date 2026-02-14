@@ -257,9 +257,6 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
                 input_line_edit_behavior, "Hello, world!", NULL,
                 KAN_UI_DEFAULT_TEXT_MAKE_MARK (0u, KAN_UI_DEFAULT_TEXT_MARK_FLAG_OUTLINE));
 
-            input_inner_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-            input_inner_node->element.height_flags |= KAN_UI_SIZE_FLAG_GROW;
-
             KAN_UIM_WIDGET_LINE_EDIT_CALCULATE_LEEWAY (input, outline_enlarge_factor);
             KAN_UIM_WIDGET_LINE_EDIT_CALCULATE_HEIGHT (input, outline_enlarge_factor);
         }

@@ -568,8 +568,9 @@ kan_instance_size_t kan_render_atlas_loaded_query (const struct kan_render_atlas
 {
     kan_loop_size_t left = 0u;
     kan_loop_size_t right = instance->mapping.size;
-    const struct kan_render_atlas_loaded_entry_mapping_t *mappings = instance->mapping.data;
-    const kan_interned_string_t *locale_requirements = instance->locale_requirements.data;
+    const struct kan_render_atlas_loaded_entry_mapping_t *mappings =
+        (struct kan_render_atlas_loaded_entry_mapping_t *) instance->mapping.data;
+    const kan_interned_string_t *locale_requirements = (kan_interned_string_t *) instance->locale_requirements.data;
 
     while (left < right)
     {

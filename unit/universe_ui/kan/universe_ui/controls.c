@@ -1186,7 +1186,7 @@ static void process_key_down_internal (struct ui_controls_input_state_t *state,
                 }
                 else
                 {
-                    uint8_t *iterator =
+                    const uint8_t *iterator =
                         line_edit_behavior->content_utf8.data + line_edit_behavior->cursor_content_location;
 
                     if (kan_text_utf8_next (&iterator, line_edit_behavior->content_utf8.data +
@@ -3096,7 +3096,7 @@ static void make_map_pin_hierarchy_hidden (struct ui_controls_post_layout_state_
         drawable->hidden_temporary = true;
     }
 
-    KAN_UML_VALUE_READ (child, kan_ui_node_t, parent_id, &node->id) { make_map_pin_hierarchy_visible (state, child); }
+    KAN_UML_VALUE_READ (child, kan_ui_node_t, parent_id, &node->id) { make_map_pin_hierarchy_hidden (state, child); }
 }
 
 static void map_behavior_post_laid_out (struct ui_controls_post_layout_state_t *state,

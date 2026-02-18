@@ -611,7 +611,7 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                 kan_dynamic_array_set_capacity (&texture_data.data, sizeof (uint16_t) * width * height);
                 texture_data.data.size = texture_data.data.capacity;
                 const kan_floating_t *source_pixel = image_mips[mip];
-                uint16_t *target_pixel = texture_data.data.data;
+                uint16_t *target_pixel = (uint16_t *) texture_data.data.data;
 
                 for (kan_loop_size_t pixel_index = 0u; pixel_index < source_pixel_count;
                      ++pixel_index, ++source_pixel, ++target_pixel)

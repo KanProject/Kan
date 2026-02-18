@@ -443,6 +443,7 @@ static inline struct kan_float_matrix_3x3_t kan_float_matrix_3x3_inverse (const 
     struct kan_float_matrix_3x3_t result;
     KAN_MUTE_POINTER_CONVERSION_WARNINGS_BEGIN
     glm_mat3_inv (matrix, &result);
+    KAN_MUTE_POINTER_CONVERSION_WARNINGS_END
     return result;
 }
 
@@ -766,6 +767,27 @@ static inline uint32_t kan_random_xoshiro_next (struct kan_random_xoshiro_t *gen
     generator->state[3u] = ROTL (generator->state[3u], 11u);
     return result;
 #undef ROTL
+}
+
+/// \brief Helper for fitting uint32_t received from random generator inside [0, MAX) range.
+/// \details Logically close to just using modulo, however least significant bits that are preferred by modulo are the
+///          least stable bits, therefore for relatively small MAX values (less that several thousands) division should
+///          return more random numbers.
+#define KAN_RANDOM_U32_FIT_IN_RANGE(VALUE, MAX) ((VALUE) / (1u + UINT32_MAX / (MAX)))
+
+/// \brief Syntax sugar wrapper for `kan_random_xoshiro_next` using `KAN_RANDOM_U32_FIT_IN_RANGE`.
+static inline kan_instance_size_t kan_random_xoshiro_next_in_range (struct kan_random_xoshiro_t *generator,
+                                                                    kan_instance_size_t min,
+                                                                    kan_instance_size_t max)
+{
+    if (min >= max)
+    {
+        // Malformed or empty range, just return min in that case.
+        return min;
+    }
+
+    const kan_instance_size_t range = max - min;
+    return min + KAN_RANDOM_U32_FIT_IN_RANGE (kan_random_xoshiro_next (generator), range);
 }
 
 KAN_C_HEADER_END

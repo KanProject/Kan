@@ -1287,14 +1287,35 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
         drawable->cached.parent_clip_rect.width = state->transient.ui->viewport_width;
         drawable->cached.parent_clip_rect.height = state->transient.ui->viewport_height;
         drawable->cached.hidden_by_parent = false;
+        drawable->cached.parent_layer = KAN_UI_RENDER_LAYER_INHERIT;
+    }
+
+    const uint8_t draw_layer =
+        node->render.layer == KAN_UI_RENDER_LAYER_INHERIT ? drawable->cached.parent_layer : node->render.layer;
+
+    if (draw_layer != drawable->draw_layer)
+    {
+        state->transient.reorder_required = true;
+        drawable->draw_layer = draw_layer;
     }
 
     // Restore clip rect to initially received from parent. It is important for partial passes as if we do not restore
     // parent clip rect, toggling this node clip flag on and off will result in broken clip rect logic.
     drawable->clip_rect = drawable->cached.parent_clip_rect;
 
+    if (draw_layer != drawable->cached.parent_layer)
+    {
+        // If we're on separate layer, we need to reset clip rect to full viewport rect as elements on different layers
+        // should not try to clip each other.
+        drawable->clip_rect.x = 0;
+        drawable->clip_rect.y = 0;
+        drawable->clip_rect.width = state->transient.ui->viewport_width;
+        drawable->clip_rect.height = state->transient.ui->viewport_height;
+    }
+
     if (node->render.clip)
     {
+        struct kan_ui_clip_rect_t base_rect = drawable->clip_rect;
         struct kan_ui_clip_rect_t my_rect = {
             .x = drawable->global_x,
             .y = drawable->global_y,
@@ -1302,18 +1323,14 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
             .height = drawable->height,
         };
 
-        drawable->clip_rect.x = KAN_MAX (drawable->cached.parent_clip_rect.x, my_rect.x);
-        drawable->clip_rect.y = KAN_MAX (drawable->cached.parent_clip_rect.y, my_rect.y);
+        drawable->clip_rect.x = KAN_MAX (base_rect.x, my_rect.x);
+        drawable->clip_rect.y = KAN_MAX (base_rect.y, my_rect.y);
 
         drawable->clip_rect.width =
-            KAN_MIN (drawable->cached.parent_clip_rect.x + drawable->cached.parent_clip_rect.width,
-                     my_rect.x + my_rect.width) -
-            drawable->clip_rect.x;
+            KAN_MIN (base_rect.x + base_rect.width, my_rect.x + my_rect.width) - drawable->clip_rect.x;
 
         drawable->clip_rect.height =
-            KAN_MIN (drawable->cached.parent_clip_rect.y + drawable->cached.parent_clip_rect.height,
-                     my_rect.y + my_rect.height) -
-            drawable->clip_rect.y;
+            KAN_MIN (base_rect.y + base_rect.height, my_rect.y + my_rect.height) - drawable->clip_rect.y;
     }
 
     const bool hidden_by_hierarchy = node->render.hidden || drawable->cached.hidden_by_parent;
@@ -1329,6 +1346,7 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
         access->drawable->cached.parent_clip_rect = drawable->clip_rect;
         // We do not include `clipped_out` to `hidden_by_parent` as child may technically have other borders.
         access->drawable->cached.hidden_by_parent = hidden_by_hierarchy || node->render.hide_children;
+        access->drawable->cached.parent_layer = draw_layer;
 
         access->drawable->global_x = drawable->global_x -
                                      kan_ui_calculate_coordinate (state->transient.ui, node->render.scroll_x) +
@@ -1392,7 +1410,10 @@ static void execute_draw_index_reorder (struct ui_layout_state_t *state, const s
     for (kan_loop_size_t index = 0u; index < sorted_children_count; ++index)
     {
         struct layout_child_access_t *access = &sorted_children[index];
-        access->drawable->draw_index = state->transient.reorder_index;
+        const kan_instance_size_t shift = (sizeof (kan_instance_size_t) - 1u) * 8u;
+        KAN_ASSERT (state->transient.reorder_index < (1u << shift))
+        const kan_instance_size_t layer_mark = ((kan_instance_size_t) access->drawable->draw_layer) << shift;
+        access->drawable->draw_index = layer_mark | state->transient.reorder_index;
         ++state->transient.reorder_index;
         execute_draw_index_reorder (state, access->child);
 
@@ -3350,6 +3371,7 @@ void kan_ui_node_init (struct kan_ui_node_t *instance)
     instance->render.clip = false;
     instance->render.hidden = false;
     instance->render.hide_children = false;
+    instance->render.layer = KAN_UI_RENDER_LAYER_INHERIT;
 }
 
 void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
@@ -3359,6 +3381,7 @@ void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
 
     instance->hidden_permanently = false;
     instance->hidden_temporary = false;
+    instance->draw_layer = KAN_UI_RENDER_LAYER_INHERIT;
 
     instance->clip_rect.x = 0;
     instance->clip_rect.y = 0;
@@ -3393,6 +3416,7 @@ void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
     instance->cached.parent_clip_rect.width = 0;
     instance->cached.parent_clip_rect.height = 0;
     instance->cached.hidden_by_parent = false;
+    instance->cached.parent_layer = KAN_UI_RENDER_LAYER_INHERIT;
 
     instance->temporary_data = NULL;
     instance->layout_dirt_level = KAN_UI_LAYOUT_DIRT_LEVEL_NONE;

@@ -406,6 +406,9 @@ struct kan_ui_node_layout_setup_t
     struct kan_ui_rect_t padding;
 };
 
+/// \brief Value for `kan_ui_node_render_setup_t::layer` that indicates that layer value from parent should be used.
+#define KAN_UI_RENDER_LAYER_INHERIT 0u
+
 /// \brief Contains render-scope configuration for the UI node.
 struct kan_ui_node_render_setup_t
 {
@@ -432,6 +435,20 @@ struct kan_ui_node_render_setup_t
     ///          hit box is focused: we cannot hide hit box as it won't be interactable then, but we'd like an easy
     ///          way to hide all the children.
     bool hide_children;
+
+    /// \brief Layer index allows to override draw and input orders independently of UI hierarchy.
+    /// \details There are cases when parts of the widget should be drawn with their own independent order and
+    ///          independent clip rect, for example drop down lists and tooltips, that need to be drawn of top of all
+    ///          other widgets that are near their owner widget. Layers make it possible to introduce this behavior:
+    ///          nodes with higher layer value are drawn on top of nodes with lower layer value, and clip rects are also
+    ///          invalidated when layer value in hierarchy changes.
+    ///          In real cases, having multiple layers might be required, especially when there is a complex tooltip
+    ///          system (which is common for strategy genre) and some master menu on top of that with its own tooltips.
+    ///          Games like Crusader Kings 3 are good example of that.
+    ///          It is advised for the game code to define their own layer constants and use them while creating nodes.
+    ///          Keep in mind that layer value is default-initialized to `KAN_UI_RENDER_LAYER_INHERIT`, therefore it is
+    ///          not required to explicitly set layer in every node.
+    uint8_t layer;
 };
 
 /// \brief Node is a building block of UI elements hierarchy and used to define anything that is added to the ui.
@@ -667,6 +684,7 @@ struct kan_ui_layout_cached_t
     kan_instance_offset_t compound_margin_bottom;
     struct kan_ui_clip_rect_t parent_clip_rect;
     bool hidden_by_parent;
+    uint8_t parent_layer;
 };
 
 /// \brief Internal enum for deciding how much we need to recalculate in layout update.
@@ -694,6 +712,11 @@ struct kan_ui_node_drawable_t
     ///          For the high level ui node management logic, it is advised to either delete hidden nodes or use
     ///          `kan_ui_node_render_setup_t::hidden` as it applies to the hierarchies.
     bool hidden_temporary;
+
+    /// \brief Draw layer that was calculated for the drawable during last layout execution.
+    /// \invariant Should not be changed outside of layout logic as that change would not be properly processed.
+    /// \details See `kan_ui_node_render_setup_t::layer`.
+    uint8_t draw_layer;
 
     /// \brief Clip rect that should be used to render this element.
     struct kan_ui_clip_rect_t clip_rect;

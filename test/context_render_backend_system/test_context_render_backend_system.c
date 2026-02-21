@@ -8,7 +8,7 @@
 #include <kan/cpu_profiler/markup.h>
 #include <kan/file_system/stream.h>
 #include <kan/image/image.h>
-#include <kan/inline_math/inline_math.h>
+#include <kan/math/inline.h>
 #include <kan/memory/allocation.h>
 #include <kan/platform/application.h>
 #include <kan/render_pipeline_language/compiler.h>

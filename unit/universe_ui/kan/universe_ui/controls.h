@@ -5,7 +5,7 @@
 #include <kan/api_common/c_header.h>
 #include <kan/api_common/core_types.h>
 #include <kan/context/application_system.h>
-#include <kan/inline_math/inline_math.h>
+#include <kan/math/inline.h>
 #include <kan/universe_ui/core.h>
 
 /// \file

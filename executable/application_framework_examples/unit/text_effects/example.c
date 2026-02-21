@@ -9,8 +9,8 @@
 #include <kan/file_system/path_container.h>
 #include <kan/file_system/stream.h>
 #include <kan/image/image.h>
-#include <kan/inline_math/inline_math.h>
 #include <kan/log/logging.h>
+#include <kan/math/inline.h>
 #include <kan/precise_time/precise_time.h>
 #include <kan/resource_pipeline/meta.h>
 #include <kan/test_expectation/test_expectation.h>

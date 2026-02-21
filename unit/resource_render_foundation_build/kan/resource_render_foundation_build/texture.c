@@ -5,8 +5,8 @@
 #include <kan/api_common/min_max.h>
 #include <kan/file_system/stream.h>
 #include <kan/image/image.h>
-#include <kan/inline_math/inline_math.h>
 #include <kan/log/logging.h>
+#include <kan/math/inline.h>
 #include <kan/memory/allocation.h>
 #include <kan/resource_pipeline/meta.h>
 #include <kan/resource_render_foundation_build/texture.h>

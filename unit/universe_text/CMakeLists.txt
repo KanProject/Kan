@@ -5,7 +5,7 @@ concrete_sources (GLOB "*.c")
 concrete_require (
         SCOPE PUBLIC
         ABSTRACT context_render_backend_system text
-        CONCRETE_INTERFACE inline_math resource_text universe)
+        CONCRETE_INTERFACE math resource_text universe)
 
 concrete_require (
         SCOPE PRIVATE

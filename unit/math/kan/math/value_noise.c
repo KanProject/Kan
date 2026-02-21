@@ -1,5 +1,5 @@
 #include <kan/error/critical.h>
-#include <kan/inline_math/value_noise.h>
+#include <kan/math/value_noise.h>
 
 void kan_unorm16_value_noise_2d_init (struct kan_unorm16_value_noise_2d_t *instance)
 {

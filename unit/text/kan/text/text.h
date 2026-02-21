@@ -5,7 +5,7 @@
 #include <kan/api_common/core_types.h>
 #include <kan/container/interned_string.h>
 #include <kan/context/render_backend_system.h>
-#include <kan/inline_math/inline_math.h>
+#include <kan/math/inline.h>
 #include <kan/reflection/markup.h>
 
 /// \file

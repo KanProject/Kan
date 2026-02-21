@@ -10,8 +10,7 @@ application_core_include (
         CONCRETE
         application_framework container context context_application_system context_plugin_system
         context_reflection_system context_universe_world_definition_system context_update_system
-        context_virtual_file_system inline_math readable_data reflection_helpers resource_pipeline serialization
-        universe)
+        context_virtual_file_system math readable_data reflection_helpers resource_pipeline serialization universe)
 
 application_core_set_configuration ("${CMAKE_CURRENT_SOURCE_DIR}/configuration/core.rd")
 application_core_set_platform_configuration_directory ("${CMAKE_CURRENT_SOURCE_DIR}/resource_platform_configuration")

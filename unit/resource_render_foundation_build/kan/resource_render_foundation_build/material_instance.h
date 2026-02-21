@@ -8,7 +8,7 @@
 #include <kan/container/interned_string.h>
 #include <kan/context/render_backend_system.h>
 #include <kan/error/critical.h>
-#include <kan/inline_math/inline_math.h>
+#include <kan/math/inline.h>
 #include <kan/reflection/markup.h>
 #include <kan/render_pipeline_language/compiler.h>
 #include <kan/resource_render_foundation/material_instance.h>

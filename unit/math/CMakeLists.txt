@@ -1,4 +1,4 @@
-register_concrete (inline_math)
+register_concrete (math)
 concrete_include (PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 concrete_sources ("*.c")
 concrete_require (SCOPE PUBLIC INTERFACE api_common THIRD_PARTY cglm_headers)

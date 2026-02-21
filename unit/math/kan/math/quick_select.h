@@ -9,7 +9,7 @@
 /// \parblock
 /// Quick select is an algorithm that makes it possible to find K-th smallest value in average linear time.
 /// This is very useful when working with percentiles as fully sorting values would be much slower.
-/// \endparblock 
+/// \endparblock
 
 KAN_C_HEADER_BEGIN
 

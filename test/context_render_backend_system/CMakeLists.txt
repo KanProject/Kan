@@ -4,7 +4,7 @@ concrete_sources ("*.c")
 concrete_require (
         SCOPE PUBLIC
         ABSTRACT context_render_backend_system cpu_dispatch cpu_profiler file_system image
-        CONCRETE_INTERFACE inline_math render_pipeline_language testing)
+        CONCRETE_INTERFACE math render_pipeline_language testing)
 setup_core_preprocessing ()
 
 file (MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests_resources/context_render_backend_system")
@@ -28,7 +28,7 @@ foreach (IMPLEMENTATION ${CONTEXT_RENDER_BACKEND_SYSTEM_IMPLEMENTATIONS})
             file_system=platform_default hash=djb2 image=stb log=kan memory=kan memory_profiler=default platform=sdl
             precise_time=sdl reflection=kan stream=kan threading=sdl
             CONCRETE
-            container context context_application_system inline_math render_pipeline_language testing
+            container context context_application_system math render_pipeline_language testing
             test_context_render_backend_system)
 
     generate_artefact_context_data ()

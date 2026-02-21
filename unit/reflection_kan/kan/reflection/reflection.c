@@ -4621,7 +4621,7 @@ static inline void patch_migration_context_switch_to_struct (struct patch_migrat
     context->current_instance_index = KAN_INT_MAX (kan_instance_size_t);
 
     if (context->migrator_node->conditions_count >
-        KAN_MAX (KAN_REFLECTION_MIGRATOR_MAX_CONDITIONS, old_conditions_count))
+        KAN_MAX (old_conditions_count, KAN_REFLECTION_MIGRATOR_MAX_CONDITIONS))
     {
         const kan_allocation_group_t group = get_compiled_patch_allocation_group ();
         if (context->conditions != context->conditions_fixed)

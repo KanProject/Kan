@@ -780,7 +780,7 @@ static inline kan_instance_size_t kan_random_xoshiro_next_in_range (struct kan_r
                                                                     kan_instance_size_t min,
                                                                     kan_instance_size_t max)
 {
-    if (min >= max)
+    if (min + 1u >= max)
     {
         // Malformed or empty range, just return min in that case.
         return min;

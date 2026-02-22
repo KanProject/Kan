@@ -328,7 +328,6 @@ enum kan_ui_size_flags_t
     KAN_UI_SIZE_FLAG_NONE = 0u,
 
     /// \brief Size will be treated as min size, layout children may increase size along this axis.
-    /// \warning Ignored for frame layouts.
     KAN_UI_SIZE_FLAG_FIT_CHILDREN = 1u << 0u,
 
     /// \brief If parent layout has remaining space along this axis, this node will attempt to grow along this axis.

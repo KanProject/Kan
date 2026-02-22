@@ -834,17 +834,14 @@ static void layout_size_pass (struct ui_layout_state_t *state,
     data->children_height_usage_px += data->cached_padding_top_px;
     data->children_height_usage_px += data->cached_padding_bottom_px;
 
-    if (data->cached_layout != KAN_UI_LAYOUT_FRAME)
+    if (node->element.width_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN)
     {
-        if (node->element.width_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN)
-        {
-            data->width_px = KAN_MAX (data->width_px, data->children_width_usage_px);
-        }
+        data->width_px = KAN_MAX (data->width_px, data->children_width_usage_px);
+    }
 
-        if (node->element.height_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN)
-        {
-            data->height_px = KAN_MAX (data->height_px, data->children_height_usage_px);
-        }
+    if (node->element.height_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN)
+    {
+        data->height_px = KAN_MAX (data->height_px, data->children_height_usage_px);
     }
 }
 

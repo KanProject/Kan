@@ -97,7 +97,7 @@ struct kan_uim_parent_stack_info_t
 #define KAN_UIM_NEW_NODE_WITHOUT_ORDER(NAME)                                                                           \
     KAN_UMI_INDEXED_INSERT (NAME##_node, kan_ui_node_t)                                                                \
     NAME##_node->id = kan_next_ui_node_id (ui);                                                                        \
-    NAME##_node->parent_id = kan_uim_parent_stack_info.parent_node_id;
+    NAME##_node->parent_id = kan_uim_parent_stack_info.parent_node_id
 
 /// \brief Uses inplace insert to create new UI node, attach it to proper parent and assign next local element order.
 #define KAN_UIM_NEW_NODE(NAME)                                                                                         \
@@ -161,10 +161,13 @@ struct kan_uim_parent_stack_info_t
 
 /// \brief Label widget is used for creating one-line texts that already have known secondary size from layout.
 /// \warning Has no hit box by default!
-#define KAN_UIM_WIDGET_LABEL(NAME, FONT_SIZE)                                                                          \
+#define KAN_UIM_WIDGET_LABEL(NAME, FONT_SIZE, FONT_ENLARGE_FACTOR)                                                     \
     KAN_UIM_NEW_NODE (NAME);                                                                                           \
     KAN_UIM_DRAWABLE_TEXT (NAME);                                                                                      \
     KAN_UIM_TEXT_BEHAVIOR (NAME);                                                                                      \
+                                                                                                                       \
+    NAME##_node->element.height = (FONT_SIZE);                                                                         \
+    NAME##_node->element.height.value *= (FONT_ENLARGE_FACTOR) / 0.75f;                                                \
     NAME##_text_behavior->font_size = (FONT_SIZE);                                                                     \
     NAME##_text_behavior->sync_text_limit_from_ui = true
 
@@ -191,6 +194,9 @@ struct kan_uim_parent_stack_info_t
 /// \invariant Expects shaping unit with name `NAME##_shaping_unit` to be created prior to this call.
 #define KAN_UIM_WIDGET_TEXT_BUTTON(NAME, STYLE, FONT_SIZE, FONT_ENLARGE_FACTOR)                                        \
     KAN_UIM_WIDGET_BUTTON (NAME, STYLE);                                                                               \
+    NAME##_node->element.height_flags = KAN_UI_SIZE_FLAG_FIT_CHILDREN;                                                 \
+    NAME##_node->layout.layout = KAN_UI_LAYOUT_FRAME;                                                                  \
+                                                                                                                       \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_container);                                                                 \
     KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME, NAME##_container);                                                        \
                                                                                                                        \
@@ -318,11 +324,12 @@ struct kan_uim_parent_stack_info_t
 
 /// \brief Line edit widget provides ability for inputting and editing single line text data.
 /// \details Consists of two nodes: primary node and inner text node.
-#define KAN_UIM_WIDGET_LINE_EDIT(NAME, FONT_SIZE, STYLE_REGULAR, STYLE_SELECTED)                                       \
+#define KAN_UIM_WIDGET_LINE_EDIT(NAME, FONT_SIZE, FONT_ENLARGE_FACTOR, STYLE_REGULAR, STYLE_SELECTED)                  \
     KAN_UIM_NEW_NODE (NAME);                                                                                           \
     KAN_UIM_DRAWABLE_IMAGE (NAME, KAN_UI_IMAGE_COMMAND_NONE);                                                          \
     KAN_UIM_HIT_BOX_INTERACTABLE (NAME, NULL);                                                                         \
                                                                                                                        \
+    NAME##_node->element.height_flags = KAN_UI_SIZE_FLAG_FIT_CHILDREN;                                                 \
     NAME##_node->layout.layout = KAN_UI_LAYOUT_FRAME;                                                                  \
     NAME##_hit_box->scroll_passthrough = true;                                                                         \
                                                                                                                        \
@@ -334,7 +341,8 @@ struct kan_uim_parent_stack_info_t
     NAME##_inner_node->parent_id = NAME##_node->id;                                                                    \
     NAME##_inner_node->render.clip = true;                                                                             \
     NAME##_inner_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;                                                   \
-    NAME##_inner_node->element.height_flags |= KAN_UI_SIZE_FLAG_GROW;                                                  \
+    NAME##_inner_node->element.height = (FONT_SIZE);                                                                   \
+    NAME##_inner_node->element.height.value *= (FONT_ENLARGE_FACTOR) / 0.75f;                                          \
                                                                                                                        \
     NAME##_inner_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;                                          \
     NAME##_inner_drawable->main_draw_command.text.shaping_unit = NAME##_shaping_unit->id;                              \
@@ -352,25 +360,10 @@ struct kan_uim_parent_stack_info_t
     NAME##_line_edit_behavior->shaping_unit_id = NAME##_shaping_unit->id;                                              \
     NAME##_line_edit_behavior->interactable_style_regular = (STYLE_REGULAR);                                           \
     NAME##_line_edit_behavior->interactable_style_selected = (STYLE_SELECTED);                                         \
+    NAME##_line_edit_behavior->selection_leeway = NAME##_text_behavior->font_size;                                     \
+    NAME##_line_edit_behavior->selection_leeway.value *= (FONT_ENLARGE_FACTOR) - 1.0f;                                 \
                                                                                                                        \
     /* Usually these variable values are connected. */                                                                 \
     NAME##_line_edit_behavior->cursor_safe_space = (FONT_SIZE)
-
-/// \brief Helper for calculating line edit selection leeway when enlarging effect like outline is used.
-#define KAN_UIM_WIDGET_LINE_EDIT_CALCULATE_LEEWAY(NAME, ENLARGE_FACTOR)                                                \
-    NAME##_line_edit_behavior->selection_leeway = NAME##_text_behavior->font_size;                                     \
-    NAME##_line_edit_behavior->selection_leeway.value *= (ENLARGE_FACTOR) - 1.0f
-
-/// \brief Helper for calculating line edit height so text would fit inside properly.
-#define KAN_UIM_WIDGET_LINE_EDIT_CALCULATE_HEIGHT(NAME, ENLARGE_FACTOR)                                                \
-    KAN_ASSERT ((NAME##_node->layout.padding.top.type == NAME##_text_behavior->font_size.type &&                       \
-                 NAME##_node->layout.padding.bottom.type == NAME##_text_behavior->font_size.type) ||                   \
-                (KAN_FLOATING_IS_NEAR (0.0f, NAME##_node->layout.padding.top.value) &&                                 \
-                 KAN_FLOATING_IS_NEAR (0.0f, NAME##_node->layout.padding.bottom.value)))                               \
-                                                                                                                       \
-    NAME##_node->element.height = NAME##_text_behavior->font_size;                                                     \
-    NAME##_node->element.height.value *= (ENLARGE_FACTOR) / 0.75f;                                                     \
-    NAME##_node->element.height.value +=                                                                               \
-        NAME##_node->layout.padding.top.value + NAME##_node->layout.padding.bottom.value
 
 KAN_C_HEADER_END

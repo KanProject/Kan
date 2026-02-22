@@ -238,7 +238,8 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
             big_text_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
             big_text_node->element.margin = KAN_UI_RECT_PT (16.0f, 16.0f, 16.0f, 16.0f);
 
-            KAN_UIM_WIDGET_LINE_EDIT (input, KAN_UI_VALUE_PT (36.0f), KAN_STATIC_INTERNED_ID_GET (line_edit_regular),
+            KAN_UIM_WIDGET_LINE_EDIT (input, KAN_UI_VALUE_PT (36.0f), outline_enlarge_factor,
+                                      KAN_STATIC_INTERNED_ID_GET (line_edit_regular),
                                       KAN_STATIC_INTERNED_ID_GET (line_edit_selected));
 
             singleton->line_edit_id = input_node->id;
@@ -256,9 +257,6 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
             kan_ui_node_line_edit_behavior_set_content (
                 input_line_edit_behavior, "Hello, world!", NULL,
                 KAN_UI_DEFAULT_TEXT_MAKE_MARK (0u, KAN_UI_DEFAULT_TEXT_MARK_FLAG_OUTLINE));
-
-            KAN_UIM_WIDGET_LINE_EDIT_CALCULATE_LEEWAY (input, outline_enlarge_factor);
-            KAN_UIM_WIDGET_LINE_EDIT_CALCULATE_HEIGHT (input, outline_enlarge_factor);
         }
     }
 

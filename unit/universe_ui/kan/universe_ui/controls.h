@@ -138,6 +138,11 @@ struct kan_ui_node_hit_box_t
     ///        hit boxes below, for example to scroll pane hit box.
     kan_immutable bool scroll_passthrough;
 
+    /// \brief If true, element visuals will be set to disabled state and
+    ///        other logic would work the same way as if `interactable` was false.
+    /// \details Does nothing if `interactable` is already false.
+    bool disabled;
+
     /// \brief Name of the `kan_resource_ui_hit_box_interaction_style_t` in bundle for hover and press visualization.
     /// \details Only used when `interactable`.
     kan_interned_string_t interactable_style;
@@ -513,6 +518,14 @@ UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_set_content_float_limits (
     struct kan_ui_node_line_edit_behavior_t *instance, kan_floating_t min, kan_floating_t max);
 
 UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_shutdown (struct kan_ui_node_line_edit_behavior_t *instance);
+
+/// \brief Event that is sent whenever line edit finishes processing changes in its content.
+/// \warning Sent even for outside content changes from `kan_ui_node_line_edit_behavior_set_content` as it makes it
+///          easier to react to all changes in dependant UI widgets.
+struct kan_line_edit_content_changed_t
+{
+    kan_ui_node_id_t node_id;
+};
 
 /// \brief Behavior for map-like views that can be zoomed and scrolled by grabbing.
 /// \details Map-like controls can be encountered more often than it feels: it is not only a minimap or 2d game map,

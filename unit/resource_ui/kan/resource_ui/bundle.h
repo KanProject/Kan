@@ -26,10 +26,14 @@ struct kan_resource_ui_hit_box_interaction_style_t
     kan_interned_string_t regular_image;
     kan_interned_string_t hovered_image;
     kan_interned_string_t down_image;
+    kan_interned_string_t disabled_image;
 
     /// \brief For how much time hit box should be rendered as down after being pressed.
     kan_floating_t down_state_s;
 };
+
+RESOURCE_UI_API void kan_resource_ui_hit_box_interaction_style_init (
+    struct kan_resource_ui_hit_box_interaction_style_t *instance);
 
 /// \brief Describes ui bundle resource.
 struct kan_resource_ui_bundle_t

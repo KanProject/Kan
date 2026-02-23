@@ -623,9 +623,10 @@ enum kan_ui_default_command_mark_flag_t
     KAN_UI_DEFAULT_MARK_FLAG_NONE = 0u,
     KAN_UI_DEFAULT_MARK_FLAG_HOVERED = 1u << 8u,
     KAN_UI_DEFAULT_MARK_FLAG_DOWN = 1u << 9u,
+    KAN_UI_DEFAULT_MARK_FLAG_DISABLED = 1u << 10u,
 
     /// \brief Used for blinking primitives like text cursors.
-    KAN_UI_DEFAULT_MARK_FLAG_BLINK = 1u << 10u,
+    KAN_UI_DEFAULT_MARK_FLAG_BLINK = 1u << 11u,
 };
 
 /// \brief Helper for building marks for the ui draw pipelines for draw commands.

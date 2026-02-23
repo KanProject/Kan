@@ -10,6 +10,7 @@ text_icon_material_instance = text_icon
     regular_image = button
     hovered_image = button_hovered
     down_image = button_down
+    disabled_image = button
     down_state_s = 0.1
 }
 
@@ -18,6 +19,7 @@ text_icon_material_instance = text_icon
     regular_image = text_edit_regular
     hovered_image = text_edit_regular_hovered
     down_image = text_edit_regular_hovered
+    disabled_image = text_edit_regular
     down_state_s = 0.1
 }
 
@@ -26,5 +28,6 @@ text_icon_material_instance = text_icon
     regular_image = text_edit_selected
     hovered_image = text_edit_selected
     down_image = text_edit_selected
+    disabled_image = text_edit_selected
     down_state_s = 0.1
 }

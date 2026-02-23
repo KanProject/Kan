@@ -10,5 +10,6 @@
     +parameters.f4 { name = cos_anim_color value { x = 0.4 y = 0.4 z = 0.4 w = 1.0 } }
     +parameters.f4 { name = color_hovered value { x = 0.7 y = 0.7 z = 0.7 w = 1.0 } }
     +parameters.f4 { name = color_down value { x = 0.9 y = 0.9 z = 0.9 w = 1.0 } }
+    +parameters.f4 { name = color_disabled value { x = 0.5 y = 0.5 z = 0.5 w = 1.0 } }
     +parameters.u1 { name = color_table_multiplier_index value = 0 }
 }

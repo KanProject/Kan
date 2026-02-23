@@ -100,17 +100,18 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_on_insert_event_t kan_ui_no
         },
 };
 
-struct kan_ui_node_hit_box_on_style_change_event_t
+struct kan_ui_node_hit_box_on_state_change_event_t
 {
     kan_ui_node_id_t id;
 };
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_hit_box_t)
-UNIVERSE_UI_API struct kan_repository_meta_automatic_on_change_event_t kan_ui_node_hit_box_on_style_change_event = {
-    .event_type = "kan_ui_node_hit_box_on_style_change_event_t",
-    .observed_fields_count = 1u,
+UNIVERSE_UI_API struct kan_repository_meta_automatic_on_change_event_t kan_ui_node_hit_box_on_state_change_event = {
+    .event_type = "kan_ui_node_hit_box_on_state_change_event_t",
+    .observed_fields_count = 2u,
     .observed_fields =
         (struct kan_repository_field_path_t[]) {
+            {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"disabled"}},
             {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"interactable_style"}},
         },
     .unchanged_copy_outs_count = 0u,
@@ -337,7 +338,8 @@ static const struct kan_ui_node_hit_box_t *find_hit_box_at (
     return found;
 }
 
-#define FOCUS_FLAGS_MASK (KAN_UI_DEFAULT_MARK_FLAG_HOVERED | KAN_UI_DEFAULT_MARK_FLAG_DOWN)
+#define FOCUS_FLAGS_MASK                                                                                               \
+    (KAN_UI_DEFAULT_MARK_FLAG_HOVERED | KAN_UI_DEFAULT_MARK_FLAG_DOWN | KAN_UI_DEFAULT_MARK_FLAG_DISABLED)
 #define SET_FOCUS_FLAGS(TARGET, FLAGS) (TARGET) = ((TARGET) & ~FOCUS_FLAGS_MASK) | (FLAGS)
 
 static inline void use_hit_box_interaction_visuals (struct ui_controls_input_state_t *state,
@@ -387,23 +389,31 @@ enum hit_box_interaction_flags_t
 {
     FOCUS_STATE_HOVERED = 1u << 0u,
     FOCUS_STATE_DOWN = 1u << 1u,
+    FOCUS_STATE_DISABLED = 1u << 2u,
 };
 
 static inline enum hit_box_interaction_flags_t calculate_hit_box_interaction_flags (
     struct ui_controls_input_state_t *state,
     const struct kan_ui_input_singleton_t *public,
-    kan_ui_node_id_t hit_box_id,
+    const struct kan_ui_node_hit_box_t *hit_box,
     bool force_not_down)
 {
     enum hit_box_interaction_flags_t flags = 0u;
-    if (KAN_TYPED_ID_32_IS_EQUAL (public->current_hovered_id, hit_box_id))
+    if (hit_box->disabled)
+    {
+        flags |= FOCUS_STATE_DISABLED;
+        // If disabled, then cannot be hovered or down by definition.
+        return flags;
+    }
+
+    if (KAN_TYPED_ID_32_IS_EQUAL (public->current_hovered_id, hit_box->id))
     {
         flags |= FOCUS_STATE_HOVERED;
     }
 
     if (!force_not_down)
     {
-        KAN_UMI_VALUE_READ_OPTIONAL (down_mark, kan_ui_node_down_mark_t, id, &hit_box_id)
+        KAN_UMI_VALUE_READ_OPTIONAL (down_mark, kan_ui_node_down_mark_t, id, &hit_box->id)
         if (down_mark)
         {
             flags |= FOCUS_STATE_DOWN;
@@ -438,6 +448,10 @@ static inline uint32_t select_image_for_hit_box_interaction (struct ui_controls_
             else if (flags & FOCUS_STATE_HOVERED)
             {
                 return query_image (state, bundle, style->hovered_image);
+            }
+            else if (flags & FOCUS_STATE_DISABLED)
+            {
+                return query_image (state, bundle, style->disabled_image);
             }
 
             return query_image (state, bundle, style->regular_image);
@@ -482,7 +496,7 @@ static void apply_hit_box_interaction_visuals (struct ui_controls_input_state_t 
 {
     KAN_ASSERT (hit_box->interactable)
     const enum hit_box_interaction_flags_t flags =
-        calculate_hit_box_interaction_flags (state, public, hit_box->id, force_not_down);
+        calculate_hit_box_interaction_flags (state, public, hit_box, force_not_down);
 
     const uint32_t image_index =
         select_image_for_hit_box_interaction (state, bundle, hit_box->interactable_style, flags);
@@ -496,6 +510,11 @@ static void apply_hit_box_interaction_visuals (struct ui_controls_input_state_t 
     if (flags & FOCUS_STATE_HOVERED)
     {
         ui_mark_flags |= KAN_UI_DEFAULT_MARK_FLAG_HOVERED;
+    }
+
+    if (flags & FOCUS_STATE_DISABLED)
+    {
+        ui_mark_flags |= KAN_UI_DEFAULT_MARK_FLAG_DISABLED;
     }
 
     use_hit_box_interaction_visuals (state, hit_box->id, ui_mark_flags, image_index);
@@ -799,6 +818,13 @@ static void sanitize_input_receiver_selection (struct ui_controls_input_state_t 
 
         KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &public->input_receiver_id)
         if (!drawable || drawable->hidden_permanently || drawable->hidden_temporary)
+        {
+            deselect_input_receiver_behavior (state, public, private);
+            return;
+        }
+
+        KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &public->input_receiver_id)
+        if (hit_box && hit_box->disabled)
         {
             deselect_input_receiver_behavior (state, public, private);
             return;
@@ -1889,11 +1915,9 @@ static void process_events (struct ui_controls_input_state_t *state,
                             bool visuals_changed,
                             bool hit_boxes_changed)
 {
-    enum input_hit_box_mouse_update_mode_t mouse_hit_box_update = visuals_changed || hit_boxes_changed ?
-                                                                      INPUT_HIT_BOX_MOUSE_UPDATE_MODE_EXECUTE :
-                                                                      INPUT_HIT_BOX_MOUSE_UPDATE_MODE_NONE;
-
+    bool do_mouse_hit_box_full_update = visuals_changed || hit_boxes_changed;
     const struct kan_platform_application_event_t *event;
+
     while (
         (event = kan_application_system_event_iterator_get (state->application_system_handle, public->event_iterator)))
     {
@@ -1917,7 +1941,7 @@ static void process_events (struct ui_controls_input_state_t *state,
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_WINDOW_LEAVE_FULLSCREEN:
             if (KAN_TYPED_ID_32_IS_EQUAL (event->window.id, public->linked_window_id))
             {
-                mouse_hit_box_update = INPUT_HIT_BOX_MOUSE_UPDATE_MODE_RESET;
+                do_mouse_hit_box_full_update = true;
                 // Also end press just in case.
                 public->mouse_button_down_flags = 0u;
 
@@ -1960,7 +1984,7 @@ static void process_events (struct ui_controls_input_state_t *state,
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_MOUSE_MOTION:
             if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_motion.window_id, public->linked_window_id))
             {
-                mouse_hit_box_update = INPUT_HIT_BOX_MOUSE_UPDATE_MODE_EXECUTE;
+                do_mouse_hit_box_full_update = true;
                 public->last_mouse_x = public->viewport_offset_x + (kan_instance_offset_t) event->mouse_motion.window_x;
                 public->last_mouse_y = public->viewport_offset_y + (kan_instance_offset_t) event->mouse_motion.window_y;
 
@@ -2000,8 +2024,9 @@ static void process_events (struct ui_controls_input_state_t *state,
                 const struct kan_ui_node_hit_box_t *element = find_hit_box_at (
                     state, HIT_BOX_SEARCH_MODE_POINTER, public->last_mouse_x, public->last_mouse_y, &element_access);
 
-                public->press_filtered_in = !element || ((new_press || multi_click) && element->interactable &&
-                                                         (element->mouse_button_down_flags & flag));
+                public->press_filtered_in =
+                    !element || ((new_press || multi_click) && element->interactable && !element->disabled &&
+                                 (element->mouse_button_down_flags & flag));
 
                 public->press_started_on_id =
                     element && public->press_filtered_in ? element->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
@@ -2138,7 +2163,7 @@ static void process_events (struct ui_controls_input_state_t *state,
                 const struct kan_ui_node_hit_box_t *element = find_hit_box_at (
                     state, HIT_BOX_SEARCH_MODE_SCROLL, public->last_mouse_x, public->last_mouse_y, &element_access);
 
-                if (!element || element->interactable)
+                if (!element || (element->interactable && !element->disabled))
                 {
                     KAN_UMO_EVENT_INSERT_INIT (kan_ui_scroll_t) {
                         .node_id = element ? element->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t),
@@ -2153,7 +2178,7 @@ static void process_events (struct ui_controls_input_state_t *state,
                 if (element)
                 {
                     KAN_UMI_VALUE_READ_OPTIONAL (scroll_behaviour, kan_ui_node_scroll_behavior_t, id, &element->id)
-                    if (scroll_behaviour && element->interactable)
+                    if (scroll_behaviour && element->interactable && !element->disabled)
                     {
                         const kan_floating_t speed_x =
                             kan_ui_calculate_coordinate_floating (ui, scroll_behaviour->mouse_speed_x);
@@ -2167,7 +2192,7 @@ static void process_events (struct ui_controls_input_state_t *state,
                     }
 
                     KAN_UMI_VALUE_UPDATE_OPTIONAL (map_behavior, kan_ui_node_map_behavior_t, id, &element->id)
-                    if (map_behavior && element->interactable)
+                    if (map_behavior && element->interactable && !element->disabled)
                     {
                         on_map_behavior_zoom (state, public, ui, map_behavior,
                                               event->mouse_wheel.wheel_y * ui->animation_delta_time_s);
@@ -2199,32 +2224,12 @@ static void process_events (struct ui_controls_input_state_t *state,
         public->event_iterator = kan_application_system_event_iterator_advance (public->event_iterator);
     }
 
-    switch (mouse_hit_box_update)
-    {
-    case INPUT_HIT_BOX_MOUSE_UPDATE_MODE_NONE:
-        break;
-
-    case INPUT_HIT_BOX_MOUSE_UPDATE_MODE_RESET:
-    {
-        KAN_UMI_VALUE_READ_OPTIONAL (old_hovered, kan_ui_node_hit_box_t, id, &public->current_hovered_id)
-        public->current_hovered_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
-        public->last_mouse_x = 0;
-        public->last_mouse_y = 0;
-
-        if (old_hovered)
-        {
-            apply_hit_box_interaction_visuals (state, public, bundle, old_hovered, false);
-        }
-
-        break;
-    }
-
-    case INPUT_HIT_BOX_MOUSE_UPDATE_MODE_EXECUTE:
+    if (do_mouse_hit_box_full_update)
     {
         struct kan_repository_indexed_sequence_read_access_t new_hovered_access;
         const struct kan_ui_node_hit_box_t *new_hovered = find_hit_box_at (
             state, HIT_BOX_SEARCH_MODE_POINTER, public->last_mouse_x, public->last_mouse_y, &new_hovered_access);
-        const bool new_hovered_applicable = new_hovered && new_hovered->interactable;
+        const bool new_hovered_applicable = new_hovered && new_hovered->interactable && !new_hovered->disabled;
 
         if (!new_hovered_applicable || !KAN_TYPED_ID_32_IS_EQUAL (public->current_hovered_id, new_hovered->id))
         {
@@ -2247,9 +2252,21 @@ static void process_events (struct ui_controls_input_state_t *state,
         {
             kan_repository_indexed_sequence_read_access_close (&new_hovered_access);
         }
-
-        break;
     }
+    // Just check focused hit box validity.
+    else if (KAN_TYPED_ID_32_IS_VALID (public->current_hovered_id))
+    {
+        KAN_UMI_VALUE_READ_OPTIONAL (old_hovered, kan_ui_node_hit_box_t, id, &public->current_hovered_id)
+        const bool reset = !old_hovered || old_hovered->disabled;
+
+        if (reset)
+        {
+            public->current_hovered_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+            if (old_hovered)
+            {
+                apply_hit_box_interaction_visuals (state, public, bundle, old_hovered, false);
+            }
+        }
     }
 
     if (public->press_filtered_in && KAN_TYPED_ID_32_IS_VALID (public->press_started_on_id))
@@ -2677,14 +2694,15 @@ static void process_line_edit_content_dirty_inner (struct ui_controls_input_stat
 
         behavior->content_dirty = false;
         behavior->text_visuals_dirty = true;
+        KAN_UMO_EVENT_INSERT_INIT (kan_line_edit_content_changed_t) {.node_id = behavior->id};
     }
 }
 
-static void process_interactable_style_changes (struct ui_controls_input_state_t *state,
+static void process_interactable_state_changes (struct ui_controls_input_state_t *state,
                                                 const struct kan_ui_input_singleton_t *public,
                                                 const struct kan_ui_bundle_singleton_t *bundle)
 {
-    KAN_UML_EVENT_FETCH (changed_event, kan_ui_node_hit_box_on_style_change_event_t)
+    KAN_UML_EVENT_FETCH (changed_event, kan_ui_node_hit_box_on_state_change_event_t)
     {
         KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &changed_event->id)
         if (hit_box && hit_box->interactable)
@@ -2818,7 +2836,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_input)
     process_events (state, public, ui, bundle, visuals_changed, hit_boxes_changed);
     process_line_edit_content_dirty_inner (state);
 
-    process_interactable_style_changes (state, public, bundle);
+    process_interactable_state_changes (state, public, bundle);
     clear_old_down_marks (state, ui, public, bundle);
     update_scroll_line_visibility (state, ui);
 }
@@ -3470,6 +3488,7 @@ void kan_ui_node_hit_box_init (struct kan_ui_node_hit_box_t *instance)
 
     instance->interactable = false;
     instance->scroll_passthrough = false;
+    instance->disabled = false;
 
     instance->interactable_style = NULL;
     instance->mouse_button_down_flags = 1u << KAN_PLATFORM_MOUSE_BUTTON_LEFT;

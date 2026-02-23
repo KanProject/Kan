@@ -39,6 +39,16 @@ RESOURCE_UI_API struct kan_resource_reference_meta_t kan_resource_ui_bundle_refe
     .flags = 0u,
 };
 
+void kan_resource_ui_hit_box_interaction_style_init (struct kan_resource_ui_hit_box_interaction_style_t *instance)
+{
+    instance->name = NULL;
+    instance->regular_image = NULL;
+    instance->hovered_image = NULL;
+    instance->down_image = NULL;
+    instance->disabled_image = NULL;
+    instance->down_state_s = 0.05f;
+}
+
 void kan_resource_ui_bundle_init (struct kan_resource_ui_bundle_t *instance)
 {
     instance->pass = NULL;

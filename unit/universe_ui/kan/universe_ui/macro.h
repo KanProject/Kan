@@ -218,6 +218,22 @@ struct kan_uim_parent_stack_info_t
     NAME##_container_text_behavior->font_size = (FONT_SIZE);                                                           \
     NAME##_container_text_behavior->sync_text_limit_from_ui = true
 
+/// \brief Button widget with icon image added as a child.
+#define KAN_UIM_WIDGET_ICON_BUTTON(NAME, STYLE, ICON, ICON_WIDTH, ICON_HEIGHT, ICON_MARK)                              \
+    KAN_UIM_WIDGET_BUTTON (NAME, STYLE);                                                                               \
+    NAME##_node->element.width_flags = KAN_UI_SIZE_FLAG_FIT_CHILDREN;                                                  \
+    NAME##_node->element.height_flags = KAN_UI_SIZE_FLAG_FIT_CHILDREN;                                                 \
+    NAME##_node->layout.layout = KAN_UI_LAYOUT_FRAME;                                                                  \
+                                                                                                                       \
+    KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_container);                                                                 \
+    KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME, NAME##_container);                                                        \
+    KAN_UIM_DRAWABLE_IMAGE (NAME##_container, KAN_UI_IMAGE_COMMAND_DEFAULT (ICON));                                    \
+                                                                                                                       \
+    NAME##_container_node->parent_id = NAME##_node->id;                                                                \
+    NAME##_container_node->element.width = (ICON_WIDTH);                                                               \
+    NAME##_container_node->element.height = (ICON_HEIGHT);                                                             \
+    NAME##_container_drawable->main_draw_command.ui_mark = (ICON_MARK)
+
 /// \brief Scroll pane widget consists of outer node that is placed in parent layout and container node that is child
 ///        of the outer node and which contains content to be scrolled.
 /// \details This macro setups foundation for scroll pane, see macros below for proper configuration.

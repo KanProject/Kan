@@ -521,7 +521,7 @@ static bool spirv_finalize_generation_context (struct spirv_generation_context_t
             continue;
         }
 
-        kan_memory_size_t accesses_count = 0u;
+        kan_instance_size_t accesses_count = 0u;
         struct compiler_instance_container_access_node_t *container_access = function->first_container_access;
 
         while (container_access)
@@ -1017,7 +1017,7 @@ static struct spirv_image_type_identifiers_t spirv_find_or_generate_image_type (
 
 static uint32_t spirv_find_or_generate_object_type (struct spirv_generation_context_t *context,
                                                     struct compiler_instance_type_definition_t *type,
-                                                    kan_memory_size_t start_dimension_index)
+                                                    kan_instance_size_t start_dimension_index)
 {
     if ((!type->array_size_runtime && start_dimension_index == type->array_dimensions_count) ||
         (type->array_size_runtime && start_dimension_index == 1u))
@@ -1146,7 +1146,7 @@ static inline void spirv_emit_struct_from_declaration_list (struct spirv_generat
                                                             uint32_t struct_id)
 {
     spirv_generate_op_name (context, struct_id, debug_struct_name);
-    kan_memory_size_t field_count = 0u;
+    kan_instance_size_t field_count = 0u;
     struct compiler_instance_declaration_node_t *field = first_field;
 
     while (field)
@@ -1401,7 +1401,7 @@ static struct spirv_generation_function_type_t *spirv_find_or_generate_function_
     struct spirv_generation_context_t *context, struct compiler_instance_function_node_t *function)
 {
     const uint32_t return_type = spirv_find_or_generate_object_type (context, &function->return_type, 0u);
-    kan_memory_size_t argument_count = 0u;
+    kan_instance_size_t argument_count = 0u;
     struct compiler_instance_function_argument_node_t *argument = function->first_argument;
 
     while (argument)
@@ -1415,7 +1415,7 @@ static struct spirv_generation_function_type_t *spirv_find_or_generate_function_
     {
         argument_types = kan_stack_group_allocator_allocate (&context->temporary_allocator,
                                                              sizeof (uint32_t) * argument_count, alignof (uint32_t));
-        kan_memory_size_t argument_index = 0u;
+        kan_instance_size_t argument_index = 0u;
         argument = function->first_argument;
 
         while (argument)

@@ -452,9 +452,10 @@ static bool apply_tail_set_array (struct kan_resource_build_rule_context_t *cont
                 if (tail_end > buffer->data.capacity)
                 {
                     kan_dynamic_array_set_capacity (
-                        &buffer->data, kan_apply_alignment (tail_end + KAN_RESOURCE_RF_MI_TAIL_APPEND_CAPACITY *
-                                                                           buffer_meta->tail_item_size,
-                                                            buffer->data.item_alignment));
+                        &buffer->data,
+                        (kan_instance_size_t) kan_apply_alignment (
+                            tail_end + KAN_RESOURCE_RF_MI_TAIL_APPEND_CAPACITY * buffer_meta->tail_item_size,
+                            buffer->data.item_alignment));
                 }
 
                 const kan_instance_size_t size_before = buffer->data.size;
@@ -514,7 +515,7 @@ static bool apply_tail_append_array (struct kan_resource_build_rule_context_t *c
             if (tail_end > buffer->data.capacity)
             {
                 kan_dynamic_array_set_capacity (
-                    &buffer->data, kan_apply_alignment (
+                    &buffer->data, (kan_instance_size_t) kan_apply_alignment (
                                        tail_end + KAN_RESOURCE_RF_MI_TAIL_APPEND_CAPACITY * buffer_meta->tail_item_size,
                                        buffer->data.item_alignment));
             }
@@ -1377,9 +1378,10 @@ static bool apply_variants_array (struct kan_resource_build_rule_context_t *cont
             kan_allocation_group_stack_pop ();
 
             output_variant->name = input_variant->name;
-            kan_dynamic_array_set_capacity (&output_variant->instanced_data,
-                                            kan_apply_alignment (material->instanced_attribute_source.block_size,
-                                                                 output_variant->instanced_data.item_alignment));
+            kan_dynamic_array_set_capacity (
+                &output_variant->instanced_data,
+                (kan_instance_size_t) kan_apply_alignment (material->instanced_attribute_source.block_size,
+                                                           output_variant->instanced_data.item_alignment));
             output_variant->instanced_data.size = material->instanced_attribute_source.block_size;
         }
 
@@ -1502,8 +1504,8 @@ static enum kan_resource_build_rule_result_t material_instance_build (struct kan
 
             target->binding = source->binding;
             target->type = source->type;
-            kan_dynamic_array_set_capacity (&target->data,
-                                            kan_apply_alignment (source->data.size, target->data.item_alignment));
+            kan_dynamic_array_set_capacity (&target->data, (kan_instance_size_t) kan_apply_alignment (
+                                                               source->data.size, target->data.item_alignment));
             target->data.size = source->data.size;
             memcpy (target->data.data, source->data.data, source->data.size);
         }
@@ -1530,9 +1532,9 @@ static enum kan_resource_build_rule_result_t material_instance_build (struct kan
             kan_allocation_group_stack_pop ();
 
             target->name = source->name;
-            kan_dynamic_array_set_capacity (
-                &target->instanced_data,
-                kan_apply_alignment (source->instanced_data.size, target->instanced_data.item_alignment));
+            kan_dynamic_array_set_capacity (&target->instanced_data,
+                                            (kan_instance_size_t) kan_apply_alignment (
+                                                source->instanced_data.size, target->instanced_data.item_alignment));
             target->instanced_data.size = source->instanced_data.size;
             memcpy (target->instanced_data.data, source->instanced_data.data, source->instanced_data.size);
         }
@@ -1552,8 +1554,8 @@ static enum kan_resource_build_rule_result_t material_instance_build (struct kan
 
             target->binding = source->binding;
             target->type = source->type;
-            kan_dynamic_array_set_capacity (&target->data,
-                                            kan_apply_alignment (source->main_size, target->data.item_alignment));
+            kan_dynamic_array_set_capacity (&target->data, (kan_instance_size_t) kan_apply_alignment (
+                                                               source->main_size, target->data.item_alignment));
             target->data.size = source->main_size;
             memset (target->data.data, 0, source->main_size);
         }

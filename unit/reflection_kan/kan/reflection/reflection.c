@@ -3649,7 +3649,7 @@ static struct struct_migrator_node_t *migrator_add_struct (struct migrator_t *mi
                     source_field->archetype_inline_array.item_count :
                     target_field->archetype_inline_array.item_count;
 
-            for (kan_memory_size_t item_index = 0u; item_index < items_count; ++item_index)
+            for (kan_instance_size_t item_index = 0u; item_index < items_count; ++item_index)
             {
                 const kan_instance_size_t source_offset =
                     source_field->offset + source_field->archetype_inline_array.item_size * item_index;

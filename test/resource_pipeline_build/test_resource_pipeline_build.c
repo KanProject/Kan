@@ -383,7 +383,7 @@ static enum kan_resource_build_rule_result_t secondary_producer_resource_build (
     kan_dynamic_array_set_capacity (&output->produced, input->count_to_produce);
     struct secondary_resource_raw_t produced;
 
-    for (kan_memory_size_t index = 0u; index < input->count_to_produce; ++index)
+    for (kan_instance_size_t index = 0u; index < input->count_to_produce; ++index)
     {
         produced.index_in_producer = index;
         char name_buffer[256u];

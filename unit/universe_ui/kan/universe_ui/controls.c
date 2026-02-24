@@ -1553,7 +1553,7 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
 
     const bool forward_base_direction =
         shaping_unit->request.reading_direction == KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
-    kan_memory_size_t cluster_index = 0u;
+    kan_instance_size_t cluster_index = 0u;
 
     while (cluster_index < selected_sequence->clusters.size)
     {
@@ -1564,7 +1564,7 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
         if (!cluster->matching_reading_direction)
         {
             kan_instance_size_t run_ends_at = selected_sequence->clusters.size;
-            for (kan_memory_size_t scan_index = cluster_index + 1u; scan_index < selected_sequence->clusters.size;
+            for (kan_instance_size_t scan_index = cluster_index + 1u; scan_index < selected_sequence->clusters.size;
                  ++scan_index)
             {
                 const struct kan_text_shaped_edition_cluster_data_t *scan_cluster =
@@ -1644,7 +1644,7 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
                 // to get the first cluster of bidi inverted direction.
                 kan_instance_size_t run_ends_at = selected_sequence->clusters.size;
 
-                for (kan_memory_size_t scan_index = cluster_index + 2u; scan_index < selected_sequence->clusters.size;
+                for (kan_instance_size_t scan_index = cluster_index + 2u; scan_index < selected_sequence->clusters.size;
                      ++scan_index)
                 {
                     const struct kan_text_shaped_edition_cluster_data_t *scan_cluster = &(

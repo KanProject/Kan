@@ -306,7 +306,7 @@ void kan_update_system_disconnect_on_run (kan_context_system_t update_system, ka
     // Check that we're not in connection phase.
     KAN_ASSERT (!system->first_connection_request)
 
-    for (kan_memory_size_t index = 0u; index < system->update_sequence.size; ++index)
+    for (kan_instance_size_t index = 0u; index < system->update_sequence.size; ++index)
     {
         struct update_callable_t *callable = &((struct update_callable_t *) system->update_sequence.data)[index];
         if (KAN_HANDLE_IS_EQUAL (callable->system, other_system))

@@ -81,7 +81,8 @@ void *freetype_realloc (FT_Memory memory, long current_size, long new_size, void
     else
     {
         void *new_memory = freetype_alloc (memory, new_size);
-        memcpy (new_memory, ptr, KAN_MIN (current_size, new_size));
+        // Use cast as for some reason MSVC cannot match long to any integer type.
+        memcpy (new_memory, ptr, KAN_MIN ((kan_memory_size_t) current_size, new_size));
         freetype_free (memory, ptr);
         return new_memory;
     }
@@ -611,7 +612,7 @@ kan_text_t kan_text_create (const struct kan_text_description_t *description)
     kan_interned_string_t style = NULL;
     uint32_t mark = 0u;
 
-    for (kan_memory_size_t index = 0u; index < description->items_count; ++index)
+    for (kan_instance_size_t index = 0u; index < description->items_count; ++index)
     {
         struct kan_text_item_t *item = &description->items[index];
         switch (item->type)

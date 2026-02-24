@@ -170,7 +170,7 @@ struct kan_readable_data_output_target_t
     const char *identifier;
 
     /// \brief Array index for identifier or KAN_READABLE_DATA_ARRAY_INDEX_NONE if not in array.
-    kan_instance_size_t array_index;
+    kan_stable_size_t array_index;
 };
 
 /// \brief Value node for describing values for setters.

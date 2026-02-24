@@ -496,7 +496,7 @@ static inline void add_to_id_array (struct kan_dynamic_array_t *array, kan_insta
 
 static inline void remove_from_id_array (struct kan_dynamic_array_t *array, kan_instance_size_t id)
 {
-    for (kan_memory_size_t index = 0u; index < array->size; ++index)
+    for (kan_instance_size_t index = 0u; index < array->size; ++index)
     {
         if (((kan_instance_size_t *) array->data)[index] == id)
         {

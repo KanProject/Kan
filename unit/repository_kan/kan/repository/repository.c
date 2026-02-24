@@ -1830,7 +1830,7 @@ static void observation_buffer_definition_build (struct observation_buffer_defin
     // We don't have intersections now, therefore we can try to safely merge nodes.
     struct observation_buffer_scenario_chunk_list_node_t *first_merged_node = NULL;
     struct observation_buffer_scenario_chunk_list_node_t *last_merged_node = NULL;
-    kan_memory_size_t merged_nodes_count = 0u;
+    kan_instance_size_t merged_nodes_count = 0u;
     chunk = first_no_intersection_node;
 
     while (chunk)
@@ -1995,7 +1995,7 @@ static void observation_event_triggers_definition_build (struct observation_even
     struct kan_repository_meta_automatic_on_change_event_t *event =
         (struct kan_repository_meta_automatic_on_change_event_t *) kan_reflection_struct_meta_iterator_get (&iterator);
 
-    kan_memory_size_t triggers_count = 0u;
+    kan_instance_size_t triggers_count = 0u;
     kan_instance_size_t triggers_array_size = 0u;
     struct observation_event_trigger_list_node_t *first_event_node = NULL;
 

@@ -1181,7 +1181,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
     struct kan_rpl_meta_buffer_t *g_buffer_scene_view_buffer_meta =
         &((struct kan_rpl_meta_buffer_t *) g_buffer_pass_variant->pass_parameter_set_bindings.buffers.data)[0u];
 
-    for (kan_memory_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
+    for (kan_instance_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
     {
         if (!KAN_HANDLE_IS_VALID (singleton->scene_view[index].g_buffer_parameter_set))
         {
@@ -1284,7 +1284,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
     struct kan_rpl_meta_image_t *lighting_diffuse_image_meta =
         &((struct kan_rpl_meta_image_t *) lighting_pass_variant->pass_parameter_set_bindings.images.data)[2u];
 
-    for (kan_memory_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
+    for (kan_instance_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
     {
         if (!KAN_HANDLE_IS_VALID (singleton->scene_view[index].lighting_parameter_set))
         {
@@ -1629,7 +1629,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
         }
 
         struct kan_render_parameter_update_description_t bindings[POINT_LIGHTS_WITH_SHADOWS];
-        for (kan_memory_size_t light_index = 0u; light_index < POINT_LIGHTS_WITH_SHADOWS; ++light_index)
+        for (kan_instance_size_t light_index = 0u; light_index < POINT_LIGHTS_WITH_SHADOWS; ++light_index)
         {
             bindings[light_index] = (struct kan_render_parameter_update_description_t) {
                 .binding = 0u,
@@ -1665,7 +1665,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
         kan_transform_3_to_float_matrix_4x4 (&scene_camera_base_transform);
     kan_render_pass_instance_t lighting_pass_instances_for_read_back[SPLIT_SCREEN_VIEWS];
 
-    for (kan_memory_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
+    for (kan_instance_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
     {
         // We use reversed depth everywhere in this example.
         struct kan_float_matrix_4x4_t projection =
@@ -1882,12 +1882,12 @@ static void try_render_frame (struct deferred_render_state_t *state,
     }
 
     // Point light shadow passes.
-    for (kan_memory_size_t point_light_index = 0u; point_light_index < POINT_LIGHTS_WITH_SHADOWS; ++point_light_index)
+    for (kan_instance_size_t point_light_index = 0u; point_light_index < POINT_LIGHTS_WITH_SHADOWS; ++point_light_index)
     {
         const struct kan_render_graph_resource_response_t *light_response =
             point_light_shadow_responses[point_light_index];
 
-        for (kan_memory_size_t side = 0u; side < DEFERRED_RENDER_CUBE_SHADOW_FRAME_BUFFER_COUNT; ++side)
+        for (kan_instance_size_t side = 0u; side < DEFERRED_RENDER_CUBE_SHADOW_FRAME_BUFFER_COUNT; ++side)
         {
             const kan_instance_size_t pass_index =
                 point_light_index * DEFERRED_RENDER_CUBE_SHADOW_FRAME_BUFFER_COUNT + side;
@@ -1965,7 +1965,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
         if (test->test_mode_enabled && !singleton->frame_checked)
         {
             kan_dynamic_array_set_capacity (&test->expectation_read_back_statuses, SPLIT_SCREEN_VIEWS);
-            for (kan_memory_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
+            for (kan_instance_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
             {
                 *(kan_render_read_back_status_t *) kan_dynamic_array_add_last (&test->expectation_read_back_statuses) =
                     kan_render_request_read_back_from_image (

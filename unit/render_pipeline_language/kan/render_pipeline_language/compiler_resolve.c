@@ -3387,7 +3387,7 @@ static inline bool resolve_expression_array_with_signature (
     bool resolved = true;
     struct compiler_instance_expression_list_item_t *last_expression = NULL;
     struct compiler_instance_function_argument_node_t *current_argument = first_argument;
-    kan_memory_size_t current_argument_index = 0u;
+    kan_instance_size_t current_argument_index = 0u;
 
     for (kan_memory_size_t index = 0u; index < expression_list_size; ++index)
     {

@@ -5867,7 +5867,7 @@ static void execute_pack_for_target (kan_memory_size_t user_data)
 
     struct resource_type_container_t *container =
         (struct resource_type_container_t *) target->resource_types.items.first;
-    kan_memory_size_t entry_types_count = 0u;
+    kan_instance_size_t entry_types_count = 0u;
 
     while (container)
     {

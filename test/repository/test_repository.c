@@ -2202,7 +2202,7 @@ KAN_TEST_CASE (interval_operations)
 
     kan_repository_enter_serving_mode (root_repository);
 
-    for (kan_memory_size_t index = 0u; index < 100u; ++index)
+    for (kan_instance_size_t index = 0u; index < 100u; ++index)
     {
         insert_object_record (
             &insert_child,
@@ -2215,7 +2215,7 @@ KAN_TEST_CASE (interval_operations)
         struct kan_repository_indexed_interval_ascending_read_cursor_t read_all_cursor =
             kan_repository_indexed_interval_read_query_execute_ascending (&read_x_root, NULL, NULL);
 
-        for (kan_memory_size_t index = 0u; index < 100u; ++index)
+        for (kan_instance_size_t index = 0u; index < 100u; ++index)
         {
             struct kan_repository_indexed_interval_read_access_t access =
                 kan_repository_indexed_interval_ascending_read_cursor_next (&read_all_cursor);

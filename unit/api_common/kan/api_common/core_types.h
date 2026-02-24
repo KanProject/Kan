@@ -28,8 +28,7 @@
 ///   Used in cases where it is unexpected to have really large values. Therefore, most likely to be 32 bit.
 ///
 /// - `kan_memory_size_t` and `kan_memory_offset_t` correspond to unsigned and signed integers that are native to the
-///   architecture and therefore are able to reference the whole available memory on this platform. It is also advised
-///   to be used for loop-like iterations as native integers might work faster than `kan_instance_size_t` in that case.
+///   architecture and therefore are able to reference the whole available memory on this platform.
 ///
 /// - `kan_floating_t` is a floating point type that is advised to be used on selected platform preset.
 /// \endparblock

@@ -800,9 +800,9 @@ static inline bool read_to_enum (struct reader_state_t *reader_state,
     return true;
 }
 
-static inline kan_memory_size_t calculate_values_count (const struct kan_readable_data_event_t *parsed_event)
+static inline kan_instance_size_t calculate_values_count (const struct kan_readable_data_event_t *parsed_event)
 {
-    kan_memory_size_t count = 0u;
+    kan_instance_size_t count = 0u;
     const struct kan_readable_data_value_node_t *node = parsed_event->setter_value_first;
 
     while (node)
@@ -1172,7 +1172,7 @@ static inline bool read_elemental_setter (struct reader_state_t *reader_state,
             }
 
             struct kan_readable_data_value_node_t *node = parsed_event->setter_value_first;
-            kan_memory_size_t index = 0u;
+            kan_instance_size_t index = 0u;
 
             while (node)
             {
@@ -1252,13 +1252,15 @@ static inline bool read_elemental_setter (struct reader_state_t *reader_state,
             }
 
             kan_instance_size_t item_offset =
-                absolute_offset + field->archetype_inline_array.item_size * parsed_event->output_target.array_index;
+                absolute_offset +
+                field->archetype_inline_array.item_size * (kan_instance_size_t) parsed_event->output_target.array_index;
             kan_instance_size_t item_size_with_padding_adjustment;
 
             if (parsed_event->output_target.array_index == field->archetype_inline_array.item_count - 1u)
             {
-                item_size_with_padding_adjustment = size_with_padding - field->archetype_inline_array.item_size *
-                                                                            parsed_event->output_target.array_index;
+                item_size_with_padding_adjustment =
+                    size_with_padding - field->archetype_inline_array.item_size *
+                                            (kan_instance_size_t) parsed_event->output_target.array_index;
             }
             else
             {
@@ -1278,7 +1280,7 @@ static inline bool read_elemental_setter (struct reader_state_t *reader_state,
             // Reading into normal array that is already in memory.
             if (parsed_event->output_target.array_index == KAN_READABLE_DATA_ARRAY_INDEX_NONE)
             {
-                const kan_memory_size_t count = calculate_values_count (parsed_event);
+                const kan_instance_size_t count = calculate_values_count (parsed_event);
                 struct kan_dynamic_array_t *dynamic_array = (struct kan_dynamic_array_t *) address;
 
                 if (dynamic_array->size < count)
@@ -1312,15 +1314,27 @@ static inline bool read_elemental_setter (struct reader_state_t *reader_state,
             }
             else
             {
+                if (parsed_event->output_target.array_index >= KAN_INT_MAX (kan_instance_size_t))
+                {
+                    KAN_LOG (serialization_readable_data, KAN_LOG_ERROR,
+                             "Elemental setter attempts to set value at path \"%s[%llu]\", but given index is greater "
+                             "than array size limit %llu.",
+                             parsed_event->output_target.identifier,
+                             (unsigned long long) parsed_event->output_target.array_index,
+                             (unsigned long long) KAN_INT_MAX (kan_instance_size_t))
+                    return false;
+                }
+
                 struct kan_dynamic_array_t *dynamic_array = (struct kan_dynamic_array_t *) address;
                 if (dynamic_array->size <= parsed_event->output_target.array_index)
                 {
                     if (dynamic_array->capacity <= parsed_event->output_target.array_index)
                     {
-                        kan_dynamic_array_set_capacity (dynamic_array, parsed_event->output_target.array_index + 1u);
+                        kan_dynamic_array_set_capacity (
+                            dynamic_array, (kan_instance_size_t) parsed_event->output_target.array_index + 1u);
                     }
 
-                    dynamic_array->size = parsed_event->output_target.array_index + 1u;
+                    dynamic_array->size = (kan_instance_size_t) parsed_event->output_target.array_index + 1u;
                 }
 
                 void *array_address =
@@ -1378,10 +1392,10 @@ static inline bool read_elemental_setter (struct reader_state_t *reader_state,
             {
                 if (read_elemental_setter_into_array_element (reader_state, parsed_event, field, address))
                 {
-                    elemental_setter_item_post_read (
-                        reader_state, top_state,
-                        parsed_event->output_target.array_index * field->archetype_dynamic_array.item_size,
-                        field->archetype_dynamic_array.item_size, address);
+                    elemental_setter_item_post_read (reader_state, top_state,
+                                                     (kan_instance_size_t) parsed_event->output_target.array_index *
+                                                         field->archetype_dynamic_array.item_size,
+                                                     field->archetype_dynamic_array.item_size, address);
                 }
                 else
                 {
@@ -1618,7 +1632,7 @@ static inline bool read_structural_setter (struct reader_state_t *reader_state,
         case KAN_REFLECTION_ARCHETYPE_STRUCT:
         {
             const kan_instance_size_t item_offset =
-                field->archetype_inline_array.item_size * parsed_event->output_target.array_index;
+                field->archetype_inline_array.item_size * (kan_instance_size_t) parsed_event->output_target.array_index;
 
             const kan_instance_size_t item_size_with_padding =
                 parsed_event->output_target.array_index == field->archetype_inline_array.item_size - 1u ?
@@ -1682,6 +1696,17 @@ static inline bool read_structural_setter (struct reader_state_t *reader_state,
             return false;
         }
 
+        if (parsed_event->output_target.array_index >= KAN_INT_MAX (kan_instance_size_t))
+        {
+            KAN_LOG (serialization_readable_data, KAN_LOG_ERROR,
+                     "Elemental setter attempts to set value at path \"%s[%llu]\", but given index is greater "
+                     "than array size limit %llu.",
+                     parsed_event->output_target.identifier,
+                     (unsigned long long) parsed_event->output_target.array_index,
+                     (unsigned long long) KAN_INT_MAX (kan_instance_size_t))
+            return false;
+        }
+
         void *real_array_address = NULL;
         kan_reflection_patch_builder_section_t patch_section = KAN_REFLECTION_PATCH_BUILDER_SECTION_ROOT;
         kan_instance_size_t patch_section_internal_offset = 0u;
@@ -1695,12 +1720,13 @@ static inline bool read_structural_setter (struct reader_state_t *reader_state,
 
             if (dynamic_array->capacity < parsed_event->output_target.array_index + 1u)
             {
-                kan_dynamic_array_set_capacity (dynamic_array, (parsed_event->output_target.array_index + 1u) * 2u);
+                kan_dynamic_array_set_capacity (
+                    dynamic_array, ((kan_instance_size_t) parsed_event->output_target.array_index + 1u) * 2u);
             }
 
             if (dynamic_array->size < parsed_event->output_target.array_index + 1u)
             {
-                dynamic_array->size = parsed_event->output_target.array_index + 1u;
+                dynamic_array->size = (kan_instance_size_t) parsed_event->output_target.array_index + 1u;
             }
 
             real_array_address =
@@ -1715,8 +1741,8 @@ static inline bool read_structural_setter (struct reader_state_t *reader_state,
                 reader_state->patch_builder, reader_block_state_extract_patch_section (top_state),
                 KAN_REFLECTION_PATCH_SECTION_TYPE_DYNAMIC_ARRAY_SET, absolute_offset);
 
-            patch_section_internal_offset =
-                parsed_event->output_target.array_index * field->archetype_dynamic_array.item_size;
+            patch_section_internal_offset = (kan_instance_size_t) parsed_event->output_target.array_index *
+                                            field->archetype_dynamic_array.item_size;
             break;
         }
 

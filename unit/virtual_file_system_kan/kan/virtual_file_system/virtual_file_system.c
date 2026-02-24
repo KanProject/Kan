@@ -1049,7 +1049,7 @@ static void inform_mount_point_real_removed (struct volume_t *volume,
             inform_real_directory_removed (file_system_watcher, &recursive_virtual_path, &recursive_real_path);
         }
 
-        for (kan_memory_size_t index = 0u; index < file_system_watcher->real_file_system_attachments.size;)
+        for (kan_instance_size_t index = 0u; index < file_system_watcher->real_file_system_attachments.size;)
         {
             struct real_file_system_watcher_attachment_t *attachment =
                 &((struct real_file_system_watcher_attachment_t *)

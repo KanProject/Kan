@@ -254,16 +254,16 @@ static void update_font_blob_usage (struct text_management_state_t *state,
 
         // We have to honor order in locale to make sure that font library categories order matches order of languages
         // in locale resource to avoid unexpected behaviors.
-        for (kan_memory_size_t locale_language_index = 0u; locale_language_index < locale->resource.font_languages.size;
-             ++locale_language_index)
+        for (kan_instance_size_t locale_language_index = 0u;
+             locale_language_index < locale->resource.font_languages.size; ++locale_language_index)
         {
-            for (kan_memory_size_t category_index = 0u; category_index < resource->categories.size; ++category_index)
+            for (kan_instance_size_t category_index = 0u; category_index < resource->categories.size; ++category_index)
             {
                 const struct kan_resource_font_category_t *category =
                     &((struct kan_resource_font_category_t *) resource->categories.data)[category_index];
                 bool filtered_in = false;
 
-                for (kan_memory_size_t category_language_index = 0u;
+                for (kan_instance_size_t category_language_index = 0u;
                      category_language_index < category->used_for_languages.size; ++category_language_index)
                 {
                     if (((kan_interned_string_t *) category->used_for_languages.data)[category_language_index] ==

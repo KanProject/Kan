@@ -460,7 +460,7 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
     kan_render_device_t picked_device = KAN_HANDLE_INITIALIZE_INVALID;
     kan_instance_size_t picked_device_index = KAN_INT_MAX (kan_instance_size_t);
 
-    for (kan_memory_size_t index = 0u; index < devices->supported_device_count; ++index)
+    for (kan_instance_size_t index = 0u; index < devices->supported_device_count; ++index)
     {
         printf ("  - name: %s\n    device_type: %lu\n    memory_type: %lu\n", devices->devices[index].name,
                 (unsigned long) devices->devices[index].device_type,

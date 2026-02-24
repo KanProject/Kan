@@ -442,9 +442,9 @@ struct char_sequence_t
     const char *end;
 };
 
-static kan_memory_size_t split_automated_query_name (const char *body_start, struct char_sequence_t *output)
+static kan_instance_size_t split_automated_query_name (const char *body_start, struct char_sequence_t *output)
 {
-    kan_memory_size_t count = 0u;
+    kan_instance_size_t count = 0u;
     while (*body_start != '\0')
     {
         output->begin = body_start;
@@ -506,7 +506,8 @@ static void deploy_automated_lifetime_queries (kan_reflection_registry_t registr
             }
 
             struct char_sequence_t name_parts[KAN_UNIVERSE_MAX_AUTOMATED_QUERY_NAME_PARTS];
-            const kan_memory_size_t name_parts_count = split_automated_query_name (check_result.body_start, name_parts);
+            const kan_instance_size_t name_parts_count =
+                split_automated_query_name (check_result.body_start, name_parts);
 
             if (name_parts_count == 0u)
             {
@@ -681,7 +682,7 @@ static void deploy_automated_lifetime_queries (kan_reflection_registry_t registr
     }                                                                                                                  \
                                                                                                                        \
     kan_interned_string_t path[KAN_UNIVERSE_MAX_AUTOMATED_QUERY_NAME_PARTS - 1u];                                      \
-    for (kan_memory_size_t index = 1u; index < name_parts_count; ++index)                                              \
+    for (kan_instance_size_t index = 1u; index < name_parts_count; ++index)                                            \
     {                                                                                                                  \
         path[index - 1u] = kan_char_sequence_intern (name_parts[index].begin, name_parts[index].end);                  \
     }                                                                                                                  \
@@ -2194,7 +2195,7 @@ static void world_destroy (struct universe_t *universe, struct world_t *world)
 
     if (world->parent)
     {
-        for (kan_memory_size_t index = 0u; index < world->parent->children.size; ++index)
+        for (kan_instance_size_t index = 0u; index < world->parent->children.size; ++index)
         {
             struct world_t *other_world = ((struct world_t **) world->parent->children.data)[index];
             if (other_world == world)
@@ -2642,7 +2643,7 @@ static void world_migration_schedulers_mutators_migrate (struct universe_t *univ
             }
         }
 
-        for (kan_memory_size_t mutator_index = 0u; mutator_index < pipeline->mutators.size;)
+        for (kan_instance_size_t mutator_index = 0u; mutator_index < pipeline->mutators.size;)
         {
             struct mutator_t *mutator = &((struct mutator_t *) pipeline->mutators.data)[mutator_index];
             if (mutator->added_during_migration)
@@ -2762,7 +2763,7 @@ static void world_migrate_configuration (struct universe_t *universe,
                                          struct kan_cpu_task_list_node_t **first_task_node,
                                          struct kan_stack_group_allocator_t *temporary_allocator)
 {
-    for (kan_memory_size_t configuration_index = 0u; configuration_index < world->configuration.size;)
+    for (kan_instance_size_t configuration_index = 0u; configuration_index < world->configuration.size;)
     {
         struct world_configuration_t *configuration =
             &((struct world_configuration_t *) world->configuration.data)[configuration_index];

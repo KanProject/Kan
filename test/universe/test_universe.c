@@ -292,7 +292,7 @@ TEST_UNIVERSE_API KAN_UM_MUTATOR_EXECUTE (insert_from_multiple_threads)
     kan_stack_group_allocator_reset (&state->task_data_allocator);
     struct kan_cpu_task_list_node_t *tasks_head = NULL;
 
-    for (kan_memory_size_t index = 0u; index < 16u; ++index)
+    for (kan_instance_size_t index = 0u; index < 16u; ++index)
     {
         KAN_CPU_TASK_LIST_USER_STRUCT (&tasks_head, &state->task_data_allocator, insert_task_execute,
                                        state->task_section, struct insert_task_user_data_t,

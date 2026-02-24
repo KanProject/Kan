@@ -4967,7 +4967,7 @@ static bool build_struct_field_declarations (struct rpl_parser_t *instance,
                                              struct kan_dynamic_array_t *output)
 {
     bool result = true;
-    kan_memory_size_t count = 0u;
+    kan_instance_size_t count = 0u;
     struct parser_declaration_t *declaration = first_declaration;
 
     while (declaration)
@@ -5017,7 +5017,7 @@ static bool build_field_aliases (struct rpl_parser_t *instance,
                                  struct kan_dynamic_array_t *output)
 {
     bool result = true;
-    kan_memory_size_t count = 0u;
+    kan_instance_size_t count = 0u;
     struct parser_field_alias_t *alias = first_alias;
 
     while (alias)
@@ -5103,7 +5103,7 @@ static bool build_container_field_declarations (struct rpl_parser_t *instance,
                                                 struct kan_dynamic_array_t *output)
 {
     bool result = true;
-    kan_memory_size_t count = 0u;
+    kan_instance_size_t count = 0u;
     struct parser_container_field_t *field = first_field;
 
     while (field)
@@ -5296,7 +5296,7 @@ static bool build_function_arguments (struct rpl_parser_t *instance,
                                       struct kan_dynamic_array_t *output)
 {
     bool result = true;
-    kan_memory_size_t count = 0u;
+    kan_instance_size_t count = 0u;
     struct parser_function_argument_t *argument = first_argument;
 
     while (argument)

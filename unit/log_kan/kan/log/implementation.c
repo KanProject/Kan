@@ -232,7 +232,7 @@ void kan_log_callback_remove (kan_log_callback_t callback, kan_memory_size_t use
     {
         if (callbacks[callback_index].callback == callback && callbacks[callback_index].user_data == user_data)
         {
-            kan_dynamic_array_remove_swap_at (&logging_context.callback_array, callback_index);
+            kan_dynamic_array_remove_swap_at (&logging_context.callback_array, (kan_instance_size_t) callback_index);
             break;
         }
     }

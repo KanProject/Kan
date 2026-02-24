@@ -1842,6 +1842,14 @@ static bool scan_file (struct target_t *target, struct kan_file_system_path_cont
 static bool scan_directory (struct target_t *target, struct kan_file_system_path_container_t *reused_path)
 {
     kan_file_system_directory_iterator_t iterator = kan_file_system_directory_iterator_create (reused_path->path);
+    if (!KAN_HANDLE_IS_VALID (iterator))
+    {
+        KAN_LOG_WITH_BUFFER (KAN_FILE_SYSTEM_MAX_PATH_LENGTH * 2u, resource_pipeline_build, KAN_LOG_ERROR,
+                             "Failed to scan directory \"%s\" while scanning target \"%s\" directories.",
+                             reused_path->path, target->name)
+        return false;
+    }
+
     CUSHION_DEFER { kan_file_system_directory_iterator_destroy (iterator); }
     bool successful = true;
     const char *item_name;

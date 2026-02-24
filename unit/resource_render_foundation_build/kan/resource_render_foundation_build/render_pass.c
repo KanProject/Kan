@@ -87,12 +87,12 @@ static enum kan_resource_build_rule_result_t pass_build (struct kan_resource_bui
         return KAN_RESOURCE_BUILD_RULE_UNSUPPORTED;
     }
 
-    for (kan_loop_size_t required_index = 0u; required_index < input->required_tags.size; ++required_index)
+    for (kan_memory_size_t required_index = 0u; required_index < input->required_tags.size; ++required_index)
     {
         bool is_supported = false;
         kan_interned_string_t required = ((kan_interned_string_t *) input->required_tags.data)[required_index];
 
-        for (kan_loop_size_t supported_index = 0u; supported_index < configuration->supported_pass_tags.size;
+        for (kan_memory_size_t supported_index = 0u; supported_index < configuration->supported_pass_tags.size;
              ++supported_index)
         {
             kan_interned_string_t supported =
@@ -120,7 +120,7 @@ static enum kan_resource_build_rule_result_t pass_build (struct kan_resource_bui
     kan_dynamic_array_set_capacity (&output->variants, input->variants.size);
     bool successful = true;
 
-    for (kan_loop_size_t variant_index = 0u; variant_index < input->variants.size; ++variant_index)
+    for (kan_memory_size_t variant_index = 0u; variant_index < input->variants.size; ++variant_index)
     {
         const struct kan_resource_render_pass_variant_header_t *source =
             &((struct kan_resource_render_pass_variant_header_t *) input->variants.data)[variant_index];
@@ -142,7 +142,7 @@ static enum kan_resource_build_rule_result_t pass_build (struct kan_resource_bui
         CUSHION_DEFER { kan_rpl_compiler_context_destroy (compiler_context); }
         bool modules_used = true;
 
-        for (kan_loop_size_t source_index = 0u; source_index < source->sources.size; ++source_index)
+        for (kan_memory_size_t source_index = 0u; source_index < source->sources.size; ++source_index)
         {
             kan_interned_string_t source_name = ((kan_interned_string_t *) source->sources.data)[source_index];
             struct kan_resource_build_rule_secondary_node_t *secondary_node = context->secondary_input_first;

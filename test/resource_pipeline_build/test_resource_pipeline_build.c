@@ -318,7 +318,7 @@ static enum kan_resource_build_rule_result_t sum_resource_build (struct kan_reso
     output->sum = 0u;
 
     const struct kan_resource_build_rule_secondary_node_t *secondary = context->secondary_input_first;
-    kan_loop_size_t secondary_received = 0u;
+    kan_memory_size_t secondary_received = 0u;
 
     while (secondary)
     {
@@ -383,7 +383,7 @@ static enum kan_resource_build_rule_result_t secondary_producer_resource_build (
     kan_dynamic_array_set_capacity (&output->produced, input->count_to_produce);
     struct secondary_resource_raw_t produced;
 
-    for (kan_loop_size_t index = 0u; index < input->count_to_produce; ++index)
+    for (kan_memory_size_t index = 0u; index < input->count_to_produce; ++index)
     {
         produced.index_in_producer = index;
         char name_buffer[256u];
@@ -885,8 +885,8 @@ KAN_TEST_CASE (rebuild)
     enum kan_resource_build_result_t result = kan_resource_build (&setup);
     KAN_TEST_ASSERT (result == KAN_RESOURCE_BUILD_RESULT_SUCCESS)
 
-    kan_time_size_t last_build_time_test_1_2;
-    kan_time_size_t last_build_time_test_2_3;
+    kan_stable_size_t last_build_time_test_1_2;
+    kan_stable_size_t last_build_time_test_2_3;
 
     struct kan_file_system_path_container_t read_path;
     kan_file_system_path_container_copy_string (&read_path, WORKSPACE_DIRECTORY);
@@ -1162,8 +1162,8 @@ KAN_TEST_CASE (secondary)
     enum kan_resource_build_result_t result = kan_resource_build (&setup);
     KAN_TEST_ASSERT (result == KAN_RESOURCE_BUILD_RESULT_SUCCESS)
 
-    kan_time_size_t test_child_0_initial_time;
-    kan_time_size_t test_initial_time;
+    kan_stable_size_t test_child_0_initial_time;
+    kan_stable_size_t test_initial_time;
 
     struct kan_file_system_path_container_t read_path;
     kan_file_system_path_container_copy_string (&read_path, WORKSPACE_DIRECTORY);
@@ -1662,7 +1662,7 @@ KAN_TEST_CASE (scale)
     kan_file_system_path_container_append (&write_path, SCALE_SECONDARY_DIR);
     KAN_TEST_CHECK (kan_file_system_make_directory (write_path.path))
 
-    for (kan_loop_size_t index = 0u; index < SCALE_SIZE_SUM; ++index)
+    for (kan_memory_size_t index = 0u; index < SCALE_SIZE_SUM; ++index)
     {
         char buffer[128u];
 
@@ -1693,7 +1693,7 @@ KAN_TEST_CASE (scale)
         sum_resource_raw_shutdown (&raw);
     }
 
-    for (kan_loop_size_t index = 0u; index < SCALE_SIZE_SECONDARY; ++index)
+    for (kan_memory_size_t index = 0u; index < SCALE_SIZE_SECONDARY; ++index)
     {
         char buffer[128u];
         snprintf (buffer, sizeof (buffer), "%u.rd", (unsigned int) index);
@@ -1717,13 +1717,13 @@ KAN_TEST_CASE (scale)
         kan_dynamic_array_set_capacity (&root.needed_secondary_producers, SCALE_REFERENCED_SECONDARY);
         char buffer[128u];
 
-        for (kan_loop_size_t index = 0u; index < SCALE_REFERENCED_SUM; ++index)
+        for (kan_memory_size_t index = 0u; index < SCALE_REFERENCED_SUM; ++index)
         {
             snprintf (buffer, sizeof (buffer), "%u", (unsigned int) index);
             *(kan_interned_string_t *) kan_dynamic_array_add_last (&root.needed_sums) = kan_string_intern (buffer);
         }
 
-        for (kan_loop_size_t index = 0u; index < SCALE_REFERENCED_SECONDARY; ++index)
+        for (kan_memory_size_t index = 0u; index < SCALE_REFERENCED_SECONDARY; ++index)
         {
             snprintf (buffer, sizeof (buffer), "%u", (unsigned int) index);
             *(kan_interned_string_t *) kan_dynamic_array_add_last (&root.needed_secondary_producers) =
@@ -1742,7 +1742,7 @@ KAN_TEST_CASE (scale)
     kan_file_system_path_container_copy_string (&read_path, WORKSPACE_DIRECTORY);
     const kan_instance_size_t read_path_base_length = read_path.length;
 
-    for (kan_loop_size_t index = 0u; index < SCALE_SIZE_SUM; ++index)
+    for (kan_memory_size_t index = 0u; index < SCALE_SIZE_SUM; ++index)
     {
         char buffer[128u];
         snprintf (buffer, sizeof (buffer), "%u", (unsigned int) index);
@@ -1762,7 +1762,7 @@ KAN_TEST_CASE (scale)
         }
     }
 
-    for (kan_loop_size_t index = 0u; index < SCALE_SIZE_SECONDARY; ++index)
+    for (kan_memory_size_t index = 0u; index < SCALE_SIZE_SECONDARY; ++index)
     {
         char buffer[128u];
         snprintf (buffer, sizeof (buffer), "%u", (unsigned int) index);
@@ -1854,7 +1854,7 @@ KAN_TEST_CASE (pack)
     setup.pack_mode = KAN_RESOURCE_BUILD_PACK_MODE_INTERNED;
     struct kan_file_system_path_container_t write_path;
 
-    for (kan_loop_size_t index = 0u; index < PACK_SIZE_SUM; ++index)
+    for (kan_memory_size_t index = 0u; index < PACK_SIZE_SUM; ++index)
     {
         char buffer[128u];
 
@@ -1883,7 +1883,7 @@ KAN_TEST_CASE (pack)
         sum_resource_raw_shutdown (&raw);
     }
 
-    for (kan_loop_size_t index = 0u; index < PACK_SIZE_SECONDARY; ++index)
+    for (kan_memory_size_t index = 0u; index < PACK_SIZE_SECONDARY; ++index)
     {
         char buffer[128u];
         snprintf (buffer, sizeof (buffer), "secondary_%u.rd", (unsigned int) index);
@@ -1906,13 +1906,13 @@ KAN_TEST_CASE (pack)
         kan_dynamic_array_set_capacity (&root.needed_secondary_producers, PACK_SIZE_SECONDARY);
         char buffer[128u];
 
-        for (kan_loop_size_t index = 0u; index < PACK_SIZE_SUM; ++index)
+        for (kan_memory_size_t index = 0u; index < PACK_SIZE_SUM; ++index)
         {
             snprintf (buffer, sizeof (buffer), "sum_%u", (unsigned int) index);
             *(kan_interned_string_t *) kan_dynamic_array_add_last (&root.needed_sums) = kan_string_intern (buffer);
         }
 
-        for (kan_loop_size_t index = 0u; index < PACK_SIZE_SECONDARY; ++index)
+        for (kan_memory_size_t index = 0u; index < PACK_SIZE_SECONDARY; ++index)
         {
             snprintf (buffer, sizeof (buffer), "secondary_%u", (unsigned int) index);
             *(kan_interned_string_t *) kan_dynamic_array_add_last (&root.needed_secondary_producers) =
@@ -1955,7 +1955,7 @@ KAN_TEST_CASE (pack)
     struct kan_resource_index_container_t *sum_container = NULL;
     KAN_TEST_ASSERT (resource_index.containers.size == 4u)
 
-    for (kan_loop_size_t index = 0u; index < resource_index.containers.size; ++index)
+    for (kan_memory_size_t index = 0u; index < resource_index.containers.size; ++index)
     {
         struct kan_resource_index_container_t *container =
             &((struct kan_resource_index_container_t *) resource_index.containers.data)[index];
@@ -2008,12 +2008,12 @@ KAN_TEST_CASE (pack)
     KAN_TEST_CHECK (root_resource.needed_secondary_producers.size == PACK_SIZE_SECONDARY)
     KAN_TEST_CHECK (root_resource.needed_third_party.size == 0u)
 
-    for (kan_loop_size_t index = 0u; index < root_resource.needed_sums.size; ++index)
+    for (kan_memory_size_t index = 0u; index < root_resource.needed_sums.size; ++index)
     {
         kan_interned_string_t name = ((kan_interned_string_t *) root_resource.needed_sums.data)[index];
         struct kan_resource_index_item_t *index_item = NULL;
 
-        for (kan_loop_size_t search_index = 0u; search_index < sum_container->items.size; ++search_index)
+        for (kan_memory_size_t search_index = 0u; search_index < sum_container->items.size; ++search_index)
         {
             struct kan_resource_index_item_t *item =
                 &((struct kan_resource_index_item_t *) sum_container->items.data)[search_index];
@@ -2035,7 +2035,7 @@ KAN_TEST_CASE (pack)
         KAN_TEST_CHECK (resource.sum == 59u)
     }
 
-    for (kan_loop_size_t producer_index = 0u; producer_index < root_resource.needed_secondary_producers.size;
+    for (kan_memory_size_t producer_index = 0u; producer_index < root_resource.needed_secondary_producers.size;
          ++producer_index)
     {
         {
@@ -2043,7 +2043,7 @@ KAN_TEST_CASE (pack)
                 ((kan_interned_string_t *) root_resource.needed_secondary_producers.data)[producer_index];
             struct kan_resource_index_item_t *index_item = NULL;
 
-            for (kan_loop_size_t search_index = 0u; search_index < producer_container->items.size; ++search_index)
+            for (kan_memory_size_t search_index = 0u; search_index < producer_container->items.size; ++search_index)
             {
                 struct kan_resource_index_item_t *item =
                     &((struct kan_resource_index_item_t *) producer_container->items.data)[search_index];
@@ -2069,12 +2069,13 @@ KAN_TEST_CASE (pack)
                               interned_string_registry);
         KAN_TEST_CHECK (producer_resource.produced.size == 3u)
 
-        for (kan_loop_size_t secondary_index = 0u; secondary_index < producer_resource.produced.size; ++secondary_index)
+        for (kan_memory_size_t secondary_index = 0u; secondary_index < producer_resource.produced.size;
+             ++secondary_index)
         {
             kan_interned_string_t name = ((kan_interned_string_t *) producer_resource.produced.data)[secondary_index];
             struct kan_resource_index_item_t *index_item = NULL;
 
-            for (kan_loop_size_t search_index = 0u; search_index < secondary_container->items.size; ++search_index)
+            for (kan_memory_size_t search_index = 0u; search_index < secondary_container->items.size; ++search_index)
             {
                 struct kan_resource_index_item_t *item =
                     &((struct kan_resource_index_item_t *) secondary_container->items.data)[search_index];
@@ -2102,7 +2103,7 @@ KAN_TEST_CASE (pack)
 static void check_third_party_content_internal (struct kan_stream_t *stream, const char *expected_content)
 {
     char max_expected_buffer[1024u];
-    const kan_file_size_t read = stream->operations->read (stream, sizeof (max_expected_buffer), max_expected_buffer);
+    const kan_stable_size_t read = stream->operations->read (stream, sizeof (max_expected_buffer), max_expected_buffer);
     KAN_TEST_ASSERT (read < sizeof (max_expected_buffer))
     max_expected_buffer[read] = '\0';
     KAN_TEST_CHECK (strcmp (max_expected_buffer, expected_content) == 0)
@@ -2287,7 +2288,7 @@ KAN_TEST_CASE (third_party_pack)
     bool found_1 = false;
     bool found_3 = false;
 
-    for (kan_loop_size_t index = 0u; index < resource_index.third_party_items.size; ++index)
+    for (kan_memory_size_t index = 0u; index < resource_index.third_party_items.size; ++index)
     {
         const struct kan_resource_index_item_t *item =
             &((struct kan_resource_index_item_t *) resource_index.third_party_items.data)[index];

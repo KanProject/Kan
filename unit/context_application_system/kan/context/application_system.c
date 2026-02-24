@@ -805,7 +805,7 @@ static inline void sync_info_and_clipboard (struct application_system_t *system,
         }
 
         struct display_info_holder_t *current_holder = system->first_display_info;
-        for (kan_loop_size_t index = 0u; index < display_ids.size; ++index)
+        for (kan_memory_size_t index = 0u; index < display_ids.size; ++index)
         {
             kan_platform_display_id_t display_id = ((kan_platform_display_id_t *) display_ids.data)[index];
             current_holder->info.id = display_id;

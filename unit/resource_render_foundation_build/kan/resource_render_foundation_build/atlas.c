@@ -327,7 +327,7 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
         first_pin->height = input->page_height - input->border_size * 2u;
         kan_bd_list_add (&build_context.allocation_pins, NULL, &first_pin->node);
 
-        for (kan_loop_size_t index = 0u; index < build_context.sorted_images.size; ++index)
+        for (kan_memory_size_t index = 0u; index < build_context.sorted_images.size; ++index)
         {
             struct atlas_image_node_t *image_node =
                 ((struct atlas_image_node_t **) build_context.sorted_images.data)[index];
@@ -417,7 +417,7 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
         const uint8_t border_a = (uint8_t) roundf (255.0f * input->border.a);
 
         // Start by filling everything in the atlas with border color.
-        for (kan_loop_size_t pixel_index = 0u; pixel_index < build_context.pages_needed * page_size; ++pixel_index)
+        for (kan_memory_size_t pixel_index = 0u; pixel_index < build_context.pages_needed * page_size; ++pixel_index)
         {
             output->data.data[pixel_index * 4u] = border_r;
             output->data.data[pixel_index * 4u + 1u] = border_g;
@@ -426,7 +426,7 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
         }
 
         // Now write images into their allocated space.
-        for (kan_loop_size_t index = 0u; index < build_context.sorted_images.size; ++index)
+        for (kan_memory_size_t index = 0u; index < build_context.sorted_images.size; ++index)
         {
             struct atlas_image_node_t *image_node =
                 ((struct atlas_image_node_t **) build_context.sorted_images.data)[index];
@@ -445,7 +445,7 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
     }
 
     kan_dynamic_array_set_capacity (&output->entries, input->entries.size);
-    for (kan_loop_size_t entry_index = 0u; entry_index < input->entries.size; ++entry_index)
+    for (kan_memory_size_t entry_index = 0u; entry_index < input->entries.size; ++entry_index)
     {
         const struct kan_resource_atlas_entry_header_t *entry_source =
             &((struct kan_resource_atlas_entry_header_t *) input->entries.data)[entry_index];
@@ -487,7 +487,7 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
     (TARGET).color_table_multiplier_index = (SOURCE).color_table_multiplier_index
 
         COPY_IMAGE (entry_target->image, entry_source->image, image_node);
-        for (kan_loop_size_t replacement_index = 0u; replacement_index < entry_source->replacements.size;
+        for (kan_memory_size_t replacement_index = 0u; replacement_index < entry_source->replacements.size;
              ++replacement_index)
         {
             const struct kan_resource_atlas_entry_replacement_header_t *replacement_source =

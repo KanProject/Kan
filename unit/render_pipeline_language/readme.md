@@ -51,6 +51,12 @@ Currently, it is in early prototype stage.
   gets rid of compile time expressions and produces target-agnostic intermediate data. Emit step uses resolved data
   to construct pipeline metadata and/or emit code in specific language, like SPIRV.
 
+## Literals
+
+It is important to highlight that render pipeline language only supports 32-bit unsigned integer, signed integer and
+floating point literals as 64-bit types are much more costly on GPUs and therefore should be avoided, which is why we
+do not support them altogether.
+
 ## Options
 
 Options are used to specify how different pipelines variants can be configured in more precise and strict way than it

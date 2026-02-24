@@ -17,33 +17,21 @@
 /// \parblock
 /// This file provides several numeric types with most of them defined by platform numeric preset:
 ///
-/// - `kan_file_size_t` and `kan_file_offset_t` are for file coordinates,
-///   they are 64 bit on every preset due to large files.
+/// - `kan_stable_size_t` and `kan_stable_offset_t` are unsigned and signed integers for interaction with outside world
+///   like parsing text input, using file sizes or time values. Should always be 64-bit integers unless something
+///   changes drastically.
 ///
 /// - `kan_instance_size_t` used to describe object counts and object sizes. Used in cases where it is unexpected to
-///   have really large values. Therefore, 32 bit on most presets.
+///   have really large values. Therefore, most likely to be 32 bit.
 ///
 /// - `kan_instance_offset_t` used to describe offsets in arrays or counters that have logically not so big values.
-///   Used in cases where it is unexpected to have really large values. Therefore, 32 bit on most presets.
+///   Used in cases where it is unexpected to have really large values. Therefore, most likely to be 32 bit.
 ///
-/// - `kan_memory_size_t` and `kan_memory_offset_t` correspond to unsigned and signed integers native to the preset,
-///   that are able to reference the whole available memory on this platform.
-///
-/// - `kan_time_size_t` is type that safely holds time in nanoseconds on every platform and is unlikely to overflow.
-///   Might be bigger that reasonable for performance on low end platforms.
-///
-/// - `kan_time_offset_t` is type for storing differences between `kan_time_size_t`. Can have lower precision than
-///   `kan_time_size_t` as it does not need to store such big integers.
-///
-/// - `kan_loop_size_t` is advised type for loops and iterations. Using `kan_instance_size_t` can be fine on most
-///   platforms, but `kan_loop_size_t` has hold platform-specific type if `kan_instance_size_t` is expected to be slower
-///   that platform specific type.
-///
-/// - `kan_functor_user_data_t` stores type which is used for passing user data for different functor types.
+/// - `kan_memory_size_t` and `kan_memory_offset_t` correspond to unsigned and signed integers that are native to the
+///   architecture and therefore are able to reference the whole available memory on this platform. It is also advised
+///   to be used for loop-like iterations as native integers might work faster than `kan_instance_size_t` in that case.
 ///
 /// - `kan_floating_t` is a floating point type that is advised to be used on selected platform preset.
-///
-/// - `kan_max_floating_t` is a floating point type that has maximum supported precision under that preset.
 /// \endparblock
 ///
 /// \par Handles
@@ -93,47 +81,17 @@ static_assert (true == 1u, "True is one.");
 ///          changes are not expected here.
 #define kan_immutable __CUSHION_PRESERVE__
 
-/// \brief File coordinates are always 64 bit due to large file sizes.
-typedef uint64_t kan_file_size_t;
+#if defined(KAN_CORE_TYPES_PRESET_DEFAULT)
+typedef uint64_t kan_stable_size_t;
+typedef int64_t kan_stable_offset_t;
 
-/// \brief File coordinates are always 64 bit due to large file sizes.
-typedef int64_t kan_file_offset_t;
-
-#if defined(KAN_CORE_TYPES_PRESET_X64)
 typedef uint32_t kan_instance_size_t;
 typedef int32_t kan_instance_offset_t;
 
 typedef uint64_t kan_memory_size_t;
 typedef int64_t kan_memory_offset_t;
 
-typedef uint64_t kan_time_size_t;
-typedef uint64_t kan_time_offset_t;
-
-typedef uint_fast32_t kan_loop_size_t;
-
-typedef uint64_t kan_functor_user_data_t;
-
 typedef float kan_floating_t;
-
-typedef double kan_max_floating_t;
-
-#elif defined(KAN_CORE_TYPES_PRESET_X32)
-typedef uint32_t kan_instance_size_t;
-typedef int32_t kan_instance_offset_t;
-
-typedef uint32_t kan_memory_size_t;
-typedef int32_t kan_memory_offset_t;
-
-typedef uint64_t kan_time_size_t;
-typedef uint32_t kan_time_offset_t;
-
-typedef uint32_t kan_loop_size_t;
-
-typedef uint32_t kan_functor_user_data_t;
-
-typedef float kan_floating_t;
-
-typedef float kan_max_floating_t;
 
 #else
 #    error "Core types preset not selected."

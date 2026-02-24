@@ -47,7 +47,7 @@ void kan_unorm16_value_noise_2d_build (struct kan_unorm16_value_noise_2d_t *inst
     kan_dynamic_array_set_capacity (&instance->values, instance->cells_x * instance->cells_y);
     instance->values.size = instance->values.capacity;
 
-    for (kan_loop_size_t index = 0u; index < instance->values.size; ++index)
+    for (kan_memory_size_t index = 0u; index < instance->values.size; ++index)
     {
         // We use most significant bits here as they are usually considered better distributed than the least
         // significant bits, and doing things like that is an advised behavior by the author of xoshiro.

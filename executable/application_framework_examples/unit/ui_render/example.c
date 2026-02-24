@@ -177,7 +177,7 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
 
         KAN_UIM_CHILDREN (horizontal)
         {
-            for (kan_loop_size_t column = 0u; column < 3u; ++column)
+            for (kan_memory_size_t column = 0u; column < 3u; ++column)
             {
                 KAN_UIM_NEW_NODE (column);
                 column_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
@@ -195,7 +195,7 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
 
                 KAN_UIM_CHILDREN (column)
                 {
-                    for (kan_loop_size_t button = 0u; button < 6u; ++button)
+                    for (kan_memory_size_t button = 0u; button < 6u; ++button)
                     {
                         KAN_UIM_WIDGET_IMAGE (button,
                                               KAN_UI_IMAGE_COMMAND_DEFAULT (button_images[button % button_type_count]));
@@ -241,7 +241,7 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
 
     KAN_UIM_CHILDREN (status_row)
     {
-        for (kan_loop_size_t index = 0u; index < 9u; ++index)
+        for (kan_memory_size_t index = 0u; index < 9u; ++index)
         {
             KAN_UIM_WIDGET_IMAGE (status, KAN_UI_IMAGE_COMMAND_DEFAULT (image_shield));
             status_node->element.width = KAN_UI_VALUE_VH (0.075f);
@@ -269,7 +269,7 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
         const kan_floating_t widths[] = {0.8f, 0.4f, 0.2f};
         const kan_floating_t heights[] = {0.2f, 0.1f, 0.4f};
 
-        for (kan_loop_size_t index = 0u; index < sizeof (widths) / sizeof (widths[0u]); ++index)
+        for (kan_memory_size_t index = 0u; index < sizeof (widths) / sizeof (widths[0u]); ++index)
         {
             KAN_UIM_WIDGET_IMAGE (tiled, KAN_UI_IMAGE_COMMAND_DEFAULT (image_tiled_slice));
             tiled_node->element.width = KAN_UI_VALUE_VH (widths[index]);

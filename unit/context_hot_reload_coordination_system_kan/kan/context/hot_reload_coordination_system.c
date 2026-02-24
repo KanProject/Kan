@@ -68,7 +68,7 @@ struct hot_reload_coordination_system_t
     bool paused;
 
     enum hot_reload_file_watcher_state_t watcher_state;
-    kan_time_size_t watcher_state_transition_after_ns;
+    kan_stable_size_t watcher_state_transition_after_ns;
 
     struct kan_atomic_int_t watcher_list_lock;
     struct hot_reload_real_file_system_watcher_t *first_real_watcher;
@@ -160,7 +160,7 @@ static void hot_reload_coordination_system_update (kan_context_system_t handle)
         }
     }
 
-    const kan_time_size_t current_time_ns = kan_precise_time_get_elapsed_nanoseconds ();
+    const kan_stable_size_t current_time_ns = kan_precise_time_get_elapsed_nanoseconds ();
     switch (system->watcher_state)
     {
     case HOT_RELOAD_FILE_WATCHER_STATE_AVAILABLE:

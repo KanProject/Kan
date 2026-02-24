@@ -120,12 +120,12 @@ RESOURCE_RENDER_FOUNDATION_BUILD_API struct kan_resource_build_rule_t kan_resour
 bool is_pass_variant_supported (const struct kan_resource_render_pass_variant_header_t *pass_variant,
                                 const struct kan_resource_material_pass_header_t *material_pass)
 {
-    for (kan_loop_size_t required_index = 0u; required_index < pass_variant->required_tags.size; ++required_index)
+    for (kan_memory_size_t required_index = 0u; required_index < pass_variant->required_tags.size; ++required_index)
     {
         bool is_supported = false;
         kan_interned_string_t required = ((kan_interned_string_t *) pass_variant->required_tags.data)[required_index];
 
-        for (kan_loop_size_t supported_index = 0u; supported_index < material_pass->tags.size; ++supported_index)
+        for (kan_memory_size_t supported_index = 0u; supported_index < material_pass->tags.size; ++supported_index)
         {
             kan_interned_string_t supported = ((kan_interned_string_t *) material_pass->tags.data)[supported_index];
 
@@ -169,7 +169,7 @@ static enum kan_resource_build_rule_result_t material_transient_build (
     bool successful = true;
     char name_buffer[KAN_RESOURCE_RF_PIPELINE_MAX_NAME_LENGTH];
 
-    for (kan_loop_size_t pass_index = 0u; pass_index < input->passes.size; ++pass_index)
+    for (kan_memory_size_t pass_index = 0u; pass_index < input->passes.size; ++pass_index)
     {
         const struct kan_resource_material_pass_header_t *pass_header =
             &((struct kan_resource_material_pass_header_t *) input->passes.data)[pass_index];
@@ -194,7 +194,7 @@ static enum kan_resource_build_rule_result_t material_transient_build (
             continue;
         }
 
-        for (kan_loop_size_t variant_index = 0u; variant_index < pass->variants.size; ++variant_index)
+        for (kan_memory_size_t variant_index = 0u; variant_index < pass->variants.size; ++variant_index)
         {
             const struct kan_resource_render_pass_variant_header_t *variant_header =
                 &((struct kan_resource_render_pass_variant_header_t *) pass->variants.data)[variant_index];
@@ -207,13 +207,13 @@ static enum kan_resource_build_rule_result_t material_transient_build (
             pipeline_header.type = KAN_RPL_PIPELINE_TYPE_GRAPHICS_CLASSIC;
             kan_dynamic_array_set_capacity (&pipeline_header.entry_points, pass_header->entry_points.size);
 
-            for (kan_loop_size_t point_index = 0u; point_index < pass_header->entry_points.size; ++point_index)
+            for (kan_memory_size_t point_index = 0u; point_index < pass_header->entry_points.size; ++point_index)
             {
                 const struct kan_rpl_entry_point_t *point =
                     &((struct kan_rpl_entry_point_t *) pass_header->entry_points.data)[point_index];
                 bool disabled = false;
 
-                for (kan_loop_size_t stage_index = 0u; stage_index < variant_header->disabled_stages.size;
+                for (kan_memory_size_t stage_index = 0u; stage_index < variant_header->disabled_stages.size;
                      ++stage_index)
                 {
                     enum kan_rpl_pipeline_stage_t disabled_stage =
@@ -362,7 +362,7 @@ static enum kan_resource_build_rule_result_t material_build (struct kan_resource
     {
         if (secondary->type == KAN_STATIC_INTERNED_ID_GET (kan_resource_rpl_source_t))
         {
-            for (kan_loop_size_t index = 0u; index < input->sources.size; ++index)
+            for (kan_memory_size_t index = 0u; index < input->sources.size; ++index)
             {
                 kan_interned_string_t source = ((kan_interned_string_t *) input->sources.data)[index];
                 if (source == secondary->name)
@@ -429,7 +429,7 @@ static enum kan_resource_build_rule_result_t material_build (struct kan_resource
     }
 
     kan_dynamic_array_set_capacity (&output->vertex_attribute_sources, meta.attribute_sources.size);
-    for (kan_loop_size_t index = 0u; index < meta.attribute_sources.size; ++index)
+    for (kan_memory_size_t index = 0u; index < meta.attribute_sources.size; ++index)
     {
         const struct kan_rpl_meta_attribute_source_t *source =
             &((struct kan_rpl_meta_attribute_source_t *) meta.attribute_sources.data)[index];
@@ -460,7 +460,8 @@ static enum kan_resource_build_rule_result_t material_build (struct kan_resource
                 kan_rpl_meta_attribute_source_shutdown (&output->instanced_attribute_source);
                 kan_rpl_meta_attribute_source_init_copy (&output->instanced_attribute_source, source);
 
-                for (kan_loop_size_t attribute_index = 0u; attribute_index < source->attributes.size; ++attribute_index)
+                for (kan_memory_size_t attribute_index = 0u; attribute_index < source->attributes.size;
+                     ++attribute_index)
                 {
                     const struct kan_rpl_meta_attribute_t *attribute =
                         &((struct kan_rpl_meta_attribute_t *) source->attributes.data)[attribute_index];
@@ -499,7 +500,7 @@ static enum kan_resource_build_rule_result_t material_build (struct kan_resource
     }
 
     output->push_constant_size = meta.push_constant_size;
-    for (kan_loop_size_t index = 0u; index < meta.set_material.images.size; ++index)
+    for (kan_memory_size_t index = 0u; index < meta.set_material.images.size; ++index)
     {
         struct kan_rpl_meta_image_t *image = &((struct kan_rpl_meta_image_t *) meta.set_material.images.data)[index];
         if (image->image_array_size > 1u)
@@ -522,7 +523,7 @@ static enum kan_resource_build_rule_result_t material_build (struct kan_resource
     kan_rpl_meta_set_bindings_init_copy (&output->set_shared, &meta.set_shared);
     kan_dynamic_array_set_capacity (&output->pipelines, input->pipelines.size);
 
-    for (kan_loop_size_t pipeline_index = 0u; pipeline_index < input->pipelines.size; ++pipeline_index)
+    for (kan_memory_size_t pipeline_index = 0u; pipeline_index < input->pipelines.size; ++pipeline_index)
     {
         const struct kan_resource_material_pipeline_transient_t *source =
             &((struct kan_resource_material_pipeline_transient_t *) input->pipelines.data)[pipeline_index];

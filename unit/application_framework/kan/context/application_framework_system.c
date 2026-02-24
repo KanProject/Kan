@@ -27,12 +27,12 @@ struct application_framework_system_t
     char **outer_arguments;
     char *auto_build_command;
     char *auto_build_lock_file;
-    kan_time_size_t auto_build_delay_ns;
+    kan_stable_size_t auto_build_delay_ns;
 
     bool exit_requested;
     int exit_code;
 
-    kan_time_offset_t min_frame_time_ns;
+    kan_stable_size_t min_frame_time_ns;
     kan_application_system_event_iterator_t event_iterator;
 
     kan_context_system_t hot_reload_coordination_system;
@@ -285,14 +285,14 @@ char **kan_application_framework_system_get_arguments (kan_context_system_t appl
     return system->outer_arguments;
 }
 
-kan_time_offset_t kan_application_framework_get_min_frame_time_ns (kan_context_system_t application_framework_system)
+kan_stable_size_t kan_application_framework_get_min_frame_time_ns (kan_context_system_t application_framework_system)
 {
     struct application_framework_system_t *system = KAN_HANDLE_GET (application_framework_system);
     return system->min_frame_time_ns;
 }
 
 void kan_application_framework_set_min_frame_time_ns (kan_context_system_t application_framework_system,
-                                                      kan_time_offset_t min_frame_time_ns)
+                                                      kan_stable_size_t min_frame_time_ns)
 {
     struct application_framework_system_t *system = KAN_HANDLE_GET (application_framework_system);
     system->min_frame_time_ns = min_frame_time_ns;

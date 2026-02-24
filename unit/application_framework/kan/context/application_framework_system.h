@@ -40,7 +40,7 @@ struct kan_application_framework_system_config_t
     char *auto_build_lock_file;
 
     /// \brief Delay in nanoseconds between auto build triggers.
-    kan_time_size_t auto_build_delay_ns;
+    kan_stable_size_t auto_build_delay_ns;
 };
 
 /// \brief Returns count of arguments passed to application framework.
@@ -53,12 +53,12 @@ APPLICATION_FRAMEWORK_API char **kan_application_framework_system_get_arguments 
 
 /// \brief Returns minimum frame time in nanoseconds.
 /// \details Minimum frame time limits maximum FPS to save hardware resources.
-APPLICATION_FRAMEWORK_API kan_time_offset_t
+APPLICATION_FRAMEWORK_API kan_stable_size_t
 kan_application_framework_get_min_frame_time_ns (kan_context_system_t application_framework_system);
 
 /// \brief Sets minimum frame time in nanoseconds.
 APPLICATION_FRAMEWORK_API void kan_application_framework_set_min_frame_time_ns (
-    kan_context_system_t application_framework_system, kan_time_offset_t min_frame_time_ns);
+    kan_context_system_t application_framework_system, kan_stable_size_t min_frame_time_ns);
 
 /// \brief Request application exit with given exit code.
 APPLICATION_FRAMEWORK_API void kan_application_framework_system_request_exit (

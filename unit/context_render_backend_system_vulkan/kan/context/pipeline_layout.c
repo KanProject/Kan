@@ -13,7 +13,7 @@ struct render_backend_pipeline_layout_t *render_backend_system_register_pipeline
     KAN_CPU_SCOPED_STATIC_SECTION (render_backend_register_pipeline_layout)
     kan_hash_t layout_hash = (kan_hash_t) push_constant_size;
 
-    for (kan_loop_size_t index = 0u; index < parameter_set_layouts_count; ++index)
+    for (kan_memory_size_t index = 0u; index < parameter_set_layouts_count; ++index)
     {
         struct render_backend_pipeline_parameter_set_layout_t *layout = KAN_HANDLE_GET (parameter_set_layouts[index]);
         const kan_hash_t set_hash = KAN_HASH_OBJECT_POINTER (layout);
@@ -33,7 +33,7 @@ struct render_backend_pipeline_layout_t *render_backend_system_register_pipeline
             node->set_layouts_count == parameter_set_layouts_count)
         {
             bool equal = true;
-            for (kan_loop_size_t index = 0u; index < parameter_set_layouts_count; ++index)
+            for (kan_memory_size_t index = 0u; index < parameter_set_layouts_count; ++index)
             {
                 if (node->set_layouts[index] != KAN_HANDLE_GET (parameter_set_layouts[index]))
                 {
@@ -63,7 +63,7 @@ struct render_backend_pipeline_layout_t *render_backend_system_register_pipeline
                                                      alignof (VkDescriptorSetLayout));
     }
 
-    for (kan_loop_size_t index = 0u; index < parameter_set_layouts_count; ++index)
+    for (kan_memory_size_t index = 0u; index < parameter_set_layouts_count; ++index)
     {
         struct render_backend_pipeline_parameter_set_layout_t *layout = KAN_HANDLE_GET (parameter_set_layouts[index]);
         if (layout)
@@ -138,7 +138,7 @@ struct render_backend_pipeline_layout_t *render_backend_system_register_pipeline
     pipeline_layout->push_constant_size = push_constant_size;
     pipeline_layout->set_layouts_count = parameter_set_layouts_count;
 
-    for (kan_loop_size_t index = 0u; index < parameter_set_layouts_count; ++index)
+    for (kan_memory_size_t index = 0u; index < parameter_set_layouts_count; ++index)
     {
         pipeline_layout->set_layouts[index] = KAN_HANDLE_GET (parameter_set_layouts[index]);
     }

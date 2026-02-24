@@ -195,7 +195,7 @@ static void add_mip_usage (struct render_foundation_texture_management_state_t *
                            const struct kan_resource_provider_singleton_t *provider,
                            kan_interned_string_t texture_name,
                            const struct kan_resource_texture_format_item_t *format_item,
-                           kan_loop_size_t mip)
+                           kan_memory_size_t mip)
 {
     KAN_UMO_INDEXED_INSERT (usage, render_foundation_texture_data_usage_t)
     {
@@ -265,7 +265,7 @@ static void on_usage_insert (struct render_foundation_texture_management_state_t
                       main_resource->formats.data)[existent->selected_format_item_index];
 
             // Add new mips that were not requested.
-            for (kan_loop_size_t mip = existent->usages_best_mip;
+            for (kan_memory_size_t mip = existent->usages_best_mip;
                  mip <= existent->usages_worst_mip && mip < main_resource->mips; ++mip)
             {
                 if (mip >= existent->requested_best_mip && mip <= existent->requested_worst_mip)
@@ -303,7 +303,7 @@ static void on_usage_insert (struct render_foundation_texture_management_state_t
                       main_resource->formats.data)[existent->selected_format_item_index];
 
             // Add new mips that were not requested.
-            for (kan_loop_size_t mip = existent->usages_best_mip;
+            for (kan_memory_size_t mip = existent->usages_best_mip;
                  mip <= existent->usages_worst_mip && mip < main_resource->mips; ++mip)
             {
                 add_mip_usage (state, provider, texture_name, format_item, mip);
@@ -435,7 +435,7 @@ void advance_from_waiting_main_state (struct render_foundation_texture_managemen
     KAN_UMI_SINGLETON_READ (render_context, kan_render_context_singleton_t)
     bool format_selected = false;
 
-    for (kan_loop_size_t index = 0u; index < main_resource->formats.size; ++index)
+    for (kan_memory_size_t index = 0u; index < main_resource->formats.size; ++index)
     {
         const struct kan_resource_texture_format_item_t *format_item =
             &((struct kan_resource_texture_format_item_t *) main_resource->formats.data)[index];
@@ -468,8 +468,8 @@ void advance_from_waiting_main_state (struct render_foundation_texture_managemen
         (struct kan_resource_texture_format_item_t *) main_resource->formats.data)[texture->selected_format_item_index];
 
     // Add new mips that were not requested.
-    for (kan_loop_size_t mip = texture->usages_best_mip; mip <= texture->usages_worst_mip && mip < main_resource->mips;
-         ++mip)
+    for (kan_memory_size_t mip = texture->usages_best_mip;
+         mip <= texture->usages_worst_mip && mip < main_resource->mips; ++mip)
     {
         add_mip_usage (state, provider, texture->name, format_item, mip);
     }
@@ -538,7 +538,7 @@ static void load_texture_into_image (struct render_foundation_texture_management
 
     if (KAN_HANDLE_IS_VALID (old_image))
     {
-        for (kan_loop_size_t mip = (kan_loop_size_t) best_mip;
+        for (kan_memory_size_t mip = (kan_memory_size_t) best_mip;
              mip <= texture->requested_worst_mip && mip < main_resource->mips; ++mip)
         {
             if (found_data_for_mips & (1u << mip))

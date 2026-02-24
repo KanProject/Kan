@@ -132,7 +132,7 @@ static kan_thread_result_t worker_thread_function (kan_thread_user_data_t user_d
 static void shutdown_global_task_dispatcher (void)
 {
     kan_atomic_int_set (&global_task_dispatcher.shutting_down, 1);
-    for (kan_loop_size_t index = 0u; index < global_task_dispatcher.threads_count; ++index)
+    for (kan_memory_size_t index = 0u; index < global_task_dispatcher.threads_count; ++index)
     {
         kan_thread_wait (global_task_dispatcher.threads[index]);
     }
@@ -161,7 +161,7 @@ static void ensure_global_task_dispatcher_ready (void)
                 global_task_dispatcher.allocation_group, sizeof (kan_thread_t) * global_task_dispatcher.threads_count,
                 alignof (kan_thread_t));
 
-            for (kan_loop_size_t index = 0u; index < global_task_dispatcher.threads_count; ++index)
+            for (kan_memory_size_t index = 0u; index < global_task_dispatcher.threads_count; ++index)
             {
                 global_task_dispatcher.threads[index] =
                     kan_thread_create ("global_cpu_dispatcher_worker", worker_thread_function, 0u);

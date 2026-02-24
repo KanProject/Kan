@@ -16,7 +16,7 @@ static void emit_to_file (struct kan_readable_data_event_t *events, kan_instance
         kan_random_access_stream_buffer_open_for_write (direct_file_stream, 1024u);
 
     kan_readable_data_emitter_t emitter = kan_readable_data_emitter_create (buffered_file_stream);
-    for (kan_loop_size_t index = 0u; index < events_count; ++index)
+    for (kan_memory_size_t index = 0u; index < events_count; ++index)
     {
         KAN_TEST_CHECK (kan_readable_data_emitter_step (emitter, &events[index]))
     }

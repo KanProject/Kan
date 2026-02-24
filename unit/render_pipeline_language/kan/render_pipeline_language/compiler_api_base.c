@@ -186,7 +186,7 @@ void kan_rpl_meta_attribute_source_init_copy (struct kan_rpl_meta_attribute_sour
     kan_dynamic_array_init (&instance->attributes, copy_from->attributes.size, sizeof (struct kan_rpl_meta_attribute_t),
                             alignof (struct kan_rpl_meta_attribute_t), STATICS.rpl_meta_allocation_group);
 
-    for (kan_loop_size_t index = 0u; index < copy_from->attributes.size; ++index)
+    for (kan_memory_size_t index = 0u; index < copy_from->attributes.size; ++index)
     {
         kan_rpl_meta_attribute_init_copy (kan_dynamic_array_add_last (&instance->attributes),
                                           &((struct kan_rpl_meta_attribute_t *) copy_from->attributes.data)[index]);
@@ -310,7 +310,7 @@ void kan_rpl_meta_buffer_init_copy (struct kan_rpl_meta_buffer_t *instance,
                             sizeof (struct kan_rpl_meta_parameter_t), alignof (struct kan_rpl_meta_parameter_t),
                             STATICS.rpl_meta_allocation_group);
 
-    for (kan_loop_size_t index = 0u; index < copy_from->main_parameters.size; ++index)
+    for (kan_memory_size_t index = 0u; index < copy_from->main_parameters.size; ++index)
     {
         kan_rpl_meta_parameter_init_copy (
             kan_dynamic_array_add_last (&instance->main_parameters),
@@ -322,7 +322,7 @@ void kan_rpl_meta_buffer_init_copy (struct kan_rpl_meta_buffer_t *instance,
                             sizeof (struct kan_rpl_meta_parameter_t), alignof (struct kan_rpl_meta_parameter_t),
                             STATICS.rpl_meta_allocation_group);
 
-    for (kan_loop_size_t index = 0u; index < copy_from->tail_item_parameters.size; ++index)
+    for (kan_memory_size_t index = 0u; index < copy_from->tail_item_parameters.size; ++index)
     {
         kan_rpl_meta_parameter_init_copy (
             kan_dynamic_array_add_last (&instance->tail_item_parameters),
@@ -352,7 +352,7 @@ void kan_rpl_meta_set_bindings_init_copy (struct kan_rpl_meta_set_bindings_t *in
     kan_dynamic_array_init (&instance->buffers, copy_from->buffers.size, sizeof (struct kan_rpl_meta_buffer_t),
                             alignof (struct kan_rpl_meta_buffer_t), STATICS.rpl_meta_allocation_group);
 
-    for (kan_loop_size_t index = 0u; index < copy_from->buffers.size; ++index)
+    for (kan_memory_size_t index = 0u; index < copy_from->buffers.size; ++index)
     {
         kan_rpl_meta_buffer_init_copy (kan_dynamic_array_add_last (&instance->buffers),
                                        &((struct kan_rpl_meta_buffer_t *) copy_from->buffers.data)[index]);
@@ -423,7 +423,7 @@ void kan_rpl_meta_init_copy (struct kan_rpl_meta_t *instance, const struct kan_r
                             sizeof (struct kan_rpl_meta_attribute_source_t),
                             alignof (struct kan_rpl_meta_attribute_source_t), STATICS.rpl_meta_allocation_group);
 
-    for (kan_loop_size_t index = 0u; index < copy_from->attribute_sources.size; ++index)
+    for (kan_memory_size_t index = 0u; index < copy_from->attribute_sources.size; ++index)
     {
         kan_rpl_meta_attribute_source_init_copy (
             kan_dynamic_array_add_last (&instance->attribute_sources),
@@ -486,7 +486,7 @@ bool kan_rpl_compiler_context_use_module (kan_rpl_compiler_context_t compiler_co
                                           const struct kan_rpl_intermediate_t *intermediate_reference)
 {
     struct rpl_compiler_context_t *instance = KAN_HANDLE_GET (compiler_context);
-    for (kan_loop_size_t module_index = 0u; module_index < instance->modules.size; ++module_index)
+    for (kan_memory_size_t module_index = 0u; module_index < instance->modules.size; ++module_index)
     {
         if (((struct kan_rpl_intermediate_t **) instance->modules.data)[module_index] == intermediate_reference)
         {
@@ -496,13 +496,14 @@ bool kan_rpl_compiler_context_use_module (kan_rpl_compiler_context_t compiler_co
         }
     }
 
-    for (kan_loop_size_t new_option_index = 0u; new_option_index < intermediate_reference->options.size;
+    for (kan_memory_size_t new_option_index = 0u; new_option_index < intermediate_reference->options.size;
          ++new_option_index)
     {
         struct kan_rpl_option_t *new_option =
             &((struct kan_rpl_option_t *) intermediate_reference->options.data)[new_option_index];
 
-        for (kan_loop_size_t old_option_index = 0u; old_option_index < instance->option_values.size; ++old_option_index)
+        for (kan_memory_size_t old_option_index = 0u; old_option_index < instance->option_values.size;
+             ++old_option_index)
         {
             struct rpl_compiler_context_option_value_t *old_option =
                 &((struct rpl_compiler_context_option_value_t *) instance->option_values.data)[old_option_index];
@@ -530,7 +531,7 @@ bool kan_rpl_compiler_context_use_module (kan_rpl_compiler_context_t compiler_co
     kan_dynamic_array_set_capacity (&instance->option_values,
                                     instance->option_values.size + intermediate_reference->options.size);
 
-    for (kan_loop_size_t new_option_index = 0u; new_option_index < intermediate_reference->options.size;
+    for (kan_memory_size_t new_option_index = 0u; new_option_index < intermediate_reference->options.size;
          ++new_option_index)
     {
         struct kan_rpl_option_t *new_option =
@@ -622,7 +623,7 @@ bool kan_rpl_compiler_context_set_option_flag (kan_rpl_compiler_context_t compil
                                                bool value)
 {
     struct rpl_compiler_context_t *instance = KAN_HANDLE_GET (compiler_context);
-    for (kan_loop_size_t index = 0u; index < instance->option_values.size; ++index)
+    for (kan_memory_size_t index = 0u; index < instance->option_values.size; ++index)
     {
         struct rpl_compiler_context_option_value_t *option =
             &((struct rpl_compiler_context_option_value_t *) instance->option_values.data)[index];
@@ -655,10 +656,10 @@ bool kan_rpl_compiler_context_set_option_flag (kan_rpl_compiler_context_t compil
 bool kan_rpl_compiler_context_set_option_uint (kan_rpl_compiler_context_t compiler_context,
                                                enum kan_rpl_option_target_scope_t target_scope,
                                                kan_interned_string_t name,
-                                               kan_instance_size_t value)
+                                               uint32_t value)
 {
     struct rpl_compiler_context_t *instance = KAN_HANDLE_GET (compiler_context);
-    for (kan_loop_size_t index = 0u; index < instance->option_values.size; ++index)
+    for (kan_memory_size_t index = 0u; index < instance->option_values.size; ++index)
     {
         struct rpl_compiler_context_option_value_t *option =
             &((struct rpl_compiler_context_option_value_t *) instance->option_values.data)[index];
@@ -691,10 +692,10 @@ bool kan_rpl_compiler_context_set_option_uint (kan_rpl_compiler_context_t compil
 bool kan_rpl_compiler_context_set_option_sint (kan_rpl_compiler_context_t compiler_context,
                                                enum kan_rpl_option_target_scope_t target_scope,
                                                kan_interned_string_t name,
-                                               kan_instance_offset_t value)
+                                               int32_t value)
 {
     struct rpl_compiler_context_t *instance = KAN_HANDLE_GET (compiler_context);
-    for (kan_loop_size_t index = 0u; index < instance->option_values.size; ++index)
+    for (kan_memory_size_t index = 0u; index < instance->option_values.size; ++index)
     {
         struct rpl_compiler_context_option_value_t *option =
             &((struct rpl_compiler_context_option_value_t *) instance->option_values.data)[index];
@@ -727,10 +728,10 @@ bool kan_rpl_compiler_context_set_option_sint (kan_rpl_compiler_context_t compil
 bool kan_rpl_compiler_context_set_option_float (kan_rpl_compiler_context_t compiler_context,
                                                 enum kan_rpl_option_target_scope_t target_scope,
                                                 kan_interned_string_t name,
-                                                kan_floating_t value)
+                                                float value)
 {
     struct rpl_compiler_context_t *instance = KAN_HANDLE_GET (compiler_context);
-    for (kan_loop_size_t index = 0u; index < instance->option_values.size; ++index)
+    for (kan_memory_size_t index = 0u; index < instance->option_values.size; ++index)
     {
         struct rpl_compiler_context_option_value_t *option =
             &((struct rpl_compiler_context_option_value_t *) instance->option_values.data)[index];
@@ -767,7 +768,7 @@ bool kan_rpl_compiler_context_set_option_enum (kan_rpl_compiler_context_t compil
                                                kan_interned_string_t value)
 {
     struct rpl_compiler_context_t *instance = KAN_HANDLE_GET (compiler_context);
-    for (kan_loop_size_t index = 0u; index < instance->option_values.size; ++index)
+    for (kan_memory_size_t index = 0u; index < instance->option_values.size; ++index)
     {
         struct rpl_compiler_context_option_value_t *option =
             &((struct rpl_compiler_context_option_value_t *) instance->option_values.data)[index];

@@ -49,7 +49,7 @@ enum kan_resource_type_flags_t
 ///
 ///          For resources where it is crucial to avoid excessive rebuilds due to time constraints,
 ///          conservative method with version-enum is advised.
-typedef kan_time_size_t kan_resource_version_t;
+typedef kan_stable_size_t kan_resource_version_t;
 
 /// \brief Declares signature for move function. Used for secondary production.
 /// \details When NULL, `kan_reflection_move_struct` will be used instead.

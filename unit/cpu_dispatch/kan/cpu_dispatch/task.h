@@ -38,13 +38,13 @@
 
 KAN_C_HEADER_BEGIN
 
-typedef void (*kan_cpu_task_function_t) (kan_functor_user_data_t);
+typedef void (*kan_cpu_task_function_t) (kan_memory_size_t);
 
 /// \brief Describes a task to be dispatched.
 struct kan_cpu_task_t
 {
     kan_cpu_task_function_t function;
-    kan_functor_user_data_t user_data;
+    kan_memory_size_t user_data;
     kan_cpu_section_t profiler_section;
 };
 
@@ -90,7 +90,7 @@ CPU_DISPATCH_API void kan_cpu_reset_task_dispatch_counter (void);
 /// \param ... User data designated initializer.
 #define KAN_CPU_TASK_LIST_USER_STRUCT(LIST_HEAD, TEMPORARY_ALLOCATOR, FUNCTION, SECTION, USER_TYPE, ...)               \
     {                                                                                                                  \
-        static_assert (sizeof (USER_TYPE) > sizeof (kan_functor_user_data_t),                                          \
+        static_assert (sizeof (USER_TYPE) > sizeof (kan_memory_size_t),                                                \
                        "Do not use this for user data that can fit in pointer.");                                      \
                                                                                                                        \
         USER_TYPE *user_data = KAN_STACK_GROUP_ALLOCATOR_ALLOCATE_TYPED (TEMPORARY_ALLOCATOR, USER_TYPE);              \
@@ -101,7 +101,7 @@ CPU_DISPATCH_API void kan_cpu_reset_task_dispatch_counter (void);
                                                                                                                        \
         new_node->task = (struct kan_cpu_task_t) {                                                                     \
             .function = FUNCTION,                                                                                      \
-            .user_data = (kan_functor_user_data_t) user_data,                                                          \
+            .user_data = (kan_memory_size_t) user_data,                                                                \
             .profiler_section = SECTION,                                                                               \
         };                                                                                                             \
                                                                                                                        \
@@ -115,10 +115,10 @@ CPU_DISPATCH_API void kan_cpu_reset_task_dispatch_counter (void);
 /// \param TEMPORARY_ALLOCATOR Pointer to stack group allocator used for temporary allocation of cpu task.
 /// \param FUNCTION Task function to be executed.
 /// \param SECTION Profiler section for proper reporting of task execution.
-/// \param USER_VALUE User value that can be converted to `kan_functor_user_data_t`.
+/// \param USER_VALUE User value that can be converted to `kan_memory_size_t`.
 #define KAN_CPU_TASK_LIST_USER_VALUE(LIST_HEAD, TEMPORARY_ALLOCATOR, FUNCTION, SECTION, USER_VALUE)                    \
     {                                                                                                                  \
-        static_assert (sizeof (USER_VALUE) <= sizeof (kan_functor_user_data_t),                                        \
+        static_assert (sizeof (USER_VALUE) <= sizeof (kan_memory_size_t),                                              \
                        "Do not use this for user data that cannot fit in pointer.");                                   \
                                                                                                                        \
         struct kan_cpu_task_list_node_t *new_node =                                                                    \
@@ -126,7 +126,7 @@ CPU_DISPATCH_API void kan_cpu_reset_task_dispatch_counter (void);
                                                                                                                        \
         new_node->task = (struct kan_cpu_task_t) {                                                                     \
             .function = FUNCTION,                                                                                      \
-            .user_data = (kan_functor_user_data_t) USER_VALUE,                                                         \
+            .user_data = (kan_memory_size_t) USER_VALUE,                                                               \
             .profiler_section = SECTION,                                                                               \
         };                                                                                                             \
                                                                                                                        \
@@ -155,10 +155,10 @@ CPU_DISPATCH_API void kan_cpu_reset_task_dispatch_counter (void);
     static void TASK_NAME (struct TASK_NAME##_batched_task_header_t *header,                                           \
                            struct TASK_NAME##_batched_task_body_t *body);                                              \
                                                                                                                        \
-    static void TASK_NAME##_batched_task_runner (kan_functor_user_data_t user_data)                                    \
+    static void TASK_NAME##_batched_task_runner (kan_memory_size_t user_data)                                          \
     {                                                                                                                  \
         struct TASK_NAME##_batched_task_user_data_t *data = (struct TASK_NAME##_batched_task_user_data_t *) user_data; \
-        for (kan_loop_size_t index = 0u; index < data->size; ++index)                                                  \
+        for (kan_memory_size_t index = 0u; index < data->size; ++index)                                                \
         {                                                                                                              \
             TASK_NAME (&data->header, &data->body[index]);                                                             \
         }                                                                                                              \
@@ -208,7 +208,7 @@ CPU_DISPATCH_API void kan_cpu_reset_task_dispatch_counter (void);
                                                                                                                        \
             new_node->task = (struct kan_cpu_task_t) {                                                                 \
                 .function = TASK_NAME##_batched_task_runner,                                                           \
-                .user_data = (kan_functor_user_data_t) user_data,                                                      \
+                .user_data = (kan_memory_size_t) user_data,                                                            \
                 .profiler_section = SECTION,                                                                           \
             };                                                                                                         \
                                                                                                                        \

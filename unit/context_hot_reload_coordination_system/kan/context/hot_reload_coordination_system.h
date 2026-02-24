@@ -99,8 +99,8 @@ KAN_HANDLE_DEFINE (kan_hot_reload_virtual_file_event_provider_t);
 /// \brief Contains hot reload coordination system configuration data.
 struct kan_hot_reload_coordination_system_config_t
 {
-    kan_time_offset_t change_wait_time_ns;
-    kan_time_offset_t receive_window_time_ns;
+    kan_stable_size_t change_wait_time_ns;
+    kan_stable_size_t receive_window_time_ns;
     enum kan_platform_scan_code_t toggle_hot_key;
     enum kan_platform_modifier_mask_t toggle_hot_key_modifiers;
 };

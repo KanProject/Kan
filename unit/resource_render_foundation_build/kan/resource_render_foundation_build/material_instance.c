@@ -282,14 +282,14 @@ static bool apply_tail_parameters (struct kan_resource_build_rule_context_t *con
 {
     bool successful = true;
 #define PROCESS_TYPE(NAME, RPL_TYPE, OUTPUT_TYPE, CONVERTER)                                                           \
-    for (kan_loop_size_t parameter_index = 0u; parameter_index < parameters->NAME.size; ++parameter_index)             \
+    for (kan_memory_size_t parameter_index = 0u; parameter_index < parameters->NAME.size; ++parameter_index)           \
     {                                                                                                                  \
         const struct kan_resource_material_parameter_##NAME##_t *parameter =                                           \
             &((struct kan_resource_material_parameter_##NAME##_t *) parameters->NAME.data)[parameter_index];           \
         bool parameter_found = false;                                                                                  \
                                                                                                                        \
-        for (kan_loop_size_t meta_parameter_index = 0u; meta_parameter_index < buffer_meta->tail_item_parameters.size; \
-             ++meta_parameter_index)                                                                                   \
+        for (kan_memory_size_t meta_parameter_index = 0u;                                                              \
+             meta_parameter_index < buffer_meta->tail_item_parameters.size; ++meta_parameter_index)                    \
         {                                                                                                              \
             const struct kan_rpl_meta_parameter_t *parameter_meta =                                                    \
                 &((struct kan_rpl_meta_parameter_t *) buffer_meta->tail_item_parameters.data)[meta_parameter_index];   \
@@ -349,20 +349,20 @@ static bool apply_parameters_container (struct kan_resource_build_rule_context_t
     bool successful = true;
 
 #define PROCESS_TYPE(NAME, RPL_TYPE, OUTPUT_TYPE, CONVERTER)                                                           \
-    for (kan_loop_size_t parameter_index = 0u; parameter_index < array->NAME.size; ++parameter_index)                  \
+    for (kan_memory_size_t parameter_index = 0u; parameter_index < array->NAME.size; ++parameter_index)                \
     {                                                                                                                  \
         const struct kan_resource_material_parameter_##NAME##_t *parameter =                                           \
             &((struct kan_resource_material_parameter_##NAME##_t *) array->NAME.data)[parameter_index];                \
         bool found = false;                                                                                            \
                                                                                                                        \
-        for (kan_loop_size_t buffer_index = 0u; buffer_index < material->set_material.buffers.size && !found;          \
+        for (kan_memory_size_t buffer_index = 0u; buffer_index < material->set_material.buffers.size && !found;        \
              ++buffer_index)                                                                                           \
         {                                                                                                              \
             const struct kan_rpl_meta_buffer_t *buffer_meta =                                                          \
                 &((struct kan_rpl_meta_buffer_t *) material->set_material.buffers.data)[buffer_index];                 \
                                                                                                                        \
-            for (kan_loop_size_t meta_parameter_index = 0u; meta_parameter_index < buffer_meta->main_parameters.size;  \
-                 ++meta_parameter_index)                                                                               \
+            for (kan_memory_size_t meta_parameter_index = 0u;                                                          \
+                 meta_parameter_index < buffer_meta->main_parameters.size; ++meta_parameter_index)                     \
             {                                                                                                          \
                 const struct kan_rpl_meta_parameter_t *parameter_meta =                                                \
                     &((struct kan_rpl_meta_parameter_t *) buffer_meta->main_parameters.data)[meta_parameter_index];    \
@@ -423,13 +423,13 @@ static bool apply_tail_set_array (struct kan_resource_build_rule_context_t *cont
     struct kan_resource_material_instance_t *output = context->primary_output;
     bool successful = true;
 
-    for (kan_loop_size_t set_index = 0u; set_index < array->size; ++set_index)
+    for (kan_memory_size_t set_index = 0u; set_index < array->size; ++set_index)
     {
         const struct kan_resource_material_tail_set_t *tail_set =
             &((struct kan_resource_material_tail_set_t *) array->data)[set_index];
         bool tail_found = false;
 
-        for (kan_loop_size_t buffer_index = 0u; buffer_index < material->set_material.buffers.size; ++buffer_index)
+        for (kan_memory_size_t buffer_index = 0u; buffer_index < material->set_material.buffers.size; ++buffer_index)
         {
             const struct kan_rpl_meta_buffer_t *buffer_meta =
                 &((struct kan_rpl_meta_buffer_t *) material->set_material.buffers.data)[buffer_index];
@@ -487,13 +487,13 @@ static bool apply_tail_append_array (struct kan_resource_build_rule_context_t *c
     struct kan_resource_material_instance_t *output = context->primary_output;
     bool successful = true;
 
-    for (kan_loop_size_t append_index = 0u; append_index < array->size; ++append_index)
+    for (kan_memory_size_t append_index = 0u; append_index < array->size; ++append_index)
     {
         const struct kan_resource_material_tail_append_t *tail_append =
             &((struct kan_resource_material_tail_append_t *) array->data)[append_index];
         bool tail_found = false;
 
-        for (kan_loop_size_t buffer_index = 0u; buffer_index < material->set_material.buffers.size; ++buffer_index)
+        for (kan_memory_size_t buffer_index = 0u; buffer_index < material->set_material.buffers.size; ++buffer_index)
         {
             const struct kan_rpl_meta_buffer_t *buffer_meta =
                 &((struct kan_rpl_meta_buffer_t *) material->set_material.buffers.data)[buffer_index];
@@ -1251,13 +1251,13 @@ static bool apply_samplers_array (struct kan_resource_build_rule_context_t *cont
     struct kan_resource_material_instance_t *output = context->primary_output;
     bool successful = true;
 
-    for (kan_loop_size_t input_index = 0u; input_index < array->size; ++input_index)
+    for (kan_memory_size_t input_index = 0u; input_index < array->size; ++input_index)
     {
         const struct kan_resource_material_sampler_t *input_sampler =
             &((struct kan_resource_material_sampler_t *) array->data)[input_index];
         bool found = false;
 
-        for (kan_loop_size_t meta_index = 0u; meta_index < material->set_material.samplers.size; ++meta_index)
+        for (kan_memory_size_t meta_index = 0u; meta_index < material->set_material.samplers.size; ++meta_index)
         {
             const struct kan_rpl_meta_sampler_t *meta_sampler =
                 &((struct kan_rpl_meta_sampler_t *) material->set_material.samplers.data)[meta_index];
@@ -1293,13 +1293,13 @@ static bool apply_images_array (struct kan_resource_build_rule_context_t *contex
     struct kan_resource_material_instance_t *output = context->primary_output;
     bool successful = true;
 
-    for (kan_loop_size_t input_index = 0u; input_index < array->size; ++input_index)
+    for (kan_memory_size_t input_index = 0u; input_index < array->size; ++input_index)
     {
         const struct kan_resource_material_image_t *input_image =
             &((struct kan_resource_material_image_t *) array->data)[input_index];
         bool found = false;
 
-        for (kan_loop_size_t meta_index = 0u; meta_index < material->set_material.images.size; ++meta_index)
+        for (kan_memory_size_t meta_index = 0u; meta_index < material->set_material.images.size; ++meta_index)
         {
             const struct kan_rpl_meta_image_t *meta_image =
                 &((struct kan_rpl_meta_image_t *) material->set_material.images.data)[meta_index];
@@ -1345,13 +1345,13 @@ static bool apply_variants_array (struct kan_resource_build_rule_context_t *cont
     struct kan_resource_material_instance_t *output = context->primary_output;
     bool successful = true;
 
-    for (kan_loop_size_t input_index = 0u; input_index < array->size; ++input_index)
+    for (kan_memory_size_t input_index = 0u; input_index < array->size; ++input_index)
     {
         const struct kan_resource_material_variant_raw_t *input_variant =
             &((struct kan_resource_material_variant_raw_t *) array->data)[input_index];
         struct kan_resource_material_variant_t *output_variant = NULL;
 
-        for (kan_loop_size_t existent_index = 0u; existent_index < output->variants.size; ++existent_index)
+        for (kan_memory_size_t existent_index = 0u; existent_index < output->variants.size; ++existent_index)
         {
             struct kan_resource_material_variant_t *existent =
                 &((struct kan_resource_material_variant_t *) output->variants.data)[existent_index];
@@ -1384,7 +1384,7 @@ static bool apply_variants_array (struct kan_resource_build_rule_context_t *cont
         }
 
 #define PROCESS_TYPE(NAME)                                                                                             \
-    for (kan_loop_size_t parameter_index = 0u; parameter_index < input_variant->parameters.NAME.size;                  \
+    for (kan_memory_size_t parameter_index = 0u; parameter_index < input_variant->parameters.NAME.size;                \
          ++parameter_index)                                                                                            \
     {                                                                                                                  \
         const struct kan_resource_material_parameter_##NAME##_t *parameter =                                           \
@@ -1392,7 +1392,7 @@ static bool apply_variants_array (struct kan_resource_build_rule_context_t *cont
                   input_variant->parameters.NAME.data)[parameter_index];                                               \
         bool found = false;                                                                                            \
                                                                                                                        \
-        for (kan_loop_size_t attribute_index = 0u;                                                                     \
+        for (kan_memory_size_t attribute_index = 0u;                                                                   \
              attribute_index < material->instanced_attribute_source.attributes.size; ++attribute_index)                \
         {                                                                                                              \
             const struct kan_rpl_meta_attribute_t *attribute =                                                         \
@@ -1490,7 +1490,7 @@ static enum kan_resource_build_rule_result_t material_instance_build (struct kan
     if (parent)
     {
         kan_dynamic_array_set_capacity (&output->buffers, parent->buffers.size);
-        for (kan_loop_size_t index = 0u; index < parent->buffers.size; ++index)
+        for (kan_memory_size_t index = 0u; index < parent->buffers.size; ++index)
         {
             const struct kan_resource_buffer_binding_t *source =
                 &((struct kan_resource_buffer_binding_t *) parent->buffers.data)[index];
@@ -1519,7 +1519,7 @@ static enum kan_resource_build_rule_result_t material_instance_build (struct kan
                 sizeof (struct kan_resource_image_binding_t) * parent->images.size);
 
         kan_dynamic_array_set_capacity (&output->variants, parent->variants.size);
-        for (kan_loop_size_t index = 0u; index < parent->variants.size; ++index)
+        for (kan_memory_size_t index = 0u; index < parent->variants.size; ++index)
         {
             const struct kan_resource_material_variant_t *source =
                 &((struct kan_resource_material_variant_t *) parent->variants.data)[index];
@@ -1540,7 +1540,7 @@ static enum kan_resource_build_rule_result_t material_instance_build (struct kan
     else
     {
         kan_dynamic_array_set_capacity (&output->buffers, material->set_material.buffers.size);
-        for (kan_loop_size_t index = 0u; index < material->set_material.buffers.size; ++index)
+        for (kan_memory_size_t index = 0u; index < material->set_material.buffers.size; ++index)
         {
             const struct kan_rpl_meta_buffer_t *source =
                 &((struct kan_rpl_meta_buffer_t *) material->set_material.buffers.data)[index];
@@ -1559,7 +1559,7 @@ static enum kan_resource_build_rule_result_t material_instance_build (struct kan
         }
 
         kan_dynamic_array_set_capacity (&output->samplers, material->set_material.samplers.size);
-        for (kan_loop_size_t index = 0u; index < material->set_material.samplers.size; ++index)
+        for (kan_memory_size_t index = 0u; index < material->set_material.samplers.size; ++index)
         {
             const struct kan_rpl_meta_sampler_t *source =
                 &((struct kan_rpl_meta_sampler_t *) material->set_material.samplers.data)[index];
@@ -1579,7 +1579,7 @@ static enum kan_resource_build_rule_result_t material_instance_build (struct kan
         }
 
         kan_dynamic_array_set_capacity (&output->images, material->set_material.images.size);
-        for (kan_loop_size_t index = 0u; index < material->set_material.images.size; ++index)
+        for (kan_memory_size_t index = 0u; index < material->set_material.images.size; ++index)
         {
             const struct kan_rpl_meta_image_t *source =
                 &((struct kan_rpl_meta_image_t *) material->set_material.images.data)[index];
@@ -1619,7 +1619,7 @@ static enum kan_resource_build_rule_result_t material_instance_build (struct kan
     // We should not have NULL texture references and they will be reported anyway,
     // but reporting them here makes errors more readable and fixable.
 
-    for (kan_loop_size_t index = 0u; index < output->images.size; ++index)
+    for (kan_memory_size_t index = 0u; index < output->images.size; ++index)
     {
         const struct kan_resource_image_binding_t *binding =
             &((struct kan_resource_image_binding_t *) output->images.data)[index];

@@ -19,7 +19,7 @@ struct render_backend_pass_t *render_backend_system_create_pass (struct render_b
     bool has_depth_attachment = false;
     VkAttachmentReference depth_attachment;
 
-    for (kan_loop_size_t index = 0u; index < description->attachments_count; ++index)
+    for (kan_memory_size_t index = 0u; index < description->attachments_count; ++index)
     {
         struct kan_render_pass_attachment_t *attachment = &description->attachments[index];
         struct VkAttachmentDescription *vulkan_attachment = &attachment_descriptions[index];
@@ -396,7 +396,7 @@ kan_render_pass_instance_t kan_render_pass_instantiate (kan_render_pass_t pass,
     // - Prepare render pass info for primary buffer. Render pass cannot be started in secondary buffers.
     // - Bind viewport and scissor.
 
-    for (kan_loop_size_t index = 0u; index < frame_buffer_data->attachments_count; ++index)
+    for (kan_memory_size_t index = 0u; index < frame_buffer_data->attachments_count; ++index)
     {
         switch (get_image_format_class (frame_buffer_data->attachments[index].image->description.format))
         {
@@ -571,7 +571,7 @@ void kan_render_pass_instance_pipeline_parameter_sets (kan_render_pass_instance_
         &instance->system->command_states[instance->system->current_frame_in_flight_index];
 
     // Mutate unstable parameter sets if needed.
-    for (kan_loop_size_t index = 0u; index < parameter_sets_count; ++index)
+    for (kan_memory_size_t index = 0u; index < parameter_sets_count; ++index)
     {
         struct render_backend_pipeline_parameter_set_t *set = KAN_HANDLE_GET (parameter_sets[index]);
         if (set && !set->stable_binding && set->unstable.last_accessed_allocation_index != UINT32_MAX &&
@@ -586,7 +586,7 @@ void kan_render_pass_instance_pipeline_parameter_sets (kan_render_pass_instance_
     }
 
     KAN_ATOMIC_INT_SCOPED_LOCK (&command_state->command_operation_lock)
-    for (kan_loop_size_t index = 0u; index < parameter_sets_count; ++index)
+    for (kan_memory_size_t index = 0u; index < parameter_sets_count; ++index)
     {
         // We don't implement sequential set optimization as it looks like it is not worth it in most cases for us.
         struct render_backend_pipeline_parameter_set_t *set = KAN_HANDLE_GET (parameter_sets[index]);
@@ -638,7 +638,7 @@ void kan_render_pass_instance_attributes (kan_render_pass_instance_t pass_instan
                                                       sizeof (VkDeviceSize) * buffers_count, alignof (VkDeviceSize));
     }
 
-    for (kan_loop_size_t index = 0u; index < buffers_count; ++index)
+    for (kan_memory_size_t index = 0u; index < buffers_count; ++index)
     {
         struct render_backend_buffer_t *buffer = KAN_HANDLE_GET (buffers[index]);
         KAN_ASSERT (buffer->type == KAN_RENDER_BUFFER_TYPE_ATTRIBUTE)

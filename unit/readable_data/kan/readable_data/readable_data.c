@@ -331,20 +331,20 @@ static inline const char *re2c_internalize_string_literal (struct parser_t *pars
     return copy;
 }
 
-static inline kan_instance_size_t re2c_parse_unsigned_decimal (const char *begin, const char *end, bool *overflow_flag)
+static inline kan_stable_size_t re2c_parse_unsigned_decimal (const char *begin, const char *end, bool *overflow_flag)
 {
     *overflow_flag = false;
-    kan_instance_size_t result = 0u;
+    kan_stable_size_t result = 0u;
 
     while (begin < end)
     {
         KAN_ASSERT (*begin >= '0' && *begin <= '9')
-        kan_instance_size_t digit = (kan_instance_size_t) (*begin - '0');
+        kan_stable_size_t digit = (kan_stable_size_t) (*begin - '0');
 
-        const kan_instance_size_t old_result = result;
+        const kan_stable_size_t old_result = result;
         result = result * 10u + digit;
 
-        if (old_result > result)
+        if (old_result >= result && old_result != 0u)
         {
             *overflow_flag = true;
             return 0u;
@@ -356,37 +356,37 @@ static inline kan_instance_size_t re2c_parse_unsigned_decimal (const char *begin
     return result;
 }
 
-static inline kan_instance_size_t re2c_parse_unsigned_hex (const char *begin, const char *end, bool *overflow_flag)
+static inline kan_stable_size_t re2c_parse_unsigned_hex (const char *begin, const char *end, bool *overflow_flag)
 {
     *overflow_flag = false;
     KAN_ASSERT (begin + 2 < end)
     begin += 2u; // Skip 0x.
-    kan_instance_size_t result = 0u;
+    kan_stable_size_t result = 0u;
 
     while (begin < end)
     {
-        kan_instance_size_t digit = 0;
+        kan_stable_size_t digit = 0;
         if (*begin >= '0' && *begin <= '9')
         {
-            digit = (kan_instance_size_t) (*begin - '0');
+            digit = (kan_stable_size_t) (*begin - '0');
         }
         else if (*begin >= 'a' && *begin <= 'f')
         {
-            digit = 10u + (kan_instance_size_t) (*begin - 'a');
+            digit = 10u + (kan_stable_size_t) (*begin - 'a');
         }
         else if (*begin >= 'A' && *begin <= 'F')
         {
-            digit = 10u + (kan_instance_size_t) (*begin - 'A');
+            digit = 10u + (kan_stable_size_t) (*begin - 'A');
         }
         else
         {
             KAN_ASSERT (false)
         }
 
-        const kan_instance_size_t old_result = result;
+        const kan_stable_size_t old_result = result;
         result = result * 16u + digit;
 
-        if (old_result > result)
+        if (old_result >= result && old_result != 0u)
         {
             *overflow_flag = true;
             return 0u;
@@ -398,22 +398,22 @@ static inline kan_instance_size_t re2c_parse_unsigned_hex (const char *begin, co
     return result;
 }
 
-static inline kan_instance_size_t re2c_parse_unsigned_binary (const char *begin, const char *end, bool *overflow_flag)
+static inline kan_stable_size_t re2c_parse_unsigned_binary (const char *begin, const char *end, bool *overflow_flag)
 {
     *overflow_flag = false;
     KAN_ASSERT (begin + 2 < end)
     begin += 2u; // Skip 0b.
-    kan_instance_size_t result = 0u;
+    kan_stable_size_t result = 0u;
 
     while (begin < end)
     {
         KAN_ASSERT (*begin == '0' || *begin == '1')
-        kan_instance_size_t digit = (kan_instance_size_t) (*begin - '0');
+        kan_stable_size_t digit = (kan_stable_size_t) (*begin - '0');
 
-        const kan_instance_size_t old_result = result;
+        const kan_stable_size_t old_result = result;
         result = result * 2u + digit;
 
-        if (old_result > result)
+        if (old_result >= result && old_result != 0u)
         {
             *overflow_flag = true;
             return 0u;
@@ -425,7 +425,7 @@ static inline kan_instance_size_t re2c_parse_unsigned_binary (const char *begin,
     return result;
 }
 
-static inline kan_instance_offset_t re2c_parse_signed_decimal (const char *begin, const char *end, bool *overflow_flag)
+static inline kan_stable_offset_t re2c_parse_signed_decimal (const char *begin, const char *end, bool *overflow_flag)
 {
     bool positive = true;
     if (*begin == '-')
@@ -438,7 +438,7 @@ static inline kan_instance_offset_t re2c_parse_signed_decimal (const char *begin
         ++begin;
     }
 
-    const kan_instance_size_t unsigned_value = re2c_parse_unsigned_decimal (begin, end, overflow_flag);
+    const kan_stable_size_t unsigned_value = re2c_parse_unsigned_decimal (begin, end, overflow_flag);
     if (*overflow_flag)
     {
         return 0;
@@ -446,24 +446,24 @@ static inline kan_instance_offset_t re2c_parse_signed_decimal (const char *begin
 
     if (positive)
     {
-        if (unsigned_value > KAN_INT_MAX (kan_instance_offset_t))
+        if (unsigned_value > KAN_INT_MAX (kan_stable_offset_t))
         {
             *overflow_flag = true;
             return 0;
         }
 
-        return (kan_instance_offset_t) unsigned_value;
+        return (kan_stable_offset_t) unsigned_value;
     }
     else
     {
-        const kan_instance_size_t inverted_value = KAN_INT_MAX (kan_instance_size_t) - unsigned_value + 1u;
-        if (inverted_value <= KAN_INT_MAX (kan_instance_offset_t))
+        const kan_stable_size_t inverted_value = KAN_INT_MAX (kan_stable_size_t) - unsigned_value + 1u;
+        if (inverted_value <= KAN_INT_MAX (kan_stable_offset_t))
         {
             *overflow_flag = true;
             return 0;
         }
 
-        return (kan_instance_offset_t) inverted_value;
+        return (kan_stable_offset_t) inverted_value;
     }
 }
 
@@ -1168,7 +1168,7 @@ static inline bool emit_indentation (struct emitter_t *emitter)
 {
 #define INDENTATION "    "
 #define INDENTATION_LENGTH 4u
-    for (kan_loop_size_t index = 0u; index < emitter->indentation_level; ++index)
+    for (kan_memory_size_t index = 0u; index < emitter->indentation_level; ++index)
     {
         if (emitter->stream->operations->write (emitter->stream, INDENTATION_LENGTH, INDENTATION) != INDENTATION_LENGTH)
         {
@@ -1246,7 +1246,7 @@ static inline bool emit_string_literal (struct emitter_t *emitter, const char *l
     return true;
 }
 
-static inline bool emit_unsigned_integer_literal (struct emitter_t *emitter, kan_instance_size_t literal)
+static inline bool emit_unsigned_integer_literal (struct emitter_t *emitter, kan_stable_size_t literal)
 {
     const kan_instance_size_t formatted_length =
         (kan_instance_size_t) snprintf (emitter->formatting_buffer, KAN_READABLE_DATA_EMIT_FORMATTING_BUFFER_SIZE,
@@ -1256,7 +1256,7 @@ static inline bool emit_unsigned_integer_literal (struct emitter_t *emitter, kan
            formatted_length;
 }
 
-static inline bool emit_signed_integer_literal (struct emitter_t *emitter, kan_instance_offset_t literal)
+static inline bool emit_signed_integer_literal (struct emitter_t *emitter, kan_stable_offset_t literal)
 {
     const kan_instance_size_t formatted_length = (kan_instance_size_t) snprintf (
         emitter->formatting_buffer, KAN_READABLE_DATA_EMIT_FORMATTING_BUFFER_SIZE, "%lld", (signed long long) literal);

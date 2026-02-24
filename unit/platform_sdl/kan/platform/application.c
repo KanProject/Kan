@@ -1462,7 +1462,7 @@ void kan_platform_application_request_vulkan_extensions (struct kan_dynamic_arra
     const char *const *extensions = SDL_Vulkan_GetInstanceExtensions (&count);
     kan_dynamic_array_init (output, (kan_instance_size_t) count, sizeof (char *), alignof (char *), allocation_group);
 
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) count; ++index)
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) count; ++index)
     {
         char **extension_output = kan_dynamic_array_add_last (output);
         kan_instance_size_t length = (kan_instance_size_t) strlen (extensions[index]);

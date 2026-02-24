@@ -645,7 +645,7 @@ static void try_render_frame (struct text_effects_render_state_t *state,
 
     // Scene view passes.
 
-    const kan_time_size_t current_time = kan_precise_time_get_elapsed_nanoseconds ();
+    const kan_stable_size_t current_time = kan_precise_time_get_elapsed_nanoseconds ();
     // Circle time every 100s.
     const float time_for_shader =
         test->test_mode_enabled && !singleton->frame_checked ? 0.75f : 1e-9f * (float) (current_time % 100000000000lu);
@@ -770,7 +770,7 @@ static void try_render_frame (struct text_effects_render_state_t *state,
         kan_render_pass_instance_indices (pass_instance, singleton->glyph_index_buffer);
         kan_render_pass_instance_attributes (pass_instance, 0u, 1u, &singleton->glyph_vertex_buffer, NULL);
 
-        for (kan_loop_size_t index = 0u; index < sizeof (requests) / sizeof (requests[0u]); ++index)
+        for (kan_memory_size_t index = 0u; index < sizeof (requests) / sizeof (requests[0u]); ++index)
         {
             KAN_UMI_VALUE_READ_OPTIONAL (unit, kan_text_shaping_unit_t, id, &requests[index].unit_id)
             if (!unit || !unit->shaped)

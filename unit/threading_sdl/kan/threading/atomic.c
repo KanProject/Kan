@@ -27,7 +27,7 @@ static_assert (sizeof (struct kan_atomic_int_t) == sizeof (SDL_AtomicInt),
                "Check that SDL atomic and Kan atomic are the same.");
 
 #define RW_LOCK_DO_LOCK(IS_LOCKED, VALUE_CHANGE)                                                                       \
-    kan_loop_size_t iterations = 0u;                                                                                   \
+    kan_memory_size_t iterations = 0u;                                                                                 \
     while (true)                                                                                                       \
     {                                                                                                                  \
         const int old_value = SDL_GetAtomicInt ((SDL_AtomicInt *) atomic);                                             \

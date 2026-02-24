@@ -170,7 +170,7 @@ void kan_resource_log_target_init_copy (struct kan_resource_log_target_t *instan
     kan_dynamic_array_init (&instance->raw, copy_from->raw.size, sizeof (struct kan_resource_log_raw_entry_t),
                             alignof (struct kan_resource_log_raw_entry_t), allocation_group);
 
-    for (kan_loop_size_t index = 0u; index < copy_from->raw.size; ++index)
+    for (kan_memory_size_t index = 0u; index < copy_from->raw.size; ++index)
     {
         const struct kan_resource_log_raw_entry_t *input =
             &((struct kan_resource_log_raw_entry_t *) copy_from->raw.data)[index];
@@ -181,7 +181,7 @@ void kan_resource_log_target_init_copy (struct kan_resource_log_target_t *instan
     kan_dynamic_array_init (&instance->built, copy_from->built.size, sizeof (struct kan_resource_log_built_entry_t),
                             alignof (struct kan_resource_log_built_entry_t), allocation_group);
 
-    for (kan_loop_size_t index = 0u; index < copy_from->built.size; ++index)
+    for (kan_memory_size_t index = 0u; index < copy_from->built.size; ++index)
     {
         const struct kan_resource_log_built_entry_t *input =
             &((struct kan_resource_log_built_entry_t *) copy_from->built.data)[index];
@@ -193,7 +193,7 @@ void kan_resource_log_target_init_copy (struct kan_resource_log_target_t *instan
                             sizeof (struct kan_resource_log_secondary_entry_t),
                             alignof (struct kan_resource_log_secondary_entry_t), allocation_group);
 
-    for (kan_loop_size_t index = 0u; index < copy_from->secondary.size; ++index)
+    for (kan_memory_size_t index = 0u; index < copy_from->secondary.size; ++index)
     {
         const struct kan_resource_log_secondary_entry_t *input =
             &((struct kan_resource_log_secondary_entry_t *) copy_from->secondary.data)[index];

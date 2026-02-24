@@ -812,7 +812,7 @@ struct render_backend_cached_sampler_t
     VkSampler sampler;
 
     /// \brief Packed description values for faster comparison.
-    kan_loop_size_t packed_description_values;
+    kan_memory_size_t packed_description_values;
 
     struct kan_render_sampler_t description;
 };

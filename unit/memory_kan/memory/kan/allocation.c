@@ -103,7 +103,7 @@ void *kan_allocate_batched (kan_allocation_group_t group, kan_memory_size_t item
             batched_allocator_context->main_group = main_group;
             batched_allocator_context->reserve_group = reserve_group;
 
-            for (kan_loop_size_t index = 0u; index < BATCHED_ALLOCATORS_COUNT; ++index)
+            for (kan_memory_size_t index = 0u; index < BATCHED_ALLOCATORS_COUNT; ++index)
             {
                 batched_allocator_context->allocators[index].lock = kan_atomic_int_init (0u);
                 batched_allocator_context->allocators[index].first_free_page = NULL;

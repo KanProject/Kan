@@ -163,7 +163,7 @@ struct kan_application_framework_program_configuration_t
     char *auto_build_command;
 
     /// \brief Delay between several auto build execution attempts.
-    kan_time_size_t auto_build_delay_ns;
+    kan_stable_size_t auto_build_delay_ns;
 };
 
 APPLICATION_FRAMEWORK_API void kan_application_framework_program_configuration_init (

@@ -68,7 +68,7 @@ kan_context_system_t plugin_system_create (kan_allocation_group_t group, void *u
         kan_dynamic_array_init (&system->plugins, config->plugins.size, sizeof (struct plugin_data_t),
                                 alignof (struct plugin_data_t), group);
 
-        for (kan_loop_size_t index = 0u; index < config->plugins.size; ++index)
+        for (kan_memory_size_t index = 0u; index < config->plugins.size; ++index)
         {
             kan_interned_string_t plugin_name = ((kan_interned_string_t *) config->plugins.data)[index];
             struct plugin_data_t *data = kan_dynamic_array_add_last (&system->plugins);
@@ -128,7 +128,7 @@ static inline bool find_source_plugin_path (const char *source_path,
 
 static inline void load_plugins (const char *path, struct kan_dynamic_array_t *array)
 {
-    for (kan_loop_size_t index = 0u; index < array->size; ++index)
+    for (kan_memory_size_t index = 0u; index < array->size; ++index)
     {
         struct plugin_data_t *data = &((struct plugin_data_t *) array->data)[index];
         KAN_ASSERT (!KAN_HANDLE_IS_VALID (data->dynamic_library))
@@ -163,7 +163,7 @@ static inline void load_plugins (const char *path, struct kan_dynamic_array_t *a
 
 static inline void unload_plugins (struct kan_dynamic_array_t *array)
 {
-    for (kan_loop_size_t index = 0u; index < array->size; ++index)
+    for (kan_memory_size_t index = 0u; index < array->size; ++index)
     {
         struct plugin_data_t *data = &((struct plugin_data_t *) array->data)[index];
         if (KAN_HANDLE_IS_VALID (data->dynamic_library))
@@ -176,7 +176,7 @@ static inline void unload_plugins (struct kan_dynamic_array_t *array)
 static void on_reflection_populate (kan_context_system_t other_system, kan_reflection_registry_t registry)
 {
     struct plugin_system_t *system = KAN_HANDLE_GET (other_system);
-    for (kan_loop_size_t index = 0u; index < system->plugins.size; ++index)
+    for (kan_memory_size_t index = 0u; index < system->plugins.size; ++index)
     {
         struct plugin_data_t *data = &((struct plugin_data_t *) system->plugins.data)[index];
         if (KAN_HANDLE_IS_VALID (data->dynamic_library))
@@ -228,7 +228,7 @@ static inline void update_hot_reload_id (struct plugin_system_t *system)
 
 static inline void init_hot_reload_directory (struct plugin_system_t *system)
 {
-    for (kan_loop_size_t index = 0u; index < system->plugins.size; ++index)
+    for (kan_memory_size_t index = 0u; index < system->plugins.size; ++index)
     {
         struct plugin_data_t *data = &((struct plugin_data_t *) system->plugins.data)[index];
         char library_path_buffer[KAN_FILE_SYSTEM_MAX_PATH_LENGTH * 2u];
@@ -336,7 +336,7 @@ void plugin_system_on_update (kan_context_system_t handle)
         kan_dynamic_array_init (&plugins_copy, system->plugins.size, sizeof (struct plugin_data_t),
                                 alignof (struct plugin_data_t), system->plugins.allocation_group);
 
-        for (kan_loop_size_t index = 0u; index < system->plugins.size; ++index)
+        for (kan_memory_size_t index = 0u; index < system->plugins.size; ++index)
         {
             struct plugin_data_t *source_data = &((struct plugin_data_t *) system->plugins.data)[index];
             struct plugin_data_t *target_data = &((struct plugin_data_t *) plugins_copy.data)[index];

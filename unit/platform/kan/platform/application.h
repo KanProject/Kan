@@ -151,7 +151,7 @@ struct kan_platform_application_event_mouse_wheel_t
 struct kan_platform_application_event_t
 {
     enum kan_platform_application_event_type_t type;
-    kan_time_size_t time_ns;
+    kan_stable_size_t time_ns;
 
     union
     {

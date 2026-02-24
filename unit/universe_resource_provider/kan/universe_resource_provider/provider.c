@@ -145,8 +145,8 @@ struct resource_provider_operation_third_party_t
 {
     kan_resource_third_party_blob_id_t blob_id;
     struct kan_stream_t *stream;
-    kan_file_size_t read;
-    kan_file_size_t size;
+    kan_stable_size_t read;
+    kan_stable_size_t size;
 };
 
 struct resource_provider_operation_t
@@ -220,7 +220,7 @@ struct universe_resource_provider_generated_node_t
 
 struct kan_reflection_generator_universe_resource_provider_t
 {
-    kan_loop_size_t boostrap_iteration;
+    kan_memory_size_t boostrap_iteration;
     kan_allocation_group_t generated_reflection_group;
     struct universe_resource_provider_generated_node_t *first_node;
     kan_instance_size_t nodes_count;
@@ -262,7 +262,7 @@ struct resource_provider_execution_shared_state_t
     struct kan_atomic_int_t workers_left;
     struct kan_atomic_int_t concurrency_lock;
     struct kan_repository_indexed_interval_descending_write_cursor_t operation_cursor;
-    kan_time_size_t end_time_ns;
+    kan_stable_size_t end_time_ns;
 
     /// \brief Private and private write access are shared between everyone exclusively for id counter usage.
     struct kan_repository_singleton_write_access_t private_access;
@@ -274,7 +274,7 @@ struct resource_provider_execution_shared_state_t
 struct resource_provider_state_t
 {
     kan_allocation_group_t my_allocation_group;
-    kan_time_offset_t serve_budget_ns;
+    kan_stable_size_t serve_budget_ns;
     kan_interned_string_t resource_directory_path;
 
     kan_reflection_registry_t reflection_registry;
@@ -610,12 +610,12 @@ static bool load_directory_resource_index_if_any (struct resource_provider_state
         return true;
     }
 
-    for (kan_loop_size_t container_index = 0u; container_index < resource_index.containers.size; ++container_index)
+    for (kan_memory_size_t container_index = 0u; container_index < resource_index.containers.size; ++container_index)
     {
         const struct kan_resource_index_container_t *container =
             &((struct kan_resource_index_container_t *) resource_index.containers.data)[container_index];
 
-        for (kan_loop_size_t item_index = 0u; item_index < container->items.size; ++item_index)
+        for (kan_memory_size_t item_index = 0u; item_index < container->items.size; ++item_index)
         {
             const struct kan_resource_index_item_t *item =
                 &((struct kan_resource_index_item_t *) container->items.data)[item_index];
@@ -627,7 +627,7 @@ static bool load_directory_resource_index_if_any (struct resource_provider_state
         }
     }
 
-    for (kan_loop_size_t item_index = 0u; item_index < resource_index.third_party_items.size; ++item_index)
+    for (kan_memory_size_t item_index = 0u; item_index < resource_index.third_party_items.size; ++item_index)
     {
         const struct kan_resource_index_item_t *item =
             &((struct kan_resource_index_item_t *) resource_index.third_party_items.data)[item_index];
@@ -1509,8 +1509,8 @@ static inline enum resource_provider_serve_operation_status_t execute_shared_ser
             return RESOURCE_PROVIDER_SERVE_OPERATION_STATUS_IN_PROGRESS;
         }
 
-        const kan_file_size_t to_read = KAN_MIN (operation->third_party.size - operation->third_party.read,
-                                                 KAN_UNIVERSE_RESOURCE_PROVIDER_IO_BUFFER);
+        const kan_stable_size_t to_read = KAN_MIN (operation->third_party.size - operation->third_party.read,
+                                                   KAN_UNIVERSE_RESOURCE_PROVIDER_IO_BUFFER);
 
         if (operation->third_party.stream->operations->read (operation->third_party.stream, to_read,
                                                              data_base + operation->third_party.read) != to_read)
@@ -1528,7 +1528,7 @@ static inline enum resource_provider_serve_operation_status_t execute_shared_ser
     return RESOURCE_PROVIDER_SERVE_OPERATION_STATUS_FINISHED;
 }
 
-static void execute_shared_serve (kan_functor_user_data_t user_data)
+static void execute_shared_serve (kan_memory_size_t user_data)
 {
     struct resource_provider_state_t *state = (struct resource_provider_state_t *) user_data;
     const bool hot_reload_scheduled = KAN_HANDLE_IS_VALID (state->hot_reload_system) &&
@@ -1663,7 +1663,7 @@ UNIVERSE_RESOURCE_PROVIDER_API KAN_UM_MUTATOR_EXECUTE_SIGNATURE (mutator_templat
 
     // We do not record frame begin until scan is done, because first frame with scan is kind of a special case in the
     // beginning of application execution.
-    const kan_time_size_t frame_begin_time_ns = kan_precise_time_get_elapsed_nanoseconds ();
+    const kan_stable_size_t frame_begin_time_ns = kan_precise_time_get_elapsed_nanoseconds ();
 
     // If we're watching resources for changes, process events from resource watcher.
     if (KAN_HANDLE_IS_VALID (private->file_event_provider) &&
@@ -1752,7 +1752,7 @@ UNIVERSE_RESOURCE_PROVIDER_API KAN_UM_MUTATOR_EXECUTE_SIGNATURE (mutator_templat
     state->execution_shared_state.operation_cursor = kan_repository_indexed_interval_write_query_execute_descending (
         &state->write_interval__resource_provider_operation__priority, NULL, NULL);
 
-    for (kan_loop_size_t worker_index = 0u; worker_index < cpu_count; ++worker_index)
+    for (kan_memory_size_t worker_index = 0u; worker_index < cpu_count; ++worker_index)
     {
         KAN_CPU_TASK_LIST_USER_VALUE (&task_list_node, &state->temporary_allocator, execute_shared_serve,
                                       KAN_CPU_STATIC_SECTION_GET (resource_provider_server), state)
@@ -1768,7 +1768,7 @@ UNIVERSE_RESOURCE_PROVIDER_API KAN_UM_MUTATOR_UNDEPLOY_SIGNATURE (mutator_templa
     kan_stack_group_allocator_reset (&state->temporary_allocator);
 }
 
-static void generated_container_init (kan_functor_user_data_t function_user_data, void *data)
+static void generated_container_init (kan_memory_size_t function_user_data, void *data)
 {
     struct kan_resource_container_view_t *instance = data;
     instance->container_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_container_id_t);
@@ -1783,7 +1783,7 @@ static void generated_container_init (kan_functor_user_data_t function_user_data
     }
 }
 
-static void generated_container_shutdown (kan_functor_user_data_t function_user_data, void *data)
+static void generated_container_shutdown (kan_memory_size_t function_user_data, void *data)
 {
     struct kan_resource_container_view_t *instance = data;
     const struct kan_reflection_struct_t *boxed_type = (const struct kan_reflection_struct_t *) function_user_data;
@@ -1799,7 +1799,7 @@ static void generated_container_shutdown (kan_functor_user_data_t function_user_
     }
 }
 
-static void generated_mutator_init (kan_functor_user_data_t function_user_data, void *data)
+static void generated_mutator_init (kan_memory_size_t function_user_data, void *data)
 {
     struct kan_reflection_generator_universe_resource_provider_t *generator =
         (struct kan_reflection_generator_universe_resource_provider_t *) function_user_data;
@@ -1809,13 +1809,13 @@ static void generated_mutator_init (kan_functor_user_data_t function_user_data, 
     resource_provider_state_init (instance);
 }
 
-static void generated_mutator_shutdown (kan_functor_user_data_t function_user_data, void *data)
+static void generated_mutator_shutdown (kan_memory_size_t function_user_data, void *data)
 {
     struct resource_provider_state_t *instance = data;
     resource_provider_state_shutdown (instance);
 }
 
-static void generated_mutator_deploy (kan_functor_user_data_t user_data, void *return_address, void *arguments_address)
+static void generated_mutator_deploy (kan_memory_size_t user_data, void *return_address, void *arguments_address)
 {
     KAN_UNIVERSE_EXTRACT_DEPLOY_ARGUMENTS (arguments, arguments_address, struct resource_provider_state_t);
     mutator_template_deploy_resource_provider (arguments->universe, arguments->world, arguments->world_repository,
@@ -1838,7 +1838,7 @@ static void generated_mutator_deploy (kan_functor_user_data_t user_data, void *r
     };
 
     struct universe_resource_provider_generated_node_t *interface_source = generator->first_node;
-    for (kan_loop_size_t index = 0u; index < arguments->state->trailing_data_count;
+    for (kan_memory_size_t index = 0u; index < arguments->state->trailing_data_count;
          ++index, interface_source = interface_source->next)
     {
         struct resource_provider_resource_type_interface_t *interface = &arguments->state->trailing_data[index];
@@ -1897,20 +1897,18 @@ static void generated_mutator_deploy (kan_functor_user_data_t user_data, void *r
     }
 }
 
-static void generated_mutator_execute (kan_functor_user_data_t user_data, void *return_address, void *arguments_address)
+static void generated_mutator_execute (kan_memory_size_t user_data, void *return_address, void *arguments_address)
 {
     KAN_UNIVERSE_EXTRACT_EXECUTE_ARGUMENTS (arguments, arguments_address, struct resource_provider_state_t);
     mutator_template_execute_resource_provider (arguments->job, arguments->state);
 }
 
-static void generated_mutator_undeploy (kan_functor_user_data_t user_data,
-                                        void *return_address,
-                                        void *arguments_address)
+static void generated_mutator_undeploy (kan_memory_size_t user_data, void *return_address, void *arguments_address)
 {
     KAN_UNIVERSE_EXTRACT_UNDEPLOY_ARGUMENTS (arguments, arguments_address, struct resource_provider_state_t);
     mutator_template_undeploy_resource_provider (arguments->state);
 
-    for (kan_loop_size_t index = 0u; index < arguments->state->trailing_data_count; ++index)
+    for (kan_memory_size_t index = 0u; index < arguments->state->trailing_data_count; ++index)
     {
         struct resource_provider_resource_type_interface_t *interface = &arguments->state->trailing_data[index];
         kan_repository_indexed_insert_query_shutdown (&interface->insert_typed_entry);
@@ -1983,7 +1981,7 @@ UNIVERSE_RESOURCE_PROVIDER_API void kan_reflection_generator_universe_resource_p
 }
 
 UNIVERSE_RESOURCE_PROVIDER_API void kan_reflection_generator_universe_resource_provider_bootstrap (
-    struct kan_reflection_generator_universe_resource_provider_t *instance, kan_loop_size_t bootstrap_iteration)
+    struct kan_reflection_generator_universe_resource_provider_t *instance, kan_memory_size_t bootstrap_iteration)
 {
     instance->boostrap_iteration = bootstrap_iteration;
 }
@@ -2076,7 +2074,7 @@ static inline void register_resource_type (struct kan_reflection_generator_unive
     node->container_type.size =
         (kan_instance_size_t) kan_apply_alignment (data_offset + type->size, container_alignment);
 
-    node->container_type.functor_user_data = (kan_functor_user_data_t) type;
+    node->container_type.functor_user_data = (kan_memory_size_t) type;
     node->container_type.init = generated_container_init;
     node->container_type.shutdown = generated_container_shutdown;
 
@@ -2178,7 +2176,7 @@ UNIVERSE_RESOURCE_PROVIDER_API void kan_reflection_generator_universe_resource_p
     struct kan_reflection_generator_universe_resource_provider_t *instance,
     kan_reflection_registry_t registry,
     kan_reflection_system_generation_iterator_t iterator,
-    kan_loop_size_t iteration_index)
+    kan_memory_size_t iteration_index)
 {
     // Cannot use inside macro below due to pushes, need to forward declare like that.
     const kan_interned_string_t meta_name = KAN_STATIC_INTERNED_ID_GET (kan_resource_type_meta_t);
@@ -2233,7 +2231,7 @@ UNIVERSE_RESOURCE_PROVIDER_API void kan_reflection_generator_universe_resource_p
 
     KAN_UNIVERSE_REFLECTION_GENERATOR_DEPLOY_FUNCTION (
         instance->mutator_deploy_function, generated_resource_provider_state, generated_resource_provider_state_t,
-        generated_mutator_deploy, (kan_functor_user_data_t) instance, instance->generated_reflection_group);
+        generated_mutator_deploy, (kan_memory_size_t) instance, instance->generated_reflection_group);
     kan_reflection_registry_add_function (registry, &instance->mutator_deploy_function);
 
     KAN_UNIVERSE_REFLECTION_GENERATOR_EXECUTE_FUNCTION (

@@ -153,7 +153,7 @@ struct kan_ui_singleton_t
     kan_floating_t animation_global_time_loop_s;
 
     /// \brief Use to calculate deltas for `animation_global_time_s`.
-    kan_time_size_t last_time_ns;
+    kan_stable_size_t last_time_ns;
 };
 
 UNIVERSE_UI_API void kan_ui_singleton_init (struct kan_ui_singleton_t *instance);

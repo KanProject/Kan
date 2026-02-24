@@ -181,8 +181,8 @@ struct kan_readable_data_value_node_t
     {
         const char *identifier;
         const char *string;
-        kan_instance_size_t unsigned_integer;
-        kan_instance_offset_t signed_integer;
+        kan_stable_size_t unsigned_integer;
+        kan_stable_offset_t signed_integer;
         kan_floating_t floating;
     };
 };

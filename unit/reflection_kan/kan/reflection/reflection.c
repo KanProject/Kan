@@ -567,7 +567,7 @@ bool kan_reflection_registry_add_struct (kan_reflection_registry_t registry,
     KAN_ASSERT (struct_reflection->fields_count > 0u)
     KAN_ASSERT (struct_reflection->fields)
 
-    for (kan_loop_size_t index = 0u; index < struct_reflection->fields_count; ++index)
+    for (kan_memory_size_t index = 0u; index < struct_reflection->fields_count; ++index)
     {
         const struct kan_reflection_field_t *field_reflection = &struct_reflection->fields[index];
         if (index > 0u)
@@ -740,7 +740,7 @@ bool kan_reflection_registry_add_function (kan_reflection_registry_t registry,
     reflection_function_validate_archetype (function_reflection->return_type.archetype,
                                             function_reflection->return_type.size, true);
 
-    for (kan_loop_size_t index = 0u; index < function_reflection->arguments_count; ++index)
+    for (kan_memory_size_t index = 0u; index < function_reflection->arguments_count; ++index)
     {
         const struct kan_reflection_argument_t *argument_reflection = &function_reflection->arguments[index];
         KAN_ASSERT (argument_reflection->name)
@@ -1224,13 +1224,13 @@ const struct kan_reflection_field_t *kan_reflection_registry_query_local_field (
     *size_with_padding_output = struct_reflection->size;
     const struct kan_reflection_field_t *field_reflection = NULL;
 
-    for (kan_loop_size_t path_element_index = 0u; path_element_index < path_length; ++path_element_index)
+    for (kan_memory_size_t path_element_index = 0u; path_element_index < path_length; ++path_element_index)
     {
         kan_interned_string_t path_element = path[path_element_index];
         field_reflection = NULL;
-        kan_loop_size_t field_index;
+        kan_memory_size_t field_index;
 
-        for (field_index = 0u; field_index < (kan_loop_size_t) struct_reflection->fields_count; ++field_index)
+        for (field_index = 0u; field_index < (kan_memory_size_t) struct_reflection->fields_count; ++field_index)
         {
             const struct kan_reflection_field_t *field_reflection_to_check = &struct_reflection->fields[field_index];
             if (field_reflection_to_check->name == path_element)
@@ -1333,12 +1333,12 @@ const struct kan_reflection_field_t *kan_reflection_registry_query_local_field_b
     const struct kan_reflection_struct_t **output_owner_struct)
 {
     const struct kan_reflection_struct_t *parent_type = kan_reflection_registry_query_struct (registry, struct_name);
-    kan_loop_size_t first = 0u;
-    kan_loop_size_t last = parent_type->fields_count;
+    kan_memory_size_t first = 0u;
+    kan_memory_size_t last = parent_type->fields_count;
 
     while (first < last)
     {
-        kan_loop_size_t middle = (first + last) / 2u;
+        kan_memory_size_t middle = (first + last) / 2u;
         const struct kan_reflection_field_t *field = &parent_type->fields[middle];
 
         if (exact_offset < field->offset)
@@ -1799,7 +1799,7 @@ static void validate_compiled_node_internal (kan_instance_size_t adjusted_node_o
                                              const struct kan_reflection_struct_t *type)
 {
     KAN_ASSERT (type)
-    for (kan_loop_size_t index = 0u; index < type->fields_count; ++index)
+    for (kan_memory_size_t index = 0u; index < type->fields_count; ++index)
     {
         const struct kan_reflection_field_t *field = &type->fields[index];
         const kan_instance_size_t field_begin = field->offset;
@@ -2110,7 +2110,7 @@ static bool compiled_patch_build_into (struct patch_builder_t *patch_builder,
             alignof (struct patch_builder_chunk_node_t *));
 
     struct patch_builder_chunk_node_t *node = patch_builder->first_node;
-    for (kan_loop_size_t index = 0u; index < patch_builder->node_count; ++index)
+    for (kan_memory_size_t index = 0u; index < patch_builder->node_count; ++index)
     {
         KAN_ASSERT (node)
         nodes_array[index] = node;
@@ -2138,7 +2138,7 @@ static bool compiled_patch_build_into (struct patch_builder_t *patch_builder,
     kan_instance_size_t patch_data_size = 0u;
     kan_instance_size_t node_count = 0u;
 
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) patch_builder->node_count; ++index)
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) patch_builder->node_count; ++index)
     {
         bool new_node;
         if (current_section != nodes_array[index]->section)
@@ -2211,7 +2211,7 @@ static bool compiled_patch_build_into (struct patch_builder_t *patch_builder,
     uint8_t *output = (uint8_t *) output_patch->begin;
     struct compiled_patch_node_t *output_node = NULL;
 
-    for (kan_loop_size_t index = 0u; index < patch_builder->node_count; ++index)
+    for (kan_memory_size_t index = 0u; index < patch_builder->node_count; ++index)
     {
         bool new_node;
         if (current_section != nodes_array[index]->section)
@@ -2599,13 +2599,13 @@ static void migration_seed_add_enums (struct migration_seed_t *migration_seed,
                     KAN_REFLECTION_MIGRATION_NOT_NEEDED :
                     KAN_REFLECTION_MIGRATION_NEEDED;
 
-            for (kan_loop_size_t source_value_index = 0u; source_value_index < source_enum_data->values_count;
+            for (kan_memory_size_t source_value_index = 0u; source_value_index < source_enum_data->values_count;
                  ++source_value_index)
             {
                 const struct kan_reflection_enum_value_t *source_value = &source_enum_data->values[source_value_index];
                 node->seed.value_remap[source_value_index] = NULL;
 
-                for (kan_loop_size_t target_value_index = 0u; target_value_index < target_enum_data->values_count;
+                for (kan_memory_size_t target_value_index = 0u; target_value_index < target_enum_data->values_count;
                      ++target_value_index)
                 {
                     const struct kan_reflection_enum_value_t *target_value =
@@ -2792,13 +2792,13 @@ static struct struct_migration_node_t *migration_seed_add_struct (
                                 KAN_REFLECTION_MIGRATION_NOT_NEEDED :
                                 KAN_REFLECTION_MIGRATION_NEEDED;
 
-        for (kan_loop_size_t source_field_index = 0u; source_field_index < source_struct_data->fields_count;
+        for (kan_memory_size_t source_field_index = 0u; source_field_index < source_struct_data->fields_count;
              ++source_field_index)
         {
             const struct kan_reflection_field_t *source_field = &source_struct_data->fields[source_field_index];
             node->seed.field_remap[source_field_index] = NULL;
 
-            for (kan_loop_size_t target_field_index = 0u; target_field_index < target_struct_data->fields_count;
+            for (kan_memory_size_t target_field_index = 0u; target_field_index < target_struct_data->fields_count;
                  ++target_field_index)
             {
                 const struct kan_reflection_field_t *target_field = &target_struct_data->fields[target_field_index];
@@ -3449,7 +3449,7 @@ static inline void migrator_add_struct_commands (kan_instance_size_t source_offs
     KAN_ASSERT (sub_migrator)
     const kan_instance_size_t own_conditions_count = queues->condition_count;
 
-    for (kan_loop_size_t index = 0u; index < sub_migrator->conditions_count; ++index)
+    for (kan_memory_size_t index = 0u; index < sub_migrator->conditions_count; ++index)
     {
         struct migrator_condition_t condition = sub_migrator->conditions[index];
         condition.absolute_source_offset += source_offset;
@@ -3467,7 +3467,7 @@ static inline void migrator_add_struct_commands (kan_instance_size_t source_offs
         KAN_MUTE_UNUSED_WARNINGS_END
     }
 
-    for (kan_loop_size_t index = 0u; index < sub_migrator->copy_commands_count; ++index)
+    for (kan_memory_size_t index = 0u; index < sub_migrator->copy_commands_count; ++index)
     {
         struct migrator_command_copy_t command = sub_migrator->copy_commands[index];
         command.absolute_source_offset += source_offset;
@@ -3485,7 +3485,7 @@ static inline void migrator_add_struct_commands (kan_instance_size_t source_offs
         migrator_add_copy_command (command, algorithm_allocator, queues);
     }
 
-    for (kan_loop_size_t index = 0u; index < sub_migrator->adapt_numeric_commands_count; ++index)
+    for (kan_memory_size_t index = 0u; index < sub_migrator->adapt_numeric_commands_count; ++index)
     {
         struct migrator_command_adapt_numeric_t command = sub_migrator->adapt_numeric_commands[index];
         command.absolute_source_offset += source_offset;
@@ -3503,7 +3503,7 @@ static inline void migrator_add_struct_commands (kan_instance_size_t source_offs
         migrator_add_adapt_numeric_command (command, algorithm_allocator, queues);
     }
 
-    for (kan_loop_size_t index = 0u; index < sub_migrator->adapt_enum_commands_count; ++index)
+    for (kan_memory_size_t index = 0u; index < sub_migrator->adapt_enum_commands_count; ++index)
     {
         struct migrator_command_adapt_enum_t command = sub_migrator->adapt_enum_commands[index];
         command.absolute_source_offset += source_offset;
@@ -3521,7 +3521,7 @@ static inline void migrator_add_struct_commands (kan_instance_size_t source_offs
         migrator_add_adapt_enum_command (command, algorithm_allocator, queues);
     }
 
-    for (kan_loop_size_t index = 0u; index < sub_migrator->adapt_dynamic_array_commands_count; ++index)
+    for (kan_memory_size_t index = 0u; index < sub_migrator->adapt_dynamic_array_commands_count; ++index)
     {
         struct migrator_command_adapt_dynamic_array_t command = sub_migrator->adapt_dynamic_array_commands[index];
         command.absolute_source_offset += source_offset;
@@ -3539,7 +3539,7 @@ static inline void migrator_add_struct_commands (kan_instance_size_t source_offs
         migrator_add_adapt_dynamic_array_command (command, algorithm_allocator, queues);
     }
 
-    for (kan_loop_size_t index = 0u; index < sub_migrator->set_zero_commands_count; ++index)
+    for (kan_memory_size_t index = 0u; index < sub_migrator->set_zero_commands_count; ++index)
     {
         struct migrator_command_set_zero_t command = sub_migrator->set_zero_commands[index];
         command.absolute_source_offset += source_offset;
@@ -3577,7 +3577,7 @@ static struct struct_migrator_node_t *migrator_add_struct (struct migrator_t *mi
     //
     // Therefore, we're constructing fully capable migration scripts even for structs that do not need migration,
 
-    for (kan_loop_size_t field_index = 0u; field_index < source_struct->fields_count; ++field_index)
+    for (kan_memory_size_t field_index = 0u; field_index < source_struct->fields_count; ++field_index)
     {
         const struct kan_reflection_field_t *source_field = &source_struct->fields[field_index];
         const struct kan_reflection_field_t *target_field = struct_migration_node->seed.field_remap[field_index];
@@ -3649,7 +3649,7 @@ static struct struct_migrator_node_t *migrator_add_struct (struct migrator_t *mi
                     source_field->archetype_inline_array.item_count :
                     target_field->archetype_inline_array.item_count;
 
-            for (kan_loop_size_t item_index = 0u; item_index < items_count; ++item_index)
+            for (kan_memory_size_t item_index = 0u; item_index < items_count; ++item_index)
             {
                 const kan_instance_size_t source_offset =
                     source_field->offset + source_field->archetype_inline_array.item_size * item_index;
@@ -3817,7 +3817,7 @@ static struct struct_migrator_node_t *migrator_add_struct (struct migrator_t *mi
     command_line += sizeof (struct migrator_condition_t) * queues.condition_count;
 
     struct migrator_temporary_node_t *node = queues.condition_first;
-    for (kan_loop_size_t index = 0u; index < struct_migrator->conditions_count; ++index)
+    for (kan_memory_size_t index = 0u; index < struct_migrator->conditions_count; ++index)
     {
         KAN_ASSERT (node)
         struct_migrator->conditions[index] = node->condition;
@@ -3829,7 +3829,7 @@ static struct struct_migrator_node_t *migrator_add_struct (struct migrator_t *mi
     command_line += sizeof (struct migrator_command_copy_t) * queues.copy_count;
 
     node = queues.copy_first;
-    for (kan_loop_size_t index = 0u; index < struct_migrator->copy_commands_count; ++index)
+    for (kan_memory_size_t index = 0u; index < struct_migrator->copy_commands_count; ++index)
     {
         KAN_ASSERT (node)
         struct_migrator->copy_commands[index] = node->copy;
@@ -3841,7 +3841,7 @@ static struct struct_migrator_node_t *migrator_add_struct (struct migrator_t *mi
     command_line += sizeof (struct migrator_command_adapt_numeric_t) * queues.adapt_numeric_count;
 
     node = queues.adapt_numeric_first;
-    for (kan_loop_size_t index = 0u; index < struct_migrator->adapt_numeric_commands_count; ++index)
+    for (kan_memory_size_t index = 0u; index < struct_migrator->adapt_numeric_commands_count; ++index)
     {
         KAN_ASSERT (node)
         struct_migrator->adapt_numeric_commands[index] = node->adapt_numeric;
@@ -3853,7 +3853,7 @@ static struct struct_migrator_node_t *migrator_add_struct (struct migrator_t *mi
     command_line += sizeof (struct migrator_command_adapt_enum_t) * queues.adapt_enum_count;
 
     node = queues.adapt_enum_first;
-    for (kan_loop_size_t index = 0u; index < struct_migrator->adapt_enum_commands_count; ++index)
+    for (kan_memory_size_t index = 0u; index < struct_migrator->adapt_enum_commands_count; ++index)
     {
         KAN_ASSERT (node)
         struct_migrator->adapt_enum_commands[index] = node->adapt_enum;
@@ -3865,7 +3865,7 @@ static struct struct_migrator_node_t *migrator_add_struct (struct migrator_t *mi
     command_line += sizeof (struct migrator_command_adapt_dynamic_array_t) * queues.adapt_dynamic_array_count;
 
     node = queues.adapt_dynamic_array_first;
-    for (kan_loop_size_t index = 0u; index < struct_migrator->adapt_dynamic_array_commands_count; ++index)
+    for (kan_memory_size_t index = 0u; index < struct_migrator->adapt_dynamic_array_commands_count; ++index)
     {
         KAN_ASSERT (node)
         struct_migrator->adapt_dynamic_array_commands[index] = node->adapt_dynamic_array;
@@ -3876,7 +3876,7 @@ static struct struct_migrator_node_t *migrator_add_struct (struct migrator_t *mi
     struct_migrator->set_zero_commands = (struct migrator_command_set_zero_t *) command_line;
 
     node = queues.set_zero_first;
-    for (kan_loop_size_t index = 0u; index < struct_migrator->set_zero_commands_count; ++index)
+    for (kan_memory_size_t index = 0u; index < struct_migrator->set_zero_commands_count; ++index)
     {
         KAN_ASSERT (node)
         struct_migrator->set_zero_commands[index] = node->set_zero;
@@ -4203,7 +4203,7 @@ static void migrator_adapt_enum_with_migration_node (const struct migrator_t *mi
 
     if (migration_single_to_single || migration_single_to_flags)
     {
-        for (kan_loop_size_t value_index = 0u; value_index < source_enum_data->values_count; ++value_index)
+        for (kan_memory_size_t value_index = 0u; value_index < source_enum_data->values_count; ++value_index)
         {
             if (source_enum_data->values[value_index].value == input_data)
             {
@@ -4219,7 +4219,7 @@ static void migrator_adapt_enum_with_migration_node (const struct migrator_t *mi
     }
     else if (migration_flags_to_flags)
     {
-        for (kan_loop_size_t value_index = 0u; value_index < source_enum_data->values_count; ++value_index)
+        for (kan_memory_size_t value_index = 0u; value_index < source_enum_data->values_count; ++value_index)
         {
             if (input_data & source_enum_data->values[value_index].value)
             {
@@ -4229,7 +4229,7 @@ static void migrator_adapt_enum_with_migration_node (const struct migrator_t *mi
     }
     else if (migration_flags_to_single)
     {
-        for (kan_loop_size_t value_index = 0u; value_index < source_enum_data->values_count; ++value_index)
+        for (kan_memory_size_t value_index = 0u; value_index < source_enum_data->values_count; ++value_index)
         {
             if (input_data & source_enum_data->values[value_index].value)
             {
@@ -4294,7 +4294,7 @@ static void migrator_adapt_dynamic_array (kan_reflection_struct_migrator_t migra
     kan_dynamic_array_set_capacity (output_array, input_array->capacity);
     uint8_t *input_data = input_array->data;
 
-    for (kan_loop_size_t index = 0u; index < input_array->size; ++index)
+    for (kan_memory_size_t index = 0u; index < input_array->size; ++index)
     {
         void *output = kan_dynamic_array_add_last (output_array);
         KAN_ASSERT (output)
@@ -4371,7 +4371,7 @@ void kan_reflection_struct_migrator_migrate_instance (kan_reflection_struct_migr
                                            sizeof (bool) * struct_node->conditions_count, alignof (bool));
     }
 
-    for (kan_loop_size_t condition_index = 0u; condition_index < struct_node->conditions_count; ++condition_index)
+    for (kan_memory_size_t condition_index = 0u; condition_index < struct_node->conditions_count; ++condition_index)
     {
         const struct migrator_condition_t *condition = &struct_node->conditions[condition_index];
         if (condition->parent_condition_index != MIGRATOR_CONDITION_INDEX_NONE)
@@ -4388,7 +4388,7 @@ void kan_reflection_struct_migrator_migrate_instance (kan_reflection_struct_migr
             ((uint8_t *) source) + condition->absolute_source_offset);
     }
 
-    for (kan_loop_size_t command_index = 0u; command_index < struct_node->copy_commands_count; ++command_index)
+    for (kan_memory_size_t command_index = 0u; command_index < struct_node->copy_commands_count; ++command_index)
     {
         const struct migrator_command_copy_t *copy_command = &struct_node->copy_commands[command_index];
         if (copy_command->condition_index != MIGRATOR_CONDITION_INDEX_NONE &&
@@ -4401,7 +4401,8 @@ void kan_reflection_struct_migrator_migrate_instance (kan_reflection_struct_migr
                 ((uint8_t *) source) + copy_command->absolute_source_offset, copy_command->size);
     }
 
-    for (kan_loop_size_t command_index = 0u; command_index < struct_node->adapt_numeric_commands_count; ++command_index)
+    for (kan_memory_size_t command_index = 0u; command_index < struct_node->adapt_numeric_commands_count;
+         ++command_index)
     {
         const struct migrator_command_adapt_numeric_t *adapt_numeric_command =
             &struct_node->adapt_numeric_commands[command_index];
@@ -4418,7 +4419,7 @@ void kan_reflection_struct_migrator_migrate_instance (kan_reflection_struct_migr
                                 ((uint8_t *) target) + adapt_numeric_command->absolute_target_offset);
     }
 
-    for (kan_loop_size_t command_index = 0u; command_index < struct_node->adapt_enum_commands_count; ++command_index)
+    for (kan_memory_size_t command_index = 0u; command_index < struct_node->adapt_enum_commands_count; ++command_index)
     {
         const struct migrator_command_adapt_enum_t *adapt_enum_command =
             &struct_node->adapt_enum_commands[command_index];
@@ -4434,7 +4435,7 @@ void kan_reflection_struct_migrator_migrate_instance (kan_reflection_struct_migr
                              ((uint8_t *) target) + adapt_enum_command->absolute_target_offset);
     }
 
-    for (kan_loop_size_t command_index = 0u; command_index < struct_node->adapt_dynamic_array_commands_count;
+    for (kan_memory_size_t command_index = 0u; command_index < struct_node->adapt_dynamic_array_commands_count;
          ++command_index)
     {
         const struct migrator_command_adapt_dynamic_array_t *adapt_dynamic_array_command =
@@ -4451,7 +4452,7 @@ void kan_reflection_struct_migrator_migrate_instance (kan_reflection_struct_migr
                                       ((uint8_t *) target) + adapt_dynamic_array_command->absolute_target_offset);
     }
 
-    for (kan_loop_size_t command_index = 0u; command_index < struct_node->set_zero_commands_count; ++command_index)
+    for (kan_memory_size_t command_index = 0u; command_index < struct_node->set_zero_commands_count; ++command_index)
     {
         const struct migrator_command_set_zero_t *set_zero_command = &struct_node->set_zero_commands[command_index];
         if (set_zero_command->condition_index != MIGRATOR_CONDITION_INDEX_NONE &&
@@ -4520,7 +4521,7 @@ struct patch_migration_context_t
 
 static inline void patch_migration_reset_conditions (struct patch_migration_context_t *context)
 {
-    for (kan_loop_size_t condition_index = 0u; condition_index < context->migrator_node->conditions_count;
+    for (kan_memory_size_t condition_index = 0u; condition_index < context->migrator_node->conditions_count;
          ++condition_index)
     {
         context->conditions[condition_index] = PATCH_CONDITION_STATUS_NOT_CALCULATED;
@@ -4591,7 +4592,7 @@ static inline void patch_migration_context_init (struct patch_migration_context_
                                   alignof (kan_reflection_patch_builder_section_t));
     }
 
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) patch->section_id_bound; ++index)
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) patch->section_id_bound; ++index)
     {
         context->sections[index] = KAN_HANDLE_SET_INVALID (kan_reflection_patch_builder_section_t);
     }
@@ -4765,7 +4766,7 @@ static bool patch_migration_data_step (struct patch_migration_context_t *context
             context->adapt_enum_command = context->migrator_node->adapt_enum_commands;
 
             // Reset conditions.
-            for (kan_loop_size_t condition_index = 0u; condition_index < context->migrator_node->conditions_count;
+            for (kan_memory_size_t condition_index = 0u; condition_index < context->migrator_node->conditions_count;
                  ++condition_index)
             {
                 context->conditions[condition_index] = PATCH_CONDITION_STATUS_NOT_CALCULATED;
@@ -5039,7 +5040,7 @@ static inline void patch_migration_context_shutdown (struct patch_migration_cont
     }
 }
 
-static void migrate_patch_task (kan_functor_user_data_t user_data)
+static void migrate_patch_task (kan_memory_size_t user_data)
 {
     const kan_allocation_group_t group = get_compiled_patch_allocation_group ();
     kan_reflection_patch_builder_t patch_builder = kan_reflection_patch_builder_create ();
@@ -5266,7 +5267,7 @@ void kan_reflection_struct_migrator_migrate_patches (kan_reflection_struct_migra
             task_list_node->next = task_list;
             task_list_node->task = (struct kan_cpu_task_t) {
                 .function = migrate_patch_task,
-                .user_data = (kan_functor_user_data_t) next_task_data,
+                .user_data = (kan_memory_size_t) next_task_data,
                 .profiler_section = KAN_CPU_STATIC_SECTION_GET (reflection_patch_migration),
             };
 

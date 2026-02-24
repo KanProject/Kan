@@ -30,9 +30,9 @@ struct parser_option_t
     union
     {
         bool flag_default_value;
-        kan_instance_size_t uint_default_value;
-        kan_instance_offset_t sint_default_value;
-        kan_floating_t float_default_value;
+        uint32_t uint_default_value;
+        int32_t sint_default_value;
+        float float_default_value;
         struct parser_option_enum_value_t *first_enum_value;
     };
 };
@@ -121,11 +121,11 @@ struct parser_expression_tree_node_t
 
         bool boolean_literal;
 
-        kan_instance_size_t unsigned_literal;
+        uint32_t unsigned_literal;
 
-        kan_instance_offset_t signed_literal;
+        int32_t signed_literal;
 
-        kan_floating_t floating_literal;
+        float floating_literal;
 
         kan_interned_string_t string_literal;
 
@@ -502,7 +502,7 @@ static inline struct parser_expression_tree_node_t *parser_expression_tree_node_
         break;
 
     case KAN_RPL_EXPRESSION_NODE_TYPE_FLOATING_LITERAL:
-        node->floating_literal = 0.0;
+        node->floating_literal = 0.0f;
         break;
 
     case KAN_RPL_EXPRESSION_NODE_TYPE_UNSIGNED_LITERAL:
@@ -908,59 +908,59 @@ static inline bool parse_main_option_body (struct rpl_parser_t *parser,
                                            const char *name_end,
                                            enum kan_rpl_option_scope_t scope);
 
-static inline kan_instance_size_t parse_unsigned_integer_value (struct rpl_parser_t *parser,
-                                                                struct dynamic_parser_state_t *state,
-                                                                const char *literal_begin,
-                                                                const char *literal_end)
+static inline uint32_t parse_unsigned_integer_value (struct rpl_parser_t *parser,
+                                                     struct dynamic_parser_state_t *state,
+                                                     const char *literal_begin,
+                                                     const char *literal_end)
 {
-    kan_instance_size_t value = 0u;
+    uint32_t value = 0u;
     for (const char *cursor = literal_begin; cursor < literal_end; ++cursor)
     {
-        const kan_instance_size_t old_value = value;
+        const uint32_t old_value = value;
         value = value * 10u + (*cursor - '0');
 
-        if (value < old_value)
+        if (value <= old_value && old_value != 0u)
         {
             KAN_LOG (rpl_parser, KAN_LOG_WARNING, "[%s:%s] [%ld:%ld]: Found unsigned int literal which is too big.",
                      parser->log_name, state->source_log_name, (long) state->cursor_line, (long) state->cursor_symbol)
-            return KAN_INT_MAX (kan_instance_size_t);
+            return KAN_INT_MAX (uint32_t);
         }
     }
 
     return value;
 }
 
-static inline kan_instance_size_t parse_binary_unsigned_integer_value (struct rpl_parser_t *parser,
-                                                                       struct dynamic_parser_state_t *state,
-                                                                       const char *literal_begin,
-                                                                       const char *literal_end)
+static inline uint32_t parse_binary_unsigned_integer_value (struct rpl_parser_t *parser,
+                                                            struct dynamic_parser_state_t *state,
+                                                            const char *literal_begin,
+                                                            const char *literal_end)
 {
-    kan_instance_size_t value = 0u;
+    uint32_t value = 0u;
     for (const char *cursor = literal_begin; cursor < literal_end; ++cursor)
     {
-        const kan_instance_size_t old_value = value;
+        const uint32_t old_value = value;
         value = (value << 1u) + (*cursor - '0');
 
-        if (value < old_value)
+        if (value <= old_value && old_value != 0u)
         {
             KAN_LOG (rpl_parser, KAN_LOG_WARNING, "[%s:%s] [%ld:%ld]: Found unsigned int literal which is too big.",
                      parser->log_name, state->source_log_name, (long) state->cursor_line, (long) state->cursor_symbol)
-            return KAN_INT_MAX (kan_instance_size_t);
+            return KAN_INT_MAX (uint32_t);
         }
     }
 
     return value;
 }
 
-static inline kan_instance_size_t parse_hex_unsigned_integer_value (struct rpl_parser_t *parser,
-                                                                    struct dynamic_parser_state_t *state,
-                                                                    const char *literal_begin,
-                                                                    const char *literal_end)
+static inline uint32_t parse_hex_unsigned_integer_value (struct rpl_parser_t *parser,
+                                                         struct dynamic_parser_state_t *state,
+                                                         const char *literal_begin,
+                                                         const char *literal_end)
 {
-    kan_instance_size_t value = 0u;
+    uint32_t value = 0u;
     for (const char *cursor = literal_begin; cursor < literal_end; ++cursor)
     {
-        const kan_instance_size_t old_value = value;
+        const uint32_t old_value = value;
         switch (*cursor)
         {
         case '0':
@@ -998,7 +998,7 @@ static inline kan_instance_size_t parse_hex_unsigned_integer_value (struct rpl_p
             break;
         }
 
-        if (value < old_value)
+        if (value <= old_value && old_value != 0u)
         {
             KAN_LOG (rpl_parser, KAN_LOG_WARNING, "[%s:%s] [%ld:%ld]: Found unsigned int literal which is too big.",
                      parser->log_name, state->source_log_name, (long) state->cursor_line, (long) state->cursor_symbol)
@@ -1009,12 +1009,12 @@ static inline kan_instance_size_t parse_hex_unsigned_integer_value (struct rpl_p
     return value;
 }
 
-static inline kan_floating_t parse_unsigned_floating_value (struct rpl_parser_t *parser,
-                                                            struct dynamic_parser_state_t *state,
-                                                            const char *literal_begin,
-                                                            const char *literal_end)
+static inline float parse_unsigned_floating_value (struct rpl_parser_t *parser,
+                                                   struct dynamic_parser_state_t *state,
+                                                   const char *literal_begin,
+                                                   const char *literal_end)
 {
-    kan_floating_t value = 0.0f;
+    float value = 0.0f;
     while (literal_begin < literal_end)
     {
         if (*literal_begin == '.')
@@ -1027,7 +1027,7 @@ static inline kan_floating_t parse_unsigned_floating_value (struct rpl_parser_t 
         ++literal_begin;
     }
 
-    kan_floating_t modifier = 0.1f;
+    float modifier = 0.1f;
     while (literal_begin < literal_end)
     {
         value += modifier * (float) (*literal_begin - '0');
@@ -1748,22 +1748,33 @@ static inline bool parse_main_option_body (struct rpl_parser_t *parser,
                  ++literal_begin;
              }
 
-             const kan_instance_size_t positive_literal =
-                 parse_unsigned_integer_value (parser, state, literal_begin, literal_end);
-
-             if (positive_literal > KAN_INT_MAX (kan_instance_offset_t))
-             {
-                 KAN_LOG (rpl_parser, KAN_LOG_ERROR,
-                     "[%s:%s] [%ld:%ld]: Encountered integer literal that is bigger than maximum allowed %lld.",
-                     parser->log_name, state->source_log_name, (long) state->cursor_line, (long) state->cursor_symbol,
-                     (long long) INT64_MAX)
-                 return false;
-             }
-
-             node->sint_default_value = (kan_instance_offset_t) positive_literal;
+             const uint32_t positive_literal = parse_unsigned_integer_value (parser, state, literal_begin, literal_end);
              if (negative)
              {
-                 node->sint_default_value = -node->sint_default_value;
+                 const uint32_t inverted_value = KAN_INT_MAX (uint32_t) - positive_literal + 1u;
+                 if (inverted_value <= KAN_INT_MAX (int32_t))
+                 {
+                     KAN_LOG (rpl_parser, KAN_LOG_ERROR,
+                              "[%s:%s] [%ld:%ld]: Encountered integer literal that does not fit into signed integer "
+                              "bounds.", parser->log_name, state->source_log_name, (long) state->cursor_line,
+                              (long) state->cursor_symbol)
+                     return false;
+                 }
+
+                 node->sint_default_value = (int32_t) inverted_value;
+             }
+             else
+             {
+                 if (positive_literal > KAN_INT_MAX (int32_t))
+                 {
+                     KAN_LOG (rpl_parser, KAN_LOG_ERROR,
+                              "[%s:%s] [%ld:%ld]: Encountered integer literal that does not fit into signed integer "
+                              " bounds.", parser->log_name, state->source_log_name, (long) state->cursor_line,
+                              (long) state->cursor_symbol)
+                     return false;
+                 }
+
+                 node->sint_default_value = (int32_t) positive_literal;
              }
 
              return true;
@@ -1841,7 +1852,7 @@ static bool parse_expression_floating_literal (struct rpl_parser_t *parser,
         ++literal_begin;
     }
 
-    const kan_floating_t positive_literal = parse_unsigned_floating_value (parser, state, literal_begin, literal_end);
+    const float positive_literal = parse_unsigned_floating_value (parser, state, literal_begin, literal_end);
     node->floating_literal = positive_literal;
 
     if (is_negative)
@@ -1950,13 +1961,12 @@ static bool parse_expression_signed_literal (struct rpl_parser_t *parser,
         ++literal_begin;
     }
 
-    const kan_instance_size_t positive_literal =
-        parse_unsigned_integer_value (parser, state, literal_begin, literal_end);
+    const uint32_t positive_literal = parse_unsigned_integer_value (parser, state, literal_begin, literal_end);
 
     if (is_negative)
     {
-        const kan_instance_size_t inverted_value = KAN_INT_MAX (kan_instance_size_t) - positive_literal + 1u;
-        if (inverted_value <= KAN_INT_MAX (kan_instance_offset_t))
+        const uint32_t inverted_value = KAN_INT_MAX (uint32_t) - positive_literal + 1u;
+        if (inverted_value <= KAN_INT_MAX (int32_t))
         {
             KAN_LOG (rpl_parser, KAN_LOG_ERROR,
                      "[%s:%s] [%ld:%ld]: Encountered integer literal that does not fit into signed integer bounds.",
@@ -1964,11 +1974,11 @@ static bool parse_expression_signed_literal (struct rpl_parser_t *parser,
             return false;
         }
 
-        node->signed_literal = (kan_instance_offset_t) inverted_value;
+        node->signed_literal = (int32_t) inverted_value;
     }
     else
     {
-        if (positive_literal > KAN_INT_MAX (kan_instance_offset_t))
+        if (positive_literal > KAN_INT_MAX (int32_t))
         {
             KAN_LOG (rpl_parser, KAN_LOG_ERROR,
                      "[%s:%s] [%ld:%ld]: Encountered integer literal that does not fit into signed integer bounds.",
@@ -1976,7 +1986,7 @@ static bool parse_expression_signed_literal (struct rpl_parser_t *parser,
             return false;
         }
 
-        node->signed_literal = (kan_instance_offset_t) positive_literal;
+        node->signed_literal = (int32_t) positive_literal;
     }
 
     expression_parse_state->expecting_operand = false;
@@ -4510,7 +4520,7 @@ static bool build_intermediate_options (struct rpl_parser_t *instance, struct ka
 
         case KAN_RPL_OPTION_TYPE_ENUM:
         {
-            kan_loop_size_t values_count = 0u;
+            kan_memory_size_t values_count = 0u;
             struct parser_option_enum_value_t *value = source_option->first_enum_value;
 
             while (value)
@@ -4573,7 +4583,7 @@ static bool build_intermediate_expression (struct rpl_parser_t *instance,
     }
 
 #define COLLECT_LIST_SIZE(NAME, LIST)                                                                                  \
-    kan_loop_size_t NAME##_count = 0u;                                                                                 \
+    kan_memory_size_t NAME##_count = 0u;                                                                               \
     struct parser_expression_list_item_t *NAME##_list = LIST;                                                          \
                                                                                                                        \
     while (NAME##_list)                                                                                                \
@@ -4881,7 +4891,7 @@ static bool build_array_sizes (struct rpl_parser_t *instance,
                                kan_instance_size_t *output_array_size_expression_list_index)
 {
     bool result = true;
-    kan_loop_size_t array_sizes_count = 0u;
+    kan_memory_size_t array_sizes_count = 0u;
     struct parser_expression_list_item_t *array_size = array_size_list;
 
     while (array_size)
@@ -4923,7 +4933,7 @@ static void build_meta (struct rpl_parser_t *instance,
                         kan_instance_size_t *output_meta_list_size,
                         kan_instance_size_t *output_meta_list_index)
 {
-    kan_loop_size_t meta_count = 0u;
+    kan_memory_size_t meta_count = 0u;
     struct parser_declaration_meta_item_t *meta_item = first_meta;
 
     while (meta_item)
@@ -4957,7 +4967,7 @@ static bool build_struct_field_declarations (struct rpl_parser_t *instance,
                                              struct kan_dynamic_array_t *output)
 {
     bool result = true;
-    kan_loop_size_t count = 0u;
+    kan_memory_size_t count = 0u;
     struct parser_declaration_t *declaration = first_declaration;
 
     while (declaration)
@@ -5007,7 +5017,7 @@ static bool build_field_aliases (struct rpl_parser_t *instance,
                                  struct kan_dynamic_array_t *output)
 {
     bool result = true;
-    kan_loop_size_t count = 0u;
+    kan_memory_size_t count = 0u;
     struct parser_field_alias_t *alias = first_alias;
 
     while (alias)
@@ -5093,7 +5103,7 @@ static bool build_container_field_declarations (struct rpl_parser_t *instance,
                                                 struct kan_dynamic_array_t *output)
 {
     bool result = true;
-    kan_loop_size_t count = 0u;
+    kan_memory_size_t count = 0u;
     struct parser_container_field_t *field = first_field;
 
     while (field)
@@ -5286,7 +5296,7 @@ static bool build_function_arguments (struct rpl_parser_t *instance,
                                       struct kan_dynamic_array_t *output)
 {
     bool result = true;
-    kan_loop_size_t count = 0u;
+    kan_memory_size_t count = 0u;
     struct parser_function_argument_t *argument = first_argument;
 
     while (argument)

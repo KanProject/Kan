@@ -5,9 +5,9 @@
 
 KAN_TEST_CASE (general_no_profiling)
 {
-    for (kan_loop_size_t size = 16u; size <= 1024u; size *= 2u)
+    for (kan_memory_size_t size = 16u; size <= 1024u; size *= 2u)
     {
-        for (kan_loop_size_t alignment = 8u; size <= alignment && alignment <= 32u; alignment *= 2u)
+        for (kan_memory_size_t alignment = 8u; size <= alignment && alignment <= 32u; alignment *= 2u)
         {
             void *data = kan_allocate_general_no_profiling (size, alignment);
             KAN_TEST_CHECK (data)
@@ -20,9 +20,9 @@ KAN_TEST_CASE (general_no_profiling)
 
 KAN_TEST_CASE (general)
 {
-    for (kan_loop_size_t size = 16u; size <= 1024u; size *= 2u)
+    for (kan_memory_size_t size = 16u; size <= 1024u; size *= 2u)
     {
-        for (kan_loop_size_t alignment = 8u; size <= alignment && alignment <= 32u; alignment *= 2u)
+        for (kan_memory_size_t alignment = 8u; size <= alignment && alignment <= 32u; alignment *= 2u)
         {
             void *data = kan_allocate_general (KAN_ALLOCATION_GROUP_IGNORE, size, alignment);
             KAN_TEST_CHECK (data)
@@ -35,7 +35,7 @@ KAN_TEST_CASE (general)
 
 KAN_TEST_CASE (batched)
 {
-    for (kan_loop_size_t size = 16u; size <= 256u; size *= 2u)
+    for (kan_memory_size_t size = 16u; size <= 256u; size *= 2u)
     {
         void *data = kan_allocate_batched (KAN_ALLOCATION_GROUP_IGNORE, size);
         KAN_TEST_CHECK (data)
@@ -51,26 +51,26 @@ KAN_TEST_CASE (batched_stress)
     void **pointers =
         kan_allocate_general_no_profiling (BATCHED_STRESS_ALLOCATIONS * sizeof (void *), alignof (void *));
 
-    for (kan_loop_size_t index = 0; index < BATCHED_STRESS_ALLOCATIONS; ++index)
+    for (kan_memory_size_t index = 0; index < BATCHED_STRESS_ALLOCATIONS; ++index)
     {
         pointers[index] = kan_allocate_batched (KAN_ALLOCATION_GROUP_IGNORE, 256u);
         KAN_TEST_CHECK (pointers[index])
         memset (pointers[index], 42u, 256u);
     }
 
-    for (kan_loop_size_t index = BATCHED_STRESS_ALLOCATIONS / 2u; index < BATCHED_STRESS_ALLOCATIONS; ++index)
+    for (kan_memory_size_t index = BATCHED_STRESS_ALLOCATIONS / 2u; index < BATCHED_STRESS_ALLOCATIONS; ++index)
     {
         kan_free_batched (KAN_ALLOCATION_GROUP_IGNORE, pointers[index]);
     }
 
-    for (kan_loop_size_t index = BATCHED_STRESS_ALLOCATIONS / 2u; index < BATCHED_STRESS_ALLOCATIONS; ++index)
+    for (kan_memory_size_t index = BATCHED_STRESS_ALLOCATIONS / 2u; index < BATCHED_STRESS_ALLOCATIONS; ++index)
     {
         pointers[index] = kan_allocate_batched (KAN_ALLOCATION_GROUP_IGNORE, 256u);
         KAN_TEST_CHECK (pointers[index])
         memset (pointers[index], 42u, 256u);
     }
 
-    for (kan_loop_size_t index = 0; index < BATCHED_STRESS_ALLOCATIONS; ++index)
+    for (kan_memory_size_t index = 0; index < BATCHED_STRESS_ALLOCATIONS; ++index)
     {
         kan_free_batched (KAN_ALLOCATION_GROUP_IGNORE, pointers[index]);
     }
@@ -97,7 +97,7 @@ KAN_TEST_CASE (stack)
     kan_stack_allocator_reset (stack);
     KAN_TEST_CHECK (kan_stack_allocator_allocate (stack, TEST_STACK_SIZE * 2u, 8u) == NULL)
 
-    for (kan_loop_size_t index = 0u; index < 8u; ++index)
+    for (kan_memory_size_t index = 0u; index < 8u; ++index)
     {
         KAN_TEST_CHECK (kan_stack_allocator_allocate (stack, TEST_STACK_SIZE / 8u, alignof (kan_memory_size_t)) != NULL)
     }

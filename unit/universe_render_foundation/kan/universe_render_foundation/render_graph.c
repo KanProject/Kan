@@ -99,7 +99,7 @@ static kan_hash_t calculate_cached_frame_buffer_hash (
     struct kan_render_frame_buffer_attachment_description_t *attachments)
 {
     kan_hash_t hash = (kan_hash_t) KAN_HANDLE_GET (pass);
-    for (kan_loop_size_t index = 0u; index < attachments_count; ++index)
+    for (kan_memory_size_t index = 0u; index < attachments_count; ++index)
     {
         hash = kan_hash_combine (hash, kan_hash_combine ((kan_hash_t) KAN_HANDLE_GET (attachments[index].image),
                                                          (kan_hash_t) attachments[index].layer));
@@ -199,7 +199,8 @@ static void schedule_frame (struct render_foundation_frame_schedule_state_t *sta
         struct kan_render_supported_devices_t *supported_devices =
             kan_render_backend_system_get_devices (state->render_backend_system);
 
-        for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) supported_devices->supported_device_count; ++index)
+        for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) supported_devices->supported_device_count;
+             ++index)
         {
             if (supported_devices->devices[index].device_type == KAN_RENDER_DEVICE_TYPE_DISCRETE_GPU)
             {
@@ -393,7 +394,7 @@ const struct kan_render_graph_resource_response_t *kan_render_graph_resource_man
     kan_render_pass_instance_checkpoint_add_checkpoint_dependency (response->usage_end_checkpoint,
                                                                    response->usage_begin_checkpoint);
 
-    for (kan_loop_size_t index = 0u; index < request->dependant_count; ++index)
+    for (kan_memory_size_t index = 0u; index < request->dependant_count; ++index)
     {
         kan_render_pass_instance_checkpoint_add_checkpoint_dependency (
             request->dependant[index]->usage_begin_checkpoint, response->usage_end_checkpoint);
@@ -424,7 +425,7 @@ const struct kan_render_graph_resource_response_t *kan_render_graph_resource_man
     }
 
     // Try to retrieve or create proper images.
-    for (kan_loop_size_t index = 0u; index < request->images_count; ++index)
+    for (kan_memory_size_t index = 0u; index < request->images_count; ++index)
     {
         struct kan_render_graph_resource_image_request_t *image_request = &request->images[index];
         if (image_request->description.mips > 1u)
@@ -478,8 +479,8 @@ const struct kan_render_graph_resource_response_t *kan_render_graph_resource_man
                     struct render_foundation_graph_image_usage_t *usage = node->first_usage;
                     while (usage && !found_collision)
                     {
-                        for (kan_loop_size_t dependant_index = 0u;
-                             dependant_index < (kan_loop_size_t) request->dependant_count && !found_collision;
+                        for (kan_memory_size_t dependant_index = 0u;
+                             dependant_index < (kan_memory_size_t) request->dependant_count && !found_collision;
                              ++dependant_index)
                         {
                             if (request->dependant[index] == usage->producer_response)
@@ -488,7 +489,7 @@ const struct kan_render_graph_resource_response_t *kan_render_graph_resource_man
                                 break;
                             }
 
-                            for (kan_loop_size_t user_index = 0u; user_index < usage->user_responses_count;
+                            for (kan_memory_size_t user_index = 0u; user_index < usage->user_responses_count;
                                  ++user_index)
                             {
                                 if (request->dependant[index] == usage->user_responses[user_index])
@@ -569,8 +570,8 @@ const struct kan_render_graph_resource_response_t *kan_render_graph_resource_man
 
             if (dependant_to_register > 0u)
             {
-                for (kan_loop_size_t dependant_index = 0u; dependant_index < (kan_loop_size_t) dependant_to_register;
-                     ++dependant_index)
+                for (kan_memory_size_t dependant_index = 0u;
+                     dependant_index < (kan_memory_size_t) dependant_to_register; ++dependant_index)
                 {
                     kan_render_pass_instance_checkpoint_add_checkpoint_dependency (
                         usage->next->producer_response->usage_begin_checkpoint,
@@ -587,7 +588,7 @@ const struct kan_render_graph_resource_response_t *kan_render_graph_resource_man
 
     if (successful)
     {
-        for (kan_loop_size_t frame_buffer_index = 0u; frame_buffer_index < request->frame_buffers_count;
+        for (kan_memory_size_t frame_buffer_index = 0u; frame_buffer_index < request->frame_buffers_count;
              ++frame_buffer_index)
         {
             struct kan_render_graph_resource_frame_buffer_request_t *frame_buffer_request =
@@ -599,7 +600,7 @@ const struct kan_render_graph_resource_response_t *kan_render_graph_resource_man
                                                         frame_buffer_request->attachments_count,
                                                     alignof (struct kan_render_frame_buffer_attachment_description_t));
 
-            for (kan_loop_size_t attachment_index = 0u; attachment_index < frame_buffer_request->attachments_count;
+            for (kan_memory_size_t attachment_index = 0u; attachment_index < frame_buffer_request->attachments_count;
                  ++attachment_index)
             {
                 struct kan_render_graph_resource_frame_buffer_request_attachment_t *attachment_request =
@@ -629,7 +630,7 @@ const struct kan_render_graph_resource_response_t *kan_render_graph_resource_man
                     node->attachments_count == frame_buffer_request->attachments_count)
                 {
                     bool attachments_equal = true;
-                    for (kan_loop_size_t index = 0u; index < node->attachments_count; ++index)
+                    for (kan_memory_size_t index = 0u; index < node->attachments_count; ++index)
                     {
                         if (!KAN_HANDLE_IS_EQUAL (attachments[index].image, node->attachments[index].image) ||
                             attachments[index].layer != node->attachments[index].layer)

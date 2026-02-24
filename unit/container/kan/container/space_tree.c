@@ -369,7 +369,7 @@ static inline struct kan_space_tree_node_t *get_or_create_child_node (struct kan
                                                                 sizeof (struct kan_space_tree_node_t) * children_count);
     children_allocation->parent = parent_node;
 
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) children_count; ++index)
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) children_count; ++index)
     {
         struct kan_space_tree_node_t *child_node = &children_allocation->children[index];
         child_node->index_in_array = (uint8_t) index;
@@ -1134,7 +1134,7 @@ static bool is_node_empty (struct kan_space_tree_t *tree, struct kan_space_tree_
     if (node->children_allocation)
     {
         const kan_instance_size_t children_count = 1u << tree->dimension_count;
-        for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) children_count; ++index)
         {
             struct kan_space_tree_node_t *child_node = &node->children_allocation->children[index];
             // Intentionally do not use recursion here as we're only using this function to go from bottom to top.
@@ -1210,7 +1210,7 @@ static void space_tree_destroy_node (struct kan_space_tree_t *tree, struct kan_s
     if (node->children_allocation)
     {
         const kan_instance_size_t children_count = 1u << tree->dimension_count;
-        for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) children_count; ++index)
         {
             space_tree_destroy_node (tree, &node->children_allocation->children[index]);
         }

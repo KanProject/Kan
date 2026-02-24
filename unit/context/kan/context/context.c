@@ -58,7 +58,7 @@ struct context_t
 
 static inline bool node_array_contains (struct kan_dynamic_array_t *array, struct system_instance_node_t *node)
 {
-    for (kan_loop_size_t index = 0u; index < array->size; ++index)
+    for (kan_memory_size_t index = 0u; index < array->size; ++index)
     {
         if (((struct system_instance_node_t **) array->data)[index] == node)
         {
@@ -126,7 +126,7 @@ static void context_initialize_system (struct context_t *context, struct system_
         return;
     }
 
-    for (kan_loop_size_t connected_index = 0u; connected_index < node->connection_references_to_me.size;
+    for (kan_memory_size_t connected_index = 0u; connected_index < node->connection_references_to_me.size;
          ++connected_index)
     {
         context_initialize_system (
@@ -156,7 +156,7 @@ static void context_shutdown_system (struct context_t *context, struct system_in
     node->initialized = false;
     KAN_LOG (context, KAN_LOG_INFO, "End system \"%s\" shutdown.", node->name)
 
-    for (kan_loop_size_t initialized_index = 0u; initialized_index < node->initialization_references_to_others.size;
+    for (kan_memory_size_t initialized_index = 0u; initialized_index < node->initialization_references_to_others.size;
          ++initialized_index)
     {
         struct system_instance_node_t *other_node =
@@ -165,7 +165,7 @@ static void context_shutdown_system (struct context_t *context, struct system_in
         context_shutdown_system (context, other_node);
     }
 
-    for (kan_loop_size_t connected_index = 0u; connected_index < node->connection_references_to_me.size;
+    for (kan_memory_size_t connected_index = 0u; connected_index < node->connection_references_to_me.size;
          ++connected_index)
     {
         struct system_instance_node_t *other_node =
@@ -215,7 +215,7 @@ bool kan_context_request_system (kan_context_t handle, const char *system_name, 
     }
 
     struct kan_context_system_api_t *api = NULL;
-    for (kan_loop_size_t api_index = 0u; api_index < (kan_loop_size_t) KAN_CONTEXT_SYSTEM_COUNT_NAME; ++api_index)
+    for (kan_memory_size_t api_index = 0u; api_index < (kan_memory_size_t) KAN_CONTEXT_SYSTEM_COUNT_NAME; ++api_index)
     {
         if (strcmp (KAN_CONTEXT_SYSTEM_ARRAY_NAME[api_index]->name, system_name) == 0)
         {

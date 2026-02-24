@@ -166,7 +166,7 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
 
     KAN_UIM_CHILDREN (left_window)
     {
-        for (kan_loop_size_t button = 0u; button < 6u; ++button)
+        for (kan_memory_size_t button = 0u; button < 6u; ++button)
         {
             KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL (button, "Hello, world!", default_text_mark);
             button_shaping_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER;

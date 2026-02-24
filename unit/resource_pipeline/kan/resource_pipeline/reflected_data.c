@@ -463,7 +463,7 @@ static void add_detected_reference (struct kan_dynamic_array_t *output,
         log_flags |= KAN_RESOURCE_REFERENCE_REQUIRED;
     }
 
-    for (kan_loop_size_t index = 0u; index < output->size; ++index)
+    for (kan_memory_size_t index = 0u; index < output->size; ++index)
     {
         struct kan_resource_log_reference_t *reference = &((struct kan_resource_log_reference_t *) output->data)[index];
         if (reference->name == name && reference->type == type)
@@ -504,7 +504,7 @@ static bool detect_references_inside_data_chunk_for_struct_instance (
     }
 
     bool successful = true;
-    for (kan_loop_size_t field_index = 0u; field_index < type_data->fields_to_check.size; ++field_index)
+    for (kan_memory_size_t field_index = 0u; field_index < type_data->fields_to_check.size; ++field_index)
     {
         const struct kan_resource_reflected_data_referencer_field_t *field =
             &((struct kan_resource_reflected_data_referencer_field_t *) type_data->fields_to_check.data)[field_index];
@@ -745,7 +745,7 @@ static inline bool detect_references_inside_patch (
                             kan_resource_reflected_data_storage_query_referencer_struct (
                                 storage, current_stack_item->source_field_type->name);
 
-                        for (kan_loop_size_t field_index = 0u; field_index < type_data->fields_to_check.size;
+                        for (kan_memory_size_t field_index = 0u; field_index < type_data->fields_to_check.size;
                              ++field_index)
                         {
                             struct kan_resource_reflected_data_referencer_field_t *field =
@@ -891,7 +891,7 @@ bool kan_resource_reflected_data_storage_detect_references (
         return true;
     }
 
-    for (kan_loop_size_t field_index = 0u; field_index < type_data->fields_to_check.size; ++field_index)
+    for (kan_memory_size_t field_index = 0u; field_index < type_data->fields_to_check.size; ++field_index)
     {
         struct kan_resource_reflected_data_referencer_field_t *field =
             &((struct kan_resource_reflected_data_referencer_field_t *) type_data->fields_to_check.data)[field_index];
@@ -972,7 +972,7 @@ bool kan_resource_reflected_data_storage_detect_references (
                     break;
                 }
 
-                for (kan_loop_size_t index = 0u; index < size; ++index)
+                for (kan_memory_size_t index = 0u; index < size; ++index)
                 {
                     kan_interned_string_t name = ((kan_interned_string_t *) field_address)[index];
                     if (!name && (field->flags & KAN_RESOURCE_REFERENCE_META_NULLABLE) == 0u)
@@ -991,7 +991,7 @@ bool kan_resource_reflected_data_storage_detect_references (
                 break;
 
             case KAN_REFLECTION_ARCHETYPE_STRUCT:
-                for (kan_loop_size_t index = 0u; index < size; ++index)
+                for (kan_memory_size_t index = 0u; index < size; ++index)
                 {
                     successful &= kan_resource_reflected_data_storage_detect_references (
                         storage, field->field->archetype_inline_array.item_archetype_struct.type_name,
@@ -1002,7 +1002,7 @@ bool kan_resource_reflected_data_storage_detect_references (
                 break;
 
             case KAN_REFLECTION_ARCHETYPE_PATCH:
-                for (kan_loop_size_t index = 0u; index < size; ++index)
+                for (kan_memory_size_t index = 0u; index < size; ++index)
                 {
                     successful &=
                         detect_references_inside_patch (storage, ((kan_reflection_patch_t *) field_address)[index],
@@ -1044,7 +1044,7 @@ bool kan_resource_reflected_data_storage_detect_references (
                     break;
                 }
 
-                for (kan_loop_size_t index = 0u; index < array->size; ++index)
+                for (kan_memory_size_t index = 0u; index < array->size; ++index)
                 {
                     kan_interned_string_t name = ((kan_interned_string_t *) array->data)[index];
                     if (!name && (field->flags & KAN_RESOURCE_REFERENCE_META_NULLABLE) == 0u)
@@ -1063,7 +1063,7 @@ bool kan_resource_reflected_data_storage_detect_references (
                 break;
 
             case KAN_REFLECTION_ARCHETYPE_STRUCT:
-                for (kan_loop_size_t index = 0u; index < array->size; ++index)
+                for (kan_memory_size_t index = 0u; index < array->size; ++index)
                 {
                     successful &= kan_resource_reflected_data_storage_detect_references (
                         storage, field->field->archetype_dynamic_array.item_archetype_struct.type_name,
@@ -1073,7 +1073,7 @@ bool kan_resource_reflected_data_storage_detect_references (
                 break;
 
             case KAN_REFLECTION_ARCHETYPE_PATCH:
-                for (kan_loop_size_t index = 0u; index < array->size; ++index)
+                for (kan_memory_size_t index = 0u; index < array->size; ++index)
                 {
                     successful &=
                         detect_references_inside_patch (storage, ((kan_reflection_patch_t *) array->data)[index],

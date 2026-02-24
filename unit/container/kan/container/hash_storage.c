@@ -16,7 +16,7 @@ void kan_hash_storage_init (struct kan_hash_storage_t *storage,
         kan_allocate_general (bucket_allocation_group, initial_bucket_count * sizeof (struct kan_hash_storage_bucket_t),
                               alignof (struct kan_hash_storage_bucket_t));
 
-    for (kan_loop_size_t index = 0; index < storage->bucket_count; ++index)
+    for (kan_memory_size_t index = 0; index < storage->bucket_count; ++index)
     {
         storage->buckets[index].first = NULL;
         storage->buckets[index].last = NULL;

@@ -56,7 +56,7 @@ void *kan_dynamic_array_add_at (struct kan_dynamic_array_t *array, kan_instance_
     }
 
     KAN_ASSERT (index < array->size)
-    for (kan_loop_size_t output_index = array->size; output_index > index; --output_index)
+    for (kan_memory_size_t output_index = array->size; output_index > index; --output_index)
     {
         memcpy (array->data + output_index * array->item_size, array->data + (output_index - 1u) * array->item_size,
                 array->item_size);
@@ -69,7 +69,7 @@ void *kan_dynamic_array_add_at (struct kan_dynamic_array_t *array, kan_instance_
 void kan_dynamic_array_remove_at (struct kan_dynamic_array_t *array, kan_instance_size_t index)
 {
     KAN_ASSERT (index < array->size)
-    for (kan_loop_size_t output_index = index; output_index < array->size - 1u; ++output_index)
+    for (kan_memory_size_t output_index = index; output_index < array->size - 1u; ++output_index)
     {
         memcpy (array->data + output_index * array->item_size, array->data + (output_index + 1u) * array->item_size,
                 array->item_size);

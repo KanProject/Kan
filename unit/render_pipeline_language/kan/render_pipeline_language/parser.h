@@ -54,15 +54,15 @@ struct kan_rpl_option_t
 
         KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
         KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_OPTION_TYPE_UINT)
-        kan_instance_size_t uint_default_value;
+        uint32_t uint_default_value;
 
         KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
         KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_OPTION_TYPE_SINT)
-        kan_instance_size_t sint_default_value;
+        int32_t sint_default_value;
 
         KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
         KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_OPTION_TYPE_FLOAT)
-        kan_floating_t float_default_value;
+        float float_default_value;
 
         KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
         KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_OPTION_TYPE_ENUM)
@@ -235,15 +235,15 @@ struct kan_rpl_expression_t
 
         KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
         KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_EXPRESSION_NODE_TYPE_FLOATING_LITERAL)
-        kan_floating_t floating_literal;
+        float floating_literal;
 
         KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
         KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_EXPRESSION_NODE_TYPE_UNSIGNED_LITERAL)
-        kan_instance_size_t unsigned_literal;
+        uint32_t unsigned_literal;
 
         KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
         KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_EXPRESSION_NODE_TYPE_SIGNED_LITERAL)
-        kan_instance_offset_t signed_literal;
+        int32_t signed_literal;
 
         KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
         KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RPL_EXPRESSION_NODE_TYPE_STRING_LITERAL)

@@ -144,7 +144,7 @@ bool kan_file_system_query_entry (const char *path, struct kan_file_system_entry
             LARGE_INTEGER size;
             size.LowPart = win32_status.nFileSizeLow;
             size.HighPart = (LONG) win32_status.nFileSizeHigh;
-            status->size = (kan_file_size_t) size.QuadPart;
+            status->size = (kan_stable_size_t) size.QuadPart;
 
             // Unfortunately, there is no better way to convert Windows file time to
             // Unix-like time than to do it manually.
@@ -154,7 +154,7 @@ bool kan_file_system_query_entry (const char *path, struct kan_file_system_entry
                                       win32_status.ftLastWriteTime.dwLowDateTime;
             long long unix_like_time_ns =
                 (windows_ticks - SEC_TO_UNIX_EPOCH * WINDOWS_TICKS_IN_SECOND) * (1000000000u / WINDOWS_TICKS_IN_SECOND);
-            status->last_modification_time_ns = (kan_time_size_t) unix_like_time_ns;
+            status->last_modification_time_ns = (kan_stable_size_t) unix_like_time_ns;
         }
 
         status->read_only = (win32_status.dwFileAttributes & FILE_ATTRIBUTE_READONLY) ? true : false;

@@ -129,7 +129,7 @@ KAN_HANDLE_DEFINE (kan_workflow_graph_t);
 KAN_HANDLE_DEFINE (kan_workflow_graph_builder_t);
 KAN_HANDLE_DEFINE (kan_workflow_graph_node_t);
 
-typedef void (*kan_workflow_function_t) (kan_cpu_job_t job, kan_functor_user_data_t user_data);
+typedef void (*kan_workflow_function_t) (kan_cpu_job_t job, kan_memory_size_t user_data);
 
 /// \brief Enumerates access classes for resources accessed from workflow nodes.
 enum kan_workflow_resource_access_class_t
@@ -161,7 +161,7 @@ WORKFLOW_API kan_workflow_graph_node_t kan_workflow_graph_node_create (kan_workf
 /// \brief Sets given graph node function and user data.
 WORKFLOW_API void kan_workflow_graph_node_set_function (kan_workflow_graph_node_t node,
                                                         kan_workflow_function_t function,
-                                                        kan_functor_user_data_t user_data);
+                                                        kan_memory_size_t user_data);
 
 /// \brief Informs that given graph node has access of given class to resource with given name.
 WORKFLOW_API void kan_workflow_graph_node_register_access (kan_workflow_graph_node_t node,

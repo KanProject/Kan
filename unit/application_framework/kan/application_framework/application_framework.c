@@ -398,7 +398,7 @@ static void start_logging_to_file (const char *executable_path_argument, const c
         return;
     }
 
-    kan_log_callback_add (kan_log_default_callback, (kan_functor_user_data_t) logging_file);
+    kan_log_callback_add (kan_log_default_callback, (kan_memory_size_t) logging_file);
     KAN_LOG_WITH_BUFFER (KAN_FILE_SYSTEM_MAX_PATH_LENGTH * 2u, application_framework, KAN_LOG_INFO,
                          "Initialized logging to file \"%s\".", path_container.path)
 }
@@ -407,7 +407,7 @@ static void stop_logging_to_file (void)
 {
     if (logging_file)
     {
-        kan_log_callback_remove (kan_log_default_callback, (kan_functor_user_data_t) logging_file);
+        kan_log_callback_remove (kan_log_default_callback, (kan_memory_size_t) logging_file);
         fclose (logging_file);
     }
 }
@@ -434,7 +434,7 @@ static bool visit_enabled_system (kan_context_t context,
     // Just scan all the configurations again and apply them one by one.
     // Not very effective, but should be okay, because we amount of system configurations should be relatively small.
 
-    for (kan_loop_size_t index = 0u; index < core_configuration->enabled_systems.size; ++index)
+    for (kan_memory_size_t index = 0u; index < core_configuration->enabled_systems.size; ++index)
     {
         struct kan_application_framework_system_configuration_t *system_core =
             &((struct kan_application_framework_system_configuration_t *)
@@ -474,7 +474,7 @@ static bool visit_enabled_system (kan_context_t context,
         }
     }
 
-    for (kan_loop_size_t index = 0u; index < program_configuration->enabled_systems.size; ++index)
+    for (kan_memory_size_t index = 0u; index < program_configuration->enabled_systems.size; ++index)
     {
         struct kan_application_framework_system_configuration_t *system_program =
             &((struct kan_application_framework_system_configuration_t *)
@@ -521,7 +521,7 @@ int kan_application_framework_run_with_configuration (
 
     if (auto_build_enabled)
     {
-        for (kan_loop_size_t argument_index = 1u; argument_index < arguments_count; ++argument_index)
+        for (kan_memory_size_t argument_index = 1u; argument_index < arguments_count; ++argument_index)
         {
             if (strcmp (arguments[argument_index], KAN_APPLICATION_FRAMEWORK_ARGUMENT_DISABLE_AUTO_BUILD) == 0)
             {
@@ -552,7 +552,7 @@ int kan_application_framework_run_with_configuration (
         &config_instances, core_configuration->enabled_systems.size + program_configuration->enabled_systems.size,
         sizeof (struct config_instance_t), alignof (struct config_instance_t), config_allocation_group);
 
-    for (kan_loop_size_t index = 0u; index < core_configuration->enabled_systems.size; ++index)
+    for (kan_memory_size_t index = 0u; index < core_configuration->enabled_systems.size; ++index)
     {
         struct kan_application_framework_system_configuration_t *system_core =
             &((struct kan_application_framework_system_configuration_t *)
@@ -564,7 +564,7 @@ int kan_application_framework_run_with_configuration (
         }
     }
 
-    for (kan_loop_size_t index = 0u; index < program_configuration->enabled_systems.size; ++index)
+    for (kan_memory_size_t index = 0u; index < program_configuration->enabled_systems.size; ++index)
     {
         struct kan_application_framework_system_configuration_t *system_program =
             &((struct kan_application_framework_system_configuration_t *)
@@ -640,13 +640,13 @@ int kan_application_framework_run_with_configuration (
                 kan_cpu_stage_separator ();
                 kan_cpu_reset_task_dispatch_counter ();
 
-                const kan_time_size_t frame_start_ns = kan_precise_time_get_elapsed_nanoseconds ();
+                const kan_stable_size_t frame_start_ns = kan_precise_time_get_elapsed_nanoseconds ();
                 kan_application_system_sync_in_main_thread (application_system);
                 kan_update_system_run (update_system);
-                const kan_time_size_t frame_end_ns = kan_precise_time_get_elapsed_nanoseconds ();
+                const kan_stable_size_t frame_end_ns = kan_precise_time_get_elapsed_nanoseconds ();
 
-                const kan_time_offset_t frame_time_ns = (kan_time_offset_t) (frame_end_ns - frame_start_ns);
-                const kan_time_offset_t min_frame_time_ns =
+                const kan_stable_size_t frame_time_ns = frame_end_ns - frame_start_ns;
+                const kan_stable_size_t min_frame_time_ns =
                     kan_application_framework_get_min_frame_time_ns (application_framework_system);
 
 #if defined(KAN_APPLICATION_FRAMEWORK_PRINT_FRAME_TIMES)

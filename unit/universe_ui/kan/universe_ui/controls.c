@@ -361,7 +361,7 @@ static inline void use_hit_box_interaction_visuals (struct ui_controls_input_sta
         drawable->main_draw_command.image.record_index = regular_image_index;
     }
 
-    for (kan_loop_size_t index = 0u; index < drawable->additional_draw_commands.size; ++index)
+    for (kan_memory_size_t index = 0u; index < drawable->additional_draw_commands.size; ++index)
     {
         struct kan_ui_draw_command_data_t *command =
             &((struct kan_ui_draw_command_data_t *) drawable->additional_draw_commands.data)[index];
@@ -433,7 +433,7 @@ static inline uint32_t select_image_for_hit_box_interaction (struct ui_controls_
         return KAN_INT_MAX (uint32_t);
     }
 
-    for (kan_loop_size_t index = 0u; index < bundle->available_bundle.hit_box_interaction_styles.size; ++index)
+    for (kan_memory_size_t index = 0u; index < bundle->available_bundle.hit_box_interaction_styles.size; ++index)
     {
         const struct kan_resource_ui_hit_box_interaction_style_t *style =
             &((struct kan_resource_ui_hit_box_interaction_style_t *)
@@ -518,7 +518,7 @@ static void apply_hit_box_interaction_visuals (struct ui_controls_input_state_t 
     }
 
     use_hit_box_interaction_visuals (state, hit_box->id, ui_mark_flags, image_index);
-    for (kan_loop_size_t index = 0u; index < hit_box->propagate_interaction_visuals.size; ++index)
+    for (kan_memory_size_t index = 0u; index < hit_box->propagate_interaction_visuals.size; ++index)
     {
         use_hit_box_interaction_visuals (state,
                                          ((kan_ui_node_id_t *) hit_box->propagate_interaction_visuals.data)[index],
@@ -871,7 +871,7 @@ static void line_edit_erase_subsequence (struct kan_ui_node_line_edit_behavior_t
     // If not full erase, move data.
     if (behavior->content_utf8.size - 1u != size)
     {
-        for (kan_loop_size_t index = min; index < behavior->content_utf8.size - size - 1u; ++index)
+        for (kan_memory_size_t index = min; index < behavior->content_utf8.size - size - 1u; ++index)
         {
             if (index + size < behavior->content_utf8.size - 1u)
             {
@@ -947,8 +947,8 @@ static void line_edit_paste_text (struct kan_ui_node_line_edit_behavior_t *behav
                                                                           behavior->content_utf8.size + filtered_size));
     }
 
-    for (kan_loop_size_t index = behavior->content_utf8.size - 1u;
-         index >= behavior->cursor_content_location && index != KAN_INT_MAX (kan_loop_size_t); --index)
+    for (kan_memory_size_t index = behavior->content_utf8.size - 1u;
+         index >= behavior->cursor_content_location && index != KAN_INT_MAX (kan_memory_size_t); --index)
     {
         behavior->content_utf8.data[index + filtered_size] = behavior->content_utf8.data[index];
     }
@@ -1014,7 +1014,7 @@ static void line_edit_process_horizontal_arrow (struct kan_ui_node_line_edit_beh
         return;
     }
 
-    for (kan_loop_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
+    for (kan_memory_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
          ++sequence_index)
     {
         const struct kan_text_shaped_edition_sequence_data_t *sequence =
@@ -1044,7 +1044,7 @@ static void line_edit_process_horizontal_arrow (struct kan_ui_node_line_edit_beh
             return;
         }
 
-        for (kan_loop_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
+        for (kan_memory_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
         {
             const struct kan_text_shaped_edition_cluster_data_t *cluster =
                 &((struct kan_text_shaped_edition_cluster_data_t *) sequence->clusters.data)[cluster_index];
@@ -1110,7 +1110,7 @@ static void line_edit_process_horizontal_arrow (struct kan_ui_node_line_edit_beh
     go_to_the_previous_cluster_in_sequences_before:
     {
         --sequence_index;
-        while (sequence_index != KAN_INT_MAX (kan_loop_size_t))
+        while (sequence_index != KAN_INT_MAX (kan_memory_size_t))
         {
             sequence = &((struct kan_text_shaped_edition_sequence_data_t *)
                              shaping_unit->shaped_edition_sequences.data)[sequence_index];
@@ -1286,7 +1286,7 @@ static void prolong_hit_box_down_visuals (struct ui_controls_input_state_t *stat
 {
     const struct kan_resource_ui_hit_box_interaction_style_t *selected_style = NULL;
 
-    for (kan_loop_size_t index = 0u; index < bundle->available_bundle.hit_box_interaction_styles.size; ++index)
+    for (kan_memory_size_t index = 0u; index < bundle->available_bundle.hit_box_interaction_styles.size; ++index)
     {
         const struct kan_resource_ui_hit_box_interaction_style_t *style =
             &((struct kan_resource_ui_hit_box_interaction_style_t *)
@@ -1529,7 +1529,7 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
     // like mouse pointer can travel anywhere.
     const struct kan_text_shaped_edition_sequence_data_t *selected_sequence = NULL;
 
-    for (kan_loop_size_t index = 0u; index < shaping_unit->shaped_edition_sequences.size; ++index)
+    for (kan_memory_size_t index = 0u; index < shaping_unit->shaped_edition_sequences.size; ++index)
     {
         const struct kan_text_shaped_edition_sequence_data_t *sequence =
             &((struct kan_text_shaped_edition_sequence_data_t *) shaping_unit->shaped_edition_sequences.data)[index];
@@ -1553,7 +1553,7 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
 
     const bool forward_base_direction =
         shaping_unit->request.reading_direction == KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
-    kan_loop_size_t cluster_index = 0u;
+    kan_memory_size_t cluster_index = 0u;
 
     while (cluster_index < selected_sequence->clusters.size)
     {
@@ -1564,7 +1564,7 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
         if (!cluster->matching_reading_direction)
         {
             kan_instance_size_t run_ends_at = selected_sequence->clusters.size;
-            for (kan_loop_size_t scan_index = cluster_index + 1u; scan_index < selected_sequence->clusters.size;
+            for (kan_memory_size_t scan_index = cluster_index + 1u; scan_index < selected_sequence->clusters.size;
                  ++scan_index)
             {
                 const struct kan_text_shaped_edition_cluster_data_t *scan_cluster =
@@ -1577,9 +1577,9 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
                 }
             }
 
-            for (kan_loop_size_t run_index = run_ends_at - 1u;
+            for (kan_memory_size_t run_index = run_ends_at - 1u;
                  // Overflow guard is important here.
-                 run_index >= cluster_index && run_index != KAN_INT_MAX (kan_loop_size_t); --run_index)
+                 run_index >= cluster_index && run_index != KAN_INT_MAX (kan_memory_size_t); --run_index)
             {
                 const struct kan_text_shaped_edition_cluster_data_t *run_cluster =
                     &((struct kan_text_shaped_edition_cluster_data_t *) selected_sequence->clusters.data)[run_index];
@@ -1644,7 +1644,7 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
                 // to get the first cluster of bidi inverted direction.
                 kan_instance_size_t run_ends_at = selected_sequence->clusters.size;
 
-                for (kan_loop_size_t scan_index = cluster_index + 2u; scan_index < selected_sequence->clusters.size;
+                for (kan_memory_size_t scan_index = cluster_index + 2u; scan_index < selected_sequence->clusters.size;
                      ++scan_index)
                 {
                     const struct kan_text_shaped_edition_cluster_data_t *scan_cluster = &(
@@ -2295,11 +2295,11 @@ static inline kan_unicode_codepoint_t line_edit_parse_numeric_next_codepoint (co
     }
 }
 
-static inline kan_instance_size_t line_edit_parse_positive_decimal (const uint8_t **iterator,
-                                                                    const uint8_t *boundary,
-                                                                    bool *output_success)
+static inline kan_stable_size_t line_edit_parse_positive_decimal (const uint8_t **iterator,
+                                                                  const uint8_t *boundary,
+                                                                  bool *output_success)
 {
-    kan_instance_size_t result = 0u;
+    kan_stable_size_t result = 0u;
     *output_success = false;
     kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
 
@@ -2316,8 +2316,8 @@ static inline kan_instance_size_t line_edit_parse_positive_decimal (const uint8_
             return 0u;
         }
 
-        const kan_instance_size_t new_result = result * 10u + (codepoint - '0');
-        if (new_result < result)
+        const kan_stable_size_t new_result = result * 10u + (codepoint - '0');
+        if (new_result <= result && result != 0u)
         {
             // Overflow.
             return 0u;
@@ -2331,11 +2331,11 @@ static inline kan_instance_size_t line_edit_parse_positive_decimal (const uint8_
     return result;
 }
 
-static inline kan_instance_size_t line_edit_parse_binary_after_prefix (const uint8_t **iterator,
-                                                                       const uint8_t *boundary,
-                                                                       bool *output_success)
+static inline kan_stable_size_t line_edit_parse_binary_after_prefix (const uint8_t **iterator,
+                                                                     const uint8_t *boundary,
+                                                                     bool *output_success)
 {
-    kan_instance_size_t result = 0u;
+    kan_stable_size_t result = 0u;
     *output_success = false;
     kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
 
@@ -2352,8 +2352,8 @@ static inline kan_instance_size_t line_edit_parse_binary_after_prefix (const uin
             return 0u;
         }
 
-        const kan_instance_size_t new_result = result * 2u + (codepoint - '0');
-        if (new_result < result)
+        const kan_stable_size_t new_result = result * 2u + (codepoint - '0');
+        if (new_result <= result && result != 0u)
         {
             // Overflow.
             return 0u;
@@ -2367,11 +2367,11 @@ static inline kan_instance_size_t line_edit_parse_binary_after_prefix (const uin
     return result;
 }
 
-static inline kan_instance_size_t line_edit_parse_hex_after_prefix (const uint8_t **iterator,
-                                                                    const uint8_t *boundary,
-                                                                    bool *output_success)
+static inline kan_stable_size_t line_edit_parse_hex_after_prefix (const uint8_t **iterator,
+                                                                  const uint8_t *boundary,
+                                                                  bool *output_success)
 {
-    kan_instance_size_t result = 0u;
+    kan_stable_size_t result = 0u;
     *output_success = false;
     kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
 
@@ -2383,7 +2383,7 @@ static inline kan_instance_size_t line_edit_parse_hex_after_prefix (const uint8_
 
     while (codepoint)
     {
-        kan_instance_size_t digit = 0u;
+        kan_stable_size_t digit = 0u;
         switch (codepoint)
         {
         case '0':
@@ -2421,8 +2421,8 @@ static inline kan_instance_size_t line_edit_parse_hex_after_prefix (const uint8_
             return 0u;
         }
 
-        const kan_instance_size_t new_result = result * 16u + digit;
-        if (new_result < result)
+        const kan_stable_size_t new_result = result * 16u + digit;
+        if (new_result <= result && result != 0u)
         {
             // Overflow.
             return 0u;
@@ -2510,27 +2510,27 @@ static bool line_edit_parse_sint (struct kan_ui_node_line_edit_behavior_t *behav
     if (codepoint == '-')
     {
         // Negative value, parse as positive and invert.
-        const kan_instance_size_t positive_value =
+        const kan_stable_size_t positive_value =
             line_edit_parse_positive_decimal (&iterator, boundary, &behavior->content_sint.has_parsed_content);
 
         if (behavior->content_sint.has_parsed_content)
         {
-            const kan_instance_size_t inverted_value = KAN_INT_MAX (kan_instance_size_t) - positive_value + 1u;
-            behavior->content_sint.has_parsed_content = inverted_value > KAN_INT_MAX (kan_instance_offset_t);
-            behavior->content_sint.parsed_content = (kan_instance_offset_t) inverted_value;
+            const kan_stable_size_t inverted_value = KAN_INT_MAX (kan_stable_size_t) - positive_value + 1u;
+            behavior->content_sint.has_parsed_content = inverted_value > KAN_INT_MAX (kan_stable_offset_t);
+            behavior->content_sint.parsed_content = (kan_stable_offset_t) inverted_value;
         }
     }
     else
     {
         // Regular positive number as lookup didn't find anything.
         iterator = pre_lookup_iterator;
-        const kan_instance_size_t positive_value =
+        const kan_stable_size_t positive_value =
             line_edit_parse_positive_decimal (&iterator, boundary, &behavior->content_sint.has_parsed_content);
 
         if (behavior->content_sint.has_parsed_content)
         {
-            behavior->content_sint.has_parsed_content = positive_value <= KAN_INT_MAX (kan_instance_offset_t);
-            behavior->content_sint.parsed_content = (kan_instance_offset_t) positive_value;
+            behavior->content_sint.has_parsed_content = positive_value <= KAN_INT_MAX (kan_stable_offset_t);
+            behavior->content_sint.parsed_content = (kan_stable_offset_t) positive_value;
         }
     }
 
@@ -3251,7 +3251,7 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
         kan_instance_offset_t cursor_y_min = 0;
         kan_instance_offset_t cursor_y_max = 0;
 
-        for (kan_loop_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
+        for (kan_memory_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
              ++sequence_index)
         {
             const struct kan_text_shaped_edition_sequence_data_t *sequence =
@@ -3270,7 +3270,7 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
                 break;
             }
 
-            for (kan_loop_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
+            for (kan_memory_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
             {
                 const struct kan_text_shaped_edition_cluster_data_t *cluster =
                     &((struct kan_text_shaped_edition_cluster_data_t *) sequence->clusters.data)[cluster_index];
@@ -3340,7 +3340,7 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
         behavior->selection_image_index != KAN_INT_MAX (uint32_t))
     {
         const kan_instance_offset_t selection_leeway = kan_ui_calculate_coordinate (ui, behavior->selection_leeway);
-        for (kan_loop_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
+        for (kan_memory_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
              ++sequence_index)
         {
             const struct kan_text_shaped_edition_sequence_data_t *sequence =
@@ -3379,7 +3379,7 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
         selection_max = KAN_INT_MAX (kan_instance_offset_t);                                                           \
     }
 
-            for (kan_loop_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
+            for (kan_memory_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
             {
                 const struct kan_text_shaped_edition_cluster_data_t *cluster =
                     &((struct kan_text_shaped_edition_cluster_data_t *) sequence->clusters.data)[cluster_index];

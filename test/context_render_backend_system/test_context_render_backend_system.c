@@ -720,7 +720,7 @@ KAN_TEST_CASE (render_and_capture)
     kan_render_device_t picked_device = KAN_HANDLE_INITIALIZE_INVALID;
     kan_instance_size_t picked_device_index = KAN_INT_MAX (kan_instance_size_t);
 
-    for (kan_loop_size_t index = 0u; index < devices->supported_device_count; ++index)
+    for (kan_memory_size_t index = 0u; index < devices->supported_device_count; ++index)
     {
         printf ("  - name: %s\n    device_type: %lu\n    memory_type: %lu\n", devices->devices[index].name,
                 (unsigned long) devices->devices[index].device_type,
@@ -1183,20 +1183,20 @@ KAN_TEST_CASE (render_and_capture)
                 KAN_TEST_ASSERT (pass_memory)
                 memcpy (pass_memory, &pass_data, sizeof (pass_data));
 
-                for (kan_loop_size_t x = 0u; x < INSTANCED_CUBES_X; ++x)
+                for (kan_memory_size_t x = 0u; x < INSTANCED_CUBES_X; ++x)
                 {
-                    for (kan_loop_size_t y = 0u; y < INSTANCED_CUBES_Y; ++y)
+                    for (kan_memory_size_t y = 0u; y < INSTANCED_CUBES_Y; ++y)
                     {
-                        for (kan_loop_size_t z = 0u; z < INSTANCED_CUBES_Z; ++z)
+                        for (kan_memory_size_t z = 0u; z < INSTANCED_CUBES_Z; ++z)
                         {
-                            const kan_loop_size_t index =
+                            const kan_memory_size_t index =
                                 x * INSTANCED_CUBES_Y * INSTANCED_CUBES_Z + y * INSTANCED_CUBES_Z + z;
                             struct kan_transform_3_t transform = kan_transform_3_get_identity ();
                             transform.location.x = ((float) x) * 2.0f - ((float) INSTANCED_CUBES_X - 1.0f);
                             transform.location.y = ((float) y) * 2.0f - ((float) INSTANCED_CUBES_Y - 1.0f);
                             transform.location.z = ((float) z) * 2.0f - ((float) INSTANCED_CUBES_Z - 1.0f);
 
-                            kan_loop_size_t rotation_foundation = index + frame;
+                            kan_memory_size_t rotation_foundation = index + frame;
 #if !defined(FREE_MODE)
                             // Force deterministic values for test frames.  Otherwise, we would get rare flaks in tests.
                             if (render_image_frame)

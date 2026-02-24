@@ -26,24 +26,24 @@ struct file_stream_t
     FILE *file;
 };
 
-static kan_file_size_t read (struct kan_stream_t *stream, kan_file_size_t amount, void *output_buffer)
+static kan_stable_size_t read (struct kan_stream_t *stream, kan_stable_size_t amount, void *output_buffer)
 {
-    return (kan_file_size_t) fread (output_buffer, 1u, amount, ((struct file_stream_t *) stream)->file);
+    return (kan_stable_size_t) fread (output_buffer, 1u, amount, ((struct file_stream_t *) stream)->file);
 }
 
-static kan_file_size_t write (struct kan_stream_t *stream, kan_file_size_t amount, const void *input_buffer)
+static kan_stable_size_t write (struct kan_stream_t *stream, kan_stable_size_t amount, const void *input_buffer)
 {
-    return (kan_file_size_t) fwrite (input_buffer, 1u, amount, ((struct file_stream_t *) stream)->file);
+    return (kan_stable_size_t) fwrite (input_buffer, 1u, amount, ((struct file_stream_t *) stream)->file);
 }
 
 static bool flush (struct kan_stream_t *stream) { return fflush (((struct file_stream_t *) stream)->file) == 0; }
 
-static kan_file_size_t tell (struct kan_stream_t *stream)
+static kan_stable_size_t tell (struct kan_stream_t *stream)
 {
-    return (kan_file_size_t) ftell (((struct file_stream_t *) stream)->file);
+    return (kan_stable_size_t) ftell (((struct file_stream_t *) stream)->file);
 }
 
-static bool seek (struct kan_stream_t *stream, enum kan_stream_seek_pivot pivot, kan_file_offset_t offset)
+static bool seek (struct kan_stream_t *stream, enum kan_stream_seek_pivot pivot, kan_stable_offset_t offset)
 {
     switch (pivot)
     {

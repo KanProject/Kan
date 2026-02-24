@@ -49,7 +49,7 @@ struct kan_resource_log_reference_t
 struct kan_resource_log_version_t
 {
     kan_resource_version_t type_version;
-    kan_time_size_t last_modification_time;
+    kan_stable_size_t last_modification_time;
 };
 
 /// \brief Returns true if logged version is decided new enough to not cause a rebuild compared to detected version.
@@ -114,7 +114,7 @@ struct kan_resource_log_built_entry_t
     kan_interned_string_t name;
     struct kan_resource_log_version_t version;
 
-    kan_time_size_t platform_configuration_time;
+    kan_stable_size_t platform_configuration_time;
     kan_resource_version_t rule_version;
     struct kan_resource_log_version_t primary_input_version;
     enum kan_resource_log_saved_directory_t saved_directory;

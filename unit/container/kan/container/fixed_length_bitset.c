@@ -11,7 +11,7 @@ void kan_fixed_length_bitset_init (struct kan_fixed_length_bitset_t *bitset, kan
     }
 
     bitset->items = items;
-    for (kan_loop_size_t index = 0u; index < items; ++index)
+    for (kan_memory_size_t index = 0u; index < items; ++index)
     {
         bitset->data[index] = 0u;
     }
@@ -48,7 +48,7 @@ void kan_fixed_length_bitset_or_assign (struct kan_fixed_length_bitset_t *bitset
                                         const struct kan_fixed_length_bitset_t *source_bitset)
 {
     const kan_instance_size_t common_items = KAN_MIN (bitset->items, source_bitset->items);
-    for (kan_loop_size_t index = 0u; index < common_items; ++index)
+    for (kan_memory_size_t index = 0u; index < common_items; ++index)
     {
         bitset->data[index] |= source_bitset->data[index];
     }
@@ -58,7 +58,7 @@ bool kan_fixed_length_bitset_check_intersection (const struct kan_fixed_length_b
                                                  const struct kan_fixed_length_bitset_t *other_bitset)
 {
     const kan_instance_size_t common_items = KAN_MIN (bitset->items, other_bitset->items);
-    for (kan_loop_size_t index = 0u; index < common_items; ++index)
+    for (kan_memory_size_t index = 0u; index < common_items; ++index)
     {
         if ((bitset->data[index] & other_bitset->data[index]) != 0u)
         {

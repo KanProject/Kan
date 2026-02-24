@@ -488,8 +488,8 @@ static inline void text_commit_trailing_utf8 (struct text_create_context_t *cont
     kan_instance_size_t data_length = 0u;
     if (context->first_uncommited_utf8_index != KAN_INT_MAX (kan_instance_size_t))
     {
-        for (kan_loop_size_t uncommited_index = context->first_uncommited_utf8_index; uncommited_index < current_index;
-             ++uncommited_index)
+        for (kan_memory_size_t uncommited_index = context->first_uncommited_utf8_index;
+             uncommited_index < current_index; ++uncommited_index)
         {
             struct kan_text_item_t *uncommited_item = &description->items[uncommited_index];
             switch (uncommited_item->type)
@@ -540,8 +540,8 @@ static inline void text_commit_trailing_utf8 (struct text_create_context_t *cont
 
     if (context->first_uncommited_utf8_index != KAN_INT_MAX (kan_instance_size_t))
     {
-        for (kan_loop_size_t uncommited_index = context->first_uncommited_utf8_index; uncommited_index < current_index;
-             ++uncommited_index)
+        for (kan_memory_size_t uncommited_index = context->first_uncommited_utf8_index;
+             uncommited_index < current_index; ++uncommited_index)
         {
             struct kan_text_item_t *uncommited_item = &description->items[uncommited_index];
             switch (uncommited_item->type)
@@ -611,7 +611,7 @@ kan_text_t kan_text_create (const struct kan_text_description_t *description)
     kan_interned_string_t style = NULL;
     uint32_t mark = 0u;
 
-    for (kan_loop_size_t index = 0u; index < description->items_count; ++index)
+    for (kan_memory_size_t index = 0u; index < description->items_count; ++index)
     {
         struct kan_text_item_t *item = &description->items[index];
         switch (item->type)
@@ -999,7 +999,7 @@ kan_font_library_t kan_font_library_create (kan_render_context_t render_context,
         return KAN_HANDLE_SET_INVALID (kan_font_library_t);
     }
 
-    for (kan_loop_size_t layer = 0u; layer < KAN_TEXT_FT_HB_SDF_ATLAS_LAYERS; ++layer)
+    for (kan_memory_size_t layer = 0u; layer < KAN_TEXT_FT_HB_SDF_ATLAS_LAYERS; ++layer)
     {
         kan_render_image_clear_color (library->sdf_atlas.image, (kan_instance_size_t) layer, 0u,
                                       &sdf_atlas_clear_color);
@@ -1020,7 +1020,7 @@ kan_font_library_t kan_font_library_create (kan_render_context_t render_context,
     struct kan_font_library_category_t *source = categories;
     struct font_library_category_t *target = library->categories;
 
-    for (kan_loop_size_t index = 0u; index < library->categories_count; ++index, ++source, ++target)
+    for (kan_memory_size_t index = 0u; index < library->categories_count; ++index, ++source, ++target)
     {
         if (library->primary_default_category_index == KAN_INT_MAX (kan_instance_size_t) && !source->style)
         {
@@ -1069,7 +1069,7 @@ kan_font_library_t kan_font_library_create (kan_render_context_t render_context,
             FT_Fixed *freetype_axis = kan_stack_group_allocator_allocate (
                 &library->allocator, sizeof (FT_Fixed) * source->variable_axis_count, alignof (FT_Fixed));
 
-            for (kan_loop_size_t axis_index = 0u; axis_index < source->variable_axis_count; ++axis_index)
+            for (kan_memory_size_t axis_index = 0u; axis_index < source->variable_axis_count; ++axis_index)
             {
                 freetype_axis[axis_index] = (FT_Fixed) roundf (source->variable_axis[axis_index] * 65536.0f);
             }
@@ -1223,7 +1223,7 @@ static bool shape_choose_category (struct shape_context_t *context)
         return true;
     }
 
-    for (kan_loop_size_t index = 0u; index < context->library->categories_count; ++index)
+    for (kan_memory_size_t index = 0u; index < context->library->categories_count; ++index)
     {
         struct font_library_category_t *category = &context->library->categories[index];
         if (!category->harfbuzz_face)
@@ -1678,7 +1678,7 @@ static void font_library_render_sdf_unsafe (struct font_library_t *library,
             kan_render_image_copy_data (atlas->image, old_layer_index, 0u, new_atlas, old_layer_index, 0u);
         }
 
-        for (kan_loop_size_t layer = atlas_layers; layer < sdf_atlas_description.layers; ++layer)
+        for (kan_memory_size_t layer = atlas_layers; layer < sdf_atlas_description.layers; ++layer)
         {
             kan_render_image_clear_color (atlas->image, (kan_instance_size_t) layer, 0u, &sdf_atlas_clear_color);
         }
@@ -1966,7 +1966,7 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
 
             if (context->forward_string_processing)
             {
-                for (kan_loop_size_t index = next_unprocessed_glyph_index; index < grab_until; ++index)
+                for (kan_memory_size_t index = next_unprocessed_glyph_index; index < grab_until; ++index)
                 {
                     shape_append_to_sequence (context, glyph_infos + index, glyph_positions + index,
                                               harfbuzz_direction);
@@ -1993,7 +1993,7 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
     else
     {
         int32_t whole_length_26_6 = 0;
-        for (kan_loop_size_t index = 0u; index < glyph_count; ++index)
+        for (kan_memory_size_t index = 0u; index < glyph_count; ++index)
         {
             switch (context->request->orientation)
             {
@@ -2028,14 +2028,14 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
         const kan_instance_size_t first_glyph_index = context->output->glyphs.size;
         if (context->forward_string_processing)
         {
-            for (kan_loop_size_t index = 0u; index < glyph_count; ++index)
+            for (kan_memory_size_t index = 0u; index < glyph_count; ++index)
             {
                 shape_append_to_sequence (context, glyph_infos + index, glyph_positions + index, harfbuzz_direction);
             }
         }
         else
         {
-            for (kan_loop_size_t index = glyph_count - 1u; index != KAN_INT_MAX (kan_loop_size_t); --index)
+            for (kan_memory_size_t index = glyph_count - 1u; index != KAN_INT_MAX (kan_memory_size_t); --index)
             {
                 shape_append_to_sequence (context, glyph_infos + index, glyph_positions + index, harfbuzz_direction);
             }
@@ -2052,7 +2052,7 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
                 &((struct kan_text_shaped_glyph_instance_data_t *) context->output->glyphs.data)[first_glyph_index];
             const kan_instance_size_t base_read_index = first_glyph->read_index;
 
-            for (kan_loop_size_t index = first_glyph_index; index < context->output->glyphs.size; ++index)
+            for (kan_memory_size_t index = first_glyph_index; index < context->output->glyphs.size; ++index)
             {
                 struct kan_text_shaped_glyph_instance_data_t *glyph =
                     &((struct kan_text_shaped_glyph_instance_data_t *) context->output->glyphs.data)[index];
@@ -2073,7 +2073,7 @@ static void shape_text_node_utf8 (struct shape_context_t *context, struct text_n
         KAN_ATOMIC_INT_SCOPED_LOCK (&context->library->freetype_lock)
         font_library_category_prepare_for_render_unsafe (context->current_category, context->request->render_format);
 
-        for (kan_loop_size_t index = 0u; index < context->render_delayed.size; ++index)
+        for (kan_memory_size_t index = 0u; index < context->render_delayed.size; ++index)
         {
             struct shape_render_delayed_reminder_t *render_delayed =
                 &((struct shape_render_delayed_reminder_t *) context->render_delayed.data)[index];
@@ -2223,7 +2223,7 @@ static void shape_text_node_icon (struct shape_context_t *context, struct text_n
 static void shape_post_process_sequences (struct shape_context_t *context)
 {
     int32_t typographic_primary_size_26_6 = context->primary_axis_limit_26_6;
-    for (kan_loop_size_t sequence_index = 0u; sequence_index < context->sequences.size; ++sequence_index)
+    for (kan_memory_size_t sequence_index = 0u; sequence_index < context->sequences.size; ++sequence_index)
     {
         const struct shape_sequence_t *sequence =
             &((struct shape_sequence_t *) context->sequences.data)[sequence_index];
@@ -2245,7 +2245,7 @@ static void shape_post_process_sequences (struct shape_context_t *context)
     int32_t baseline_26_6 = context->primary_default_ascender_26_6;
     ROUND_GAP (baseline_26_6);
 
-    for (kan_loop_size_t sequence_index = 0u; sequence_index < context->sequences.size; ++sequence_index)
+    for (kan_memory_size_t sequence_index = 0u; sequence_index < context->sequences.size; ++sequence_index)
     {
         const struct shape_sequence_t *sequence =
             &((struct shape_sequence_t *) context->sequences.data)[sequence_index];
@@ -2288,8 +2288,8 @@ static void shape_post_process_sequences (struct shape_context_t *context)
         }
 
         ROUND_GAP (alignment_offset_26_6);
-        kan_loop_size_t glyph_limit = context->output->glyphs.size;
-        kan_loop_size_t icon_limit = context->output->icons.size;
+        kan_memory_size_t glyph_limit = context->output->glyphs.size;
+        kan_memory_size_t icon_limit = context->output->icons.size;
 
         if (sequence_index + 1u < context->sequences.size)
         {
@@ -2300,7 +2300,7 @@ static void shape_post_process_sequences (struct shape_context_t *context)
             icon_limit = next_sequence->first_icon_index;
         }
 
-        for (kan_loop_size_t glyph_index = sequence->first_glyph_index; glyph_index < glyph_limit; ++glyph_index)
+        for (kan_memory_size_t glyph_index = sequence->first_glyph_index; glyph_index < glyph_limit; ++glyph_index)
         {
             struct kan_text_shaped_glyph_instance_data_t *glyph =
                 &((struct kan_text_shaped_glyph_instance_data_t *) context->output->glyphs.data)[glyph_index];
@@ -2330,7 +2330,7 @@ static void shape_post_process_sequences (struct shape_context_t *context)
             glyph->max.y = FROM_26_6 (max_26_6->y);
         }
 
-        for (kan_loop_size_t icon_index = sequence->first_icon_index; icon_index < icon_limit; ++icon_index)
+        for (kan_memory_size_t icon_index = sequence->first_icon_index; icon_index < icon_limit; ++icon_index)
         {
             struct kan_text_shaped_icon_instance_data_t *icon =
                 &((struct kan_text_shaped_icon_instance_data_t *) context->output->icons.data)[icon_index];
@@ -2370,7 +2370,7 @@ static void shape_post_process_sequences (struct shape_context_t *context)
             edition_sequence->ascender = (kan_instance_offset_t) roundf (FROM_26_6 (sequence->biggest_ascender_26_6));
             edition_sequence->descender = (kan_instance_offset_t) roundf (FROM_26_6 (sequence->biggest_descender_26_6));
 
-            for (kan_loop_size_t cluster_index = 0u; cluster_index < edition_sequence->clusters.size; ++cluster_index)
+            for (kan_memory_size_t cluster_index = 0u; cluster_index < edition_sequence->clusters.size; ++cluster_index)
             {
                 struct kan_text_shaped_edition_cluster_data_t *cluster =
                     &((struct kan_text_shaped_edition_cluster_data_t *) edition_sequence->clusters.data)[cluster_index];
@@ -2542,7 +2542,7 @@ bool kan_font_library_precache (kan_font_library_t instance, struct kan_text_pre
     struct font_library_t *library = KAN_HANDLE_GET (instance);
     struct font_library_category_t *selected_category = NULL;
 
-    for (kan_loop_size_t index = 0u; index < library->categories_count; ++index)
+    for (kan_memory_size_t index = 0u; index < library->categories_count; ++index)
     {
         struct font_library_category_t *category = &library->categories[index];
         if (!category->harfbuzz_face)
@@ -2614,7 +2614,7 @@ bool kan_font_library_precache (kan_font_library_t instance, struct kan_text_pre
 void kan_font_library_destroy (kan_font_library_t instance)
 {
     struct font_library_t *library = KAN_HANDLE_GET (instance);
-    for (kan_loop_size_t index = 0u; index < library->categories_count; ++index)
+    for (kan_memory_size_t index = 0u; index < library->categories_count; ++index)
     {
         struct font_library_category_t *category = &library->categories[index];
         if (category->harfbuzz_face)

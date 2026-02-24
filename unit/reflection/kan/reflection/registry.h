@@ -188,8 +188,8 @@ struct kan_reflection_field_t
     kan_instance_offset_t *visibility_condition_values;
 };
 
-typedef void (*kan_reflection_initialize_functor) (kan_functor_user_data_t user_data, void *pointer);
-typedef void (*kan_reflection_shutdown_functor) (kan_functor_user_data_t user_data, void *pointer);
+typedef void (*kan_reflection_initialize_functor) (kan_memory_size_t user_data, void *pointer);
+typedef void (*kan_reflection_shutdown_functor) (kan_memory_size_t user_data, void *pointer);
 
 /// \brief Describes fixed-size structure with optional initialize and shutdown functions.
 struct kan_reflection_struct_t
@@ -199,7 +199,7 @@ struct kan_reflection_struct_t
     kan_instance_size_t alignment;
     kan_reflection_initialize_functor init;
     kan_reflection_shutdown_functor shutdown;
-    kan_functor_user_data_t functor_user_data;
+    kan_memory_size_t functor_user_data;
     kan_instance_size_t fields_count;
 
     /// \details Fields must be ordered by ascending offset.
@@ -248,7 +248,7 @@ struct kan_reflection_argument_t
     };
 };
 
-typedef void (*kan_reflection_call_functor) (kan_functor_user_data_t user_data,
+typedef void (*kan_reflection_call_functor) (kan_memory_size_t user_data,
                                              void *return_address,
                                              void *arguments_address);
 
@@ -257,7 +257,7 @@ struct kan_reflection_function_t
 {
     kan_interned_string_t name;
     kan_reflection_call_functor call;
-    kan_functor_user_data_t call_user_data;
+    kan_memory_size_t call_user_data;
 
     struct kan_reflection_return_type_t return_type;
     kan_instance_size_t arguments_count;

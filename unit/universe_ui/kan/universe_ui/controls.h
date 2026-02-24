@@ -351,9 +351,9 @@ struct kan_ui_node_line_edit_content_type_uint_t
     bool has_parsed_content;
     bool has_limits;
 
-    kan_instance_size_t parsed_content;
-    kan_instance_size_t min;
-    kan_instance_size_t max;
+    kan_stable_size_t parsed_content;
+    kan_stable_size_t min;
+    kan_stable_size_t max;
 };
 
 /// \brief Describes additional configuration for `kan_ui_node_line_edit_behavior_t` for signed integer content.
@@ -362,9 +362,9 @@ struct kan_ui_node_line_edit_content_type_sint_t
     bool has_parsed_content;
     bool has_limits;
 
-    kan_instance_offset_t parsed_content;
-    kan_instance_offset_t min;
-    kan_instance_offset_t max;
+    kan_stable_offset_t parsed_content;
+    kan_stable_offset_t min;
+    kan_stable_offset_t max;
 };
 
 /// \brief Describes additional configuration for `kan_ui_node_line_edit_behavior_t` for floating point content.

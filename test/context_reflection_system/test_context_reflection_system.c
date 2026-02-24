@@ -64,21 +64,21 @@ static void check_generated_system_received_reflection (kan_context_system_t han
     struct check_generated_system_t *system = KAN_HANDLE_GET (handle);
     ++system->generated_calls_count;
 
-    for (kan_loop_size_t index = 0u; index < system->config->enums_to_check_count; ++index)
+    for (kan_memory_size_t index = 0u; index < system->config->enums_to_check_count; ++index)
     {
         const struct kan_reflection_enum_t *enum_data =
             kan_reflection_registry_query_enum (registry, system->config->enums_to_check[index]);
         KAN_TEST_CHECK (enum_data)
     }
 
-    for (kan_loop_size_t index = 0u; index < system->config->structs_to_check_count; ++index)
+    for (kan_memory_size_t index = 0u; index < system->config->structs_to_check_count; ++index)
     {
         const struct kan_reflection_struct_t *struct_data =
             kan_reflection_registry_query_struct (registry, system->config->structs_to_check[index]);
         KAN_TEST_CHECK (struct_data)
     }
 
-    for (kan_loop_size_t index = 0u; index < system->config->functions_to_check_count; ++index)
+    for (kan_memory_size_t index = 0u; index < system->config->functions_to_check_count; ++index)
     {
         const struct kan_reflection_function_t *function_data =
             kan_reflection_registry_query_function (registry, system->config->functions_to_check[index]);
@@ -257,7 +257,7 @@ struct check_generation_iterate_system_t
 {
     kan_context_t context;
     kan_allocation_group_t group;
-    kan_loop_size_t generation_last_iteration;
+    kan_memory_size_t generation_last_iteration;
 };
 
 TEST_CONTEXT_REFLECTION_SYSTEM_API kan_context_system_t
@@ -276,7 +276,7 @@ static struct kan_reflection_struct_t generation_iterate_test_struct;
 static void check_generation_iterate_system_generation_iterate (kan_context_system_t handle,
                                                                 kan_reflection_registry_t registry,
                                                                 kan_reflection_system_generation_iterator_t iterator,
-                                                                kan_loop_size_t iteration_index)
+                                                                kan_memory_size_t iteration_index)
 {
     struct check_generation_iterate_system_t *system = KAN_HANDLE_GET (handle);
     system->generation_last_iteration = iteration_index;
@@ -391,7 +391,7 @@ TEST_CONTEXT_REFLECTION_SYSTEM_API struct kan_context_system_api_t KAN_CONTEXT_S
 
 struct kan_reflection_generator_test_t
 {
-    kan_loop_size_t bootstrap_iteration_index;
+    kan_memory_size_t bootstrap_iteration_index;
     struct kan_reflection_struct_t generated_iterate_struct;
     struct kan_reflection_field_t generated_iterate_struct_fields[2u];
     struct kan_reflection_struct_t generated_finalize_struct;
@@ -471,7 +471,7 @@ TEST_CONTEXT_REFLECTION_SYSTEM_API void kan_reflection_generator_test_init (
 }
 
 TEST_CONTEXT_REFLECTION_SYSTEM_API void kan_reflection_generator_test_bootstrap (
-    struct kan_reflection_generator_test_t *instance, kan_loop_size_t bootstrap_iteration)
+    struct kan_reflection_generator_test_t *instance, kan_memory_size_t bootstrap_iteration)
 {
     KAN_TEST_CHECK (bootstrap_iteration == 0u)
     instance->bootstrap_iteration_index = bootstrap_iteration;
@@ -481,7 +481,7 @@ TEST_CONTEXT_REFLECTION_SYSTEM_API void kan_reflection_generator_test_iterate (
     struct kan_reflection_generator_test_t *instance,
     kan_reflection_registry_t registry,
     kan_reflection_system_generation_iterator_t iterator,
-    kan_loop_size_t iteration_index)
+    kan_memory_size_t iteration_index)
 {
     if (iteration_index == instance->bootstrap_iteration_index)
     {

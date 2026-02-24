@@ -164,7 +164,7 @@ struct generation_iteration_task_user_data_t
 {
     struct generation_iterator_t iterator;
     kan_reflection_registry_t new_registry;
-    kan_loop_size_t iteration_index;
+    kan_memory_size_t iteration_index;
     struct generation_iterate_connection_node_t *connection_node;
     struct reflection_generator_node_t *generator_node;
 };
@@ -208,7 +208,7 @@ static kan_context_system_t reflection_system_create (kan_allocation_group_t gro
     return KAN_HANDLE_SET (kan_context_system_t, system);
 }
 
-static void call_generation_iterate_task (kan_functor_user_data_t user_data)
+static void call_generation_iterate_task (kan_memory_size_t user_data)
 {
     struct generation_iteration_task_user_data_t *data = (struct generation_iteration_task_user_data_t *) user_data;
     if (data->connection_node)
@@ -227,7 +227,7 @@ static void call_generation_iterate_task (kan_functor_user_data_t user_data)
                 void *instance;
                 kan_reflection_registry_t registry;
                 kan_reflection_system_generation_iterator_t iterator;
-                kan_loop_size_t iteration_index;
+                kan_memory_size_t iteration_index;
             } arguments = {
                 .instance = data->generator_node->instance,
                 .registry = data->new_registry,
@@ -243,7 +243,7 @@ static void call_generation_iterate_task (kan_functor_user_data_t user_data)
 
 static void add_to_reflection_generators_if_needed (kan_reflection_registry_t registry,
                                                     const struct kan_reflection_struct_t *type,
-                                                    kan_loop_size_t current_iterator_for_bootstrap,
+                                                    kan_memory_size_t current_iterator_for_bootstrap,
                                                     struct reflection_generator_node_t **first_generator_node,
                                                     kan_allocation_group_t allocation_group)
 {
@@ -310,7 +310,7 @@ static void add_to_reflection_generators_if_needed (kan_reflection_registry_t re
             node->bootstrap_function->arguments[0u].archetype != KAN_REFLECTION_ARCHETYPE_STRUCT_POINTER ||
             node->bootstrap_function->arguments[0u].archetype_struct_pointer.type_name != type->name ||
             node->bootstrap_function->arguments[1u].archetype != KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT ||
-            node->bootstrap_function->arguments[1u].size != sizeof (kan_loop_size_t))
+            node->bootstrap_function->arguments[1u].size != sizeof (kan_memory_size_t))
         {
             KAN_LOG (reflection_system, KAN_LOG_ERROR,
                      "Bootstrap function should have two arguments -- instance pointer and first iteration index. But "
@@ -330,7 +330,7 @@ static void add_to_reflection_generators_if_needed (kan_reflection_registry_t re
             node->iterate_function->arguments[2u].archetype != KAN_REFLECTION_ARCHETYPE_PACKED_ELEMENTAL ||
             node->iterate_function->arguments[2u].size != sizeof (void *) ||
             node->iterate_function->arguments[3u].archetype != KAN_REFLECTION_ARCHETYPE_UNSIGNED_INT ||
-            node->iterate_function->arguments[3u].size != sizeof (kan_loop_size_t))
+            node->iterate_function->arguments[3u].size != sizeof (kan_memory_size_t))
         {
             KAN_LOG (reflection_system, KAN_LOG_ERROR,
                      "Iterate function should have 4 arguments -- instance pointer, registry, generation iterator and "
@@ -361,7 +361,7 @@ static void add_to_reflection_generators_if_needed (kan_reflection_registry_t re
         struct
         {
             void *instance;
-            kan_loop_size_t first_iteration_index;
+            kan_memory_size_t first_iteration_index;
         } arguments = {
             .instance = node->instance,
             .first_iteration_index = current_iterator_for_bootstrap,
@@ -402,7 +402,7 @@ static void reflection_system_generate (struct reflection_system_t *system)
     }
 
     KAN_LOG (reflection_system, KAN_LOG_INFO, "Starting generation iteration.")
-    kan_loop_size_t iteration_index = 0u;
+    kan_memory_size_t iteration_index = 0u;
 
     struct generation_context_t generation_context;
     generation_context.this_iteration_submission_lock = kan_atomic_int_init (0);

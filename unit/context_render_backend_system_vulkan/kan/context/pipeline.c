@@ -325,7 +325,7 @@ void render_backend_compiler_state_request_graphics (struct render_backend_pipel
     pipeline->compilation_state = PIPELINE_COMPILATION_STATE_PENDING;
 
     request->shader_stages_count = 0u;
-    for (kan_loop_size_t module_index = 0u; module_index < description->code_modules_count; ++module_index)
+    for (kan_memory_size_t module_index = 0u; module_index < description->code_modules_count; ++module_index)
     {
         request->shader_stages_count += description->code_modules[module_index].entry_points_count;
     }
@@ -342,7 +342,7 @@ void render_backend_compiler_state_request_graphics (struct render_backend_pipel
                               alignof (struct render_backend_code_module_t *));
 
     VkPipelineShaderStageCreateInfo *output_stage = request->shader_stages;
-    for (kan_loop_size_t module_index = 0u; module_index < description->code_modules_count; ++module_index)
+    for (kan_memory_size_t module_index = 0u; module_index < description->code_modules_count; ++module_index)
     {
         struct render_backend_code_module_t *code_module =
             KAN_HANDLE_GET (description->code_modules[module_index].code_module);
@@ -350,7 +350,7 @@ void render_backend_compiler_state_request_graphics (struct render_backend_pipel
         kan_atomic_int_add (&code_module->links, 1);
         VkShaderModule module = code_module->module;
 
-        for (kan_loop_size_t entry_point_index = 0u;
+        for (kan_memory_size_t entry_point_index = 0u;
              entry_point_index < description->code_modules[module_index].entry_points_count; ++entry_point_index)
         {
             struct kan_render_pipeline_code_entry_point_t *entry_point =
@@ -400,7 +400,7 @@ void render_backend_compiler_state_request_graphics (struct render_backend_pipel
                               sizeof (VkVertexInputBindingDescription) * request->input_bindings_count,
                               alignof (VkVertexInputBindingDescription));
 
-    for (kan_loop_size_t index = 0u; index < description->attribute_sources_count; ++index)
+    for (kan_memory_size_t index = 0u; index < description->attribute_sources_count; ++index)
     {
         struct kan_render_attribute_source_description_t *input = &description->attribute_sources[index];
         VkVertexInputBindingDescription *output = &request->input_bindings[index];
@@ -421,7 +421,7 @@ void render_backend_compiler_state_request_graphics (struct render_backend_pipel
     }
 
     request->attributes_count = 0u;
-    for (kan_loop_size_t index = 0u; index < description->attributes_count; ++index)
+    for (kan_memory_size_t index = 0u; index < description->attributes_count; ++index)
     {
         struct kan_render_attribute_description_t *input = &description->attributes[index];
         switch (input->class)
@@ -448,7 +448,7 @@ void render_backend_compiler_state_request_graphics (struct render_backend_pipel
                                                 alignof (VkVertexInputAttributeDescription));
     VkVertexInputAttributeDescription *attribute_output = request->attributes;
 
-    for (kan_loop_size_t index = 0u; index < description->attributes_count; ++index)
+    for (kan_memory_size_t index = 0u; index < description->attributes_count; ++index)
     {
         struct kan_render_attribute_description_t *input = &description->attributes[index];
         VkFormat input_format = VK_FORMAT_R32_SFLOAT;
@@ -887,7 +887,7 @@ void render_backend_compiler_state_request_graphics (struct render_backend_pipel
                               sizeof (VkPipelineColorBlendAttachmentState) * request->color_blending_attachments_count,
                               alignof (VkPipelineColorBlendAttachmentState));
 
-    for (kan_loop_size_t attachment_index = 0u; attachment_index < request->color_blending_attachments_count;
+    for (kan_memory_size_t attachment_index = 0u; attachment_index < request->color_blending_attachments_count;
          ++attachment_index)
     {
         struct kan_render_color_output_setup_description_t *source = &description->output_setups[attachment_index];
@@ -953,7 +953,7 @@ void render_backend_compiler_state_request_graphics (struct render_backend_pipel
 
 void render_backend_compiler_state_destroy_graphics_request (struct graphics_pipeline_compilation_request_t *request)
 {
-    for (kan_loop_size_t module_index = 0u; module_index < request->linked_code_modules_count; ++module_index)
+    for (kan_memory_size_t module_index = 0u; module_index < request->linked_code_modules_count; ++module_index)
     {
         render_backend_system_unlink_code_module (request->linked_code_modules[module_index]);
     }

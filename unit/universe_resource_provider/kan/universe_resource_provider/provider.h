@@ -195,7 +195,7 @@ KAN_TYPED_ID_32_DEFINE (kan_resource_usage_id_t);
 struct kan_resource_provider_configuration_t
 {
     /// \brief How much time in nanoseconds should be spent loading resources during update.
-    kan_time_offset_t serve_budget_ns;
+    kan_stable_size_t serve_budget_ns;
 
     /// \brief Path to virtual directory with resources, that is used as resource root directory.
     kan_interned_string_t resource_directory_path;
@@ -467,7 +467,7 @@ struct kan_resource_third_party_blob_failed_t
 #    define KAN_UML_RESOURCE_REGISTERED_EVENT_FETCH(NAME, RESOURCE_TYPE)                                               \
         /* Highlight-autocomplete replacement. */                                                                      \
         const struct kan_resource_registered_event_view_t *NAME = NULL;                                                \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_RESOURCE_REGISTERED_EVENT_FETCH(NAME, RESOURCE_TYPE)                                               \
         KAN_UM_INTERNAL_EVENT_FETCH (NAME, KAN_RESOURCE_PROVIDER_MAKE_REGISTERED_EVENT_TYPE (RESOURCE_TYPE),           \
@@ -478,7 +478,7 @@ struct kan_resource_third_party_blob_failed_t
 #    define KAN_UML_RESOURCE_UPDATED_EVENT_FETCH(NAME, RESOURCE_TYPE)                                                  \
         /* Highlight-autocomplete replacement. */                                                                      \
         const struct kan_resource_updated_event_view_t *NAME = NULL;                                                   \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_RESOURCE_UPDATED_EVENT_FETCH(NAME, RESOURCE_TYPE)                                                  \
         KAN_UM_INTERNAL_EVENT_FETCH (NAME, KAN_RESOURCE_PROVIDER_MAKE_UPDATED_EVENT_TYPE (RESOURCE_TYPE),              \
@@ -489,7 +489,7 @@ struct kan_resource_third_party_blob_failed_t
 #    define KAN_UML_RESOURCE_LOADED_EVENT_FETCH(NAME, RESOURCE_TYPE)                                                   \
         /* Highlight-autocomplete replacement. */                                                                      \
         const struct kan_resource_loaded_event_view_t *NAME = NULL;                                                    \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_RESOURCE_LOADED_EVENT_FETCH(NAME, RESOURCE_TYPE)                                                   \
         KAN_UM_INTERNAL_EVENT_FETCH (NAME, KAN_RESOURCE_PROVIDER_MAKE_LOADED_EVENT_TYPE (RESOURCE_TYPE),               \

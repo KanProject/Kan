@@ -243,7 +243,7 @@ struct raw_third_party_entry_t
     struct target_t *target;
     kan_interned_string_t name;
 
-    kan_time_size_t last_modification_time;
+    kan_stable_size_t last_modification_time;
     char *file_location;
 
     /// \details Always starts at false and can become true during resource build. Does not need to be guarded in
@@ -284,7 +284,7 @@ struct platform_configuration_entry_t
 {
     struct kan_hash_storage_node_t node;
     const struct kan_reflection_struct_t *type;
-    kan_time_size_t file_time;
+    kan_stable_size_t file_time;
     void *data;
 };
 
@@ -598,7 +598,7 @@ static inline struct resource_entry_t *target_search_visible_resource_unsafe (st
         return found_entry;
     }
 
-    for (kan_loop_size_t index = 0u; index < from_target->visible_targets.size; ++index)
+    for (kan_memory_size_t index = 0u; index < from_target->visible_targets.size; ++index)
     {
         struct target_t *visible = ((struct target_t **) from_target->visible_targets.data)[index];
         if ((found_entry = target_search_local_resource_unsafe (visible, type, name)))
@@ -641,7 +641,7 @@ static struct raw_third_party_entry_t *target_search_visible_third_party (struct
         return found_entry;
     }
 
-    for (kan_loop_size_t index = 0u; index < from_target->visible_targets.size; ++index)
+    for (kan_memory_size_t index = 0u; index < from_target->visible_targets.size; ++index)
     {
         struct target_t *visible = ((struct target_t **) from_target->visible_targets.data)[index];
         if ((found_entry = target_search_local_third_party (visible, name)))
@@ -832,7 +832,7 @@ void kan_resource_build_setup_shutdown (struct kan_resource_build_setup_t *insta
 
 static enum kan_resource_build_result_t create_targets (struct build_state_t *state)
 {
-    for (kan_loop_size_t index = 0u; index < state->setup->project->targets.size; ++index)
+    for (kan_memory_size_t index = 0u; index < state->setup->project->targets.size; ++index)
     {
         const struct kan_resource_project_target_t *source =
             &((struct kan_resource_project_target_t *) state->setup->project->targets.data)[index];
@@ -858,7 +858,7 @@ static enum kan_resource_build_result_t create_targets (struct build_state_t *st
     }
 
     bool targets_found = true;
-    for (kan_loop_size_t selection_index = 0u; selection_index < state->setup->targets.size; ++selection_index)
+    for (kan_memory_size_t selection_index = 0u; selection_index < state->setup->targets.size; ++selection_index)
     {
         const kan_interned_string_t selection_name =
             ((kan_interned_string_t *) state->setup->targets.data)[selection_index];
@@ -894,7 +894,7 @@ static enum kan_resource_build_result_t link_visible_targets (struct build_state
     while (main_target)
     {
         kan_dynamic_array_set_capacity (&main_target->visible_targets, main_target->source->visible_targets.size);
-        for (kan_loop_size_t index = 0u; index < main_target->source->visible_targets.size; ++index)
+        for (kan_memory_size_t index = 0u; index < main_target->source->visible_targets.size; ++index)
         {
             kan_interned_string_t name = ((kan_interned_string_t *) main_target->source->visible_targets.data)[index];
             struct target_t *visible_target = state->targets_first;
@@ -934,15 +934,15 @@ static enum kan_resource_build_result_t linearize_visible_targets (struct build_
         // to the end of the array if it is not here already, so it will be scanned in the end too. This addition to the
         // end actually creates recursion and results in full linearization.
 
-        for (kan_loop_size_t main_index = 0u; main_index < target->visible_targets.size; ++main_index)
+        for (kan_memory_size_t main_index = 0u; main_index < target->visible_targets.size; ++main_index)
         {
             struct target_t *main_visible = ((struct target_t **) target->visible_targets.data)[main_index];
-            for (kan_loop_size_t child_index = 0u; child_index < main_visible->visible_targets.size; ++child_index)
+            for (kan_memory_size_t child_index = 0u; child_index < main_visible->visible_targets.size; ++child_index)
             {
                 struct target_t *child_visible = ((struct target_t **) main_visible->visible_targets.data)[child_index];
                 bool already_here = child_visible == target;
 
-                for (kan_loop_size_t existent_index = 0u;
+                for (kan_memory_size_t existent_index = 0u;
                      !already_here && existent_index < target->visible_targets.size; ++existent_index)
                 {
                     already_here = child_visible == ((struct target_t **) target->visible_targets.data)[existent_index];
@@ -972,7 +972,7 @@ static enum kan_resource_build_result_t linearize_visible_targets (struct build_
     {
         if (target->marked_for_build)
         {
-            for (kan_loop_size_t main_index = 0u; main_index < target->visible_targets.size; ++main_index)
+            for (kan_memory_size_t main_index = 0u; main_index < target->visible_targets.size; ++main_index)
             {
                 struct target_t *visible = ((struct target_t **) target->visible_targets.data)[main_index];
                 if (!visible->marked_for_build)
@@ -997,7 +997,7 @@ static enum kan_resource_build_result_t linearize_visible_targets (struct build_
 struct transient_platform_configuration_entry_t
 {
     kan_reflection_patch_t data;
-    kan_time_size_t file_time;
+    kan_stable_size_t file_time;
 };
 
 static void transient_platform_configuration_entry_shutdown (struct transient_platform_configuration_entry_t *instance)
@@ -1135,10 +1135,10 @@ static enum kan_resource_build_result_t load_platform_configuration_entries_recu
                 }
 
                 bool all_tags_found = true;
-                for (kan_loop_size_t required_index = 0u; required_index < entry.required_tags.size; ++required_index)
+                for (kan_memory_size_t required_index = 0u; required_index < entry.required_tags.size; ++required_index)
                 {
                     bool found = false;
-                    for (kan_loop_size_t existent_index = 0u;
+                    for (kan_memory_size_t existent_index = 0u;
                          existent_index < state->setup->project->platform_configuration_tags.size; ++existent_index)
                     {
                         if (((kan_interned_string_t *) entry.required_tags.data)[required_index] ==
@@ -1166,7 +1166,7 @@ static enum kan_resource_build_result_t load_platform_configuration_entries_recu
                                      path_container->path);
 
                 struct transient_platform_configuration_layer_t *found_layer = NULL;
-                for (kan_loop_size_t index = 0u; index < hierarchy->layers.size; ++index)
+                for (kan_memory_size_t index = 0u; index < hierarchy->layers.size; ++index)
                 {
                     struct transient_platform_configuration_layer_t *layer =
                         &((struct transient_platform_configuration_layer_t *) hierarchy->layers.data)[index];
@@ -1186,7 +1186,7 @@ static enum kan_resource_build_result_t load_platform_configuration_entries_recu
                     return KAN_RESOURCE_BUILD_RESULT_ERROR_PLATFORM_CONFIGURATION_UNKNOWN_LAYER;
                 }
 
-                for (kan_loop_size_t index = 0u; index < found_layer->entries.size; ++index)
+                for (kan_memory_size_t index = 0u; index < found_layer->entries.size; ++index)
                 {
                     struct transient_platform_configuration_entry_t *found_entry =
                         &((struct transient_platform_configuration_entry_t *) found_layer->entries.data)[index];
@@ -1294,10 +1294,10 @@ static enum kan_resource_build_result_t load_platform_configuration (struct buil
                             kan_resource_platform_configuration_get_allocation_group ());
     CUSHION_DEFER { transient_platform_configuration_hierarchy_shutdown (&transient_hierarchy); }
 
-    for (kan_loop_size_t index = 0u; index < configuration_setup.layers.size; ++index)
+    for (kan_memory_size_t index = 0u; index < configuration_setup.layers.size; ++index)
     {
         kan_interned_string_t name = ((kan_interned_string_t *) configuration_setup.layers.data)[index];
-        for (kan_loop_size_t existent_index = 0u; existent_index < index; ++existent_index)
+        for (kan_memory_size_t existent_index = 0u; existent_index < index; ++existent_index)
         {
             if (name == ((kan_interned_string_t *) configuration_setup.layers.data)[existent_index])
             {
@@ -1329,12 +1329,12 @@ static enum kan_resource_build_result_t load_platform_configuration (struct buil
         return result;
     }
 
-    for (kan_loop_size_t layer_index = 0u; layer_index < configuration_setup.layers.size; ++layer_index)
+    for (kan_memory_size_t layer_index = 0u; layer_index < configuration_setup.layers.size; ++layer_index)
     {
         struct transient_platform_configuration_layer_t *layer =
             &((struct transient_platform_configuration_layer_t *) transient_hierarchy.layers.data)[layer_index];
 
-        for (kan_loop_size_t entry_index = 0u; entry_index < layer->entries.size; ++entry_index)
+        for (kan_memory_size_t entry_index = 0u; entry_index < layer->entries.size; ++entry_index)
         {
             struct transient_platform_configuration_entry_t *transient_entry =
                 &((struct transient_platform_configuration_entry_t *) layer->entries.data)[entry_index];
@@ -1462,7 +1462,7 @@ static void instantiate_log_target (struct build_state_t *state,
     struct kan_file_system_path_container_t path;
     kan_file_system_path_container_copy_string (&path, state->setup->project->workspace_directory);
 
-    for (kan_loop_size_t index = 0u; index < log_target->raw.size; ++index)
+    for (kan_memory_size_t index = 0u; index < log_target->raw.size; ++index)
     {
         const struct kan_resource_log_raw_entry_t *log_entry =
             &((struct kan_resource_log_raw_entry_t *) log_target->raw.data)[index];
@@ -1497,7 +1497,7 @@ static void instantiate_log_target (struct build_state_t *state,
         }
     }
 
-    for (kan_loop_size_t index = 0u; index < log_target->built.size; ++index)
+    for (kan_memory_size_t index = 0u; index < log_target->built.size; ++index)
     {
         const struct kan_resource_log_built_entry_t *log_entry =
             &((struct kan_resource_log_built_entry_t *) log_target->built.data)[index];
@@ -1559,7 +1559,7 @@ static void instantiate_log_target (struct build_state_t *state,
         }
     }
 
-    for (kan_loop_size_t index = 0u; index < log_target->secondary.size; ++index)
+    for (kan_memory_size_t index = 0u; index < log_target->secondary.size; ++index)
     {
         const struct kan_resource_log_secondary_entry_t *log_entry =
             &((struct kan_resource_log_secondary_entry_t *) log_target->secondary.data)[index];
@@ -1625,7 +1625,7 @@ static void instantiate_log_target (struct build_state_t *state,
 
 static enum kan_resource_build_result_t instantiate_initial_resource_log (struct build_state_t *state)
 {
-    for (kan_loop_size_t index = 0u; index < state->initial_log.targets.size; ++index)
+    for (kan_memory_size_t index = 0u; index < state->initial_log.targets.size; ++index)
     {
         const struct kan_resource_log_target_t *log_target =
             &((struct kan_resource_log_target_t *) state->initial_log.targets.data)[index];
@@ -1894,13 +1894,13 @@ static bool scan_directory (struct target_t *target, struct kan_file_system_path
     return successful;
 }
 
-static void execute_raw_resource_scan_for_target (kan_functor_user_data_t user_data)
+static void execute_raw_resource_scan_for_target (kan_memory_size_t user_data)
 {
     struct target_t *target = (struct target_t *) user_data;
     target->raw_resource_scan_step_successful = true;
     struct kan_file_system_path_container_t reused_path;
 
-    for (kan_loop_size_t directory_index = 0u; directory_index < target->source->directories.size; ++directory_index)
+    for (kan_memory_size_t directory_index = 0u; directory_index < target->source->directories.size; ++directory_index)
     {
         const char *directory_path = ((char **) target->source->directories.data)[directory_index];
         kan_file_system_path_container_copy_string (&reused_path, directory_path);
@@ -1923,7 +1923,7 @@ static enum kan_resource_build_result_t scan_for_raw_resources (struct build_sta
         // There is not that many targets, so we can just post tasks one by one instead of using task list.
         kan_cpu_job_dispatch_task (job, (struct kan_cpu_task_t) {
                                             .function = execute_raw_resource_scan_for_target,
-                                            .user_data = (kan_functor_user_data_t) target,
+                                            .user_data = (kan_memory_size_t) target,
                                             .profiler_section = kan_cpu_section_get (target->name),
                                         });
     }
@@ -2263,7 +2263,7 @@ static inline void confirm_resource_status (struct build_state_t *state,
             }
         }
 
-        for (kan_loop_size_t index = 0u; index < initial->secondary_inputs.size; ++index)
+        for (kan_memory_size_t index = 0u; index < initial->secondary_inputs.size; ++index)
         {
             const struct kan_resource_log_secondary_input_t *secondary =
                 &((struct kan_resource_log_secondary_input_t *) initial->secondary_inputs.data)[index];
@@ -2683,7 +2683,7 @@ static bool mark_resource_references_for_deployment (struct build_state_t *state
     // We don't need full locking here as `new_references` should not be changed after build and function
     // caller should ensure that this function is only being called after the build.
 
-    for (kan_loop_size_t index = 0u; index < source_array->size; ++index)
+    for (kan_memory_size_t index = 0u; index < source_array->size; ++index)
     {
         const struct kan_resource_log_reference_t *reference =
             &((struct kan_resource_log_reference_t *) source_array->data)[index];
@@ -2796,7 +2796,7 @@ static bool mark_resource_build_dependencies_for_cache (struct build_state_t *st
         }
     }
 
-    for (kan_loop_size_t index = 0u; index < source_array->size; ++index)
+    for (kan_memory_size_t index = 0u; index < source_array->size; ++index)
     {
         struct resource_request_t secondary_input_request = {
             .from_target = entry->target,
@@ -3493,7 +3493,7 @@ static struct build_step_output_t execute_build_primary_process_primary (struct 
     kan_dynamic_array_set_capacity (&entry->new_build_secondary_inputs, primary_reference_array->size);
     bool has_failed_secondary_inputs = false;
 
-    for (kan_loop_size_t reference_index = 0u; reference_index < primary_reference_array->size; ++reference_index)
+    for (kan_memory_size_t reference_index = 0u; reference_index < primary_reference_array->size; ++reference_index)
     {
         struct kan_resource_log_reference_t *reference =
             &((struct kan_resource_log_reference_t *) primary_reference_array->data)[reference_index];
@@ -3501,7 +3501,7 @@ static struct build_step_output_t execute_build_primary_process_primary (struct 
         if (reference->type)
         {
             bool used_for_build = false;
-            for (kan_loop_size_t type_index = 0u; type_index < reflected_type->build_rule_secondary_types.size;
+            for (kan_memory_size_t type_index = 0u; type_index < reflected_type->build_rule_secondary_types.size;
                  ++type_index)
             {
                 if (reference->type ==
@@ -3866,7 +3866,7 @@ static void cleanup_build_rule_context (struct kan_resource_build_rule_context_t
         remove_entry_loaded_data_usage (primary);
     }
 
-    for (kan_loop_size_t index = 0u; index < entry->new_build_secondary_inputs.size; ++index)
+    for (kan_memory_size_t index = 0u; index < entry->new_build_secondary_inputs.size; ++index)
     {
         struct new_build_secondary_input_t *input =
             &((struct new_build_secondary_input_t *) entry->new_build_secondary_inputs.data)[index];
@@ -3985,7 +3985,7 @@ static struct build_step_output_t execute_build_execute_build_rule (struct build
     }
 
     bool secondary_inputs_ready = true;
-    for (kan_loop_size_t index = 0u; index < entry->new_build_secondary_inputs.size; ++index)
+    for (kan_memory_size_t index = 0u; index < entry->new_build_secondary_inputs.size; ++index)
     {
         struct new_build_secondary_input_t *input =
             &((struct new_build_secondary_input_t *) entry->new_build_secondary_inputs.data)[index];
@@ -4545,7 +4545,7 @@ static void unblock_dependant_entries (struct build_state_t *state, struct resou
     entry->build.blocked_other_first = NULL;
 }
 
-static void build_task (kan_functor_user_data_t user_data);
+static void build_task (kan_memory_size_t user_data);
 
 static void dispatch_new_tasks_from_queue_unsafe (struct build_state_t *state)
 {
@@ -4560,13 +4560,13 @@ static void dispatch_new_tasks_from_queue_unsafe (struct build_state_t *state)
         // because total amount of tasks should not be that big.
         kan_cpu_task_dispatch ((struct kan_cpu_task_t) {
             .function = build_task,
-            .user_data = (kan_functor_user_data_t) item,
+            .user_data = (kan_memory_size_t) item,
             .profiler_section = kan_cpu_section_get (item->entry->name),
         });
     }
 }
 
-static void build_task (kan_functor_user_data_t user_data)
+static void build_task (kan_memory_size_t user_data)
 {
     struct build_queue_item_t *item = (struct build_queue_item_t *) user_data;
     enum resource_entry_next_build_task_t task_to_execute;
@@ -4737,7 +4737,7 @@ static bool mark_root_for_deployment (struct build_state_t *state)
     // optimize this part.
 
     KAN_LOG (resource_pipeline_build, KAN_LOG_INFO, "Marking root resources for deployment.")
-    const kan_time_size_t start = kan_precise_time_get_elapsed_nanoseconds ();
+    const kan_stable_size_t start = kan_precise_time_get_elapsed_nanoseconds ();
     struct target_t *target = state->targets_first;
 
     struct kan_dynamic_array_t resources_to_mark;
@@ -4751,7 +4751,7 @@ static bool mark_root_for_deployment (struct build_state_t *state)
         // that are only referenced for deployment from out of scope targets. Therefore, `!target->marked_for_build`
         // check is not needed here.
 
-        for (kan_loop_size_t index = 0u; index < state->setup->reflected_data->root_resource_type_names.size; ++index)
+        for (kan_memory_size_t index = 0u; index < state->setup->reflected_data->root_resource_type_names.size; ++index)
         {
             kan_interned_string_t type_name =
                 ((kan_interned_string_t *) state->setup->reflected_data->root_resource_type_names.data)[index];
@@ -4786,7 +4786,7 @@ static bool mark_root_for_deployment (struct build_state_t *state)
              (unsigned int) resources_to_mark.size)
     bool successful = true;
 
-    for (kan_loop_size_t index = 0u; index < resources_to_mark.size; ++index)
+    for (kan_memory_size_t index = 0u; index < resources_to_mark.size; ++index)
     {
         struct resource_entry_t *entry = ((struct resource_entry_t **) resources_to_mark.data)[index];
         struct resource_response_t response =
@@ -4812,7 +4812,7 @@ static bool mark_root_for_deployment (struct build_state_t *state)
     dispatch_new_tasks_from_queue_unsafe (state);
     kan_atomic_int_unlock (&state->build_queue_lock);
 
-    const kan_time_size_t end = kan_precise_time_get_elapsed_nanoseconds ();
+    const kan_stable_size_t end = kan_precise_time_get_elapsed_nanoseconds ();
     KAN_LOG (resource_pipeline_build, KAN_LOG_INFO, "Done marking root resources for deployment in %.3f ms.",
              1e-6f * (float) (end - start))
     return successful;
@@ -5202,7 +5202,7 @@ static bool execute_deployment_caching_step_for_entry (struct build_state_t *sta
     return true;
 }
 
-static void execute_deployment_caching_step_for_target (kan_functor_user_data_t user_data)
+static void execute_deployment_caching_step_for_target (kan_memory_size_t user_data)
 {
     struct target_t *target = (struct target_t *) user_data;
     struct build_state_t *state = target->state;
@@ -5311,7 +5311,7 @@ static bool execute_deployment_caching_step (struct build_state_t *state)
 {
     KAN_LOG (resource_pipeline_build, KAN_LOG_INFO, "Executing resource deployment and caching passes.")
     KAN_CPU_SCOPED_STATIC_SECTION (execute_deployment_and_caching)
-    const kan_time_size_t start = kan_precise_time_get_elapsed_nanoseconds ();
+    const kan_stable_size_t start = kan_precise_time_get_elapsed_nanoseconds ();
 
     struct target_t *target = state->targets_first;
     kan_cpu_job_t job = kan_cpu_job_create ();
@@ -5327,7 +5327,7 @@ static bool execute_deployment_caching_step (struct build_state_t *state)
         // There is not that many targets, so we can just post tasks one by one instead of using task list.
         kan_cpu_job_dispatch_task (job, (struct kan_cpu_task_t) {
                                             .function = execute_deployment_caching_step_for_target,
-                                            .user_data = (kan_functor_user_data_t) target,
+                                            .user_data = (kan_memory_size_t) target,
                                             .profiler_section = kan_cpu_section_get (target->name),
                                         });
     }
@@ -5344,7 +5344,7 @@ static bool execute_deployment_caching_step (struct build_state_t *state)
         target = target->next;
     }
 
-    const kan_time_size_t end = kan_precise_time_get_elapsed_nanoseconds ();
+    const kan_stable_size_t end = kan_precise_time_get_elapsed_nanoseconds ();
     KAN_LOG (resource_pipeline_build, KAN_LOG_INFO, "Done moving resource files for deployment and caching in %.3f ms.",
              1e-6f * (float) (end - start))
     return successful;
@@ -5475,7 +5475,7 @@ static void add_entry_to_build_log (struct build_state_t *state,
                     sizeof (struct kan_resource_log_reference_t) * log_entry->references.size);
             kan_dynamic_array_set_capacity (&log_entry->secondary_inputs, entry->new_build_secondary_inputs.size);
 
-            for (kan_loop_size_t index = 0u; index < entry->new_build_secondary_inputs.size; ++index)
+            for (kan_memory_size_t index = 0u; index < entry->new_build_secondary_inputs.size; ++index)
             {
                 struct new_build_secondary_input_t *input =
                     &((struct new_build_secondary_input_t *) entry->new_build_secondary_inputs.data)[index];
@@ -5632,10 +5632,10 @@ static bool generate_and_save_build_log (struct build_state_t *state)
     KAN_LOG (resource_pipeline_build, KAN_LOG_INFO, "Generating and saving build log.")
     KAN_CPU_SCOPED_STATIC_SECTION (generate_and_save_build_log)
 
-    const kan_time_size_t start = kan_precise_time_get_elapsed_nanoseconds ();
+    const kan_stable_size_t start = kan_precise_time_get_elapsed_nanoseconds ();
     CUSHION_DEFER
     {
-        const kan_time_size_t end = kan_precise_time_get_elapsed_nanoseconds ();
+        const kan_stable_size_t end = kan_precise_time_get_elapsed_nanoseconds ();
         KAN_LOG (resource_pipeline_build, KAN_LOG_INFO, "Finished build log generation and saving step in %.3f ms.",
                  1e-6f * (float) (end - start))
     }
@@ -5853,7 +5853,7 @@ static bool pack_entry_sort_comparator (struct resource_entry_t *left, struct re
     return strcmp (left->type->name, right->type->name) < 0;
 }
 
-static void execute_pack_for_target (kan_functor_user_data_t user_data)
+static void execute_pack_for_target (kan_memory_size_t user_data)
 {
     struct target_t *target = (struct target_t *) user_data;
     struct build_state_t *state = target->state;
@@ -5867,7 +5867,7 @@ static void execute_pack_for_target (kan_functor_user_data_t user_data)
 
     struct resource_type_container_t *container =
         (struct resource_type_container_t *) target->resource_types.items.first;
-    kan_loop_size_t entry_types_count = 0u;
+    kan_memory_size_t entry_types_count = 0u;
 
     while (container)
     {
@@ -6024,7 +6024,7 @@ static void execute_pack_for_target (kan_functor_user_data_t user_data)
     const struct kan_reflection_struct_t *last_addition_type = NULL;
     struct kan_resource_index_container_t *last_addition_container = NULL;
 
-    for (kan_loop_size_t index = 0u; index < entries_to_pack.size; ++index)
+    for (kan_memory_size_t index = 0u; index < entries_to_pack.size; ++index)
     {
         struct resource_entry_t *entry = ((struct resource_entry_t **) entries_to_pack.data)[index];
         KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
@@ -6183,7 +6183,7 @@ static void execute_pack_for_target (kan_functor_user_data_t user_data)
                                         KAN_RESOURCE_PIPELINE_BUILD_PACK_INDEX_TPI_CAPACITY);
     }
 
-    for (kan_loop_size_t index = 0u; index < third_party_to_pack.size; ++index)
+    for (kan_memory_size_t index = 0u; index < third_party_to_pack.size; ++index)
     {
         struct raw_third_party_entry_t *entry = ((struct raw_third_party_entry_t **) third_party_to_pack.data)[index];
         KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
@@ -6327,7 +6327,7 @@ static enum kan_resource_build_result_t execute_pack (struct build_state_t *stat
         // There is not that many targets, so we can just post tasks one by one instead of using task list.
         kan_cpu_job_dispatch_task (job, (struct kan_cpu_task_t) {
                                             .function = execute_pack_for_target,
-                                            .user_data = (kan_functor_user_data_t) target,
+                                            .user_data = (kan_memory_size_t) target,
                                             .profiler_section = kan_cpu_section_get (target->name),
                                         });
     }
@@ -6364,11 +6364,11 @@ enum kan_resource_build_result_t kan_resource_build (struct kan_resource_build_s
 #define CHECKED_STEP(NAME)                                                                                             \
     {                                                                                                                  \
         KAN_CPU_SCOPED_STATIC_SECTION (NAME)                                                                           \
-        const kan_time_size_t start = kan_precise_time_get_elapsed_nanoseconds ();                                     \
+        const kan_stable_size_t start = kan_precise_time_get_elapsed_nanoseconds ();                                   \
                                                                                                                        \
         CUSHION_DEFER                                                                                                  \
         {                                                                                                              \
-            const kan_time_size_t end = kan_precise_time_get_elapsed_nanoseconds ();                                   \
+            const kan_stable_size_t end = kan_precise_time_get_elapsed_nanoseconds ();                                 \
             KAN_LOG (resource_pipeline_build, KAN_LOG_INFO, "Step \"%s\" done in %.3f ms.", #NAME,                     \
                      1e-6f * (float) (end - start))                                                                    \
         }                                                                                                              \

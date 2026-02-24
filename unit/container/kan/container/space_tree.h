@@ -63,7 +63,7 @@
 ///     struct kan_space_tree_node_t *node = iterator.current_node;
 ///     struct my_sub_node_type_t *sub_nodes = node->sub_nodes;
 ///
-///     for (kan_loop_size_t node_index = 0u; node_index < node->sub_nodes_count; ++node_index)
+///     for (kan_memory_size_t node_index = 0u; node_index < node->sub_nodes_count; ++node_index)
 ///     {
 ///         struct my_sub_node_type_t *sub_node = &sub_nodes[node_index];
 ///         const kan_floating_t node_min[] = {/* Fill min coordinates. */};
@@ -95,7 +95,7 @@
 ///     struct kan_space_tree_node_t *node = iterator.current_node;
 ///     struct my_sub_node_type_t *sub_nodes = node->sub_nodes;
 ///
-///     for (kan_loop_size_t node_index = 0u; node_index < node->sub_nodes_count; ++node_index)
+///     for (kan_memory_size_t node_index = 0u; node_index < node->sub_nodes_count; ++node_index)
 ///     {
 ///         struct my_sub_node_type_t *sub_node = &sub_nodes[node_index];
 ///         const kan_floating_t node_min[] = {/* Fill min coordinates. */};
@@ -133,19 +133,12 @@ KAN_C_HEADER_BEGIN
 static_assert (KAN_CONTAINER_SPACE_TREE_MAX_DIMENSIONS <= 4u,
                "Current implementation is optimized for 4 or less dimensions.");
 
-#if defined(KAN_CORE_TYPES_PRESET_X64)
+#if defined(KAN_CORE_TYPES_PRESET_DEFAULT)
 /// \brief Type that describes movement along one of the axes inside space tree.
 typedef uint16_t kan_space_tree_road_t;
 
 /// \brief Type that describes movement along all the axes inside space tree.
 typedef uint64_t kan_space_tree_combined_path_t;
-
-#elif defined(KAN_CORE_TYPES_PRESET_X32)
-/// \brief Type that describes movement along one of the axes inside space tree.
-typedef uint8_t kan_space_tree_road_t;
-
-/// \brief Type that describes movement along all the axes inside space tree.
-typedef uint32_t kan_space_tree_combined_path_t;
 
 #else
 #    error "Core types preset not selected."
@@ -452,7 +445,7 @@ static inline struct kan_ray_intersection_output_t kan_check_if_ray_and_bounds_i
         return result;
     }
 
-    kan_loop_size_t target_plane = KAN_INT_MAX (kan_loop_size_t);
+    kan_memory_size_t target_plane = KAN_INT_MAX (kan_memory_size_t);
     kan_floating_t max_time = -1.0;
 
     switch (dimension_count)
@@ -476,7 +469,7 @@ static inline struct kan_ray_intersection_output_t kan_check_if_ray_and_bounds_i
 #undef CASE
     }
 
-    if (target_plane == KAN_INT_MAX (kan_loop_size_t))
+    if (target_plane == KAN_INT_MAX (kan_memory_size_t))
     {
         result.hit = false;
         return result;

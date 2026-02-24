@@ -84,7 +84,7 @@ KAN_TEST_CASE (query_status)
     KAN_TEST_CHECK (status.type == KAN_FILE_SYSTEM_ENTRY_TYPE_FILE)
     KAN_TEST_CHECK (status.size == 13u)
     KAN_TEST_CHECK (!status.read_only)
-    kan_time_size_t test1_last_modification_time_ns = status.last_modification_time_ns;
+    kan_stable_size_t test1_last_modification_time_ns = status.last_modification_time_ns;
 
     KAN_TEST_CHECK (kan_file_system_query_entry ("test_directory/test2.txt", &status))
     KAN_TEST_CHECK (status.type == KAN_FILE_SYSTEM_ENTRY_TYPE_FILE)

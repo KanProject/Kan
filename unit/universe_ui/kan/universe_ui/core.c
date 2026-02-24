@@ -226,9 +226,9 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_time)
 UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_time)
 {
     KAN_UMI_SINGLETON_WRITE (public, kan_ui_singleton_t)
-    if (public->last_time_ns != KAN_INT_MAX (kan_time_size_t))
+    if (public->last_time_ns != KAN_INT_MAX (kan_stable_size_t))
     {
-        const kan_time_size_t delta_ns = kan_precise_time_get_elapsed_nanoseconds () - public->last_time_ns;
+        const kan_stable_size_t delta_ns = kan_precise_time_get_elapsed_nanoseconds () - public->last_time_ns;
         const kan_floating_t delta_s = 1e-9f * (kan_floating_t) delta_ns;
 
         public->animation_global_time_s =
@@ -600,7 +600,7 @@ static bool layout_base_pass (struct ui_layout_state_t *state,
     if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
     {
         bool short_circuit = true;
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             short_circuit &= layout_base_pass (state, access->child, access->drawable);
@@ -622,7 +622,7 @@ static bool layout_base_pass (struct ui_layout_state_t *state,
     data->cached_padding_top_px = kan_ui_calculate_coordinate (state->transient.ui, node->layout.padding.top);
     data->cached_padding_bottom_px = kan_ui_calculate_coordinate (state->transient.ui, node->layout.padding.bottom);
 
-    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
 #if defined(KAN_WITH_ASSERT)
@@ -644,7 +644,7 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
     // Short-circuit for non-full updates -- just go to the children.
     if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
     {
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             layout_whitespace_pass (state, access->child, access->drawable);
@@ -676,7 +676,7 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
         // For example, frame layout can be used to position internal scrollable vertical container and it its scroll
         // lines: despite the fact that container is inside frame, we'd like its internal elements to know about outer
         // margins and avoid introducing unnecessary whitespace inside that container.
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct kan_ui_node_drawable_t *child = access->drawable;
@@ -702,7 +702,7 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
     case KAN_UI_LAYOUT_VERTICAL_CONTAINER:
     {
         kan_instance_offset_t previous_margin = baseline_top;
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct kan_ui_node_drawable_t *child = access->drawable;
@@ -739,7 +739,7 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
     case KAN_UI_LAYOUT_HORIZONTAL_CONTAINER:
     {
         kan_instance_offset_t previous_margin = baseline_left;
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct kan_ui_node_drawable_t *child = access->drawable;
@@ -773,7 +773,7 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
     }
     }
 
-    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
         layout_whitespace_pass (state, access->child, access->drawable);
@@ -789,7 +789,7 @@ static void layout_size_pass (struct ui_layout_state_t *state,
     // Short-circuit for non-full updates -- just go to the children.
     if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
     {
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             layout_size_pass (state, access->child, access->drawable);
@@ -798,7 +798,7 @@ static void layout_size_pass (struct ui_layout_state_t *state,
         return;
     }
 
-    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
         layout_size_pass (state, access->child, access->drawable);
@@ -862,7 +862,7 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
     // Short-circuit for non-full updates -- just go to the children.
     if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
     {
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             layout_grow_pass (state, access->child, access->drawable, root);
@@ -908,7 +908,7 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
     struct layout_grow_node_t *first_grow_width_node = NULL;
     struct layout_grow_node_t *first_grow_height_node = NULL;
 
-    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
         struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
@@ -1077,7 +1077,7 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
     DO_GROW_ON_AXIS (width)
     DO_GROW_ON_AXIS (height)
 
-    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
         layout_grow_pass (state, access->child, access->drawable, false);
@@ -1093,7 +1093,7 @@ static void layout_position_pass (struct ui_layout_state_t *state,
     // Short-circuit for non-full updates -- just go to the children.
     if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
     {
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             layout_position_pass (state, access->child, access->drawable);
@@ -1153,7 +1153,7 @@ static void layout_position_pass (struct ui_layout_state_t *state,
     switch (data->cached_layout)
     {
     case KAN_UI_LAYOUT_FRAME:
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
@@ -1198,7 +1198,7 @@ static void layout_position_pass (struct ui_layout_state_t *state,
     case KAN_UI_LAYOUT_VERTICAL_CONTAINER:
     {
         kan_instance_offset_t cursor = pad_top;
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
@@ -1232,7 +1232,7 @@ static void layout_position_pass (struct ui_layout_state_t *state,
     case KAN_UI_LAYOUT_HORIZONTAL_CONTAINER:
     {
         kan_instance_offset_t cursor = pad_top;
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
@@ -1264,7 +1264,7 @@ static void layout_position_pass (struct ui_layout_state_t *state,
     }
     }
 
-    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
         layout_position_pass (state, access->child, access->drawable);
@@ -1337,7 +1337,7 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
                              drawable->global_y >= drawable->clip_rect.y + drawable->clip_rect.height;
     drawable->hidden_permanently = hidden_by_hierarchy || clipped_out;
 
-    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         struct layout_child_access_t *access = &data->sorted_children[index];
         access->drawable->cached.parent_clip_rect = drawable->clip_rect;
@@ -1404,7 +1404,7 @@ static void execute_draw_index_reorder (struct ui_layout_state_t *state, const s
     struct layout_child_access_t *sorted_children;
     read_and_sort_children_into (state, parent_id, &sorted_children_count, &sorted_children);
 
-    for (kan_loop_size_t index = 0u; index < sorted_children_count; ++index)
+    for (kan_memory_size_t index = 0u; index < sorted_children_count; ++index)
     {
         struct layout_child_access_t *access = &sorted_children[index];
         const kan_instance_size_t shift = (sizeof (kan_instance_size_t) - 1u) * 8u;
@@ -1915,7 +1915,7 @@ static bool ensure_pass_parameter_set_ready (struct ui_render_state_t *state,
     const struct kan_render_foundation_pass_variant_t *variant =
         &((struct kan_render_foundation_pass_variant_t *) pass_loaded->variants.data)[0u];
 
-    for (kan_loop_size_t index = 0; index < variant->pass_parameter_set_bindings.buffers.size; ++index)
+    for (kan_memory_size_t index = 0; index < variant->pass_parameter_set_bindings.buffers.size; ++index)
     {
         const struct kan_rpl_meta_buffer_t *buffer =
             &((struct kan_rpl_meta_buffer_t *) variant->pass_parameter_set_bindings.buffers.data)[index];
@@ -1946,7 +1946,7 @@ static bool ensure_pass_parameter_set_ready (struct ui_render_state_t *state,
         }
     }
 
-    for (kan_loop_size_t index = 0; index < variant->pass_parameter_set_bindings.samplers.size; ++index)
+    for (kan_memory_size_t index = 0; index < variant->pass_parameter_set_bindings.samplers.size; ++index)
     {
         const struct kan_rpl_meta_sampler_t *sampler =
             &((struct kan_rpl_meta_sampler_t *) variant->pass_parameter_set_bindings.samplers.data)[index];
@@ -1961,7 +1961,7 @@ static bool ensure_pass_parameter_set_ready (struct ui_render_state_t *state,
         }
     }
 
-    for (kan_loop_size_t index = 0; index < variant->pass_parameter_set_bindings.images.size; ++index)
+    for (kan_memory_size_t index = 0; index < variant->pass_parameter_set_bindings.images.size; ++index)
     {
         const struct kan_rpl_meta_image_t *image =
             &((struct kan_rpl_meta_image_t *) variant->pass_parameter_set_bindings.images.data)[index];
@@ -2129,7 +2129,7 @@ static bool cache_material_instance_data (struct ui_render_state_t *state,
     *output_parameters = material_instance->parameter_set;
     KAN_UMI_VALUE_READ_REQUIRED (material, kan_render_material_loaded_t, name, &material_instance->material_name)
 
-    for (kan_loop_size_t index = 0u; index < material->pipelines.size; ++index)
+    for (kan_memory_size_t index = 0u; index < material->pipelines.size; ++index)
     {
         const struct kan_render_material_pipeline_t *pipeline =
             &((struct kan_render_material_pipeline_t *) material->pipelines.data)[index];
@@ -2530,7 +2530,7 @@ static void execute_draw_custom_command (struct ui_render_state_t *state,
     kan_render_graphics_pipeline_t selected_pipeline = KAN_HANDLE_SET_INVALID (kan_render_graphics_pipeline_t);
     const kan_interned_string_t pass_name = state->transient.bundle->available_bundle.pass;
 
-    for (kan_loop_size_t index = 0u; index < material->pipelines.size; ++index)
+    for (kan_memory_size_t index = 0u; index < material->pipelines.size; ++index)
     {
         const struct kan_render_material_pipeline_t *pipeline =
             &((struct kan_render_material_pipeline_t *) material->pipelines.data)[index];
@@ -2873,7 +2873,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
         }
 
         apply_clip_rect (state, &node->clip_rect);
-        for (kan_loop_size_t index = 0; index < node->additional_draw_commands.size; ++index)
+        for (kan_memory_size_t index = 0; index < node->additional_draw_commands.size; ++index)
         {
             const struct kan_ui_draw_command_data_t *command =
                 &((struct kan_ui_draw_command_data_t *) node->additional_draw_commands.data)[index];
@@ -2885,7 +2885,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
         }
 
         process_draw_command (state, node, &node->main_draw_command);
-        for (kan_loop_size_t index = 0; index < node->additional_draw_commands.size; ++index)
+        for (kan_memory_size_t index = 0; index < node->additional_draw_commands.size; ++index)
         {
             const struct kan_ui_draw_command_data_t *command =
                 &((struct kan_ui_draw_command_data_t *) node->additional_draw_commands.data)[index];
@@ -3323,7 +3323,7 @@ void kan_ui_singleton_init (struct kan_ui_singleton_t *instance)
     instance->animation_global_time_s = 0.0f;
     instance->animation_delta_time_s = 0.0f;
     instance->animation_global_time_loop_s = 24.0f * 60.0f * 60.0f;
-    instance->last_time_ns = KAN_INT_MAX (kan_time_size_t);
+    instance->last_time_ns = KAN_INT_MAX (kan_stable_size_t);
 }
 
 void kan_ui_bundle_singleton_init (struct kan_ui_bundle_singleton_t *instance)

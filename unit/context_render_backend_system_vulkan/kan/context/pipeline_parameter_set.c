@@ -239,12 +239,12 @@ struct render_backend_pipeline_parameter_set_t *render_backend_system_create_pip
                                                      alignof (struct render_backend_descriptor_set_allocation_t));
 
         bool allocated_successfully = true;
-        for (kan_loop_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
+        for (kan_memory_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
         {
             unstable_allocations[index].descriptor_set = VK_NULL_HANDLE;
         }
 
-        for (kan_loop_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
+        for (kan_memory_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
         {
             unstable_allocations[index] =
                 render_backend_descriptor_set_allocator_allocate (system, &system->descriptor_set_allocator, layout);
@@ -278,7 +278,7 @@ struct render_backend_pipeline_parameter_set_t *render_backend_system_create_pip
 
         if (!allocated_successfully)
         {
-            for (kan_loop_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
+            for (kan_memory_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
             {
                 if (unstable_allocations[index].descriptor_set != VK_NULL_HANDLE)
                 {
@@ -325,7 +325,7 @@ struct render_backend_pipeline_parameter_set_t *render_backend_system_create_pip
             kan_allocate_general (system->pipeline_parameter_set_wrapper_allocation_group,
                                   sizeof (VkImageView) * layout->bindings_count, alignof (VkImageView));
 
-        for (kan_loop_size_t index = 0u; index < layout->bindings_count; ++index)
+        for (kan_memory_size_t index = 0u; index < layout->bindings_count; ++index)
         {
             set->bound_image_views[index] = VK_NULL_HANDLE;
         }
@@ -345,7 +345,7 @@ void render_backend_system_destroy_pipeline_parameter_set (struct render_backend
     }
     else
     {
-        for (kan_loop_size_t allocation_index = 0u;
+        for (kan_memory_size_t allocation_index = 0u;
              allocation_index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++allocation_index)
         {
             render_backend_descriptor_set_allocator_free (system, &system->descriptor_set_allocator,
@@ -359,7 +359,7 @@ void render_backend_system_destroy_pipeline_parameter_set (struct render_backend
 
     if (set->bound_image_views)
     {
-        for (kan_loop_size_t index = 0u; index < set->layout->bindings_count; ++index)
+        for (kan_memory_size_t index = 0u; index < set->layout->bindings_count; ++index)
         {
             // When we're destroying parameter set, it is surely already safe to destroy its image views too.
             if (set->bound_image_views[index] != VK_NULL_HANDLE)
@@ -405,7 +405,7 @@ void render_backend_apply_descriptor_set_mutation (struct render_backend_pipelin
             bool should_transfer = true;
             if (update_needed)
             {
-                for (kan_loop_size_t index = 0u; index < update_bindings_count; ++index)
+                for (kan_memory_size_t index = 0u; index < update_bindings_count; ++index)
                 {
                     if (update_bindings[index].binding == binding)
                     {
@@ -447,7 +447,7 @@ void render_backend_apply_descriptor_set_mutation (struct render_backend_pipelin
 
     if (update_needed)
     {
-        for (kan_loop_size_t index = 0u; index < update_bindings_count; ++index)
+        for (kan_memory_size_t index = 0u; index < update_bindings_count; ++index)
         {
             switch (set_context->layout->bindings[update_bindings[index].binding].type)
             {
@@ -484,7 +484,7 @@ void render_backend_apply_descriptor_set_mutation (struct render_backend_pipelin
         VkDescriptorBufferInfo *next_buffer_info = buffer_info;
         VkDescriptorImageInfo *next_image_info = image_info;
 
-        for (kan_loop_size_t index = 0u; index < update_bindings_count; ++index)
+        for (kan_memory_size_t index = 0u; index < update_bindings_count; ++index)
         {
             VkDescriptorType descriptor_type = VK_DESCRIPTOR_TYPE_MAX_ENUM;
             VkDescriptorBufferInfo *this_buffer_info = NULL;

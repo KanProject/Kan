@@ -69,6 +69,14 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_n
     .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
 };
 
+KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_tooltip_behavior_cascade_deletion =
+    {
+        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+        .child_type_name = "kan_ui_node_tooltip_behavior_t",
+        .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+};
+
 struct kan_ui_node_down_mark_t
 {
     kan_ui_node_id_t id;
@@ -181,6 +189,24 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_on_insert_event_t kan_ui_no
             },
 };
 
+struct kan_ui_node_tooltip_behavior_on_insert_event_t
+{
+    kan_ui_node_id_t id;
+};
+
+KAN_REFLECTION_STRUCT_META (kan_ui_node_tooltip_behavior_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_on_insert_event_t kan_ui_node_tooltip_behavior_on_insert_event = {
+    .event_type = "kan_ui_node_tooltip_behavior_on_insert_event_t",
+    .copy_outs_count = 1u,
+    .copy_outs =
+        (struct kan_repository_copy_out_t[]) {
+            {
+                .source_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+                .target_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+            },
+        },
+};
+
 enum kan_ui_node_scroll_line_class_t
 {
     KAN_UI_NODE_SCROLL_LINE_CLASS_HORIZONTAL = 0u,
@@ -211,6 +237,26 @@ UNIVERSE_UI_API void kan_ui_node_scroll_line_state_init (struct kan_ui_node_scro
     instance->class = KAN_UI_NODE_SCROLL_LINE_CLASS_HORIZONTAL;
     instance->visible_until_s = 0.0f;
 }
+
+enum kan_ui_node_tooltip_action_t
+{
+    KAN_UI_NODE_TOOLTIP_ACTION_SHOW = 0u,
+    KAN_UI_NODE_TOOLTIP_ACTION_HIDE,
+};
+
+struct kan_ui_node_tooltip_state_t
+{
+    kan_immutable kan_ui_node_id_t id;
+    enum kan_ui_node_tooltip_action_t pending_action;
+    kan_floating_t pending_action_time_s;
+};
+
+KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_tooltip_state_cascade_deletion = {
+    .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+    .child_type_name = "kan_ui_node_tooltip_state_t",
+    .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+};
 
 struct ui_controls_input_private_singleton_t
 {
@@ -658,6 +704,36 @@ static void hide_scroll_line (struct ui_controls_input_state_t *state,
     line_state->visible_until_s = 0.0f;
 }
 
+static bool process_hit_box_insertion (struct ui_controls_input_state_t *state,
+                                       struct kan_ui_input_singleton_t *public,
+                                       const struct kan_ui_bundle_singleton_t *bundle)
+{
+    bool hit_boxes_changed = false;
+    KAN_UML_EVENT_FETCH (hit_box_inserted_event, kan_ui_node_hit_box_on_insert_event_t)
+    {
+        KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &hit_box_inserted_event->id)
+        if (!hit_box)
+        {
+            continue;
+        }
+
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (node, kan_ui_node_t, id, &hit_box_inserted_event->id)
+        if (node)
+        {
+            node->event_on_laid_out = true;
+            hit_boxes_changed = true;
+        }
+
+        // We have to initialize visuals.
+        if (hit_box->interactable)
+        {
+            apply_hit_box_interaction_visuals (state, public, bundle, hit_box, false);
+        }
+    }
+
+    return hit_boxes_changed;
+}
+
 static void process_scroll_behavior_insertion (struct ui_controls_input_state_t *state,
                                                const struct kan_ui_singleton_t *ui)
 {
@@ -719,7 +795,7 @@ static void process_scroll_behavior_insertion (struct ui_controls_input_state_t 
     }
 }
 
-static void process_line_edit_behavior_lifetime (struct ui_controls_input_state_t *state)
+static void process_line_edit_behavior_insertion (struct ui_controls_input_state_t *state)
 {
     KAN_UML_EVENT_FETCH (line_edit_behavior_inserted_event, kan_ui_node_line_edit_behavior_on_insert_event_t)
     {
@@ -747,6 +823,21 @@ static void process_line_edit_behavior_lifetime (struct ui_controls_input_state_
         shaping_unit->request.generate_edition_markup = true;
         shaping_unit->dirty = true;
         shaping_unit->stable = true;
+    }
+}
+
+static void process_tooltip_behavior_insertion (struct ui_controls_input_state_t *state)
+{
+    KAN_UML_EVENT_FETCH (tooltip_behavior_inserted_event, kan_ui_node_tooltip_behavior_on_insert_event_t)
+    {
+        KAN_UMI_VALUE_READ_OPTIONAL (behavior, kan_ui_node_tooltip_behavior_t, id, &tooltip_behavior_inserted_event->id)
+        if (!behavior)
+        {
+            continue;
+        }
+
+        KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &tooltip_behavior_inserted_event->id)
+        node->render.hidden = true;
     }
 }
 
@@ -1908,6 +1999,139 @@ static void on_map_behavior_zoom (struct ui_controls_input_state_t *state,
     behavior->dirty = true;
 }
 
+static void trigger_tooltips_on_new_hovered_node (struct ui_controls_input_state_t *state,
+                                                  struct kan_ui_input_singleton_t *public,
+                                                  const struct kan_ui_singleton_t *ui)
+{
+    KAN_UML_VALUE_READ (behavior, kan_ui_node_tooltip_behavior_t, trigger_when_hovering_id, &public->current_hovered_id)
+    {
+        const kan_floating_t show_after_s = ui->animation_global_time_s + behavior->hovered_show_delay_s;
+        bool state_updated = false;
+
+        KAN_UML_SEQUENCE_UPDATE (tooltip_state, kan_ui_node_tooltip_state_t)
+        {
+            if (KAN_TYPED_ID_32_IS_EQUAL (tooltip_state->id, behavior->id))
+            {
+                // We have existing state. We only need to update show action time if any.
+                if (tooltip_state->pending_action == KAN_UI_NODE_TOOLTIP_ACTION_SHOW)
+                {
+                    tooltip_state->pending_action_time_s = KAN_MIN (tooltip_state->pending_action_time_s, show_after_s);
+                }
+
+                state_updated = true;
+                break;
+            }
+        }
+
+        if (!state_updated)
+        {
+            KAN_UMI_INDEXED_INSERT (new_tooltip_state, kan_ui_node_tooltip_state_t)
+            new_tooltip_state->id = behavior->id;
+            new_tooltip_state->pending_action = KAN_UI_NODE_TOOLTIP_ACTION_SHOW;
+            new_tooltip_state->pending_action_time_s = show_after_s;
+        }
+    }
+}
+
+static inline bool is_tooltip_triggered (struct ui_controls_input_state_t *state,
+                                         struct kan_ui_input_singleton_t *public,
+                                         const struct kan_ui_node_tooltip_behavior_t *behavior)
+{
+    if (KAN_TYPED_ID_32_IS_VALID (behavior->trigger_when_hovering_id) &&
+        KAN_TYPED_ID_32_IS_EQUAL (public->current_hovered_id, behavior->trigger_when_hovering_id))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+static inline bool is_tooltip_preserved (struct ui_controls_input_state_t *state,
+                                         struct kan_ui_input_singleton_t *public,
+                                         const struct kan_ui_node_tooltip_behavior_t *behavior)
+{
+    if (behavior->preserve_while_pointed)
+    {
+        // Preservation under pointer implementation is not optimized right now at all.
+        // If this simple implementation starts to cause issues, it should definitely be optimized and refactored.
+        kan_ui_node_id_t under_cursor_id = public->current_hovered_id;
+
+        if (!KAN_TYPED_ID_32_IS_VALID (under_cursor_id))
+        {
+            // Find what is under cursor right now as we have no quick info from hover.
+            struct kan_repository_indexed_sequence_read_access_t hit_box_access;
+            const struct kan_ui_node_hit_box_t *hit_box = find_hit_box_at (
+                state, HIT_BOX_SEARCH_MODE_POINTER, public->last_mouse_x, public->last_mouse_y, &hit_box_access);
+
+            if (hit_box)
+            {
+                under_cursor_id = hit_box->id;
+                kan_repository_indexed_sequence_read_access_close (&hit_box_access);
+            }
+        }
+
+        while (KAN_TYPED_ID_32_IS_VALID (under_cursor_id))
+        {
+            if (KAN_TYPED_ID_32_IS_EQUAL (under_cursor_id, behavior->id))
+            {
+                return true;
+            }
+
+            KAN_UMI_VALUE_READ_REQUIRED (node, kan_ui_node_t, id, &under_cursor_id)
+            under_cursor_id = node->parent_id;
+        }
+    }
+
+    return false;
+}
+
+static void update_tooltip_states (struct ui_controls_input_state_t *state,
+                                   struct kan_ui_input_singleton_t *public,
+                                   const struct kan_ui_singleton_t *ui)
+{
+    KAN_UML_SEQUENCE_WRITE (tooltip_state, kan_ui_node_tooltip_state_t)
+    {
+        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_tooltip_behavior_t, id, &tooltip_state->id)
+        switch (tooltip_state->pending_action)
+        {
+        case KAN_UI_NODE_TOOLTIP_ACTION_SHOW:
+            if (!is_tooltip_triggered (state, public, behavior))
+            {
+                // Reasons to show are no longer valid.
+                KAN_UM_ACCESS_DELETE (tooltip_state);
+                break;
+            }
+
+            if (tooltip_state->pending_action_time_s <= ui->animation_global_time_s)
+            {
+                KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &tooltip_state->id)
+                node->render.hidden = false;
+
+                tooltip_state->pending_action = KAN_UI_NODE_TOOLTIP_ACTION_HIDE;
+                tooltip_state->pending_action_time_s = ui->animation_global_time_s + behavior->lifetime_s;
+            }
+
+            break;
+
+        case KAN_UI_NODE_TOOLTIP_ACTION_HIDE:
+            if (is_tooltip_triggered (state, public, behavior) || is_tooltip_preserved (state, public, behavior))
+            {
+                tooltip_state->pending_action_time_s = ui->animation_global_time_s + behavior->lifetime_s;
+                break;
+            }
+
+            if (tooltip_state->pending_action_time_s <= ui->animation_global_time_s)
+            {
+                KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &tooltip_state->id)
+                node->render.hidden = true;
+                KAN_UM_ACCESS_DELETE (tooltip_state);
+            }
+
+            break;
+        }
+    }
+}
+
 static void process_events (struct ui_controls_input_state_t *state,
                             struct kan_ui_input_singleton_t *public,
                             const struct kan_ui_singleton_t *ui,
@@ -2245,6 +2469,7 @@ static void process_events (struct ui_controls_input_state_t *state,
             if (new_hovered_applicable)
             {
                 apply_hit_box_interaction_visuals (state, public, bundle, new_hovered, false);
+                trigger_tooltips_on_new_hovered_node (state, public, ui);
             }
         }
 
@@ -2269,6 +2494,7 @@ static void process_events (struct ui_controls_input_state_t *state,
         }
     }
 
+    update_tooltip_states (state, public, ui);
     if (public->press_filtered_in && KAN_TYPED_ID_32_IS_VALID (public->press_started_on_id))
     {
         KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &public->press_started_on_id)
@@ -2780,37 +3006,17 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_input)
 
     KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
     bool visuals_changed = false;
-    bool hit_boxes_changed = false;
 
     KAN_UML_EVENT_FETCH (bundle_updated_event, kan_ui_bundle_updated_t)
     {
         visuals_changed = INPUT_HIT_BOX_MOUSE_UPDATE_MODE_EXECUTE;
     }
 
-    KAN_UML_EVENT_FETCH (hit_box_inserted_event, kan_ui_node_hit_box_on_insert_event_t)
-    {
-        KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &hit_box_inserted_event->id)
-        if (!hit_box)
-        {
-            continue;
-        }
-
-        KAN_UMI_VALUE_UPDATE_OPTIONAL (node, kan_ui_node_t, id, &hit_box_inserted_event->id)
-        if (node)
-        {
-            node->event_on_laid_out = true;
-            hit_boxes_changed = true;
-        }
-
-        // We have to initialize visuals.
-        if (hit_box->interactable)
-        {
-            apply_hit_box_interaction_visuals (state, public, bundle, hit_box, false);
-        }
-    }
-
+    bool hit_boxes_changed = process_hit_box_insertion (state, public, bundle);
     process_scroll_behavior_insertion (state, ui);
-    process_line_edit_behavior_lifetime (state);
+    process_line_edit_behavior_insertion (state);
+    process_tooltip_behavior_insertion (state);
+
     sanitize_input_receiver_selection (state, public);
     process_line_edit_content_dirty_outer (state, public);
 
@@ -3699,4 +3905,13 @@ void kan_ui_node_map_pin_init (struct kan_ui_node_map_pin_t *instance)
 
     instance->sync_location = true;
     instance->sync_size = false;
+}
+
+void kan_ui_node_tooltip_behavior_init (struct kan_ui_node_tooltip_behavior_t *instance)
+{
+    instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->lifetime_s = 0.5f;
+    instance->preserve_while_pointed = true;
+    instance->trigger_when_hovering_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->hovered_show_delay_s = 1.0f;
 }

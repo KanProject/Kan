@@ -138,14 +138,14 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
         KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL (top_text, "Centered window with nine-slice buttons for tests.",
                                                 default_text_mark);
         KAN_UIM_WIDGET_TEXT (top_text, KAN_UI_VALUE_PX (24.0f));
+        top_text_node->order.local = -999; // Small value to always be on top.
         top_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-        top_text_node->local_element_order = -999; // Small value to always be on top.
 
         KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL (remark_text, "Button colors are selected from color table by the way.",
                                                 default_text_mark);
         KAN_UIM_WIDGET_TEXT (remark_text, KAN_UI_VALUE_PX (24.0f));
+        remark_text_node->order.local = -100;
         remark_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-        remark_text_node->local_element_order = -100;
 
         KAN_NEW_TEXT_SHAPING_UNIT (icons_test_text);
         icons_test_text_shaping_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER;
@@ -158,21 +158,21 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
         };
 
         KAN_UIM_WIDGET_TEXT (icons_test_text, KAN_UI_VALUE_PX (24.0f));
+        icons_test_text_node->order.local = 100;
         icons_test_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-        icons_test_text_node->local_element_order = 100;
 
         KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL (bottom_text, "This text should always be at the bottom.",
                                                 default_text_mark);
         bottom_text_shaping_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_RIGHT;
 
         KAN_UIM_WIDGET_TEXT (bottom_text, KAN_UI_VALUE_PX (24.0f));
+        bottom_text_node->order.local = 999; // Big value to always be on bottom.
         bottom_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-        bottom_text_node->local_element_order = 999; // Big value to always be on bottom.
 
         KAN_UIM_NEW_NODE (horizontal);
+        horizontal_node->order.local = 0;
         horizontal_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN | KAN_UI_SIZE_FLAG_GROW;
         horizontal_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
-        horizontal_node->local_element_order = 0;
         horizontal_node->layout.layout = KAN_UI_LAYOUT_HORIZONTAL_CONTAINER;
 
         KAN_UIM_CHILDREN (horizontal)
@@ -180,6 +180,7 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
             for (kan_memory_size_t column = 0u; column < 3u; ++column)
             {
                 KAN_UIM_NEW_NODE (column);
+                column_node->order.local = (kan_instance_offset_t) column;
                 column_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
                 column_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
 
@@ -189,7 +190,6 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                 }
 
                 column_node->element.margin = KAN_UI_RECT_PT (16.0f, 16.0f, 0.0f, 0.0f);
-                column_node->local_element_order = (kan_instance_offset_t) column;
                 column_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;
                 const kan_instance_size_t button_type_count = sizeof (button_images) / sizeof (button_images[0u]);
 
@@ -254,12 +254,12 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
     }
 
     KAN_UIM_NEW_NODE (tiled_column);
+    tiled_column_node->order.local = -1; // Below window.
     tiled_column_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
     tiled_column_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
 
     tiled_column_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT;
     tiled_column_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_TOP;
-    tiled_column_node->local_element_order = -1; // Below window.
 
     tiled_column_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;
     tiled_column_node->render.clip = true;

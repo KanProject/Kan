@@ -190,13 +190,13 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
 
     KAN_UIM_WIDGET_IMAGE (center_window, KAN_UI_IMAGE_COMMAND_DEFAULT (image_window));
     KAN_UIM_HIT_BOX_BLOCKING (center_window);
+    center_window_node->order.local = 1;
 
     center_window_node->element.width = KAN_UI_VALUE_VW (0.5f);
     center_window_node->element.height = KAN_UI_VALUE_VH (0.5f);
 
     center_window_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
     center_window_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
-    center_window_node->local_element_order = 1;
 
     center_window_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;
     center_window_node->layout.padding = KAN_UI_RECT_PT (16.0f, 16.0f, 16.0f, 16.0f);

@@ -320,6 +320,37 @@ struct kan_ui_rect_t
 #define KAN_UI_RECT_VH(LEFT, RIGHT, TOP, BOTTOM) KAN_UI_RECT_BUILD (KAN_UI_VALUE_VH, LEFT, RIGHT, TOP, BOTTOM)
 #define KAN_UI_RECT_VW(LEFT, RIGHT, TOP, BOTTOM) KAN_UI_RECT_BUILD (KAN_UI_VALUE_VW, LEFT, RIGHT, TOP, BOTTOM)
 
+/// \brief Value for `kan_ui_node_order_setup_t::layer` that indicates that layer value from parent should be used.
+#define KAN_UI_RENDER_LAYER_INHERIT 0u
+
+/// \brief Contains ordering-related configuration for the UI node.
+/// \details Changing order data usually costs much more than other setup changes.
+struct kan_ui_node_order_setup_t
+{
+    /// \brief Layer index allows to override draw and input orders independently of UI hierarchy.
+    /// \details There are cases when parts of the widget should be drawn with their own independent order and
+    ///          independent clip rect, for example drop down lists and tooltips, that need to be drawn of top of all
+    ///          other widgets that are near their owner widget. Layers make it possible by introducing following
+    ///          behavior:
+    ///          - Nodes with higher layer value are always placed on top of nodes with lower value.
+    ///          - When child layer is different from parent layer, parent clip rect is ignored.
+    ///          - When child layer is different from parent layer, child is excluded from regular layout calculations,
+    ///            (for example ignores paddings) and instead is aligned like it is a child of frame layout. This
+    ///            behavior is usually desired for layered widgets.
+    ///          In real cases, having multiple layers might be required, especially when there is a complex tooltip
+    ///          system (which is common for strategy genre) and some master menu on top of that with its own tooltips.
+    ///          Games like Crusader Kings 3 are good example of that.
+    ///          It is advised for the game code to define their own layer constants and use them while creating nodes.
+    ///          Keep in mind that layer value is default-initialized to `KAN_UI_RENDER_LAYER_INHERIT`, therefore it is
+    ///          not required to explicitly set layer in every node.
+    uint8_t layer;
+
+    /// \brief Local integer value used to sort child elements.
+    /// \details For frame layout children or for root nodes affects only draw order.
+    ///          For container layout children, affects positions on container layout.
+    kan_instance_offset_t local;
+};
+
 /// \brief Flags that alter the behavior of the UI node size calculation.
 KAN_REFLECTION_FLAGS
 enum kan_ui_size_flags_t
@@ -328,9 +359,11 @@ enum kan_ui_size_flags_t
     KAN_UI_SIZE_FLAG_NONE = 0u,
 
     /// \brief Size will be treated as min size, layout children may increase size along this axis.
+    /// \warning Ignores children with different layer value.
     KAN_UI_SIZE_FLAG_FIT_CHILDREN = 1u << 0u,
 
     /// \brief If parent layout has remaining space along this axis, this node will attempt to grow along this axis.
+    /// \warning Ignored if parent has different layer value.
     /// \details If several nodes that are children of the same parent are trying to grow, the smallest ones will grow
     ///          first, ideally making all grow nodes same-sized if there is enough remaining space.
     KAN_UI_SIZE_FLAG_GROW = 1u << 1u,
@@ -342,6 +375,12 @@ enum kan_ui_horizontal_alignment_t
     KAN_UI_HORIZONTAL_ALIGNMENT_LEFT = 0u,
     KAN_UI_HORIZONTAL_ALIGNMENT_CENTER,
     KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT,
+
+    /// \brief Right border of the element will be left border of the parent. Intended for popups and tooltips.
+    KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_LEFT,
+
+    /// \brief Left border of the element will be right border of the parent. Intended for popups and tooltips.
+    KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_RIGHT,
 };
 
 /// \brief Specifies how node is aligned vertically unless its parent layout orders children along Y axis.
@@ -350,6 +389,12 @@ enum kan_ui_vertical_alignment_t
     KAN_UI_VERTICAL_ALIGNMENT_TOP = 0u,
     KAN_UI_VERTICAL_ALIGNMENT_CENTER,
     KAN_UI_VERTICAL_ALIGNMENT_BOTTOM,
+
+    /// \brief Bottom border of the element will be top border of the parent. Intended for popups and tooltips.
+    KAN_UI_VERTICAL_ALIGNMENT_ABOVE,
+
+    /// \brief Top border of the element will be bottom border of the parent. Intended for popups and tooltips.
+    KAN_UI_VERTICAL_ALIGNMENT_BELOW,
 };
 
 /// \brief Contains element-scope configuration for the UI node.
@@ -405,9 +450,6 @@ struct kan_ui_node_layout_setup_t
     struct kan_ui_rect_t padding;
 };
 
-/// \brief Value for `kan_ui_node_render_setup_t::layer` that indicates that layer value from parent should be used.
-#define KAN_UI_RENDER_LAYER_INHERIT 0u
-
 /// \brief Contains render-scope configuration for the UI node.
 struct kan_ui_node_render_setup_t
 {
@@ -435,19 +477,12 @@ struct kan_ui_node_render_setup_t
     ///          way to hide all the children.
     bool hide_children;
 
-    /// \brief Layer index allows to override draw and input orders independently of UI hierarchy.
-    /// \details There are cases when parts of the widget should be drawn with their own independent order and
-    ///          independent clip rect, for example drop down lists and tooltips, that need to be drawn of top of all
-    ///          other widgets that are near their owner widget. Layers make it possible to introduce this behavior:
-    ///          nodes with higher layer value are drawn on top of nodes with lower layer value, and clip rects are also
-    ///          invalidated when layer value in hierarchy changes.
-    ///          In real cases, having multiple layers might be required, especially when there is a complex tooltip
-    ///          system (which is common for strategy genre) and some master menu on top of that with its own tooltips.
-    ///          Games like Crusader Kings 3 are good example of that.
-    ///          It is advised for the game code to define their own layer constants and use them while creating nodes.
-    ///          Keep in mind that layer value is default-initialized to `KAN_UI_RENDER_LAYER_INHERIT`, therefore it is
-    ///          not required to explicitly set layer in every node.
-    uint8_t layer;
+    /// \brief If element ends up fully or partially out of viewport, it will be moved to make it fully inside viewport.
+    /// \details Mostly useful for elements that are not very tightly bound to some position and that can end up out
+    ///          of screen while it is important to keep them inside screen. Best example of such elements are tooltips.
+    ///          Keep in mind that this flag does not reset clip rects, therefore for the cases like tooltips it is
+    ///          advised to combine this flag with separate `::layer` usage.
+    bool viewport_bound;
 };
 
 /// \brief Node is a building block of UI elements hierarchy and used to define anything that is added to the ui.
@@ -459,13 +494,8 @@ struct kan_ui_node_t
     /// \brief If true, `kan_ui_node_laid_out_t` will be sent every time this node is laid out due to dirty status.
     bool event_on_laid_out;
 
+    struct kan_ui_node_order_setup_t order;
     struct kan_ui_node_element_setup_t element;
-
-    /// \brief Local integer value used to sort child elements.
-    /// \details For frame layout children or for root nodes affects only draw order.
-    ///          For container layout children, affects positions on container layout.
-    kan_instance_offset_t local_element_order;
-
     struct kan_ui_node_layout_setup_t layout;
     struct kan_ui_node_render_setup_t render;
 };
@@ -715,7 +745,7 @@ struct kan_ui_node_drawable_t
 
     /// \brief Draw layer that was calculated for the drawable during last layout execution.
     /// \invariant Should not be changed outside of layout logic as that change would not be properly processed.
-    /// \details See `kan_ui_node_render_setup_t::layer`.
+    /// \details See `kan_ui_node_order_setup_t::layer`.
     uint8_t draw_layer;
 
     /// \brief Clip rect that should be used to render this element.

@@ -38,6 +38,7 @@
 /// - `kan_ui_node_scroll_behavior_t` for implementing scroll pane widgets.
 /// - `kan_ui_node_line_edit_behavior_t` for implementing text line edit widgets.
 /// - `kan_ui_node_map_behavior_t` for map-like pane widgets.
+/// - `kan_ui_node_tooltip_behavior_t` for tooltip-like popup widgets.
 /// \endparblock
 
 KAN_C_HEADER_BEGIN
@@ -605,5 +606,26 @@ struct kan_ui_node_map_pin_t
 };
 
 UNIVERSE_UI_API void kan_ui_node_map_pin_init (struct kan_ui_node_map_pin_t *instance);
+
+/// \brief Behavior for tooltip like widgets that can only be visible when trigger conditions are met.
+struct kan_ui_node_tooltip_behavior_t
+{
+    kan_immutable kan_ui_node_id_t id;
+
+    /// \brief Tooltip will be visible for this amount of seconds after there is no more reasons to show it.
+    kan_floating_t lifetime_s;
+
+    /// \brief If true, tooltip will be kept visible if pointer is on top of its hit box or
+    ///        hit box of any of its children.
+    bool preserve_while_pointed;
+
+    /// \brief If the node is given id has hit box and it is considered hovered, this tooltip will be triggered.
+    kan_immutable kan_ui_node_id_t trigger_when_hovering_id;
+
+    /// \brief Show tooltip when `trigger_when_hovering_id` is hovered at least this amount of seconds.
+    kan_floating_t hovered_show_delay_s;
+};
+
+UNIVERSE_UI_API void kan_ui_node_tooltip_behavior_init (struct kan_ui_node_tooltip_behavior_t *instance);
 
 KAN_C_HEADER_END

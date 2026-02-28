@@ -112,7 +112,7 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_on_change_event_t kan_ui_no
     .observed_fields_count = 1u,
     .observed_fields =
         (struct kan_repository_field_path_t[]) {
-            {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"local_element_order"}},
+            {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"order"}},
         },
     .unchanged_copy_outs_count = 0u,
     .unchanged_copy_outs = NULL,
@@ -322,22 +322,31 @@ static kan_ui_node_id_t determine_dirty_root_recursive (struct ui_layout_state_t
         return node->id;
     }
 
+    const bool stable_size = (node->element.width_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN) == 0u &&
+                             (node->element.height_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN) == 0u;
+
     // Check if we don't need to ascend as only layout data is changed and this layout is stable and does not propagate
     // dirty flag to its parent.
-    if (only_layout_data_changed)
+    if (only_layout_data_changed && stable_size)
     {
-        const bool frame = node->layout.layout == KAN_UI_LAYOUT_FRAME;
-        const bool stable_size = (node->element.width_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN) == 0u &&
-                                 (node->element.height_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN) == 0u;
-
-        if (frame || stable_size)
-        {
-            // Considered to be stable, no need to propagate update to parent.
-            return node->id;
-        }
+        // Considered to be stable, no need to propagate update to parent.
+        return node->id;
     }
 
     KAN_UMI_VALUE_READ_REQUIRED (parent, kan_ui_node_t, id, &node->parent_id)
+    if (only_layout_data_changed && node->order.layer != KAN_UI_RENDER_LAYER_INHERIT &&
+        node->order.layer != parent->order.layer)
+    {
+        // Very likely layer transition, check if that is the case.
+        KAN_UMI_VALUE_READ_OPTIONAL (parent_drawable, kan_ui_node_drawable_t, id, &node->parent_id)
+        if (parent_drawable && parent_drawable->draw_layer != node->order.layer)
+        {
+            // Known layer transition, considered to be stable.
+            // However, if our size is not stable, we'll need to start from parent due to possibly alignment changes.
+            return stable_size ? node->id : node->parent_id;
+        }
+    }
+
     // For parent, it is always "only layout data changed".
     return determine_dirty_root_recursive (state, parent, true);
 }
@@ -543,7 +552,7 @@ static inline void read_and_sort_children_into (struct ui_layout_state_t *state,
     struct layout_child_access_t temporary;
 #define LESS(FIRST_INDEX, SECOND_INDEX)                                                                                \
     __CUSHION_PRESERVE__ (*output)                                                                                     \
-    [FIRST_INDEX].child->local_element_order < (*output)[SECOND_INDEX].child->local_element_order
+    [FIRST_INDEX].child->order.local < (*output)[SECOND_INDEX].child->order.local
 #define SWAP(FIRST_INDEX, SECOND_INDEX)                                                                                \
     __CUSHION_PRESERVE__                                                                                               \
     temporary = (*output)[FIRST_INDEX], (*output)[FIRST_INDEX] = (*output)[SECOND_INDEX],                              \
@@ -622,9 +631,13 @@ static bool layout_base_pass (struct ui_layout_state_t *state,
     data->cached_padding_top_px = kan_ui_calculate_coordinate (state->transient.ui, node->layout.padding.top);
     data->cached_padding_bottom_px = kan_ui_calculate_coordinate (state->transient.ui, node->layout.padding.bottom);
 
+    drawable->draw_layer =
+        node->order.layer == KAN_UI_RENDER_LAYER_INHERIT ? drawable->cached.parent_layer : node->order.layer;
+
     for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
+        access->drawable->cached.parent_layer = drawable->draw_layer;
 #if defined(KAN_WITH_ASSERT)
         const bool short_circuit =
 #endif
@@ -682,6 +695,12 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
             struct kan_ui_node_drawable_t *child = access->drawable;
             struct layout_temporary_data_t *child_data = child->temporary_data;
 
+            if (child->draw_layer != drawable->draw_layer)
+            {
+                // Children with different layer are excluded from normal layout calculations.
+                continue;
+            }
+
             UI_COLLAPSE_MARGIN (child_data->cached_margin_left_px, baseline_left);
             UI_COLLAPSE_MARGIN (child_data->cached_margin_right_px, baseline_right);
             UI_COLLAPSE_MARGIN (child_data->cached_margin_top_px, baseline_top);
@@ -707,6 +726,12 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct kan_ui_node_drawable_t *child = access->drawable;
             struct layout_temporary_data_t *child_data = child->temporary_data;
+
+            if (child->draw_layer != drawable->draw_layer)
+            {
+                // Children with different layer are excluded from normal layout calculations.
+                continue;
+            }
 
             UI_COLLAPSE_MARGIN (child_data->cached_margin_left_px, baseline_left);
             UI_COLLAPSE_MARGIN (child_data->cached_margin_right_px, baseline_right);
@@ -744,6 +769,12 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct kan_ui_node_drawable_t *child = access->drawable;
             struct layout_temporary_data_t *child_data = child->temporary_data;
+
+            if (child->draw_layer != drawable->draw_layer)
+            {
+                // Children with different layer are excluded from normal layout calculations.
+                continue;
+            }
 
             UI_COLLAPSE_MARGIN (child_data->cached_margin_left_px, previous_margin);
             UI_COLLAPSE_MARGIN (child_data->cached_margin_top_px, baseline_top);
@@ -803,6 +834,12 @@ static void layout_size_pass (struct ui_layout_state_t *state,
         const struct layout_child_access_t *access = &data->sorted_children[index];
         layout_size_pass (state, access->child, access->drawable);
         struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
+
+        if (access->drawable->draw_layer != drawable->draw_layer)
+        {
+            // Children with different layer are excluded from normal layout calculations.
+            continue;
+        }
 
         const kan_instance_offset_t occupied_width =
             child_data->width_px + child_data->cached_margin_left_px + child_data->cached_margin_right_px;
@@ -914,6 +951,12 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
         struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
         access->drawable->cached.grow_width = 0;
         access->drawable->cached.grow_height = 0;
+
+        if (access->drawable->draw_layer != drawable->draw_layer)
+        {
+            // Children with different layer are excluded from normal layout calculations.
+            continue;
+        }
 
         if (access->child->element.width_flags & KAN_UI_SIZE_FLAG_GROW)
         {
@@ -1123,6 +1166,14 @@ static void layout_position_pass (struct ui_layout_state_t *state,
         case KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT:
             drawable->local_x += state->transient.ui->viewport_width - data->width_px;
             break;
+
+        case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_LEFT:
+            drawable->local_x += -data->width_px;
+            break;
+
+        case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_RIGHT:
+            drawable->local_x += state->transient.ui->viewport_width;
+            break;
         }
 
         switch (node->element.vertical_alignment)
@@ -1137,18 +1188,27 @@ static void layout_position_pass (struct ui_layout_state_t *state,
         case KAN_UI_VERTICAL_ALIGNMENT_BOTTOM:
             drawable->local_y += state->transient.ui->viewport_height - data->height_px;
             break;
+
+        case KAN_UI_VERTICAL_ALIGNMENT_ABOVE:
+            drawable->local_y += -data->height_px;
+            break;
+
+        case KAN_UI_VERTICAL_ALIGNMENT_BELOW:
+            drawable->local_y += state->transient.ui->viewport_height;
+            break;
         }
 
         drawable->global_x = drawable->local_x;
         drawable->global_y = drawable->local_y;
     }
 
-    const kan_instance_size_t pad_left = data->cached_padding_left_px;
-    const kan_instance_size_t pad_right = data->cached_padding_right_px;
-    const kan_instance_size_t pad_top = data->cached_padding_top_px;
-    const kan_instance_size_t pad_bottom = data->cached_padding_bottom_px;
+    const kan_instance_offset_t pad_left = data->cached_padding_left_px;
+    const kan_instance_offset_t pad_right = data->cached_padding_right_px;
+    const kan_instance_offset_t pad_top = data->cached_padding_top_px;
+    const kan_instance_offset_t pad_bottom = data->cached_padding_bottom_px;
     const kan_instance_offset_t available_width = data->width_px - pad_left - pad_right;
     const kan_instance_offset_t available_height = data->height_px - pad_top - pad_bottom;
+    bool has_different_layer_children = false;
 
     switch (data->cached_layout)
     {
@@ -1157,6 +1217,13 @@ static void layout_position_pass (struct ui_layout_state_t *state,
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
+
+            if (access->drawable->draw_layer != drawable->draw_layer)
+            {
+                // Children with different layer are excluded from normal layout calculations.
+                has_different_layer_children = true;
+                continue;
+            }
 
             access->drawable->local_x =
                 pad_left + kan_ui_calculate_coordinate (state->transient.ui, access->child->element.frame_offset_x);
@@ -1172,6 +1239,14 @@ static void layout_position_pass (struct ui_layout_state_t *state,
 
             case KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT:
                 access->drawable->local_x += available_width - child_data->width_px;
+                break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_LEFT:
+                access->drawable->local_x += -child_data->width_px - pad_left;
+                break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_RIGHT:
+                access->drawable->local_x += data->width_px - pad_left;
                 break;
             }
 
@@ -1190,6 +1265,14 @@ static void layout_position_pass (struct ui_layout_state_t *state,
             case KAN_UI_VERTICAL_ALIGNMENT_BOTTOM:
                 access->drawable->local_y += available_height - child_data->height_px;
                 break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_ABOVE:
+                access->drawable->local_y += -child_data->height_px - pad_top;
+                break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_BELOW:
+                access->drawable->local_y += data->height_px - pad_top;
+                break;
             }
         }
 
@@ -1202,8 +1285,15 @@ static void layout_position_pass (struct ui_layout_state_t *state,
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
-            cursor += child_data->cached_margin_top_px;
 
+            if (access->drawable->draw_layer != drawable->draw_layer)
+            {
+                // Children with different layer are excluded from normal layout calculations.
+                has_different_layer_children = true;
+                continue;
+            }
+
+            cursor += child_data->cached_margin_top_px;
             access->drawable->local_x = pad_left + child_data->cached_margin_left_px;
             access->drawable->local_y = cursor;
             cursor += child_data->height_px + child_data->cached_margin_bottom_px;
@@ -1223,6 +1313,14 @@ static void layout_position_pass (struct ui_layout_state_t *state,
                 access->drawable->local_x += available_width - child_data->cached_margin_left_px -
                                              child_data->cached_margin_right_px - child_data->width_px;
                 break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_LEFT:
+                access->drawable->local_x = -child_data->width_px;
+                break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_RIGHT:
+                access->drawable->local_x = data->width_px;
+                break;
             }
         }
 
@@ -1236,8 +1334,15 @@ static void layout_position_pass (struct ui_layout_state_t *state,
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
-            cursor += child_data->cached_margin_left_px;
 
+            if (access->drawable->draw_layer != drawable->draw_layer)
+            {
+                // Children with different layer are excluded from normal layout calculations.
+                has_different_layer_children = true;
+                continue;
+            }
+
+            cursor += child_data->cached_margin_left_px;
             access->drawable->local_x = cursor;
             access->drawable->local_y = pad_top + child_data->cached_margin_top_px;
             cursor += child_data->width_px + child_data->cached_margin_right_px;
@@ -1257,11 +1362,84 @@ static void layout_position_pass (struct ui_layout_state_t *state,
                 access->drawable->local_y += available_height - child_data->cached_margin_top_px -
                                              child_data->cached_margin_bottom_px - child_data->height_px;
                 break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_ABOVE:
+                access->drawable->local_y = -child_data->height_px;
+                break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_BELOW:
+                access->drawable->local_y = data->height_px;
+                break;
             }
         }
 
         break;
     }
+    }
+
+    if (has_different_layer_children)
+    {
+        // Special loop for children with different layer value.
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
+        {
+            const struct layout_child_access_t *access = &data->sorted_children[index];
+            struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
+
+            if (access->drawable->draw_layer == drawable->draw_layer)
+            {
+                continue;
+            }
+
+            access->drawable->local_x =
+                kan_ui_calculate_coordinate (state->transient.ui, access->child->element.frame_offset_x);
+
+            switch (access->child->element.horizontal_alignment)
+            {
+            case KAN_UI_HORIZONTAL_ALIGNMENT_LEFT:
+                break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_CENTER:
+                access->drawable->local_x += data->width_px / 2 - child_data->width_px / 2;
+                break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT:
+                access->drawable->local_x += data->width_px - child_data->width_px;
+                break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_LEFT:
+                access->drawable->local_x += -child_data->width_px;
+                break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_RIGHT:
+                access->drawable->local_x += data->width_px;
+                break;
+            }
+
+            access->drawable->local_y =
+                kan_ui_calculate_coordinate (state->transient.ui, access->child->element.frame_offset_y);
+
+            switch (access->child->element.vertical_alignment)
+            {
+            case KAN_UI_VERTICAL_ALIGNMENT_TOP:
+                break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_CENTER:
+                access->drawable->local_y += data->height_px / 2 - child_data->height_px / 2;
+                break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_BOTTOM:
+                access->drawable->local_y += data->height_px - child_data->height_px;
+                break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_ABOVE:
+                access->drawable->local_y += -child_data->height_px;
+                break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_BELOW:
+                access->drawable->local_y += data->height_px;
+                break;
+            }
+        }
     }
 
     for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
@@ -1285,22 +1463,15 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
         drawable->cached.parent_clip_rect.height = state->transient.ui->viewport_height;
         drawable->cached.hidden_by_parent = false;
         drawable->cached.parent_layer = KAN_UI_RENDER_LAYER_INHERIT;
-    }
-
-    const uint8_t draw_layer =
-        node->render.layer == KAN_UI_RENDER_LAYER_INHERIT ? drawable->cached.parent_layer : node->render.layer;
-
-    if (draw_layer != drawable->draw_layer)
-    {
-        state->transient.reorder_required = true;
-        drawable->draw_layer = draw_layer;
+        drawable->global_x = drawable->local_x;
+        drawable->global_y = drawable->local_y;
     }
 
     // Restore clip rect to initially received from parent. It is important for partial passes as if we do not restore
     // parent clip rect, toggling this node clip flag on and off will result in broken clip rect logic.
     drawable->clip_rect = drawable->cached.parent_clip_rect;
 
-    if (draw_layer != drawable->cached.parent_layer)
+    if (drawable->draw_layer != drawable->cached.parent_layer)
     {
         // If we're on separate layer, we need to reset clip rect to full viewport rect as elements on different layers
         // should not try to clip each other.
@@ -1308,6 +1479,29 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
         drawable->clip_rect.y = 0;
         drawable->clip_rect.width = state->transient.ui->viewport_width;
         drawable->clip_rect.height = state->transient.ui->viewport_height;
+    }
+
+    if (node->render.viewport_bound)
+    {
+        if (drawable->global_x + drawable->width > state->transient.ui->viewport_width)
+        {
+            drawable->global_x = state->transient.ui->viewport_width - drawable->width;
+        }
+
+        if (drawable->global_x < 0)
+        {
+            drawable->global_x = 0;
+        }
+
+        if (drawable->global_y + drawable->height > state->transient.ui->viewport_height)
+        {
+            drawable->global_y = state->transient.ui->viewport_height - drawable->height;
+        }
+
+        if (drawable->global_y < 0)
+        {
+            drawable->global_y = 0;
+        }
     }
 
     if (node->render.clip)
@@ -1343,7 +1537,6 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
         access->drawable->cached.parent_clip_rect = drawable->clip_rect;
         // We do not include `clipped_out` to `hidden_by_parent` as child may technically have other borders.
         access->drawable->cached.hidden_by_parent = hidden_by_hierarchy || node->render.hide_children;
-        access->drawable->cached.parent_layer = draw_layer;
 
         access->drawable->global_x = drawable->global_x -
                                      kan_ui_calculate_coordinate (state->transient.ui, node->render.scroll_x) +
@@ -1495,9 +1688,10 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_layout)
 
     {
         KAN_CPU_SCOPED_STATIC_SECTION (ui_layout_node_change_main_events)
-        KAN_UML_EVENT_FETCH (node_on_element, kan_ui_node_on_change_event_t)
+        KAN_UML_EVENT_FETCH (node_on_order, kan_ui_node_order_on_change_event_t)
         {
-            KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &node_on_element->id)
+            state->transient.reorder_required = true;
+            KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &node_on_order->id)
             if (node)
             {
                 const kan_ui_node_id_t dirty_root = determine_dirty_root_recursive (state, node, false);
@@ -1505,10 +1699,9 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_layout)
             }
         }
 
-        KAN_UML_EVENT_FETCH (node_on_order, kan_ui_node_order_on_change_event_t)
+        KAN_UML_EVENT_FETCH (node_on_element, kan_ui_node_on_change_event_t)
         {
-            state->transient.reorder_required = true;
-            KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &node_on_order->id)
+            KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &node_on_element->id)
             if (node)
             {
                 const kan_ui_node_id_t dirty_root = determine_dirty_root_recursive (state, node, false);
@@ -3345,6 +3538,9 @@ void kan_ui_node_init (struct kan_ui_node_t *instance)
     instance->parent_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     instance->event_on_laid_out = false;
 
+    instance->order.layer = KAN_UI_RENDER_LAYER_INHERIT;
+    instance->order.local = 0;
+
     instance->element.width_flags = KAN_UI_SIZE_FLAG_NONE;
     instance->element.height_flags = KAN_UI_SIZE_FLAG_NONE;
 
@@ -3358,8 +3554,6 @@ void kan_ui_node_init (struct kan_ui_node_t *instance)
     instance->element.frame_offset_x = KAN_UI_VALUE_PT (0.0f);
     instance->element.frame_offset_y = KAN_UI_VALUE_PT (0.0f);
 
-    instance->local_element_order = 0;
-
     instance->layout.layout = KAN_UI_LAYOUT_FRAME;
     instance->layout.padding = KAN_UI_RECT_PT (0.0f, 0.0f, 0.0f, 0.0f);
 
@@ -3368,7 +3562,7 @@ void kan_ui_node_init (struct kan_ui_node_t *instance)
     instance->render.clip = false;
     instance->render.hidden = false;
     instance->render.hide_children = false;
-    instance->render.layer = KAN_UI_RENDER_LAYER_INHERIT;
+    instance->render.viewport_bound = false;
 }
 
 void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)

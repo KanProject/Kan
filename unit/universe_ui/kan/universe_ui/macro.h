@@ -102,7 +102,7 @@ struct kan_uim_parent_stack_info_t
 /// \brief Uses inplace insert to create new UI node, attach it to proper parent and assign next local element order.
 #define KAN_UIM_NEW_NODE(NAME)                                                                                         \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME);                                                                             \
-    NAME##_node->local_element_order = kan_uim_parent_stack_info.monotone_ascending_order;                             \
+    NAME##_node->order.local = kan_uim_parent_stack_info.monotone_ascending_order;                                     \
     ++kan_uim_parent_stack_info.monotone_ascending_order
 
 /// \brief Creates new drawable record attached to a node with given name.
@@ -152,6 +152,40 @@ struct kan_uim_parent_stack_info_t
                                              HIT_BOX_NAME##_hit_box->propagate_interaction_visuals.capacity));         \
     *(kan_ui_node_id_t *) kan_dynamic_array_add_last (&HIT_BOX_NAME##_hit_box->propagate_interaction_visuals) =        \
         TARGET_NAME##_node->id
+
+#define KAN_UIM_TEXT_TOOLTIP(NAME, BACKGROUND_IMAGE, WIDTH, FONT_SIZE, LAYER)                                          \
+    KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_tooltip);                                                                   \
+    KAN_UIM_DRAWABLE_IMAGE (NAME##_tooltip, BACKGROUND_IMAGE);                                                         \
+    KAN_UIM_HIT_BOX_BLOCKING (NAME##_tooltip);                                                                         \
+                                                                                                                       \
+    NAME##_tooltip_node->parent_id = NAME##_node->id;                                                                  \
+    NAME##_tooltip_node->order.layer = (LAYER);                                                                        \
+    NAME##_tooltip_node->element.width = (WIDTH);                                                                      \
+    NAME##_tooltip_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;                                        \
+    NAME##_tooltip_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_BELOW;                                 \
+    NAME##_tooltip_node->render.hidden = true;                                                                         \
+    NAME##_tooltip_node->render.viewport_bound = true;                                                                 \
+                                                                                                                       \
+    KAN_UMI_INDEXED_INSERT (NAME##_tooltip_behavior, kan_ui_node_tooltip_behavior_t)                                   \
+    NAME##_tooltip_behavior->id = NAME##_tooltip_node->id;                                                             \
+    NAME##_tooltip_behavior->trigger_when_hovering_id = NAME##_node->id;                                               \
+                                                                                                                       \
+    KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_tooltip_text);                                                              \
+    KAN_UIM_DRAWABLE (NAME##_tooltip_text);                                                                            \
+                                                                                                                       \
+    NAME##_tooltip_text_node->parent_id = NAME##_tooltip_node->id;                                                     \
+    NAME##_tooltip_text_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                             \
+                                                                                                                       \
+    NAME##_tooltip_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;                                   \
+    NAME##_tooltip_text_drawable->main_draw_command.text.shaping_unit = NAME##_tooltip_shaping_unit->id;               \
+    NAME##_tooltip_text_drawable->main_draw_command.text.handle_alignment_on_overflow = true;                          \
+                                                                                                                       \
+    KAN_UMI_INDEXED_INSERT (NAME##_tooltip_text_behavior, kan_ui_node_text_behavior_t)                                 \
+    NAME##_tooltip_text_behavior->id = NAME##_tooltip_text_node->id;                                                   \
+    NAME##_tooltip_text_behavior->shaping_unit_id = NAME##_tooltip_shaping_unit->id;                                   \
+    NAME##_tooltip_text_behavior->font_size = (FONT_SIZE);                                                             \
+    NAME##_tooltip_text_behavior->sync_text_limit_from_ui = true;                                                      \
+    NAME##_tooltip_text_behavior->sync_ui_size_from_text_secondary = true
 
 /// \brief Image widget is simply a shortcut for a node with image drawable.
 /// \warning Has no hit box by default!
@@ -246,9 +280,9 @@ struct kan_uim_parent_stack_info_t
                                                                                                                        \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_container);                                                                 \
     NAME##_container_node->parent_id = NAME##_outer_node->id;                                                          \
+    NAME##_container_node->order.local = 0;                                                                            \
     NAME##_container_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                                \
     NAME##_container_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                               \
-    NAME##_container_node->local_element_order = 0;                                                                    \
                                                                                                                        \
     KAN_UMI_INDEXED_INSERT (NAME##_scroll_behavior, kan_ui_node_scroll_behavior_t);                                    \
     NAME##_scroll_behavior->id = NAME##_outer_node->id;                                                                \
@@ -274,29 +308,29 @@ struct kan_uim_parent_stack_info_t
     KAN_UIM_HIT_BOX_INTERACTABLE (NAME##_horizontal_line, (STYLE));                                                    \
     NAME##_horizontal_line_hit_box->scroll_passthrough = true;                                                         \
     NAME##_horizontal_line_node->parent_id = NAME##_outer_node->id;                                                    \
+    NAME##_horizontal_line_node->order.local = 1;                                                                      \
                                                                                                                        \
     NAME##_horizontal_line_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                          \
     NAME##_horizontal_line_node->element.height = (LINE_HEIGHT);                                                       \
     NAME##_horizontal_line_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_LEFT;                      \
     NAME##_horizontal_line_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_BOTTOM;                        \
-    NAME##_horizontal_line_node->local_element_order = 1;                                                              \
     NAME##_horizontal_line_node->layout.layout = KAN_UI_LAYOUT_FRAME;                                                  \
                                                                                                                        \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_horizontal_background);                                                     \
     KAN_UIM_DRAWABLE_IMAGE (NAME##_horizontal_background, (LINE_IMAGE));                                               \
     KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME##_horizontal_line, NAME##_horizontal_background);                          \
     NAME##_horizontal_background_node->parent_id = NAME##_horizontal_line_node->id;                                    \
+    NAME##_horizontal_line_node->order.local = 0;                                                                      \
                                                                                                                        \
     NAME##_horizontal_background_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                    \
     NAME##_horizontal_background_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                   \
-    NAME##_horizontal_line_node->local_element_order = 0;                                                              \
                                                                                                                        \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_horizontal_knob);                                                           \
     KAN_UIM_DRAWABLE_IMAGE (NAME##_horizontal_knob, KAN_UI_IMAGE_COMMAND_NONE);                                        \
     KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME##_horizontal_line, NAME##_horizontal_knob);                                \
     NAME##_horizontal_knob_node->parent_id = NAME##_horizontal_line_node->id;                                          \
+    NAME##_horizontal_knob_node->order.local = 1;                                                                      \
     NAME##_horizontal_knob_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                         \
-    NAME##_horizontal_knob_node->local_element_order = 1;                                                              \
                                                                                                                        \
     NAME##_scroll_behavior->horizontal_line_id = NAME##_horizontal_line_node->id;                                      \
     NAME##_scroll_behavior->horizontal_knob_id = NAME##_horizontal_knob_node->id
@@ -311,29 +345,29 @@ struct kan_uim_parent_stack_info_t
     KAN_UIM_HIT_BOX_INTERACTABLE (NAME##_vertical_line, (STYLE));                                                      \
     NAME##_vertical_line_hit_box->scroll_passthrough = true;                                                           \
     NAME##_vertical_line_node->parent_id = NAME##_outer_node->id;                                                      \
+    NAME##_vertical_line_node->order.local = 2;                                                                        \
                                                                                                                        \
     NAME##_vertical_line_node->element.width = (LINE_WIDTH);                                                           \
     NAME##_vertical_line_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                           \
     NAME##_vertical_line_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT;                       \
     NAME##_vertical_line_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_TOP;                             \
-    NAME##_vertical_line_node->local_element_order = 2;                                                                \
     NAME##_vertical_line_node->layout.layout = KAN_UI_LAYOUT_FRAME;                                                    \
                                                                                                                        \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_vertical_background);                                                       \
     KAN_UIM_DRAWABLE_IMAGE (NAME##_vertical_background, (LINE_IMAGE));                                                 \
     KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME##_vertical_line, NAME##_vertical_background);                              \
     NAME##_vertical_background_node->parent_id = NAME##_vertical_line_node->id;                                        \
+    NAME##_vertical_line_node->order.local = 0;                                                                        \
                                                                                                                        \
     NAME##_vertical_background_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                      \
     NAME##_vertical_background_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                     \
-    NAME##_vertical_line_node->local_element_order = 0;                                                                \
                                                                                                                        \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_vertical_knob);                                                             \
     KAN_UIM_DRAWABLE_IMAGE (NAME##_vertical_knob, KAN_UI_IMAGE_COMMAND_NONE);                                          \
     KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME##_vertical_line, NAME##_vertical_knob);                                    \
     NAME##_vertical_knob_node->parent_id = NAME##_vertical_line_node->id;                                              \
+    NAME##_vertical_knob_node->order.local = 1;                                                                        \
     NAME##_vertical_knob_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                            \
-    NAME##_vertical_knob_node->local_element_order = 1;                                                                \
                                                                                                                        \
     NAME##_scroll_behavior->vertical_line_id = NAME##_vertical_line_node->id;                                          \
     NAME##_scroll_behavior->vertical_knob_id = NAME##_vertical_knob_node->id

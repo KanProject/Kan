@@ -26,6 +26,13 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_n
 };
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_key_binding_cascade_deletion = {
+    .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+    .child_type_name = "kan_ui_node_key_binding_t",
+    .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+};
+
+KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
 UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_text_behavior_cascade_deletion = {
     .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
     .child_type_name = "kan_ui_node_text_behavior_t",
@@ -81,6 +88,7 @@ struct kan_ui_node_down_mark_t
 {
     kan_ui_node_id_t id;
     kan_floating_t down_until_s;
+    enum kan_platform_scan_code_t down_from_key;
 };
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
@@ -384,6 +392,43 @@ static const struct kan_ui_node_hit_box_t *find_hit_box_at (
     return found;
 }
 
+static const struct kan_ui_node_hit_box_t *find_hit_box_from_key_binding (
+    struct ui_controls_input_state_t *state,
+    enum kan_platform_scan_code_t scan_code,
+    struct kan_repository_indexed_value_read_access_t *output_access)
+{
+    kan_instance_size_t found_index = KAN_INT_MAX (kan_instance_size_t);
+    const struct kan_ui_node_hit_box_t *found = NULL;
+
+    KAN_UML_SEQUENCE_READ (binding, kan_ui_node_key_binding_t)
+    {
+        if (binding->scan_code != scan_code)
+        {
+            continue;
+        }
+
+        KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &binding->id)
+        KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &binding->id)
+
+        if (!hit_box || !drawable || drawable->hidden_permanently || drawable->hidden_temporary ||
+            (found && found_index > drawable->draw_index))
+        {
+            continue;
+        }
+
+        if (found)
+        {
+            kan_repository_indexed_value_read_access_close (output_access);
+        }
+
+        found_index = drawable->draw_index;
+        found = hit_box;
+        KAN_UM_ACCESS_ESCAPE (*output_access, hit_box);
+    }
+
+    return found;
+}
+
 #define FOCUS_FLAGS_MASK                                                                                               \
     (KAN_UI_DEFAULT_MARK_FLAG_HOVERED | KAN_UI_DEFAULT_MARK_FLAG_DOWN | KAN_UI_DEFAULT_MARK_FLAG_DISABLED)
 #define SET_FOCUS_FLAGS(TARGET, FLAGS) (TARGET) = ((TARGET) & ~FOCUS_FLAGS_MASK) | (FLAGS)
@@ -469,6 +514,24 @@ static inline enum hit_box_interaction_flags_t calculate_hit_box_interaction_fla
     return flags;
 }
 
+static inline const struct kan_resource_ui_hit_box_interaction_style_t *find_interactable_style (
+    const struct kan_ui_bundle_singleton_t *bundle, kan_interned_string_t style_name)
+{
+    for (kan_memory_size_t index = 0u; index < bundle->available_bundle.hit_box_interaction_styles.size; ++index)
+    {
+        const struct kan_resource_ui_hit_box_interaction_style_t *style =
+            &((struct kan_resource_ui_hit_box_interaction_style_t *)
+                  bundle->available_bundle.hit_box_interaction_styles.data)[index];
+
+        if (style->name == style_name)
+        {
+            return style;
+        }
+    }
+
+    return NULL;
+}
+
 static inline uint32_t select_image_for_hit_box_interaction (struct ui_controls_input_state_t *state,
                                                              const struct kan_ui_bundle_singleton_t *bundle,
                                                              kan_interned_string_t style_name,
@@ -479,29 +542,23 @@ static inline uint32_t select_image_for_hit_box_interaction (struct ui_controls_
         return KAN_INT_MAX (uint32_t);
     }
 
-    for (kan_memory_size_t index = 0u; index < bundle->available_bundle.hit_box_interaction_styles.size; ++index)
+    const struct kan_resource_ui_hit_box_interaction_style_t *style = find_interactable_style (bundle, style_name);
+    if (style)
     {
-        const struct kan_resource_ui_hit_box_interaction_style_t *style =
-            &((struct kan_resource_ui_hit_box_interaction_style_t *)
-                  bundle->available_bundle.hit_box_interaction_styles.data)[index];
-
-        if (style->name == style_name)
+        if (flags & FOCUS_STATE_DOWN)
         {
-            if (flags & FOCUS_STATE_DOWN)
-            {
-                return query_image (state, bundle, style->down_image);
-            }
-            else if (flags & FOCUS_STATE_HOVERED)
-            {
-                return query_image (state, bundle, style->hovered_image);
-            }
-            else if (flags & FOCUS_STATE_DISABLED)
-            {
-                return query_image (state, bundle, style->disabled_image);
-            }
-
-            return query_image (state, bundle, style->regular_image);
+            return query_image (state, bundle, style->down_image);
         }
+        else if (flags & FOCUS_STATE_HOVERED)
+        {
+            return query_image (state, bundle, style->hovered_image);
+        }
+        else if (flags & FOCUS_STATE_DISABLED)
+        {
+            return query_image (state, bundle, style->disabled_image);
+        }
+
+        return query_image (state, bundle, style->regular_image);
     }
 
     return KAN_INT_MAX (uint32_t);
@@ -1234,20 +1291,122 @@ static void line_edit_process_horizontal_arrow (struct kan_ui_node_line_edit_beh
     }
 }
 
-static void process_key_down_internal (struct ui_controls_input_state_t *state,
-                                       struct kan_ui_input_singleton_t *public,
-                                       const struct kan_ui_singleton_t *ui,
-                                       const struct kan_platform_application_event_t *event)
+static void prolong_hit_box_down_visuals (struct ui_controls_input_state_t *state,
+                                          struct kan_ui_input_singleton_t *public,
+                                          const struct kan_ui_bundle_singleton_t *bundle,
+                                          const struct kan_ui_node_hit_box_t *hit_box)
 {
-    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    if (!KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id) ||
-        // We do not process keyboard input while mouse is down.
-        public->mouse_button_down_flags != 0u)
+    if (!hit_box->interactable_style)
     {
         return;
     }
 
+    const struct kan_resource_ui_hit_box_interaction_style_t *selected_style =
+        find_interactable_style (bundle, hit_box->interactable_style);
+
+    if (!selected_style)
+    {
+        // No style -> no animation.
+        return;
+    }
+
+    KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (existent_mark, kan_ui_node_down_mark_t, id, &hit_box->id)
+
+    if (existent_mark)
+    {
+        existent_mark->down_until_s = ui->animation_global_time_s + selected_style->down_state_s;
+        // Already had mark, no visual update needed.
+        return;
+    }
+
+    KAN_UMO_INDEXED_INSERT (new_mark, kan_ui_node_down_mark_t)
+    {
+        new_mark->id = hit_box->id;
+        new_mark->down_until_s = ui->animation_global_time_s + selected_style->down_state_s;
+        new_mark->down_from_key = KAN_PLATFORM_SCAN_CODE_UNKNOWN;
+    }
+
+    apply_hit_box_interaction_visuals (state, public, bundle, hit_box, false);
+}
+
+static void on_press_begin_internal (struct ui_controls_input_state_t *state,
+                                     struct kan_ui_input_singleton_t *public,
+                                     const struct kan_ui_singleton_t *ui,
+                                     kan_ui_node_id_t press_id);
+
+static void simulate_press_begin_from_key_binding (struct ui_controls_input_state_t *state,
+                                                   struct kan_ui_input_singleton_t *public,
+                                                   const struct kan_ui_singleton_t *ui,
+                                                   const struct kan_ui_bundle_singleton_t *bundle,
+                                                   const struct kan_platform_application_event_t *event)
+{
+    struct kan_repository_indexed_value_read_access_t access;
+    const struct kan_ui_node_hit_box_t *hit_box =
+        find_hit_box_from_key_binding (state, event->keyboard.scan_code, &access);
+
+    const kan_ui_node_id_t hit_box_id = hit_box ? hit_box->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    const bool filtered = hit_box && hit_box->interactable && !hit_box->disabled;
+
+    if (filtered)
+    {
+        KAN_UMO_EVENT_INSERT_INIT (kan_ui_press_begin_t) {
+            .node_id = hit_box->id,
+            .mouse_button_down_flags = 0u,
+            .at_x = public->last_mouse_x,
+            .at_y = public->last_mouse_y,
+        };
+
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (existent_mark, kan_ui_node_down_mark_t, id, &hit_box->id)
+        if (existent_mark)
+        {
+            existent_mark->down_from_key = event->keyboard.scan_code;
+        }
+        else
+        {
+            KAN_UMO_INDEXED_INSERT (new_mark, kan_ui_node_down_mark_t)
+            {
+                new_mark->id = hit_box->id;
+                new_mark->down_until_s = 0.0f;
+                new_mark->down_from_key = event->keyboard.scan_code;
+            }
+
+            apply_hit_box_interaction_visuals (state, public, bundle, hit_box, false);
+        }
+    }
+
+    if (hit_box)
+    {
+        kan_repository_indexed_value_read_access_close (&access);
+    }
+
+    if (filtered)
+    {
+        on_press_begin_internal (state, public, ui, hit_box_id);
+    }
+}
+
+static void process_key_down_internal (struct ui_controls_input_state_t *state,
+                                       struct kan_ui_input_singleton_t *public,
+                                       const struct kan_ui_singleton_t *ui,
+                                       const struct kan_ui_bundle_singleton_t *bundle,
+                                       const struct kan_platform_application_event_t *event)
+{
+    if (!KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
+    {
+        simulate_press_begin_from_key_binding (state, public, ui, bundle, event);
+        return;
+    }
+
+    // We do not process keyboard input for input receivers while mouse is down.
+    if (public->mouse_button_down_flags != 0u)
+    {
+        return;
+    }
+
+    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
     KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
+
     if (line_edit_behavior)
     {
         switch (event->keyboard.scan_code)
@@ -1350,6 +1509,71 @@ static void process_key_down_internal (struct ui_controls_input_state_t *state,
     }
 }
 
+static void on_press_end_internal (struct ui_controls_input_state_t *state,
+                                   struct kan_ui_input_singleton_t *public,
+                                   const struct kan_ui_singleton_t *ui,
+                                   kan_ui_node_id_t press_id,
+                                   bool continuous);
+
+static void simulate_press_end_from_key_binding (struct ui_controls_input_state_t *state,
+                                                 struct kan_ui_input_singleton_t *public,
+                                                 const struct kan_ui_singleton_t *ui,
+                                                 const struct kan_ui_bundle_singleton_t *bundle,
+                                                 const struct kan_platform_application_event_t *event)
+{
+    KAN_UML_SEQUENCE_UPDATE (down_mark, kan_ui_node_down_mark_t)
+    {
+        if (down_mark->down_from_key != event->keyboard.scan_code)
+        {
+            continue;
+        }
+
+        down_mark->down_from_key = KAN_PLATFORM_SCAN_CODE_UNKNOWN;
+        KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &down_mark->id)
+
+        if (hit_box)
+        {
+            KAN_UMO_EVENT_INSERT_INIT (kan_ui_press_end_t) {
+                .node_id = hit_box->id,
+                .mouse_button_down_inclusive_flags = 0u,
+                .continuous_press = true,
+                .at_x = public->last_mouse_x,
+                .at_y = public->last_mouse_y,
+            };
+
+            const struct kan_resource_ui_hit_box_interaction_style_t *selected_style =
+                find_interactable_style (bundle, hit_box->interactable_style);
+
+            if (selected_style)
+            {
+                down_mark->down_until_s = ui->animation_global_time_s + selected_style->down_state_s;
+            }
+
+            KAN_UM_ACCESS_CLOSE_IMMEDIATELY (hit_box);
+            on_press_end_internal (state, public, ui, down_mark->id, true);
+        }
+    }
+}
+
+static void process_key_up_internal (struct ui_controls_input_state_t *state,
+                                     struct kan_ui_input_singleton_t *public,
+                                     const struct kan_ui_singleton_t *ui,
+                                     const struct kan_ui_bundle_singleton_t *bundle,
+                                     const struct kan_platform_application_event_t *event)
+{
+    if (!KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
+    {
+        simulate_press_end_from_key_binding (state, public, ui, bundle, event);
+        return;
+    }
+
+    // We do not process keyboard input for input receivers while mouse is down.
+    if (public->mouse_button_down_flags != 0u)
+    {
+        return;
+    }
+}
+
 static void process_text_input_internal (struct ui_controls_input_state_t *state,
                                          struct kan_ui_input_singleton_t *public,
                                          const struct kan_ui_singleton_t *ui,
@@ -1368,51 +1592,6 @@ static void process_text_input_internal (struct ui_controls_input_state_t *state
     {
         line_edit_paste_text (line_edit_behavior, event->text_input.text);
     }
-}
-
-static void prolong_hit_box_down_visuals (struct ui_controls_input_state_t *state,
-                                          struct kan_ui_input_singleton_t *public,
-                                          const struct kan_ui_bundle_singleton_t *bundle,
-                                          const struct kan_ui_node_hit_box_t *hit_box)
-{
-    const struct kan_resource_ui_hit_box_interaction_style_t *selected_style = NULL;
-
-    for (kan_memory_size_t index = 0u; index < bundle->available_bundle.hit_box_interaction_styles.size; ++index)
-    {
-        const struct kan_resource_ui_hit_box_interaction_style_t *style =
-            &((struct kan_resource_ui_hit_box_interaction_style_t *)
-                  bundle->available_bundle.hit_box_interaction_styles.data)[index];
-
-        if (style->name == hit_box->interactable_style)
-        {
-            selected_style = style;
-            break;
-        }
-    }
-
-    if (!selected_style)
-    {
-        // No style -> no animation.
-        return;
-    }
-
-    KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (existent_mark, kan_ui_node_down_mark_t, id, &hit_box->id)
-
-    if (existent_mark)
-    {
-        existent_mark->down_until_s = ui->animation_global_time_s + selected_style->down_state_s;
-        // Already had mark, no visual update needed.
-        return;
-    }
-
-    KAN_UMO_INDEXED_INSERT (new_mark, kan_ui_node_down_mark_t)
-    {
-        new_mark->id = hit_box->id;
-        new_mark->down_until_s = ui->animation_global_time_s + selected_style->down_state_s;
-    }
-
-    apply_hit_box_interaction_visuals (state, public, bundle, hit_box, false);
 }
 
 static void apply_scroll_relative_input (struct ui_controls_input_state_t *state,
@@ -1783,20 +1962,20 @@ static void on_map_behavior_press_motion (struct ui_controls_input_state_t *stat
 static void on_press_motion_internal (struct ui_controls_input_state_t *state,
                                       struct kan_ui_input_singleton_t *public,
                                       const struct kan_ui_singleton_t *ui,
+                                      // Press id might be different for simulated pressed from key bindings.
+                                      kan_ui_node_id_t press_id,
                                       kan_floating_t x_relative,
                                       kan_floating_t y_relative)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id, &public->press_started_on_id)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id, &press_id)
 
     if (scroll_line_state)
     {
         place_scroll_line_knob_at_press (state, public, private, ui, scroll_line_state);
     }
 
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
-                                   &public->press_started_on_id)
-
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &press_id)
     if (line_edit_behavior)
     {
         private->line_edit_press_moved = true;
@@ -1813,7 +1992,7 @@ static void on_press_motion_internal (struct ui_controls_input_state_t *state,
         line_edit_behavior->text_visuals_dirty = true;
     }
 
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (map_behavior, kan_ui_node_map_behavior_t, id, &public->press_started_on_id)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (map_behavior, kan_ui_node_map_behavior_t, id, &press_id)
     if (map_behavior)
     {
         on_map_behavior_press_motion (state, map_behavior, x_relative, y_relative);
@@ -1822,10 +2001,12 @@ static void on_press_motion_internal (struct ui_controls_input_state_t *state,
 
 static void on_press_begin_internal (struct ui_controls_input_state_t *state,
                                      struct kan_ui_input_singleton_t *public,
-                                     const struct kan_ui_singleton_t *ui)
+                                     const struct kan_ui_singleton_t *ui,
+                                     // Press id might be different for simulated pressed from key bindings.
+                                     kan_ui_node_id_t press_id)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id, &public->press_started_on_id)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id, &press_id)
 
     if (scroll_line_state)
     {
@@ -1874,14 +2055,12 @@ static void on_press_begin_internal (struct ui_controls_input_state_t *state,
     }
 
     if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id) &&
-        !KAN_TYPED_ID_32_IS_EQUAL (public->input_receiver_id, public->press_started_on_id))
+        !KAN_TYPED_ID_32_IS_EQUAL (public->input_receiver_id, press_id))
     {
         deselect_input_receiver_behavior (state, public, private);
     }
 
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
-                                   &public->press_started_on_id)
-
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &press_id)
     if (line_edit_behavior && !line_edit_behavior->content_dirty)
     {
         private->line_edit_selected_this_press =
@@ -1936,31 +2115,36 @@ static void on_multi_click_internal (struct ui_controls_input_state_t *state,
 static void on_press_end_internal (struct ui_controls_input_state_t *state,
                                    struct kan_ui_input_singleton_t *public,
                                    const struct kan_ui_singleton_t *ui,
+                                   // Press id might be different for simulated pressed from key bindings.
+                                   kan_ui_node_id_t press_id,
                                    bool continuous)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
-
-    if (line_edit_behavior)
+    if (KAN_TYPED_ID_32_IS_EQUAL (public->input_receiver_id, press_id))
     {
-        if (!private->line_edit_press_moved ||
-            (line_edit_behavior->selection_content_min != KAN_INT_MAX (kan_instance_size_t) &&
-             line_edit_behavior->selection_content_min == line_edit_behavior->selection_content_max))
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &press_id)
+        if (line_edit_behavior)
         {
-            line_edit_behavior->cursor_content_location = calculate_content_position_on_shaped_text (
-                state, line_edit_behavior->text_id, line_edit_behavior->shaping_unit_id, public->last_mouse_x,
-                public->last_mouse_y);
+            if (!private->line_edit_press_moved ||
+                (line_edit_behavior->selection_content_min != KAN_INT_MAX (kan_instance_size_t) &&
+                 line_edit_behavior->selection_content_min == line_edit_behavior->selection_content_max))
+            {
+                line_edit_behavior->cursor_content_location = calculate_content_position_on_shaped_text (
+                    state, line_edit_behavior->text_id, line_edit_behavior->shaping_unit_id, public->last_mouse_x,
+                    public->last_mouse_y);
 
-            line_edit_behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
-            line_edit_behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
-            line_edit_behavior->text_visuals_dirty = true;
-        }
+                line_edit_behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
+                line_edit_behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
+                line_edit_behavior->text_visuals_dirty = true;
+            }
 
-        if (private->line_edit_selected_this_press && !private->input_receiver_requested_text_input &&
-            KAN_HANDLE_IS_VALID (public->linked_window_handle))
-        {
-            kan_application_window_add_text_listener (state->application_system_handle, public->linked_window_handle);
-            private->input_receiver_requested_text_input = true;
+            if (private->line_edit_selected_this_press && !private->input_receiver_requested_text_input &&
+                KAN_HANDLE_IS_VALID (public->linked_window_handle))
+            {
+                kan_application_window_add_text_listener (state->application_system_handle,
+                                                          public->linked_window_handle);
+                private->input_receiver_requested_text_input = true;
+            }
         }
     }
 }
@@ -2179,7 +2363,13 @@ static void process_events (struct ui_controls_input_state_t *state,
                         .at_y = public->last_mouse_y,
                     };
 
-                    on_press_end_internal (state, public, ui, false);
+                    on_press_end_internal (state, public, ui, public->press_started_on_id, false);
+                }
+
+                // Reset key dependencies on down marks as we might never get the key up event due to losing focus.
+                KAN_UML_SEQUENCE_UPDATE (down_mark, kan_ui_node_down_mark_t)
+                {
+                    down_mark->down_from_key = KAN_PLATFORM_SCAN_CODE_UNKNOWN;
                 }
 
                 public->mouse_button_down_inclusive_flags = 0u;
@@ -2190,15 +2380,23 @@ static void process_events (struct ui_controls_input_state_t *state,
             break;
 
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_KEY_DOWN:
-            if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_motion.window_id, public->linked_window_id))
+            if (KAN_TYPED_ID_32_IS_EQUAL (event->keyboard.window_id, public->linked_window_id))
             {
-                process_key_down_internal (state, public, ui, event);
+                process_key_down_internal (state, public, ui, bundle, event);
+            }
+
+            break;
+
+        case KAN_PLATFORM_APPLICATION_EVENT_TYPE_KEY_UP:
+            if (KAN_TYPED_ID_32_IS_EQUAL (event->keyboard.window_id, public->linked_window_id))
+            {
+                process_key_up_internal (state, public, ui, bundle, event);
             }
 
             break;
 
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_TEXT_INPUT:
-            if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_motion.window_id, public->linked_window_id))
+            if (KAN_TYPED_ID_32_IS_EQUAL (event->text_input.window_id, public->linked_window_id))
             {
                 process_text_input_internal (state, public, ui, event);
             }
@@ -2224,7 +2422,8 @@ static void process_events (struct ui_controls_input_state_t *state,
                         .delta_y = (kan_instance_offset_t) event->mouse_motion.window_y_relative,
                     };
 
-                    on_press_motion_internal (state, public, ui, event->mouse_motion.window_x_relative,
+                    on_press_motion_internal (state, public, ui, public->press_started_on_id,
+                                              event->mouse_motion.window_x_relative,
                                               event->mouse_motion.window_y_relative);
                 }
             }
@@ -2310,7 +2509,7 @@ static void process_events (struct ui_controls_input_state_t *state,
                 {
                     if (public->press_filtered_in)
                     {
-                        on_press_begin_internal (state, public, ui);
+                        on_press_begin_internal (state, public, ui, public->press_started_on_id);
                     }
                     else
                     {
@@ -2365,7 +2564,7 @@ static void process_events (struct ui_controls_input_state_t *state,
 
                         // We process press internally after closing access to the hit box as
                         // it might be needed to modify hit box while processing the press.
-                        on_press_end_internal (state, public, ui, continuous);
+                        on_press_end_internal (state, public, ui, public->press_started_on_id, continuous);
                     }
 
                     public->mouse_button_down_inclusive_flags = 0u;
@@ -2945,11 +3144,16 @@ static void clear_old_down_marks (struct ui_controls_input_state_t *state,
 {
     KAN_UML_SEQUENCE_DELETE (down_mark, kan_ui_node_down_mark_t)
     {
+        if (down_mark->down_from_key != KAN_PLATFORM_SCAN_CODE_UNKNOWN)
+        {
+            continue;
+        }
+
         if (ui->animation_global_time_s > down_mark->down_until_s ||
             // Check for animation time overflow loop.
             ui->animation_global_time_s < ui->animation_delta_time_s)
         {
-            KAN_UMI_VALUE_UPDATE_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &down_mark->id)
+            KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &down_mark->id)
             if (hit_box)
             {
                 apply_hit_box_interaction_visuals (state, public, bundle, hit_box, true);

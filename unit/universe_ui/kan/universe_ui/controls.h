@@ -78,6 +78,7 @@ KAN_C_HEADER_BEGIN
 /// \brief Singleton that is used to configure input processing and also exposes public input state.
 /// \details Should not be accessed outside UI leaf worlds, otherwise processing input from several
 ///          windows would be impossible.
+/// \warning Press information in singleton is not affected by virtual presses from key bindings!
 struct kan_ui_input_singleton_t
 {
     /// \brief Event iterator used to get input events inside input processing mutator.
@@ -162,6 +163,15 @@ struct kan_ui_node_hit_box_t
 UNIVERSE_UI_API void kan_ui_node_hit_box_init (struct kan_ui_node_hit_box_t *instance);
 
 UNIVERSE_UI_API void kan_ui_node_hit_box_shutdown (struct kan_ui_node_hit_box_t *instance);
+
+/// \brief Binds key up/down logic to particular hit box press logic.
+/// \warning Presses from bindings do not affect data `kan_ui_input_singleton_t` and
+///          only trigger press begin and press end logic.
+struct kan_ui_node_key_binding_t
+{
+    kan_immutable kan_ui_node_id_t id;
+    enum kan_platform_scan_code_t scan_code;
+};
 
 /// \brief Event that is sent when multiple successive clicks were detected, for example double click.
 /// \details In case of multiple clicks, for example double click, press begin and end events for the first click will

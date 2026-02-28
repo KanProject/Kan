@@ -470,6 +470,9 @@ PLATFORM_API char *kan_platform_application_extract_text_from_clipboard (void);
 /// \brief Puts given text into platform clipboard.
 PLATFORM_API void kan_platform_application_put_text_into_clipboard (const char *text);
 
+/// \brief Gets appropriate name for the key under current locale and layout on user system.
+PLATFORM_API const char *kan_platform_get_scan_code_name (enum kan_platform_scan_code_t scan_code);
+
 /// \brief Adds request for the Vulkan library to be loaded. Returns true if library is loaded and ready to be used.
 PLATFORM_API bool kan_platform_application_register_vulkan_library_usage (void);
 

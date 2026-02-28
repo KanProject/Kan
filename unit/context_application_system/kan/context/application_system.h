@@ -345,6 +345,10 @@ CONTEXT_APPLICATION_SYSTEM_API void kan_application_system_clipboard_set_text (k
 CONTEXT_APPLICATION_SYSTEM_API void kan_application_system_clipboard_set_text_sequence (
     kan_context_system_t system_handle, const char *text_begin, const char *text_end);
 
+/// \brief Adapts `kan_platform_get_scan_code_name`.
+CONTEXT_APPLICATION_SYSTEM_API const char *kan_application_system_get_scan_code_name (
+    kan_context_system_t system_handle, enum kan_platform_scan_code_t scan_code);
+
 /// \brief Push fake event that will be read during next sync.
 /// \details Event data is moved out, therefore shutting down pushed event is optional.
 /// \warning This event does not execute anything by itself (for example, dues not modify clipboard), it is just passed

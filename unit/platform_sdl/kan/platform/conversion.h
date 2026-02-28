@@ -20,6 +20,8 @@ enum kan_platform_window_flag_t to_kan_window_flags (uint64_t sdl_flags);
 uint32_t to_sdl_window_flags (enum kan_platform_window_flag_t flags);
 
 enum kan_platform_scan_code_t to_kan_scan_code (SDL_Scancode scan_code);
+SDL_Scancode to_sdl_scan_code (enum kan_platform_scan_code_t scan_code);
+
 enum kan_platform_modifier_mask_t to_kan_modifier_mask (SDL_Keymod modifiers);
 enum kan_platform_mouse_button_t to_kan_mouse_button (uint8_t button);
 

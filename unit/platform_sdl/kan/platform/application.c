@@ -1428,7 +1428,14 @@ char *kan_platform_application_extract_text_from_clipboard (void)
     return kan_text;
 }
 
-PLATFORM_API void kan_platform_application_put_text_into_clipboard (const char *text) { SDL_SetClipboardText (text); }
+void kan_platform_application_put_text_into_clipboard (const char *text) { SDL_SetClipboardText (text); }
+
+const char *kan_platform_get_scan_code_name (enum kan_platform_scan_code_t scan_code)
+{
+    const SDL_Scancode sdl_scan_code = to_sdl_scan_code (scan_code);
+    const SDL_Keycode sdl_key_code = SDL_GetKeyFromScancode (sdl_scan_code, SDL_KMOD_NONE, false);
+    return SDL_GetKeyName (sdl_key_code);
+}
 
 bool kan_platform_application_register_vulkan_library_usage (void)
 {

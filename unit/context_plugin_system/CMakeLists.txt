@@ -25,3 +25,16 @@ concrete_compile_definitions (
         KAN_PLUGIN_SYSTEM_HOT_RELOAD_IO_BUFFER=${KAN_PLUGIN_SYSTEM_HOT_RELOAD_IO_BUFFER}
         KAN_PLUGIN_SYSTEM_HOT_RELOAD_MAX_RETRIES=${KAN_PLUGIN_SYSTEM_HOT_RELOAD_MAX_RETRIES}
         KAN_PLUGIN_SYSTEM_HOT_RELOAD_RETRY_DELAY_NS=${KAN_PLUGIN_SYSTEM_HOT_RELOAD_RETRY_DELAY_NS})
+
+if (UNIX)
+    find_program (PATCH_ELF patchelf)
+    if (NOT PATCH_ELF-NOTFOUND)
+        # On Unix-like systems, dlopen resolves required shared objects to already linked shared objects if soname
+        # matches, which means that if one plugin tries to link to other plugin it would link itself to the old
+        # version of that plugin as it is presented earlier in the loaded objects list. We mitigate this issue by
+        # patching always-new soname values to hot reload shared object copies using patchelf utility.
+        concrete_compile_definitions (PRIVATE KAN_PLUGIN_SYSTEM_USE_PATCH_ELF_FIX)
+    else ()
+        message (WARNING "Command line utility patchelf not available. It can cause issues during plugin hot reload.")
+    endif ()
+endif ()

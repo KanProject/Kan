@@ -1928,13 +1928,12 @@ UNIVERSE_RESOURCE_PROVIDER_API void kan_reflection_generator_universe_resource_p
     struct kan_reflection_generator_universe_resource_provider_t *instance)
 {
     kan_static_interned_ids_ensure_initialized ();
+    kan_cpu_static_sections_ensure_initialized ();
+
     instance->generated_reflection_group =
         kan_allocation_group_get_child (kan_allocation_group_stack_get (), "generated_reflection");
     instance->first_node = NULL;
     instance->nodes_count = 0u;
-
-    kan_static_interned_ids_ensure_initialized ();
-    kan_cpu_static_sections_ensure_initialized ();
 }
 
 UNIVERSE_RESOURCE_PROVIDER_API void kan_reflection_generator_universe_resource_provider_shutdown (

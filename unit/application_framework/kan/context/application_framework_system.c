@@ -169,24 +169,27 @@ static kan_thread_result_t auto_build_thread (kan_thread_user_data_t user_data)
                 // to wait until it happens. Using min frame time for it seems like a valid decision.
                 kan_precise_time_sleep (KAN_APPLICATION_FRAMEWORK_DEFAULT_MIN_FRAME_TIME_NS);
 
-                if (kan_hot_reload_coordination_system_is_executing (framework_system->hot_reload_coordination_system))
-                {
-                    const int result = system (framework_system->auto_build_command);
-                    if (result != 0)
-                    {
-                        KAN_LOG (context_application_framework_system, KAN_LOG_ERROR,
-                                 "Failed to execute auto build command, its return code is %d.", result)
-                    }
-
-                    kan_hot_reload_coordination_system_finish (framework_system->hot_reload_coordination_system);
-                    break;
-                }
-
                 if (!kan_hot_reload_coordination_system_is_scheduled (framework_system->hot_reload_coordination_system))
                 {
-                    // Hot reload was denied entirely for some reason, just exit from this loop.
-                    // For example, user might have pressed hot reload pause hotkey.
-                    break;
+                    if (kan_hot_reload_coordination_system_is_executing (
+                            framework_system->hot_reload_coordination_system))
+                    {
+                        const int result = system (framework_system->auto_build_command);
+                        if (result != 0)
+                        {
+                            KAN_LOG (context_application_framework_system, KAN_LOG_ERROR,
+                                     "Failed to execute auto build command, its return code is %d.", result)
+                        }
+
+                        kan_hot_reload_coordination_system_finish (framework_system->hot_reload_coordination_system);
+                        break;
+                    }
+                    else
+                    {
+                        // Hot reload was denied entirely for some reason, just exit from this loop.
+                        // For example, user might have pressed hot reload pause hotkey.
+                        break;
+                    }
                 }
             }
         }

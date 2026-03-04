@@ -2800,7 +2800,11 @@ static void world_migrate_configuration (struct universe_t *universe,
             break;
 
         case KAN_REFLECTION_MIGRATION_REMOVED:
-            configuration->type->shutdown (configuration->type->functor_user_data, configuration->data);
+            if (configuration->type->shutdown)
+            {
+                configuration->type->shutdown (configuration->type->functor_user_data, configuration->data);
+            }
+
             kan_free_batched (universe->configuration_allocation_group, configuration->data);
             kan_dynamic_array_remove_swap_at (&world->configuration, configuration_index);
             break;

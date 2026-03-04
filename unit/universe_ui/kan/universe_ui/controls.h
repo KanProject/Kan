@@ -38,7 +38,7 @@
 /// - `kan_ui_node_scroll_behavior_t` for implementing scroll pane widgets.
 /// - `kan_ui_node_line_edit_behavior_t` for implementing text line edit widgets.
 /// - `kan_ui_node_map_behavior_t` for map-like pane widgets.
-/// - `kan_ui_node_tooltip_behavior_t` for tooltip-like popup widgets.
+/// - `kan_ui_node_popup_behavior_t` for popup widgets like tooltips or drop down selections.
 /// \endparblock
 
 KAN_C_HEADER_BEGIN
@@ -617,25 +617,65 @@ struct kan_ui_node_map_pin_t
 
 UNIVERSE_UI_API void kan_ui_node_map_pin_init (struct kan_ui_node_map_pin_t *instance);
 
-/// \brief Behavior for tooltip like widgets that can only be visible when trigger conditions are met.
-struct kan_ui_node_tooltip_behavior_t
+/// \brief Enumerates flags that enable different popup trigger interactions.
+KAN_REFLECTION_FLAGS
+enum kan_ui_node_popup_behavior_trigger_flags_t
+{
+    /// \brief Popup is triggered when trigger node hit box is hovered for specific amount of time.
+    KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_HOVER_TIMER = 1u << 0u,
+
+    /// \brief Popup is triggered on continuous press end on trigger node hit box.
+    KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_PRESS_END = 1u << 1u,
+};
+
+/// \brief Enumerates flags that enable different popup hiding interactions.
+KAN_REFLECTION_FLAGS
+enum kan_ui_node_popup_behavior_hide_flags_t
+{
+    /// \brief Popup is hidden after specified amount of time runs out.
+    /// \details Timer is refreshed to full value as long as popup is considered triggered or preserved.
+    KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_TIMER = 1u << 0u,
+
+    /// \brief Interactions with elements that are not children of this popup will hide popup immediately.
+    /// \details For example, if user clicks on other element or on empty area with no elements outside of popup,
+    ///          then popup will be hidden. Useful for interactive popups like drop down menus.
+    KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_OUTSIDE_INTERACTION = 1u << 1u,
+
+    /// \brief Popup is considered preserved and cannot be hidden as long as user pointer is on top of it.
+    /// \details Hit boxes of popup children are counted as pointer being on top. Hit box of popup node is counted as
+    ///          well even if it is blocking, not interactable.
+    KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_PRESERVE_WHILE_POINTED = 1u << 2u,
+};
+
+/// \brief Behavior for popup-like widgets that can only be visible when trigger conditions are met.
+/// \details Primary examples of such widgets are tooltips and drop down menus.
+struct kan_ui_node_popup_behavior_t
 {
     kan_immutable kan_ui_node_id_t id;
 
-    /// \brief Tooltip will be visible for this amount of seconds after there is no more reasons to show it.
-    kan_floating_t lifetime_s;
+    /// \brief Node with hit box that is considered to be a trigger source for popup logic.
+    kan_immutable kan_ui_node_id_t trigger_id;
 
-    /// \brief If true, tooltip will be kept visible if pointer is on top of its hit box or
-    ///        hit box of any of its children.
-    bool preserve_while_pointed;
+    kan_immutable enum kan_ui_node_popup_behavior_trigger_flags_t trigger_flags;
+    kan_immutable enum kan_ui_node_popup_behavior_hide_flags_t hide_flags;
 
-    /// \brief If the node is given id has hit box and it is considered hovered, this tooltip will be triggered.
-    kan_immutable kan_ui_node_id_t trigger_when_hovering_id;
+    /// \brief Time in seconds for `KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_HOVER_TIMER` logic.
+    kan_floating_t hover_timer_s;
 
-    /// \brief Show tooltip when `trigger_when_hovering_id` is hovered at least this amount of seconds.
-    kan_floating_t hovered_show_delay_s;
+    /// \brief Time in seconds for `KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_TIMER` logic.
+    kan_floating_t hide_timer_s;
 };
 
-UNIVERSE_UI_API void kan_ui_node_tooltip_behavior_init (struct kan_ui_node_tooltip_behavior_t *instance);
+UNIVERSE_UI_API void kan_ui_node_popup_behavior_init (struct kan_ui_node_popup_behavior_t *instance);
+
+/// \brief When this node receives continuous press end event, it will hide popup node with given id.
+/// \details Useful as a syntax sugar, for example can be added to all drop down menu options.
+struct kan_ui_node_hide_popup_on_press_t
+{
+    kan_immutable kan_ui_node_id_t id;
+    kan_immutable kan_ui_node_id_t popup_id;
+};
+
+UNIVERSE_UI_API void kan_ui_node_hide_popup_on_press_init (struct kan_ui_node_hide_popup_on_press_t *instance);
 
 KAN_C_HEADER_END

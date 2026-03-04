@@ -77,10 +77,17 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_n
 };
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
-UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_tooltip_behavior_cascade_deletion =
-    {
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_popup_behavior_cascade_deletion = {
+    .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+    .child_type_name = "kan_ui_node_popup_behavior_t",
+    .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+};
+
+KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t
+    kan_ui_node_hide_popup_on_press_cascade_deletion = {
         .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
-        .child_type_name = "kan_ui_node_tooltip_behavior_t",
+        .child_type_name = "kan_ui_node_hide_popup_on_press_t",
         .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
 };
 
@@ -197,14 +204,14 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_on_insert_event_t kan_ui_no
             },
 };
 
-struct kan_ui_node_tooltip_behavior_on_insert_event_t
+struct kan_ui_node_popup_behavior_on_insert_event_t
 {
     kan_ui_node_id_t id;
 };
 
-KAN_REFLECTION_STRUCT_META (kan_ui_node_tooltip_behavior_t)
-UNIVERSE_UI_API struct kan_repository_meta_automatic_on_insert_event_t kan_ui_node_tooltip_behavior_on_insert_event = {
-    .event_type = "kan_ui_node_tooltip_behavior_on_insert_event_t",
+KAN_REFLECTION_STRUCT_META (kan_ui_node_popup_behavior_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_on_insert_event_t kan_ui_node_popup_behavior_on_insert_event = {
+    .event_type = "kan_ui_node_popup_behavior_on_insert_event_t",
     .copy_outs_count = 1u,
     .copy_outs =
         (struct kan_repository_copy_out_t[]) {
@@ -246,23 +253,24 @@ UNIVERSE_UI_API void kan_ui_node_scroll_line_state_init (struct kan_ui_node_scro
     instance->visible_until_s = 0.0f;
 }
 
-enum kan_ui_node_tooltip_action_t
+enum kan_ui_node_popup_action_t
 {
-    KAN_UI_NODE_TOOLTIP_ACTION_SHOW = 0u,
-    KAN_UI_NODE_TOOLTIP_ACTION_HIDE,
+    KAN_UI_NODE_POPUP_ACTION_NONE = 0u,
+    KAN_UI_NODE_POPUP_ACTION_SHOW,
+    KAN_UI_NODE_POPUP_ACTION_HIDE,
 };
 
-struct kan_ui_node_tooltip_state_t
+struct kan_ui_node_popup_state_t
 {
     kan_immutable kan_ui_node_id_t id;
-    enum kan_ui_node_tooltip_action_t pending_action;
+    enum kan_ui_node_popup_action_t pending_action;
     kan_floating_t pending_action_time_s;
 };
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
-UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_tooltip_state_cascade_deletion = {
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_popup_state_cascade_deletion = {
     .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
-    .child_type_name = "kan_ui_node_tooltip_state_t",
+    .child_type_name = "kan_ui_node_popup_state_t",
     .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
 };
 
@@ -883,17 +891,17 @@ static void process_line_edit_behavior_insertion (struct ui_controls_input_state
     }
 }
 
-static void process_tooltip_behavior_insertion (struct ui_controls_input_state_t *state)
+static void process_popup_behavior_insertion (struct ui_controls_input_state_t *state)
 {
-    KAN_UML_EVENT_FETCH (tooltip_behavior_inserted_event, kan_ui_node_tooltip_behavior_on_insert_event_t)
+    KAN_UML_EVENT_FETCH (popup_behavior_inserted_event, kan_ui_node_popup_behavior_on_insert_event_t)
     {
-        KAN_UMI_VALUE_READ_OPTIONAL (behavior, kan_ui_node_tooltip_behavior_t, id, &tooltip_behavior_inserted_event->id)
+        KAN_UMI_VALUE_READ_OPTIONAL (behavior, kan_ui_node_popup_behavior_t, id, &popup_behavior_inserted_event->id)
         if (!behavior)
         {
             continue;
         }
 
-        KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &tooltip_behavior_inserted_event->id)
+        KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &popup_behavior_inserted_event->id)
         node->render.hidden = true;
     }
 }
@@ -1999,6 +2007,50 @@ static void on_press_motion_internal (struct ui_controls_input_state_t *state,
     }
 }
 
+static bool is_in_child_hierarchy_of (struct ui_controls_input_state_t *state,
+                                      kan_ui_node_id_t id_to_check,
+                                      kan_ui_node_id_t hierarchy_id)
+{
+    while (KAN_TYPED_ID_32_IS_VALID (id_to_check))
+    {
+        if (KAN_TYPED_ID_32_IS_EQUAL (id_to_check, hierarchy_id))
+        {
+            return true;
+        }
+
+        // It is possible to get incorrect initial id from press end interaction if element was deleted during
+        // interaction. For the sake of simplicity, we just use optional here instead of checking input with
+        // optional first and then using required queries.
+        KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &id_to_check)
+
+        if (!node)
+        {
+            return false;
+        }
+
+        id_to_check = node->parent_id;
+    }
+
+    return false;
+}
+
+static void hide_popups_due_to_outside_interaction (struct ui_controls_input_state_t *state,
+                                                    kan_ui_node_id_t interacted_id)
+{
+    KAN_UML_SEQUENCE_UPDATE (popup_state, kan_ui_node_popup_state_t)
+    {
+        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_popup_behavior_t, id, &popup_state->id)
+        if (behavior->hide_flags & KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_OUTSIDE_INTERACTION)
+        {
+            if (!is_in_child_hierarchy_of (state, interacted_id, popup_state->id))
+            {
+                popup_state->pending_action = KAN_UI_NODE_POPUP_ACTION_HIDE;
+                popup_state->pending_action_time_s = 0.0f;
+            }
+        }
+    }
+}
+
 static void on_press_begin_internal (struct ui_controls_input_state_t *state,
                                      struct kan_ui_input_singleton_t *public,
                                      const struct kan_ui_singleton_t *ui,
@@ -2087,28 +2139,68 @@ static void on_press_begin_internal (struct ui_controls_input_state_t *state,
 
 static void on_press_begin_filtered_out_internal (struct ui_controls_input_state_t *state,
                                                   struct kan_ui_input_singleton_t *public,
-                                                  const struct kan_ui_singleton_t *ui)
+                                                  const struct kan_ui_singleton_t *ui,
+                                                  kan_ui_node_id_t filtered_out_element_id)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
     if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
     {
         deselect_input_receiver_behavior (state, public, private);
     }
+
+    hide_popups_due_to_outside_interaction (state, filtered_out_element_id);
 }
 
 static void on_multi_click_internal (struct ui_controls_input_state_t *state,
                                      struct kan_ui_input_singleton_t *public,
                                      const struct kan_ui_singleton_t *ui,
+                                     kan_ui_node_id_t multi_click_id,
                                      kan_instance_size_t clicks_count)
 {
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
-    if (line_edit_behavior && clicks_count == 2u)
+    if (KAN_TYPED_ID_32_IS_EQUAL (multi_click_id, public->input_receiver_id))
     {
-        line_edit_behavior->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
-        line_edit_behavior->selection_content_min = 0u;
-        // Minus 1 due to null terminator inside content.
-        line_edit_behavior->selection_content_max = line_edit_behavior->content_utf8.size - 1u;
-        line_edit_behavior->text_visuals_dirty = true;
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
+                                       &public->input_receiver_id)
+        if (line_edit_behavior && clicks_count == 2u)
+        {
+            line_edit_behavior->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
+            line_edit_behavior->selection_content_min = 0u;
+            // Minus 1 due to null terminator inside content.
+            line_edit_behavior->selection_content_max = line_edit_behavior->content_utf8.size - 1u;
+            line_edit_behavior->text_visuals_dirty = true;
+        }
+    }
+
+    hide_popups_due_to_outside_interaction (state, multi_click_id);
+}
+
+static inline void schedule_popup_show (struct ui_controls_input_state_t *state,
+                                        const struct kan_ui_singleton_t *ui,
+                                        kan_ui_node_id_t popup_id,
+                                        kan_floating_t show_after_s)
+{
+    bool state_updated = false;
+    KAN_UML_SEQUENCE_UPDATE (popup_state, kan_ui_node_popup_state_t)
+    {
+        if (KAN_TYPED_ID_32_IS_EQUAL (popup_state->id, popup_id))
+        {
+            // We have existing state. We only need to update show action time if any.
+            if (popup_state->pending_action == KAN_UI_NODE_POPUP_ACTION_SHOW)
+            {
+                popup_state->pending_action_time_s = KAN_MIN (popup_state->pending_action_time_s, show_after_s);
+            }
+
+            state_updated = true;
+            break;
+        }
+    }
+
+    if (!state_updated)
+    {
+        KAN_UMI_INDEXED_INSERT (new_popup_state, kan_ui_node_popup_state_t)
+        new_popup_state->id = popup_id;
+        new_popup_state->pending_action = KAN_UI_NODE_POPUP_ACTION_SHOW;
+        new_popup_state->pending_action_time_s = show_after_s;
     }
 }
 
@@ -2144,6 +2236,33 @@ static void on_press_end_internal (struct ui_controls_input_state_t *state,
                 kan_application_window_add_text_listener (state->application_system_handle,
                                                           public->linked_window_handle);
                 private->input_receiver_requested_text_input = true;
+            }
+        }
+    }
+
+    // Must be done before triggering popups in order to avoid hide-triggered interaction.
+    hide_popups_due_to_outside_interaction (state, press_id);
+
+    if (continuous)
+    {
+        KAN_UML_VALUE_READ (popup_behavior, kan_ui_node_popup_behavior_t, trigger_id, &press_id)
+        {
+            if (popup_behavior->trigger_flags & KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_PRESS_END)
+            {
+                // Use zero time to show as soon as possible.
+                schedule_popup_show (state, ui, popup_behavior->id, 0.0f);
+            }
+        }
+
+        KAN_UML_VALUE_READ (hide_popup, kan_ui_node_hide_popup_on_press_t, id, &press_id)
+        {
+            KAN_UML_SEQUENCE_UPDATE (popup_state, kan_ui_node_popup_state_t)
+            {
+                if (KAN_TYPED_ID_32_IS_EQUAL (popup_state->id, hide_popup->popup_id))
+                {
+                    popup_state->pending_action = KAN_UI_NODE_POPUP_ACTION_HIDE;
+                    popup_state->pending_action_time_s = 0.0f;
+                }
             }
         }
     }
@@ -2183,46 +2302,26 @@ static void on_map_behavior_zoom (struct ui_controls_input_state_t *state,
     behavior->dirty = true;
 }
 
-static void trigger_tooltips_on_new_hovered_node (struct ui_controls_input_state_t *state,
-                                                  struct kan_ui_input_singleton_t *public,
-                                                  const struct kan_ui_singleton_t *ui)
+static void trigger_popups_on_new_hovered_node (struct ui_controls_input_state_t *state,
+                                                struct kan_ui_input_singleton_t *public,
+                                                const struct kan_ui_singleton_t *ui)
 {
-    KAN_UML_VALUE_READ (behavior, kan_ui_node_tooltip_behavior_t, trigger_when_hovering_id, &public->current_hovered_id)
+    KAN_UML_VALUE_READ (behavior, kan_ui_node_popup_behavior_t, trigger_id, &public->current_hovered_id)
     {
-        const kan_floating_t show_after_s = ui->animation_global_time_s + behavior->hovered_show_delay_s;
-        bool state_updated = false;
-
-        KAN_UML_SEQUENCE_UPDATE (tooltip_state, kan_ui_node_tooltip_state_t)
+        if (behavior->trigger_flags & KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_HOVER_TIMER)
         {
-            if (KAN_TYPED_ID_32_IS_EQUAL (tooltip_state->id, behavior->id))
-            {
-                // We have existing state. We only need to update show action time if any.
-                if (tooltip_state->pending_action == KAN_UI_NODE_TOOLTIP_ACTION_SHOW)
-                {
-                    tooltip_state->pending_action_time_s = KAN_MIN (tooltip_state->pending_action_time_s, show_after_s);
-                }
-
-                state_updated = true;
-                break;
-            }
-        }
-
-        if (!state_updated)
-        {
-            KAN_UMI_INDEXED_INSERT (new_tooltip_state, kan_ui_node_tooltip_state_t)
-            new_tooltip_state->id = behavior->id;
-            new_tooltip_state->pending_action = KAN_UI_NODE_TOOLTIP_ACTION_SHOW;
-            new_tooltip_state->pending_action_time_s = show_after_s;
+            schedule_popup_show (state, ui, behavior->id, ui->animation_global_time_s + behavior->hover_timer_s);
         }
     }
 }
 
-static inline bool is_tooltip_triggered (struct ui_controls_input_state_t *state,
-                                         struct kan_ui_input_singleton_t *public,
-                                         const struct kan_ui_node_tooltip_behavior_t *behavior)
+static inline bool is_popup_triggered (struct ui_controls_input_state_t *state,
+                                       struct kan_ui_input_singleton_t *public,
+                                       const struct kan_ui_node_popup_behavior_t *behavior)
 {
-    if (KAN_TYPED_ID_32_IS_VALID (behavior->trigger_when_hovering_id) &&
-        KAN_TYPED_ID_32_IS_EQUAL (public->current_hovered_id, behavior->trigger_when_hovering_id))
+    if ((behavior->trigger_flags & KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_HOVER_TIMER) &&
+        KAN_TYPED_ID_32_IS_VALID (behavior->trigger_id) &&
+        KAN_TYPED_ID_32_IS_EQUAL (public->current_hovered_id, behavior->trigger_id))
     {
         return true;
     }
@@ -2230,11 +2329,11 @@ static inline bool is_tooltip_triggered (struct ui_controls_input_state_t *state
     return false;
 }
 
-static inline bool is_tooltip_preserved (struct ui_controls_input_state_t *state,
-                                         struct kan_ui_input_singleton_t *public,
-                                         const struct kan_ui_node_tooltip_behavior_t *behavior)
+static bool is_popup_preserved (struct ui_controls_input_state_t *state,
+                                struct kan_ui_input_singleton_t *public,
+                                const struct kan_ui_node_popup_behavior_t *behavior)
 {
-    if (behavior->preserve_while_pointed)
+    if (behavior->hide_flags & KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_PRESERVE_WHILE_POINTED)
     {
         // Preservation under pointer implementation is not optimized right now at all.
         // If this simple implementation starts to cause issues, it should definitely be optimized and refactored.
@@ -2254,61 +2353,77 @@ static inline bool is_tooltip_preserved (struct ui_controls_input_state_t *state
             }
         }
 
-        while (KAN_TYPED_ID_32_IS_VALID (under_cursor_id))
+        if (is_in_child_hierarchy_of (state, under_cursor_id, behavior->id))
         {
-            if (KAN_TYPED_ID_32_IS_EQUAL (under_cursor_id, behavior->id))
-            {
-                return true;
-            }
-
-            KAN_UMI_VALUE_READ_REQUIRED (node, kan_ui_node_t, id, &under_cursor_id)
-            under_cursor_id = node->parent_id;
+            return true;
         }
     }
 
     return false;
 }
 
-static void update_tooltip_states (struct ui_controls_input_state_t *state,
-                                   struct kan_ui_input_singleton_t *public,
-                                   const struct kan_ui_singleton_t *ui)
+static void update_popup_states (struct ui_controls_input_state_t *state,
+                                 struct kan_ui_input_singleton_t *public,
+                                 const struct kan_ui_singleton_t *ui)
 {
-    KAN_UML_SEQUENCE_WRITE (tooltip_state, kan_ui_node_tooltip_state_t)
+    KAN_UML_SEQUENCE_WRITE (popup_state, kan_ui_node_popup_state_t)
     {
-        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_tooltip_behavior_t, id, &tooltip_state->id)
-        switch (tooltip_state->pending_action)
+        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_popup_behavior_t, id, &popup_state->id)
+        switch (popup_state->pending_action)
         {
-        case KAN_UI_NODE_TOOLTIP_ACTION_SHOW:
-            if (!is_tooltip_triggered (state, public, behavior))
+        case KAN_UI_NODE_POPUP_ACTION_NONE:
+            break;
+
+        case KAN_UI_NODE_POPUP_ACTION_SHOW:
+            // Check the timer first as show action might've been sent this frame from logic that has no persistent
+            // triggers: for example press end.
+            if (popup_state->pending_action_time_s <= ui->animation_global_time_s ||
+                // Check for animation time overflow loop.
+                ui->animation_global_time_s < ui->animation_delta_time_s)
             {
-                // Reasons to show are no longer valid.
-                KAN_UM_ACCESS_DELETE (tooltip_state);
+                KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &popup_state->id)
+                node->render.hidden = false;
+
+                if (behavior->hide_flags & KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_TIMER)
+                {
+                    popup_state->pending_action = KAN_UI_NODE_POPUP_ACTION_HIDE;
+                    popup_state->pending_action_time_s = ui->animation_global_time_s + behavior->hide_timer_s;
+                }
+                else
+                {
+                    popup_state->pending_action = KAN_UI_NODE_POPUP_ACTION_NONE;
+                }
+
                 break;
             }
 
-            if (tooltip_state->pending_action_time_s <= ui->animation_global_time_s)
+            if (!is_popup_triggered (state, public, behavior))
             {
-                KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &tooltip_state->id)
-                node->render.hidden = false;
-
-                tooltip_state->pending_action = KAN_UI_NODE_TOOLTIP_ACTION_HIDE;
-                tooltip_state->pending_action_time_s = ui->animation_global_time_s + behavior->lifetime_s;
+                // Reasons to show are no longer valid.
+                KAN_UM_ACCESS_DELETE (popup_state);
+                break;
             }
 
             break;
 
-        case KAN_UI_NODE_TOOLTIP_ACTION_HIDE:
-            if (is_tooltip_triggered (state, public, behavior) || is_tooltip_preserved (state, public, behavior))
+        case KAN_UI_NODE_POPUP_ACTION_HIDE:
+            if (is_popup_triggered (state, public, behavior) || is_popup_preserved (state, public, behavior))
             {
-                tooltip_state->pending_action_time_s = ui->animation_global_time_s + behavior->lifetime_s;
+                if (behavior->hide_flags & KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_TIMER)
+                {
+                    popup_state->pending_action_time_s = ui->animation_global_time_s + behavior->hide_timer_s;
+                }
+
                 break;
             }
 
-            if (tooltip_state->pending_action_time_s <= ui->animation_global_time_s)
+            if (popup_state->pending_action_time_s <= ui->animation_global_time_s ||
+                // Check for animation time overflow loop.
+                ui->animation_global_time_s < ui->animation_delta_time_s)
             {
-                KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &tooltip_state->id)
+                KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &popup_state->id)
                 node->render.hidden = true;
-                KAN_UM_ACCESS_DELETE (tooltip_state);
+                KAN_UM_ACCESS_DELETE (popup_state);
             }
 
             break;
@@ -2451,6 +2566,9 @@ static void process_events (struct ui_controls_input_state_t *state,
                     !element || ((new_press || multi_click) && element->interactable && !element->disabled &&
                                  (element->mouse_button_down_flags & flag));
 
+                const kan_ui_node_id_t element_id =
+                    element ? element->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+
                 public->press_started_on_id =
                     element && public->press_filtered_in ? element->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
 
@@ -2514,13 +2632,13 @@ static void process_events (struct ui_controls_input_state_t *state,
                     else
                     {
                         // Special callback for the cases when we need to reset press-based selection.
-                        on_press_begin_filtered_out_internal (state, public, ui);
+                        on_press_begin_filtered_out_internal (state, public, ui, element_id);
                     }
                 }
 
                 if (multi_click)
                 {
-                    on_multi_click_internal (state, public, ui, event->mouse_button.clicks);
+                    on_multi_click_internal (state, public, ui, element_id, event->mouse_button.clicks);
                 }
             }
 
@@ -2596,13 +2714,18 @@ static void process_events (struct ui_controls_input_state_t *state,
                         .at_x = public->last_mouse_x,
                         .at_y = public->last_mouse_y,
                     };
+
+                    hide_popups_due_to_outside_interaction (
+                        state, element ? element->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t));
                 }
 
-                if (element)
+                bool processed_input = false;
+                if (element && element->interactable && !element->disabled)
                 {
                     KAN_UMI_VALUE_READ_OPTIONAL (scroll_behaviour, kan_ui_node_scroll_behavior_t, id, &element->id)
-                    if (scroll_behaviour && element->interactable && !element->disabled)
+                    if (scroll_behaviour)
                     {
+                        processed_input = true;
                         const kan_floating_t speed_x =
                             kan_ui_calculate_coordinate_floating (ui, scroll_behaviour->mouse_speed_x);
                         const kan_floating_t speed_y =
@@ -2615,24 +2738,25 @@ static void process_events (struct ui_controls_input_state_t *state,
                     }
 
                     KAN_UMI_VALUE_UPDATE_OPTIONAL (map_behavior, kan_ui_node_map_behavior_t, id, &element->id)
-                    if (map_behavior && element->interactable && !element->disabled)
+                    if (map_behavior)
                     {
+                        processed_input = true;
                         on_map_behavior_zoom (state, public, ui, map_behavior,
                                               event->mouse_wheel.wheel_y * ui->animation_delta_time_s);
                     }
+                }
 
+                if (element)
+                {
                     kan_repository_indexed_sequence_read_access_close (&element_access);
+                }
 
-                    // If mouse wheel input was passed to scroll behavior, deselect line edit so the user won't
-                    // unexpectedly input anything into it.
-                    if (scroll_behaviour)
-                    {
-                        if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
-                        {
-                            KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-                            deselect_input_receiver_behavior (state, public, private);
-                        }
-                    }
+                // If mouse wheel input was passed to some behavior, deselect input receiver so the user won't
+                // unexpectedly input anything into it.
+                if (processed_input && KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
+                {
+                    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
+                    deselect_input_receiver_behavior (state, public, private);
                 }
             }
 
@@ -2668,7 +2792,7 @@ static void process_events (struct ui_controls_input_state_t *state,
             if (new_hovered_applicable)
             {
                 apply_hit_box_interaction_visuals (state, public, bundle, new_hovered, false);
-                trigger_tooltips_on_new_hovered_node (state, public, ui);
+                trigger_popups_on_new_hovered_node (state, public, ui);
             }
         }
 
@@ -2693,7 +2817,7 @@ static void process_events (struct ui_controls_input_state_t *state,
         }
     }
 
-    update_tooltip_states (state, public, ui);
+    update_popup_states (state, public, ui);
     if (public->press_filtered_in && KAN_TYPED_ID_32_IS_VALID (public->press_started_on_id))
     {
         KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &public->press_started_on_id)
@@ -3219,7 +3343,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_input)
     bool hit_boxes_changed = process_hit_box_insertion (state, public, bundle);
     process_scroll_behavior_insertion (state, ui);
     process_line_edit_behavior_insertion (state);
-    process_tooltip_behavior_insertion (state);
+    process_popup_behavior_insertion (state);
 
     sanitize_input_receiver_selection (state, public);
     process_line_edit_content_dirty_outer (state, public);
@@ -4111,11 +4235,18 @@ void kan_ui_node_map_pin_init (struct kan_ui_node_map_pin_t *instance)
     instance->sync_size = false;
 }
 
-void kan_ui_node_tooltip_behavior_init (struct kan_ui_node_tooltip_behavior_t *instance)
+void kan_ui_node_popup_behavior_init (struct kan_ui_node_popup_behavior_t *instance)
 {
     instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
-    instance->lifetime_s = 0.5f;
-    instance->preserve_while_pointed = true;
-    instance->trigger_when_hovering_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
-    instance->hovered_show_delay_s = 1.0f;
+    instance->trigger_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->trigger_flags = 0u;
+    instance->hide_flags = 0u;
+    instance->hover_timer_s = 1.0f;
+    instance->hide_timer_s = 0.5f;
+}
+
+void kan_ui_node_hide_popup_on_press_init (struct kan_ui_node_hide_popup_on_press_t *instance)
+{
+    instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->popup_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
 }

@@ -153,22 +153,35 @@ struct kan_uim_parent_stack_info_t
     *(kan_ui_node_id_t *) kan_dynamic_array_add_last (&HIT_BOX_NAME##_hit_box->propagate_interaction_visuals) =        \
         TARGET_NAME##_node->id
 
+/// \brief Contains common creation logic for vertical content popup windows like drop downs or tooltips.
+#define KAN_UIM_POPUP_VERTICAL_WINDOW(NAME, BACKGROUND_IMAGE, WIDTH, LAYER)                                            \
+    KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME);                                                                             \
+    KAN_UIM_DRAWABLE_IMAGE (NAME, BACKGROUND_IMAGE);                                                                   \
+    KAN_UIM_HIT_BOX_BLOCKING (NAME);                                                                                   \
+                                                                                                                       \
+    NAME##_node->order.layer = (LAYER);                                                                                \
+    NAME##_node->element.width = (WIDTH);                                                                              \
+    NAME##_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;                                                \
+    NAME##_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_BELOW;                                         \
+    NAME##_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;                                                     \
+    NAME##_node->render.hidden = true;                                                                                 \
+    NAME##_node->render.clip = true;                                                                                   \
+    NAME##_node->render.viewport_bound = true
+
+/// \brief Builds simple text tooltip for the element with given name.
+/// \invariant Expects shaping unit with name `NAME##_tooltip_shaping_unit` to be created prior to this call,
+///            which will contain tooltip text.
 #define KAN_UIM_TEXT_TOOLTIP(NAME, BACKGROUND_IMAGE, WIDTH, FONT_SIZE, LAYER)                                          \
-    KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_tooltip);                                                                   \
-    KAN_UIM_DRAWABLE_IMAGE (NAME##_tooltip, BACKGROUND_IMAGE);                                                         \
-    KAN_UIM_HIT_BOX_BLOCKING (NAME##_tooltip);                                                                         \
-                                                                                                                       \
+    KAN_UIM_POPUP_VERTICAL_WINDOW (NAME##_tooltip, (BACKGROUND_IMAGE), (WIDTH), (LAYER));                              \
     NAME##_tooltip_node->parent_id = NAME##_node->id;                                                                  \
-    NAME##_tooltip_node->order.layer = (LAYER);                                                                        \
-    NAME##_tooltip_node->element.width = (WIDTH);                                                                      \
-    NAME##_tooltip_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;                                        \
-    NAME##_tooltip_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_BELOW;                                 \
-    NAME##_tooltip_node->render.hidden = true;                                                                         \
-    NAME##_tooltip_node->render.viewport_bound = true;                                                                 \
                                                                                                                        \
-    KAN_UMI_INDEXED_INSERT (NAME##_tooltip_behavior, kan_ui_node_tooltip_behavior_t)                                   \
+    KAN_UMI_INDEXED_INSERT (NAME##_tooltip_behavior, kan_ui_node_popup_behavior_t)                                     \
     NAME##_tooltip_behavior->id = NAME##_tooltip_node->id;                                                             \
-    NAME##_tooltip_behavior->trigger_when_hovering_id = NAME##_node->id;                                               \
+    NAME##_tooltip_behavior->trigger_id = NAME##_node->id;                                                             \
+    NAME##_tooltip_behavior->trigger_flags = KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_HOVER_TIMER;                      \
+    NAME##_tooltip_behavior->hide_flags = KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_TIMER |                                 \
+                                          KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_OUTSIDE_INTERACTION |                   \
+                                          KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_PRESERVE_WHILE_POINTED;                 \
                                                                                                                        \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_tooltip_text);                                                              \
     KAN_UIM_DRAWABLE (NAME##_tooltip_text);                                                                            \
@@ -186,6 +199,18 @@ struct kan_uim_parent_stack_info_t
     NAME##_tooltip_text_behavior->font_size = (FONT_SIZE);                                                             \
     NAME##_tooltip_text_behavior->sync_text_limit_from_ui = true;                                                      \
     NAME##_tooltip_text_behavior->sync_ui_size_from_text_secondary = true
+
+/// \brief Builds window that can be filled with user content and
+///        is logically attached to element with given name as drop down menu.
+#define KAN_UIM_DROP_DOWN(NAME, BACKGROUND_IMAGE, WIDTH, LAYER)                                                        \
+    KAN_UIM_POPUP_VERTICAL_WINDOW (NAME##_drop_down, (BACKGROUND_IMAGE), (WIDTH), (LAYER));                            \
+    NAME##_drop_down_node->parent_id = NAME##_node->id;                                                                \
+                                                                                                                       \
+    KAN_UMI_INDEXED_INSERT (NAME##_drop_down_behavior, kan_ui_node_popup_behavior_t)                                   \
+    NAME##_drop_down_behavior->id = NAME##_drop_down_node->id;                                                         \
+    NAME##_drop_down_behavior->trigger_id = NAME##_node->id;                                                           \
+    NAME##_drop_down_behavior->trigger_flags = KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_PRESS_END;                      \
+    NAME##_drop_down_behavior->hide_flags = KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_OUTSIDE_INTERACTION
 
 /// \brief Image widget is simply a shortcut for a node with image drawable.
 /// \warning Has no hit box by default!

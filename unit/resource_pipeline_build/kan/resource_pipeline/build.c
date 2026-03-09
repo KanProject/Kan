@@ -57,13 +57,6 @@ kan_allocation_group_t kan_resource_build_get_allocation_group (void)
     return main_allocation_group;
 }
 
-enum resource_production_class_t
-{
-    RESOURCE_PRODUCTION_CLASS_RAW = 0u,
-    RESOURCE_PRODUCTION_CLASS_PRIMARY,
-    RESOURCE_PRODUCTION_CLASS_SECONDARY,
-};
-
 enum resource_status_t
 {
     /// \brief We didn't check status of this resource yet.
@@ -148,6 +141,12 @@ struct resource_entry_build_t
     kan_instance_size_t loaded_data_request_count;
     struct resource_entry_build_blocked_t *blocked_other_first;
 
+    /// \invariant Should be set only once before scheduling build task. Should not be modified after that.
+    enum kan_resource_log_entry_source_t new_build_source;
+
+    /// \invariant Should be set only once before scheduling build task. Should not be modified after that.
+    kan_interned_string_t new_build_source_primary_input_type;
+
     /// \details Managed internally, therefore not locked under `lock`.
     enum resource_entry_next_build_task_t internal_next_build_task;
 
@@ -173,6 +172,8 @@ struct resource_entry_build_t
         /// \details Managed internally, therefore not locked under `lock`.
         struct resource_entry_t *internal_producer_entry;
     };
+
+    struct kan_resource_reflected_data_build_rule_t *internal_build_rule;
 
     /// \details When secondary reproduction has happened, we need to preserve resulted secondary until there is time
     ///          to properly execute secondary build task to properly acknowledge these results.
@@ -202,15 +203,9 @@ struct resource_entry_t
     struct resource_entry_header_t header;
     struct resource_entry_build_t build;
 
-    enum resource_production_class_t class;
     char *current_file_location;
-
-    union
-    {
-        const struct kan_resource_log_raw_entry_t *initial_log_raw_entry;
-        const struct kan_resource_log_built_entry_t *initial_log_built_entry;
-        const struct kan_resource_log_secondary_entry_t *initial_log_secondary_entry;
-    };
+    bool located_in_raw_resources;
+    const struct kan_resource_log_entry_t *initial_log_entry;
 
     /// \details It is only populated for built entries if build has happened already for this resource on this
     ///          execution. This is true when `status` is `RESOURCE_STATUS_AVAILABLE` or
@@ -362,15 +357,17 @@ static struct resource_entry_t *resource_entry_create (struct resource_type_cont
     instance->build.loaded_data = NULL;
     instance->build.loaded_data_request_count = 0u;
     instance->build.blocked_other_first = NULL;
+    instance->build.new_build_source = KAN_RESOURCE_LOG_ENTRY_SOURCE_RAW;
+    instance->build.new_build_source_primary_input_type = NULL;
     instance->build.internal_next_build_task = RESOURCE_ENTRY_NEXT_BUILD_TASK_NONE;
     instance->build.atomic_next_build_task_block_counter = kan_atomic_int_init (0);
     instance->build.internal_paused_list_item = NULL;
     instance->build.internal_primary_input_entry = NULL;
     instance->build.internal_transient_secondary_output = NULL;
 
-    instance->class = RESOURCE_PRODUCTION_CLASS_RAW;
     instance->current_file_location = NULL;
-    instance->initial_log_raw_entry = NULL;
+    instance->located_in_raw_resources = false;
+    instance->initial_log_entry = NULL;
 
     kan_dynamic_array_init (&instance->new_build_secondary_inputs, 0u, sizeof (struct new_build_secondary_input_t),
                             alignof (struct new_build_secondary_input_t), group);
@@ -1462,10 +1459,10 @@ static void instantiate_log_target (struct build_state_t *state,
     struct kan_file_system_path_container_t path;
     kan_file_system_path_container_copy_string (&path, state->setup->project->workspace_directory);
 
-    for (kan_memory_size_t index = 0u; index < log_target->raw.size; ++index)
+    for (kan_memory_size_t index = 0u; index < log_target->entries.size; ++index)
     {
-        const struct kan_resource_log_raw_entry_t *log_entry =
-            &((struct kan_resource_log_raw_entry_t *) log_target->raw.data)[index];
+        const struct kan_resource_log_entry_t *log_entry =
+            &((struct kan_resource_log_entry_t *) log_target->entries.data)[index];
 
         const struct kan_resource_reflected_data_resource_type_t *reflected_type =
             kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, log_entry->type);
@@ -1474,7 +1471,7 @@ static void instantiate_log_target (struct build_state_t *state,
         {
             KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
                      "[Target \"%s\"] Skipping logged resource \"%s\" of type \"%s\" as type is no longer found.",
-                     target->name, log_entry->name, log_entry->type);
+                     target->name, log_entry->name, log_entry->type)
             continue;
         }
 
@@ -1487,43 +1484,7 @@ static void instantiate_log_target (struct build_state_t *state,
         }
 
         struct resource_entry_t *entry = resource_entry_create (container, log_entry->name);
-        entry->class = RESOURCE_PRODUCTION_CLASS_RAW;
-        entry->initial_log_raw_entry = log_entry;
-
-        if (!target->marked_for_build)
-        {
-            entry->header.status = RESOURCE_STATUS_OUT_OF_SCOPE;
-            entry->header.available_version = entry->initial_log_raw_entry->version;
-        }
-    }
-
-    for (kan_memory_size_t index = 0u; index < log_target->built.size; ++index)
-    {
-        const struct kan_resource_log_built_entry_t *log_entry =
-            &((struct kan_resource_log_built_entry_t *) log_target->built.data)[index];
-
-        const struct kan_resource_reflected_data_resource_type_t *reflected_type =
-            kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, log_entry->type);
-
-        if (!reflected_type)
-        {
-            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                     "[Target \"%s\"] Skipping logged resource \"%s\" of type \"%s\" as type is no longer found.",
-                     target->name, log_entry->name, log_entry->type);
-            continue;
-        }
-
-        struct resource_type_container_t *container =
-            target_search_resource_type_container_unsafe (target, log_entry->type);
-
-        if (!container)
-        {
-            container = resource_type_container_create (target, reflected_type->struct_type);
-        }
-
-        struct resource_entry_t *entry = resource_entry_create (container, log_entry->name);
-        entry->class = RESOURCE_PRODUCTION_CLASS_PRIMARY;
-        entry->initial_log_built_entry = log_entry;
+        entry->initial_log_entry = log_entry;
 
         if (log_entry->saved_directory != KAN_RESOURCE_LOG_SAVED_DIRECTORY_UNSUPPORTED)
         {
@@ -1555,70 +1516,7 @@ static void instantiate_log_target (struct build_state_t *state,
         if (!target->marked_for_build)
         {
             entry->header.status = RESOURCE_STATUS_OUT_OF_SCOPE;
-            entry->header.available_version = entry->initial_log_raw_entry->version;
-        }
-    }
-
-    for (kan_memory_size_t index = 0u; index < log_target->secondary.size; ++index)
-    {
-        const struct kan_resource_log_secondary_entry_t *log_entry =
-            &((struct kan_resource_log_secondary_entry_t *) log_target->secondary.data)[index];
-
-        const struct kan_resource_reflected_data_resource_type_t *reflected_type =
-            kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, log_entry->type);
-
-        if (!reflected_type)
-        {
-            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                     "[Target \"%s\"] Skipping logged resource \"%s\" of type \"%s\" as type is no longer found.",
-                     target->name, log_entry->name, log_entry->type);
-            continue;
-        }
-
-        struct resource_type_container_t *container =
-            target_search_resource_type_container_unsafe (target, log_entry->type);
-
-        if (!container)
-        {
-            container = resource_type_container_create (target, reflected_type->struct_type);
-        }
-
-        struct resource_entry_t *entry = resource_entry_create (container, log_entry->name);
-        entry->class = RESOURCE_PRODUCTION_CLASS_SECONDARY;
-        entry->initial_log_secondary_entry = log_entry;
-
-        if (log_entry->saved_directory != KAN_RESOURCE_LOG_SAVED_DIRECTORY_UNSUPPORTED)
-        {
-            const kan_instance_size_t base_length = path.length;
-            switch (log_entry->saved_directory)
-            {
-            case KAN_RESOURCE_LOG_SAVED_DIRECTORY_DEPLOY:
-                kan_resource_build_append_deploy_path_in_workspace (&path, entry->target->name, entry->type->name,
-                                                                    entry->name);
-                break;
-
-            case KAN_RESOURCE_LOG_SAVED_DIRECTORY_CACHE:
-                kan_resource_build_append_cache_path_in_workspace (&path, entry->target->name, entry->type->name,
-                                                                   entry->name);
-                break;
-
-            case KAN_RESOURCE_LOG_SAVED_DIRECTORY_UNSUPPORTED:
-                break;
-            }
-
-            KAN_ASSERT (!entry->current_file_location)
-            entry->current_file_location =
-                kan_allocate_general (entry->allocation_group, path.length + 1u, alignof (char));
-
-            memcpy (entry->current_file_location, path.path, path.length);
-            entry->current_file_location[path.length] = '\0';
-            kan_file_system_path_container_reset_length (&path, base_length);
-        }
-
-        if (!target->marked_for_build)
-        {
-            entry->header.status = RESOURCE_STATUS_OUT_OF_SCOPE;
-            entry->header.available_version = entry->initial_log_raw_entry->version;
+            entry->header.available_version = entry->initial_log_entry->version;
         }
     }
 }
@@ -1653,6 +1551,20 @@ static enum kan_resource_build_result_t instantiate_initial_resource_log (struct
 }
 
 // Raw resource scanning step section.
+
+static void replace_entry_current_file_location (struct resource_entry_t *entry,
+                                                 const struct kan_file_system_path_container_t *path)
+{
+    if (entry->current_file_location)
+    {
+        kan_free_general (entry->allocation_group, entry->current_file_location,
+                          strlen (entry->current_file_location) + 1u);
+    }
+
+    entry->current_file_location = kan_allocate_general (entry->allocation_group, path->length + 1u, alignof (char));
+    memcpy (entry->current_file_location, path->path, path->length);
+    entry->current_file_location[path->length] = '\0';
+}
 
 static bool scan_file (struct target_t *target, struct kan_file_system_path_container_t *reused_path)
 {
@@ -1775,38 +1687,10 @@ static bool scan_file (struct target_t *target, struct kan_file_system_path_cont
 
     if (entry)
     {
-        switch (entry->class)
-        {
-        case RESOURCE_PRODUCTION_CLASS_RAW:
-            if (!entry->current_file_location)
-            {
-                // Confirmed existence of raw resource, just return true.
-                entry->current_file_location =
-                    kan_allocate_general (entry->allocation_group, reused_path->length + 1u, alignof (char));
-
-                memcpy (entry->current_file_location, reused_path->path, reused_path->length);
-                entry->current_file_location[reused_path->length] = '\0';
-                return true;
-            }
-
-            KAN_LOG_WITH_BUFFER (KAN_FILE_SYSTEM_MAX_PATH_LENGTH * 3u, resource_pipeline_build, KAN_LOG_ERROR,
-                                 "Found resource \"%s\" of type \"%s\" at \"%s\" in target \"%s\", while entry "
-                                 "with the same name is already found at \"%s\".",
-                                 native_name, native_type, reused_path->path, target->name,
-                                 entry->current_file_location)
-            return false;
-
-        case RESOURCE_PRODUCTION_CLASS_PRIMARY:
-        case RESOURCE_PRODUCTION_CLASS_SECONDARY:
-            KAN_LOG (resource_pipeline_build, KAN_LOG_ERROR,
-                     "Found resource \"%s\" of type \"%s\" at \"%s\" in target \"%s\", while entry "
-                     "with the same name is already found in this target.",
-                     native_name, native_type, reused_path->path, target->name)
-            return false;
-        }
-
-        KAN_ASSERT (false)
-        return false;
+        // Confirmed existence of raw resource, just return true.
+        entry->located_in_raw_resources = true;
+        replace_entry_current_file_location (entry, reused_path);
+        return true;
     }
 
     const struct kan_resource_reflected_data_resource_type_t *reflected_type =
@@ -1828,9 +1712,9 @@ static bool scan_file (struct target_t *target, struct kan_file_system_path_cont
     }
 
     entry = resource_entry_create (container, native_name);
-    entry->class = RESOURCE_PRODUCTION_CLASS_RAW;
-
     KAN_ASSERT (!entry->current_file_location)
+    entry->located_in_raw_resources = true;
+
     entry->current_file_location =
         kan_allocate_general (entry->allocation_group, reused_path->length + 1u, alignof (char));
 
@@ -2019,153 +1903,343 @@ static inline struct resource_response_t execute_resource_request (struct build_
 
 static void add_to_build_queue_new_unsafe (struct build_state_t *state, struct resource_entry_t *entry);
 
-static inline void confirm_resource_status (struct build_state_t *state,
-                                            struct resource_entry_t *entry,
-                                            const struct resource_request_backtrace_t *backtrace)
+struct build_rule_selection_result_t
 {
+    bool found;
+    struct target_t *parent_target;
+    kan_interned_string_t primary_input_type;
+};
+
+static struct build_rule_selection_result_t select_build_rule_for_production (
+    struct build_state_t *state,
+    struct target_t *lookup_source_target,
+    kan_interned_string_t name,
+    const struct kan_resource_reflected_data_resource_type_t *reflected_type,
+    const struct resource_request_backtrace_t *backtrace)
+{
+    struct build_rule_selection_result_t result;
+    result.found = false;
+
+    for (kan_instance_size_t index = 0u; index < reflected_type->produced_from.size; ++index)
     {
-        KAN_ATOMIC_INT_SCOPED_LOCK_READ (&entry->header.lock)
-        if (entry->header.status != RESOURCE_STATUS_UNCONFIRMED)
-        {
-            return;
-        }
-    }
+        const struct kan_resource_reflected_data_build_rule_t *candidate =
+            &((struct kan_resource_reflected_data_build_rule_t *) reflected_type->produced_from.data)[index];
 
-    // We do resource status confirmation without locking as calculated status should always be the same and chance of
-    // calculating status twice should be quite rare.
-
-    struct target_t *target = entry->target;
-    enum resource_status_t new_status = RESOURCE_STATUS_AVAILABLE;
-    struct kan_resource_log_version_t available_version = {.type_version = 0u, .last_modification_time = 0u};
-
-    switch (entry->class)
-    {
-    case RESOURCE_PRODUCTION_CLASS_RAW:
-    {
-        if (!entry->current_file_location)
-        {
-            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                     "[Target \"%s\"] Marking raw resource \"%s\" of type \"%s\" as unavailable as it wasn't detected "
-                     "during raw resource scan phase.",
-                     target->name, entry->name, entry->type->name)
-
-            new_status = RESOURCE_STATUS_UNAVAILABLE;
-            break;
-        }
-
-        struct kan_file_system_entry_status_t file_status;
-        if (!kan_file_system_query_entry (entry->current_file_location, &file_status))
-        {
-            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                     "[Target \"%s\"] Marking raw resource \"%s\" of type \"%s\" as unavailable as it wasn't "
-                     "possible to query its file status.",
-                     target->name, entry->name, entry->type->name)
-
-            new_status = RESOURCE_STATUS_UNAVAILABLE;
-            break;
-        }
-
-        const struct kan_resource_reflected_data_resource_type_t *reflected_type =
-            kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, entry->type->name);
-
-        available_version.type_version = reflected_type->resource_type_meta->version;
-        available_version.last_modification_time = file_status.last_modification_time_ns;
-
-        if (!entry->initial_log_raw_entry ||
-            !kan_resource_log_version_is_up_to_date (entry->initial_log_raw_entry->version, available_version))
-        {
-            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                     "[Target \"%s\"] Marking raw resource \"%s\" of type \"%s\" as out of date in current build.",
-                     target->name, entry->name, entry->type->name)
-            new_status = RESOURCE_STATUS_BUILDING;
-            break;
-        }
-
-        KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                 "[Target \"%s\"] Marking raw resource \"%s\" of type \"%s\" as up to date in current build.",
-                 target->name, entry->name, entry->type->name)
-        break;
-    }
-
-    case RESOURCE_PRODUCTION_CLASS_PRIMARY:
-    {
-        const struct kan_resource_reflected_data_resource_type_t *reflected_type =
-            kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, entry->type->name);
-
-        if (!reflected_type->produced_from_build_rule)
-        {
-            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                     "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as unavailable because build rule "
-                     "is no longer exists.",
-                     target->name, entry->name, entry->type->name)
-            new_status = RESOURCE_STATUS_UNAVAILABLE;
-            break;
-        }
-
-        const struct kan_resource_log_built_entry_t *initial = entry->initial_log_built_entry;
-        // Use initial version value if availability checks succeed.
-        available_version = initial->version;
-
-        KAN_ASSERT_FORMATTED (
-            initial,
-            "[Target %s] Built resource \"%s\" of type \"%s\" is in unconfirmed status and no initial log, which "
-            "should be impossible as newly created built entries must start in building status right away.",
-            target->name, entry->type->name, entry->type->name)
-
-        if (initial->rule_version != reflected_type->build_rule_version)
-        {
-            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                     "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because of build "
-                     "rule version mismatch.",
-                     target->name, entry->name, entry->type->name)
-            new_status = RESOURCE_STATUS_BUILDING;
-            break;
-        }
-
-        if (initial->version.type_version != reflected_type->resource_type_meta->version)
-        {
-            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                     "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because of resource "
-                     "type version mismatch.",
-                     target->name, entry->name, entry->type->name)
-            new_status = RESOURCE_STATUS_BUILDING;
-            break;
-        }
-
-        if (reflected_type->build_rule_platform_configuration_type)
-        {
-            const struct platform_configuration_entry_t *platform_configuration =
-                build_state_find_platform_configuration (state, reflected_type->build_rule_platform_configuration_type);
-
-            if (!platform_configuration)
-            {
-                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                         "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as unavailable because platform "
-                         "configuration entry is absent",
-                         target->name, entry->name, entry->type->name)
-                new_status = RESOURCE_STATUS_UNAVAILABLE;
-                break;
-            }
-
-            if (platform_configuration->file_time != initial->platform_configuration_time)
-            {
-                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                         "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because of "
-                         "platform configuration time mismatch.",
-                         target->name, entry->name, entry->type->name)
-                new_status = RESOURCE_STATUS_BUILDING;
-                break;
-            }
-        }
-
-        if (reflected_type->build_rule_primary_input_type)
+        if (candidate->primary_input_type)
         {
             struct resource_response_t primary_input_response =
                 execute_resource_request_internal (state,
                                                    (struct resource_request_t) {
+                                                       .from_target = lookup_source_target,
+                                                       .type = candidate->primary_input_type,
+                                                       .name = name,
+                                                       .mode = RESOURCE_REQUEST_MODE_STATUS_CONFIRMATION,
+                                                       .needed_to_build_entry = NULL,
+                                                   },
+                                                   backtrace);
+
+            if (!primary_input_response.success)
+            {
+                // No primary input to build entry, skip this rule.
+                continue;
+            }
+
+            // Built resource should always be created in the same target as its primary input.
+            result.parent_target = primary_input_response.entry->target;
+        }
+        else
+        {
+            struct raw_third_party_entry_t *third_party =
+                target_search_visible_third_party (lookup_source_target, name);
+
+            if (!third_party)
+            {
+                // No primary input to build entry, skip this rule.
+                continue;
+            }
+
+            // Built resource should always be created in the same target as its primary input.
+            result.parent_target = third_party->target;
+        }
+
+        // Can use this rule for building.
+        result.found = true;
+        result.primary_input_type = candidate->primary_input_type;
+        return result;
+    }
+
+    return result;
+}
+
+struct resource_status_confirmation_result_t
+{
+    enum resource_status_t new_status;
+    struct kan_resource_log_version_t available_version;
+    enum kan_resource_log_entry_source_t new_build_source;
+    kan_interned_string_t new_build_source_primary_input_type;
+};
+
+static inline struct resource_status_confirmation_result_t confirm_resource_status_internal (
+    struct build_state_t *state, struct resource_entry_t *entry, const struct resource_request_backtrace_t *backtrace)
+{
+    struct resource_status_confirmation_result_t result;
+    result.new_status = RESOURCE_STATUS_UNAVAILABLE;
+
+    struct target_t *target = entry->target;
+    const struct kan_resource_reflected_data_resource_type_t *reflected_type =
+        kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, entry->type->name);
+
+    if (entry->initial_log_entry)
+    {
+        // We have log entry, therefore we can check whether entry is up to date and does not need building.
+        switch (entry->initial_log_entry->source)
+        {
+        case KAN_RESOURCE_LOG_ENTRY_SOURCE_RAW:
+        {
+            if (!entry->located_in_raw_resources)
+            {
+                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                         "[Target \"%s\"] Marking resource \"%s\" of type \"%s\" as out of date as it is no longer "
+                         "present in raw resources.",
+                         target->name, entry->name, entry->type->name)
+                break;
+            }
+
+            KAN_ASSERT (entry->current_file_location)
+            struct kan_file_system_entry_status_t file_status;
+
+            if (!kan_file_system_query_entry (entry->current_file_location, &file_status))
+            {
+                KAN_LOG (resource_pipeline_build, KAN_LOG_WARNING,
+                         "[Target \"%s\"] Failed to confirm log status of resource \"%s\" of type \"%s\" as it wasn't "
+                         "possible to query its file status. Rebuild will be scheduled.",
+                         target->name, entry->name, entry->type->name)
+                break;
+            }
+
+            result.available_version.type_version = reflected_type->resource_type_meta->version;
+            result.available_version.last_modification_time = file_status.last_modification_time_ns;
+
+            if (!kan_resource_log_version_is_up_to_date (entry->initial_log_entry->version, result.available_version))
+            {
+                KAN_LOG (
+                    resource_pipeline_build, KAN_LOG_DEBUG,
+                    "[Target \"%s\"] Marking resource \"%s\" of type \"%s\" as out of date due to version difference.",
+                    target->name, entry->name, entry->type->name)
+                break;
+            }
+
+            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                     "[Target \"%s\"] Marking raw resource \"%s\" of type \"%s\" as up to date.", target->name,
+                     entry->name, entry->type->name)
+
+            result.new_status = RESOURCE_STATUS_AVAILABLE;
+            break;
+        }
+
+        case KAN_RESOURCE_LOG_ENTRY_SOURCE_PRIMARY:
+        {
+            const struct kan_resource_log_entry_t *initial = entry->initial_log_entry;
+            result.available_version = initial->version;
+            const struct kan_resource_reflected_data_build_rule_t *rule = NULL;
+
+            for (kan_instance_size_t index = 0u; index < reflected_type->produced_from.size; ++index)
+            {
+                const struct kan_resource_reflected_data_build_rule_t *candidate =
+                    &((struct kan_resource_reflected_data_build_rule_t *) reflected_type->produced_from.data)[index];
+
+                if (candidate->primary_input_type == initial->source_primary.primary_input_type)
+                {
+                    rule = candidate;
+                    break;
+                }
+            }
+
+            if (!rule)
+            {
+                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                         "[Target \"%s\"] Marking resource \"%s\" of type \"%s\" as out of date as the rule used to "
+                         "build it is no longer found.",
+                         target->name, entry->name, entry->type->name)
+                break;
+            }
+
+            if (rule->version != initial->source_primary.rule_version)
+            {
+                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                         "[Target \"%s\"] Marking resource \"%s\" of type \"%s\" as out of date because of the rule "
+                         "version mismatch.",
+                         target->name, entry->name, entry->type->name)
+                break;
+            }
+
+            if (initial->version.type_version != reflected_type->resource_type_meta->version)
+            {
+                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                         "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because of "
+                         "resource type version mismatch.",
+                         target->name, entry->name, entry->type->name)
+                break;
+            }
+
+            if (rule->platform_configuration_type)
+            {
+                const struct platform_configuration_entry_t *platform_configuration =
+                    build_state_find_platform_configuration (state, rule->platform_configuration_type);
+
+                if (!platform_configuration)
+                {
+                    KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                             "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as unavailable because "
+                             "platform configuration entry is absent",
+                             target->name, entry->name, entry->type->name)
+                    result.new_status = RESOURCE_STATUS_UNAVAILABLE;
+                    return result;
+                }
+
+                if (platform_configuration->file_time != initial->source_primary.platform_configuration_time)
+                {
+                    KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                             "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because of "
+                             "platform configuration time mismatch.",
+                             target->name, entry->name, entry->type->name)
+                    break;
+                }
+            }
+
+            if (rule->primary_input_type)
+            {
+                struct resource_response_t primary_input_response =
+                    execute_resource_request_internal (state,
+                                                       (struct resource_request_t) {
+                                                           .from_target = target,
+                                                           .type = rule->primary_input_type,
+                                                           .name = entry->name,
+                                                           .mode = RESOURCE_REQUEST_MODE_STATUS_CONFIRMATION,
+                                                           .needed_to_build_entry = NULL,
+                                                       },
+                                                       backtrace);
+
+                if (primary_input_response.success)
+                {
+                    KAN_ATOMIC_INT_SCOPED_LOCK_READ (&primary_input_response.entry->header.lock)
+                    switch (primary_input_response.entry->header.status)
+                    {
+                    case RESOURCE_STATUS_UNCONFIRMED:
+                        KAN_ASSERT_FORMATTED (
+                            false,
+                            "Internal error, entry still has unconfirmed even after status confirmation request.", )
+                        break;
+
+                    case RESOURCE_STATUS_UNAVAILABLE:
+                        KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                                 "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as unavailable because "
+                                 "primary input is unavailable too.",
+                                 target->name, entry->name, entry->type->name)
+                        result.new_status = RESOURCE_STATUS_UNAVAILABLE;
+                        return result;
+
+                    case RESOURCE_STATUS_BUILDING:
+                        KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                                 "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because "
+                                 "its primary input already has building status.",
+                                 target->name, entry->name, entry->type->name)
+                        break;
+
+                    case RESOURCE_STATUS_AVAILABLE:
+                        if (!kan_resource_log_version_is_up_to_date (
+                                initial->source_primary.primary_input_version,
+                                primary_input_response.entry->header.available_version))
+                        {
+                            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                                     "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date "
+                                     "because of version mismatch with its primary input.",
+                                     target->name, entry->name, entry->type->name)
+                            break;
+                        }
+
+                        result.new_status = RESOURCE_STATUS_AVAILABLE;
+                        break;
+
+                    case RESOURCE_STATUS_PLATFORM_UNSUPPORTED:
+                        KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                                 "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as platform unsupported "
+                                 "because primary input is platform unsupported too.",
+                                 target->name, entry->name, entry->type->name)
+                        result.new_status = RESOURCE_STATUS_PLATFORM_UNSUPPORTED;
+                        return result;
+
+                    case RESOURCE_STATUS_OUT_OF_SCOPE:
+                        KAN_ASSERT_FORMATTED (false,
+                                              "Internal error, primary input entry has out of scope status, which "
+                                              "shouldn't be possible due to target visibility rules.", )
+                        break;
+                    }
+
+                    if (result.new_status != RESOURCE_STATUS_AVAILABLE)
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                             "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because "
+                             "primary input can no longer be found.",
+                             target->name, entry->name, entry->type->name)
+                    break;
+                }
+            }
+            else
+            {
+                // Import build rule, custom handling.
+                struct raw_third_party_entry_t *third_party = target_search_visible_third_party (target, entry->name);
+
+                if (!third_party)
+                {
+                    KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                             "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
+                             "primary input which is raw third party file cannot be found.",
+                             target->name, entry->name, entry->type->name)
+                    break;
+                }
+
+                if (third_party->last_modification_time !=
+                    initial->source_primary.primary_input_version.last_modification_time)
+                {
+                    KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                             "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
+                             "primary input which is raw third party file has been changed.",
+                             target->name, entry->name, entry->type->name)
+                    break;
+                }
+
+                result.new_status = RESOURCE_STATUS_AVAILABLE;
+            }
+
+            break;
+        }
+
+        case KAN_RESOURCE_LOG_ENTRY_SOURCE_SECONDARY:
+        {
+            const struct kan_resource_log_entry_t *initial = entry->initial_log_entry;
+            result.available_version = initial->version;
+
+            if (initial->version.type_version != reflected_type->resource_type_meta->version)
+            {
+                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                         "[Target \"%s\"] Marking secondary built resource \"%s\" of type \"%s\" as out of date "
+                         "because of resource type version mismatch.",
+                         target->name, entry->name, entry->type->name)
+                break;
+            }
+
+            struct resource_response_t primary_input_response =
+                execute_resource_request_internal (state,
+                                                   (struct resource_request_t) {
                                                        .from_target = target,
-                                                       .type = reflected_type->build_rule_primary_input_type,
-                                                       .name = entry->name,
+                                                       .type = initial->source_secondary.producer_type,
+                                                       .name = initial->source_secondary.producer_name,
                                                        .mode = RESOURCE_REQUEST_MODE_STATUS_CONFIRMATION,
                                                        .needed_to_build_entry = NULL,
                                                    },
@@ -2182,309 +2256,227 @@ static inline void confirm_resource_status (struct build_state_t *state,
                     break;
 
                 case RESOURCE_STATUS_UNAVAILABLE:
-                    KAN_LOG (
-                        resource_pipeline_build, KAN_LOG_DEBUG,
-                        "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as unavailable because primary "
-                        "input is unavailable too.",
-                        target->name, entry->name, entry->type->name)
-                    new_status = RESOURCE_STATUS_UNAVAILABLE;
-                    break;
+                    KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                             "[Target \"%s\"] Marking secondary built resource \"%s\" of type \"%s\" as unavailable "
+                             "because its producer \"%s\" of type \"%s\" is unavailable too.",
+                             target->name, entry->name, entry->type->name, initial->source_secondary.producer_name,
+                             initial->source_secondary.producer_type)
+                    result.new_status = RESOURCE_STATUS_UNAVAILABLE;
+                    return result;
 
                 case RESOURCE_STATUS_BUILDING:
                     KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                             "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
-                             "primary input already has building status.",
-                             target->name, entry->name, entry->type->name)
-                    new_status = RESOURCE_STATUS_BUILDING;
+                             "[Target \"%s\"] Marking secondary built resource \"%s\" of type \"%s\" as out of date "
+                             "because its producer \"%s\" of type \"%s\" already has building status.",
+                             target->name, entry->name, entry->type->name, initial->source_secondary.producer_name,
+                             initial->source_secondary.producer_type)
                     break;
 
                 case RESOURCE_STATUS_AVAILABLE:
                     if (!kan_resource_log_version_is_up_to_date (
-                            initial->primary_input_version, primary_input_response.entry->header.available_version))
+                            initial->source_secondary.producer_version,
+                            primary_input_response.entry->header.available_version))
                     {
                         KAN_LOG (
                             resource_pipeline_build, KAN_LOG_DEBUG,
-                            "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because of "
-                            "version mismatch with its primary input.",
+                            "[Target \"%s\"] Marking secondary built resource \"%s\" of type \"%s\" as unavailable "
+                            "because its producer \"%s\" of type \"%s\" has other version and this secondary resource "
+                            "is not produced, making it unavailable.",
                             target->name, entry->name, entry->type->name)
-                        new_status = RESOURCE_STATUS_BUILDING;
-                        break;
+                        result.new_status = RESOURCE_STATUS_UNAVAILABLE;
+                        return result;
                     }
 
+                    result.new_status = RESOURCE_STATUS_AVAILABLE;
                     break;
 
                 case RESOURCE_STATUS_PLATFORM_UNSUPPORTED:
-                    KAN_LOG (
-                        resource_pipeline_build, KAN_LOG_DEBUG,
-                        "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as platform unsupported because "
-                        "primary input is platform unsupported too.",
-                        target->name, entry->name, entry->type->name)
-                    new_status = RESOURCE_STATUS_PLATFORM_UNSUPPORTED;
-                    break;
+                    KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                             "[Target \"%s\"] Marking secondary built resource \"%s\" of type \"%s\" as unavailable "
+                             "because its producer \"%s\" of type \"%s\" is marked platform unsupported.",
+                             target->name, entry->name, entry->type->name)
+                    result.new_status = RESOURCE_STATUS_UNAVAILABLE;
+                    return result;
 
                 case RESOURCE_STATUS_OUT_OF_SCOPE:
                     KAN_ASSERT_FORMATTED (false,
-                                          "Internal error, primary input entry has out of scope status, which "
-                                          "shouldn't be possible due to target visibility rules.", )
-                    break;
-                }
-
-                if (new_status != RESOURCE_STATUS_AVAILABLE)
-                {
-                    // Changed the status inside switch, break from the check.
+                                          "Internal error, producer entry has out of scope status, which shouldn't be "
+                                          "possible due to target visibility rules.", )
                     break;
                 }
             }
             else
             {
                 KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                         "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as unavailable because primary "
-                         "input can no longer be found.",
+                         "[Target \"%s\"] Marking secondary built resource \"%s\" of type \"%s\" as unavailable "
+                         "because its producer \"%s\" of type \"%s\" can no longer be found.",
                          target->name, entry->name, entry->type->name)
-                new_status = RESOURCE_STATUS_UNAVAILABLE;
-                break;
-            }
-        }
-        else
-        {
-            // Import build rule, custom handling.
-            struct raw_third_party_entry_t *third_party = target_search_visible_third_party (target, entry->name);
-
-            if (!third_party)
-            {
-                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                         "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
-                         "primary input which is raw third party file cannot be found.",
-                         target->name, entry->name, entry->type->name)
-                new_status = RESOURCE_STATUS_BUILDING;
-                break;
+                result.new_status = RESOURCE_STATUS_UNAVAILABLE;
+                return result;
             }
 
-            if (third_party->last_modification_time != initial->primary_input_version.last_modification_time)
-            {
-                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                         "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
-                         "primary input which is raw third party file has been changed.",
-                         target->name, entry->name, entry->type->name)
-                new_status = RESOURCE_STATUS_BUILDING;
-                break;
-            }
-        }
-
-        for (kan_memory_size_t index = 0u; index < initial->secondary_inputs.size; ++index)
-        {
-            const struct kan_resource_log_secondary_input_t *secondary =
-                &((struct kan_resource_log_secondary_input_t *) initial->secondary_inputs.data)[index];
-
-            if (!secondary->type)
-            {
-                // Third party dependency, custom handling.
-                struct raw_third_party_entry_t *third_party =
-                    target_search_visible_third_party (target, secondary->name);
-
-                if (!third_party)
-                {
-                    KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                             "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
-                             "secondary input \"%s\" which is raw third party file cannot be found.",
-                             target->name, entry->name, entry->type->name, secondary->name, secondary->type)
-                    new_status = RESOURCE_STATUS_BUILDING;
-                    break;
-                }
-
-                if (third_party->last_modification_time != secondary->version.last_modification_time)
-                {
-                    KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                             "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
-                             "secondary input \"%s\" which is raw third party file has been changed.",
-                             target->name, entry->name, entry->type->name, secondary->name, secondary->type)
-                    new_status = RESOURCE_STATUS_BUILDING;
-                    break;
-                }
-
-                continue;
-            }
-
-            struct resource_response_t secondary_response =
-                execute_resource_request_internal (state,
-                                                   (struct resource_request_t) {
-                                                       .from_target = target,
-                                                       .type = secondary->type,
-                                                       .name = secondary->name,
-                                                       .mode = RESOURCE_REQUEST_MODE_STATUS_CONFIRMATION,
-                                                       .needed_to_build_entry = NULL,
-                                                   },
-                                                   backtrace);
-
-            if (!secondary_response.success)
-            {
-                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                         "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
-                         "secondary input \"%s\" of type \"%s\" cannot be found.",
-                         target->name, entry->name, entry->type->name, secondary->name, secondary->type)
-                new_status = RESOURCE_STATUS_BUILDING;
-                break;
-            }
-
-            KAN_ATOMIC_INT_SCOPED_LOCK_READ (&secondary_response.entry->header.lock)
-            if (secondary_response.entry->header.status != RESOURCE_STATUS_AVAILABLE)
-            {
-                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                         "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
-                         "secondary input \"%s\" of type \"%s\" has other status than available.",
-                         target->name, entry->name, entry->type->name, secondary->name, secondary->type)
-                new_status = RESOURCE_STATUS_BUILDING;
-                break;
-            }
-
-            if (!kan_resource_log_version_is_up_to_date (secondary->version,
-                                                         secondary_response.entry->header.available_version))
-            {
-                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                         "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
-                         "secondary input \"%s\" of type \"%s\" version mismatch.",
-                         target->name, entry->name, entry->type->name, secondary->name, secondary->type)
-                new_status = RESOURCE_STATUS_BUILDING;
-                break;
-            }
-        }
-
-        if (new_status != RESOURCE_STATUS_AVAILABLE)
-        {
             break;
         }
-
-        // If this resource was marked as unsupported during previous build, we should not mark it as available now.
-        if (initial->saved_directory == KAN_RESOURCE_LOG_SAVED_DIRECTORY_UNSUPPORTED)
-        {
-            new_status = RESOURCE_STATUS_PLATFORM_UNSUPPORTED;
         }
 
-        KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                 "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as up to date.", target->name,
-                 entry->name, entry->type->name)
-        break;
+        if (result.new_status == RESOURCE_STATUS_AVAILABLE)
+        {
+            // Main check succeeded, check additional dependencies if any.
+            for (kan_memory_size_t index = 0u; index < entry->initial_log_entry->additional_dependencies.size; ++index)
+            {
+                const struct kan_resource_log_dependency_t *secondary =
+                    &((struct kan_resource_log_dependency_t *)
+                          entry->initial_log_entry->additional_dependencies.data)[index];
+
+                if (!secondary->type)
+                {
+                    // Third party dependency, custom handling.
+                    struct raw_third_party_entry_t *third_party =
+                        target_search_visible_third_party (target, secondary->name);
+
+                    if (!third_party)
+                    {
+                        KAN_LOG (
+                            resource_pipeline_build, KAN_LOG_DEBUG,
+                            "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
+                            "additional dependency \"%s\" which is raw third party file cannot be found.",
+                            target->name, entry->name, entry->type->name, secondary->name, secondary->type)
+                        result.new_status = RESOURCE_STATUS_BUILDING;
+                        break;
+                    }
+
+                    if (third_party->last_modification_time != secondary->version.last_modification_time)
+                    {
+                        KAN_LOG (
+                            resource_pipeline_build, KAN_LOG_DEBUG,
+                            "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
+                            "additional dependency \"%s\" which is raw third party file has been changed.",
+                            target->name, entry->name, entry->type->name, secondary->name, secondary->type)
+                        result.new_status = RESOURCE_STATUS_BUILDING;
+                        break;
+                    }
+
+                    continue;
+                }
+
+                struct resource_response_t secondary_response =
+                    execute_resource_request_internal (state,
+                                                       (struct resource_request_t) {
+                                                           .from_target = target,
+                                                           .type = secondary->type,
+                                                           .name = secondary->name,
+                                                           .mode = RESOURCE_REQUEST_MODE_STATUS_CONFIRMATION,
+                                                           .needed_to_build_entry = NULL,
+                                                       },
+                                                       backtrace);
+
+                if (!secondary_response.success)
+                {
+                    KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                             "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
+                             "additional dependency \"%s\" of type \"%s\" cannot be found.",
+                             target->name, entry->name, entry->type->name, secondary->name, secondary->type)
+                    result.new_status = RESOURCE_STATUS_BUILDING;
+                    break;
+                }
+
+                KAN_ATOMIC_INT_SCOPED_LOCK_READ (&secondary_response.entry->header.lock)
+                if (secondary_response.entry->header.status != RESOURCE_STATUS_AVAILABLE)
+                {
+                    KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                             "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
+                             "additional dependency \"%s\" of type \"%s\" has other status than available.",
+                             target->name, entry->name, entry->type->name, secondary->name, secondary->type)
+                    result.new_status = RESOURCE_STATUS_BUILDING;
+                    break;
+                }
+
+                if (!kan_resource_log_version_is_up_to_date (secondary->version,
+                                                             secondary_response.entry->header.available_version))
+                {
+                    KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                             "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as out of date because its "
+                             "additional dependency \"%s\" of type \"%s\" version mismatch.",
+                             target->name, entry->name, entry->type->name, secondary->name, secondary->type)
+                    result.new_status = RESOURCE_STATUS_BUILDING;
+                    break;
+                }
+            }
+        }
+
+        if (result.new_status == RESOURCE_STATUS_AVAILABLE)
+        {
+            if (entry->initial_log_entry->saved_directory == KAN_RESOURCE_LOG_SAVED_DIRECTORY_UNSUPPORTED)
+            {
+                result.new_status = RESOURCE_STATUS_PLATFORM_UNSUPPORTED;
+            }
+
+            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                     "[Target \"%s\"] Marking raw resource \"%s\" of type \"%s\" as up to date.", target->name,
+                     entry->name, entry->type->name)
+            return result;
+        }
     }
 
-    case RESOURCE_PRODUCTION_CLASS_SECONDARY:
+    // Either no log entry or log entry is outdated. Find a way to build this resource.
+
+    if (entry->located_in_raw_resources)
     {
-        const struct kan_resource_log_secondary_entry_t *initial = entry->initial_log_secondary_entry;
-        // Use initial version value if availability checks succeed.
-        available_version = initial->version;
+        // Special case: now located in raw resources, no need for build rules.
+        result.new_status = RESOURCE_STATUS_BUILDING;
+        result.new_build_source = KAN_RESOURCE_LOG_ENTRY_SOURCE_RAW;
+        return result;
+    }
 
-        KAN_ASSERT_FORMATTED (
-            initial,
-            "[Target %s] Secondary resource \"%s\" of type \"%s\" is in unconfirmed status and no initial log, which "
-            "should be impossible as newly created built entries must start in building status right away.",
-            target->name, entry->type->name, entry->type->name)
+    if (entry->initial_log_entry && entry->initial_log_entry->source == KAN_RESOURCE_LOG_ENTRY_SOURCE_SECONDARY)
+    {
+        // Special case: secondary build rule product, no need for build rules, will automatically call producer build.
+        result.new_status = RESOURCE_STATUS_BUILDING;
+        result.new_build_source = KAN_RESOURCE_LOG_ENTRY_SOURCE_SECONDARY;
+        return result;
+    }
 
-        const struct kan_resource_reflected_data_resource_type_t *reflected_type =
-            kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, entry->type->name);
+    struct build_rule_selection_result_t build_rule_selection =
+        select_build_rule_for_production (state, entry->target, entry->name, reflected_type, backtrace);
 
-        if (initial->version.type_version != reflected_type->resource_type_meta->version)
-        {
-            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                     "[Target \"%s\"] Marking secondary built resource \"%s\" of type \"%s\" as out of date because of "
-                     "resource type version mismatch.",
-                     target->name, entry->name, entry->type->name)
-            new_status = RESOURCE_STATUS_BUILDING;
-            break;
-        }
-
-        struct resource_response_t primary_input_response =
-            execute_resource_request_internal (state,
-                                               (struct resource_request_t) {
-                                                   .from_target = target,
-                                                   .type = initial->producer_type,
-                                                   .name = initial->producer_name,
-                                                   .mode = RESOURCE_REQUEST_MODE_STATUS_CONFIRMATION,
-                                                   .needed_to_build_entry = NULL,
-                                               },
-                                               backtrace);
-
-        if (primary_input_response.success)
-        {
-            KAN_ATOMIC_INT_SCOPED_LOCK_READ (&primary_input_response.entry->header.lock)
-            switch (primary_input_response.entry->header.status)
-            {
-            case RESOURCE_STATUS_UNCONFIRMED:
-                KAN_ASSERT_FORMATTED (
-                    false, "Internal error, entry still has unconfirmed even after status confirmation request.", )
-                break;
-
-            case RESOURCE_STATUS_UNAVAILABLE:
-                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                         "[Target \"%s\"] Marking secondary built resource \"%s\" of type \"%s\" as unavailable "
-                         "because its producer \"%s\" of type \"%s\" is unavailable too.",
-                         target->name, entry->name, entry->type->name, initial->producer_name, initial->producer_type)
-                new_status = RESOURCE_STATUS_UNAVAILABLE;
-                break;
-
-            case RESOURCE_STATUS_BUILDING:
-                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                         "[Target \"%s\"] Marking secondary built resource \"%s\" of type \"%s\" as out of date "
-                         "because its producer \"%s\" of type \"%s\" already has building status.",
-                         target->name, entry->name, entry->type->name, initial->producer_name, initial->producer_type)
-                new_status = RESOURCE_STATUS_BUILDING;
-                break;
-
-            case RESOURCE_STATUS_AVAILABLE:
-                if (!kan_resource_log_version_is_up_to_date (initial->producer_version,
-                                                             primary_input_response.entry->header.available_version))
-                {
-                    KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                             "[Target \"%s\"] Marking secondary built resource \"%s\" of type \"%s\" as unavailable "
-                             "because its producer \"%s\" of type \"%s\" has other version and this secondary resource "
-                             "is not produced, making it unavailable.",
-                             target->name, entry->name, entry->type->name)
-                    new_status = RESOURCE_STATUS_UNAVAILABLE;
-                    break;
-                }
-
-                break;
-
-            case RESOURCE_STATUS_PLATFORM_UNSUPPORTED:
-                KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                         "[Target \"%s\"] Marking secondary built resource \"%s\" of type \"%s\" as unavailable "
-                         "because its producer \"%s\" of type \"%s\" is marked platform unsupported.",
-                         target->name, entry->name, entry->type->name)
-                new_status = RESOURCE_STATUS_UNAVAILABLE;
-                break;
-
-            case RESOURCE_STATUS_OUT_OF_SCOPE:
-                KAN_ASSERT_FORMATTED (false,
-                                      "Internal error, producer entry has out of scope status, which shouldn't be "
-                                      "possible due to target visibility rules.", )
-                break;
-            }
-
-            if (new_status != RESOURCE_STATUS_AVAILABLE)
-            {
-                // Changed the status inside switch, break from the check.
-                break;
-            }
-        }
-        else
-        {
-            KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                     "[Target \"%s\"] Marking secondary built resource \"%s\" of type \"%s\" as unavailable "
-                     "because its producer \"%s\" of type \"%s\" can no longer be found.",
-                     target->name, entry->name, entry->type->name)
-            new_status = RESOURCE_STATUS_UNAVAILABLE;
-            break;
-        }
-
-        if (new_status != RESOURCE_STATUS_AVAILABLE)
-        {
-            break;
-        }
-
+    if (build_rule_selection.found)
+    {
         KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
-                 "[Target \"%s\"] Marking built resource \"%s\" of type \"%s\" as up to date.", target->name,
-                 entry->name, entry->type->name)
-        break;
+                 "[Target \"%s\"] Resource \"%s\" of type \"%s\" build is scheduled from primary input type \"%s\".",
+                 target->name, entry->name,
+                 build_rule_selection.primary_input_type ? build_rule_selection.primary_input_type : "<import_rule>")
+
+        result.new_status = RESOURCE_STATUS_BUILDING;
+        result.new_build_source = KAN_RESOURCE_LOG_ENTRY_SOURCE_PRIMARY;
+        result.new_build_source_primary_input_type = build_rule_selection.primary_input_type;
+        return result;
     }
+
+    KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+             "[Target \"%s\"] Resource \"%s\" of type \"%s\" is marked as unavailable as there is no appropriate build "
+             "rule to build it.",
+             target->name, entry->name)
+
+    result.new_status = RESOURCE_STATUS_UNAVAILABLE;
+    return result;
+}
+
+static void confirm_resource_status (struct build_state_t *state,
+                                     struct resource_entry_t *entry,
+                                     const struct resource_request_backtrace_t *backtrace)
+{
+    {
+        KAN_ATOMIC_INT_SCOPED_LOCK_READ (&entry->header.lock)
+        if (entry->header.status != RESOURCE_STATUS_UNCONFIRMED)
+        {
+            return;
+        }
     }
+
+    // We do resource status confirmation without locking as calculated status should always be the same and chance of
+    // calculating status twice should be quite rare.
+    struct resource_status_confirmation_result_t confirmation_result =
+        confirm_resource_status_internal (state, entry, backtrace);
 
     KAN_ATOMIC_INT_SCOPED_LOCK_WRITE (&entry->header.lock)
     if (entry->header.status != RESOURCE_STATUS_UNCONFIRMED)
@@ -2494,7 +2486,7 @@ static inline void confirm_resource_status (struct build_state_t *state,
         return;
     }
 
-    entry->header.status = new_status;
+    entry->header.status = confirmation_result.new_status;
     switch (entry->header.status)
     {
     case RESOURCE_STATUS_UNCONFIRMED:
@@ -2512,6 +2504,8 @@ static inline void confirm_resource_status (struct build_state_t *state,
         {
             KAN_ATOMIC_INT_SCOPED_LOCK_WRITE (&entry->build.lock)
             entry->build.internal_next_build_task = RESOURCE_ENTRY_NEXT_BUILD_TASK_BUILD_START;
+            entry->build.new_build_source = confirmation_result.new_build_source;
+            entry->build.new_build_source_primary_input_type = confirmation_result.new_build_source_primary_input_type;
 
             KAN_ATOMIC_INT_SCOPED_LOCK (&state->build_queue_lock)
             add_to_build_queue_new_unsafe (state, entry);
@@ -2522,7 +2516,7 @@ static inline void confirm_resource_status (struct build_state_t *state,
 
     case RESOURCE_STATUS_AVAILABLE:
     case RESOURCE_STATUS_PLATFORM_UNSUPPORTED:
-        entry->header.available_version = available_version;
+        entry->header.available_version = confirmation_result.available_version;
         break;
     }
 }
@@ -2659,21 +2653,10 @@ static inline const struct kan_dynamic_array_t *get_references_from_resource_ent
                 entry->header.status == RESOURCE_STATUS_OUT_OF_SCOPE)
 
     if (entry->header.status == RESOURCE_STATUS_OUT_OF_SCOPE ||
-        (entry->initial_log_built_entry &&
-         kan_resource_log_version_is_up_to_date (entry->initial_log_built_entry->version,
-                                                 entry->header.available_version)))
+        (entry->initial_log_entry &&
+         kan_resource_log_version_is_up_to_date (entry->initial_log_entry->version, entry->header.available_version)))
     {
-        switch (entry->class)
-        {
-        case RESOURCE_PRODUCTION_CLASS_RAW:
-            return &entry->initial_log_raw_entry->references;
-
-        case RESOURCE_PRODUCTION_CLASS_PRIMARY:
-            return &entry->initial_log_built_entry->references;
-
-        case RESOURCE_PRODUCTION_CLASS_SECONDARY:
-            return &entry->initial_log_secondary_entry->references;
-        }
+        return &entry->initial_log_entry->references;
     }
 
     return &entry->new_references;
@@ -2744,14 +2727,9 @@ static bool mark_resource_build_dependencies_for_cache (struct build_state_t *st
                                                         struct resource_entry_t *entry,
                                                         const struct resource_request_backtrace_t *backtrace)
 {
-    if (entry->class != RESOURCE_PRODUCTION_CLASS_PRIMARY)
-    {
-        // No dependencies to mark.
-        return true;
-    }
-
     const struct kan_dynamic_array_t *source_array;
     bool new_build;
+    kan_interned_string_t primary_input_type_to_cache = NULL;
 
     {
         KAN_ATOMIC_INT_SCOPED_LOCK_READ (&entry->header.lock)
@@ -2760,31 +2738,37 @@ static bool mark_resource_build_dependencies_for_cache (struct build_state_t *st
                     entry->header.status == RESOURCE_STATUS_PLATFORM_UNSUPPORTED ||
                     entry->header.status == RESOURCE_STATUS_OUT_OF_SCOPE)
 
-        if (entry->initial_log_built_entry &&
-            kan_resource_log_version_is_up_to_date (entry->initial_log_built_entry->version,
-                                                    entry->header.available_version))
+        if (entry->initial_log_entry &&
+            kan_resource_log_version_is_up_to_date (entry->initial_log_entry->version, entry->header.available_version))
         {
-            source_array = &entry->initial_log_built_entry->secondary_inputs;
+            source_array = &entry->initial_log_entry->additional_dependencies;
             new_build = false;
+
+            if (entry->initial_log_entry->source == KAN_RESOURCE_LOG_ENTRY_SOURCE_PRIMARY)
+            {
+                primary_input_type_to_cache = entry->initial_log_entry->source_primary.primary_input_type;
+            }
         }
         else
         {
             source_array = &entry->new_build_secondary_inputs;
             new_build = true;
+
+            if (entry->build.new_build_source == KAN_RESOURCE_LOG_ENTRY_SOURCE_PRIMARY)
+            {
+                primary_input_type_to_cache = entry->build.new_build_source_primary_input_type;
+            }
         }
     }
 
     // We don't need full locking here as `new_build_secondary_inputs` should not be changed after build and function
     // caller should ensure that this function is only being called after the build.
 
-    const struct kan_resource_reflected_data_resource_type_t *reflected_type =
-        kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, entry->type->name);
-
-    if (reflected_type->build_rule_primary_input_type)
+    if (primary_input_type_to_cache)
     {
         struct resource_request_t primary_input_request = {
             .from_target = entry->target,
-            .type = reflected_type->build_rule_primary_input_type,
+            .type = primary_input_type_to_cache,
             .name = entry->name,
             .mode = RESOURCE_REQUEST_MODE_MARK_CACHE,
             .needed_to_build_entry = NULL,
@@ -2798,15 +2782,14 @@ static bool mark_resource_build_dependencies_for_cache (struct build_state_t *st
             KAN_LOG (resource_pipeline_build, KAN_LOG_ERROR,
                      "[Target \"%s\"] Failed to mark \"%s\" of type \"%s\" for cache (it needs to be cached as build "
                      "dependency of \"%s\" of type \"%s\").",
-                     entry->target->name, entry->name, reflected_type->build_rule_primary_input_type, entry->name,
-                     entry->type->name);
+                     entry->target->name, entry->name, primary_input_type_to_cache, entry->name, entry->type->name);
             return false;
         }
     }
 
     for (kan_memory_size_t index = 0u; index < source_array->size; ++index)
     {
-        struct resource_request_t secondary_input_request = {
+        struct resource_request_t dependency_request = {
             .from_target = entry->target,
             .type = NULL,
             .name = NULL,
@@ -2825,13 +2808,13 @@ static bool mark_resource_build_dependencies_for_cache (struct build_state_t *st
                 continue;
             }
 
-            secondary_input_request.type = secondary->entry->type->name;
-            secondary_input_request.name = secondary->entry->name;
+            dependency_request.type = secondary->entry->type->name;
+            dependency_request.name = secondary->entry->name;
         }
         else
         {
-            const struct kan_resource_log_secondary_input_t *secondary =
-                &((struct kan_resource_log_secondary_input_t *) source_array->data)[index];
+            const struct kan_resource_log_dependency_t *secondary =
+                &((struct kan_resource_log_dependency_t *) source_array->data)[index];
 
             if (!secondary->type)
             {
@@ -2839,20 +2822,20 @@ static bool mark_resource_build_dependencies_for_cache (struct build_state_t *st
                 continue;
             }
 
-            secondary_input_request.type = secondary->type;
-            secondary_input_request.name = secondary->name;
+            dependency_request.type = secondary->type;
+            dependency_request.name = secondary->name;
         }
 
         struct resource_response_t secondary_input_response =
-            execute_resource_request_internal (state, secondary_input_request, backtrace);
+            execute_resource_request_internal (state, dependency_request, backtrace);
 
         if (!secondary_input_response.success)
         {
             KAN_LOG (resource_pipeline_build, KAN_LOG_ERROR,
                      "[Target \"%s\"] Failed to mark \"%s\" of type \"%s\" for cache (it needs to be cached as build "
                      "dependency of \"%s\" of type \"%s\").",
-                     entry->target->name, secondary_input_request.name, secondary_input_request.type, entry->name,
-                     entry->type->name);
+                     entry->target->name, dependency_request.name, dependency_request.type, entry->name,
+                     entry->type->name)
             return false;
         }
     }
@@ -2876,8 +2859,13 @@ static bool mark_resource_for_deployment (struct build_state_t *state,
         entry->header.deployment_mark = true;
         switch (entry->header.status)
         {
-        case RESOURCE_STATUS_UNCONFIRMED:
         case RESOURCE_STATUS_UNAVAILABLE:
+            KAN_LOG (resource_pipeline_build, KAN_LOG_ERROR,
+                     "[Target \"%s\"] Failed to mark \"%s\" of type \"%s\" for deployment as it is unavailable.",
+                     entry->target->name, entry->name, entry->type->name)
+            return false;
+
+        case RESOURCE_STATUS_UNCONFIRMED:
         case RESOURCE_STATUS_BUILDING:
             // Neither references nor dependency list are ready, so there is nothing more to mark right now.
             // It also means that these marks will be applied in the end of build operation as deployment mark will be
@@ -2890,12 +2878,12 @@ static bool mark_resource_for_deployment (struct build_state_t *state,
             break;
 
         case RESOURCE_STATUS_PLATFORM_UNSUPPORTED:
-            if (!required)
+            if (required)
             {
                 KAN_LOG (resource_pipeline_build, KAN_LOG_ERROR,
                          "[Target \"%s\"] Failed to mark \"%s\" of type \"%s\" for deployment as it is unsupported on "
                          "this platform, but reference field meta does not allow platform unsupported resources.",
-                         entry->target->name, entry->name, entry->type->name);
+                         entry->target->name, entry->name, entry->type->name)
                 return false;
             }
 
@@ -3022,48 +3010,13 @@ static struct resource_response_t execute_resource_request_internal (
             const struct kan_resource_reflected_data_resource_type_t *reflected_type =
                 kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, request.type);
 
-            if (!reflected_type->produced_from_build_rule)
+            struct build_rule_selection_result_t build_rule_selection =
+                select_build_rule_for_production (state, request.from_target, request.name, reflected_type, backtrace);
+
+            if (!build_rule_selection.found)
             {
                 // Not produced by build rule, return default unavailable response.
                 return response;
-            }
-
-            // Built resource should always be created in the same target as its primary input.
-            struct target_t *primary_target = NULL;
-
-            if (reflected_type->build_rule_primary_input_type)
-            {
-                struct resource_response_t primary_input_response =
-                    execute_resource_request_internal (state,
-                                                       (struct resource_request_t) {
-                                                           .from_target = request.from_target,
-                                                           .type = reflected_type->build_rule_primary_input_type,
-                                                           .name = request.name,
-                                                           .mode = RESOURCE_REQUEST_MODE_STATUS_CONFIRMATION,
-                                                           .needed_to_build_entry = NULL,
-                                                       },
-                                                       &trace);
-
-                if (!primary_input_response.success)
-                {
-                    // No primary input to build entry, return default unavailable response.
-                    return response;
-                }
-
-                primary_target = primary_input_response.entry->target;
-            }
-            else
-            {
-                struct raw_third_party_entry_t *entry =
-                    target_search_visible_third_party (request.from_target, request.name);
-
-                if (!entry)
-                {
-                    // No primary input to build entry, return default unavailable response.
-                    return response;
-                }
-
-                primary_target = entry->target;
             }
 
             // Resource can be built using a rule, so let's create an entry and try to build it.
@@ -3072,26 +3025,28 @@ static struct resource_response_t execute_resource_request_internal (
 
             // While we were waiting for write access, somebody else might've already got write access and
             // create this node too. Let's check it.
-            response.entry = target_search_local_resource_unsafe (primary_target, request.type, request.name);
+            response.entry =
+                target_search_local_resource_unsafe (build_rule_selection.parent_target, request.type, request.name);
 
             if (!response.entry)
             {
                 struct resource_type_container_t *container =
-                    target_search_resource_type_container_unsafe (primary_target, request.type);
+                    target_search_resource_type_container_unsafe (build_rule_selection.parent_target, request.type);
 
                 if (!container)
                 {
-                    container = resource_type_container_create (primary_target, reflected_type->struct_type);
+                    container = resource_type_container_create (build_rule_selection.parent_target,
+                                                                reflected_type->struct_type);
                 }
 
                 response.entry = resource_entry_create (container, request.name);
-                response.entry->class = RESOURCE_PRODUCTION_CLASS_PRIMARY;
-
                 KAN_ATOMIC_INT_SCOPED_LOCK_WRITE (&response.entry->header.lock)
                 KAN_ATOMIC_INT_SCOPED_LOCK_WRITE (&response.entry->build.lock)
 
                 response.entry->header.status = RESOURCE_STATUS_BUILDING;
                 response.entry->build.internal_next_build_task = RESOURCE_ENTRY_NEXT_BUILD_TASK_BUILD_START;
+                response.entry->build.new_build_source = KAN_RESOURCE_LOG_ENTRY_SOURCE_PRIMARY;
+                response.entry->build.new_build_source_primary_input_type = build_rule_selection.primary_input_type;
 
                 if (response.entry->target->marked_for_build)
                 {
@@ -3099,13 +3054,13 @@ static struct resource_response_t execute_resource_request_internal (
                     add_to_build_queue_new_unsafe (state, response.entry);
                 }
             }
-            else if (response.entry->target != primary_target)
+            else if (response.entry->target != build_rule_selection.parent_target)
             {
                 KAN_LOG (resource_pipeline_build, KAN_LOG_ERROR,
                          "[Target \"%s\"] Failed to create \"%s\" of type \"%s\" from build rule as resource with that "
                          "name already exists in target \"%s\" visible from primary input target \"%s\".",
                          request.from_target->name, request.name, request.type, response.entry->target->name,
-                         primary_target->name);
+                         build_rule_selection.parent_target->name)
                 return response;
             }
 
@@ -3431,17 +3386,32 @@ static struct build_step_output_t execute_build_primary_start (struct build_stat
 
     const struct kan_resource_reflected_data_resource_type_t *reflected_type =
         kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, entry->type->name);
-    KAN_ASSERT (reflected_type->produced_from_build_rule)
+    entry->build.internal_build_rule = NULL;
 
-    if (!reflected_type->build_rule_primary_input_type)
+    for (kan_instance_size_t index = 0u; index < reflected_type->produced_from.size; ++index)
     {
+        struct kan_resource_reflected_data_build_rule_t *candidate =
+            &((struct kan_resource_reflected_data_build_rule_t *) reflected_type->produced_from.data)[index];
+
+        if (candidate->primary_input_type == entry->build.new_build_source_primary_input_type)
+        {
+            entry->build.internal_build_rule = candidate;
+        }
+    }
+
+    // We should not have started build task if there is no suitable build rule.
+    KAN_ASSERT (entry->build.internal_build_rule)
+
+    if (!entry->build.new_build_source_primary_input_type)
+    {
+        // Import rule.
         return execute_build_execute_build_rule (state, entry);
     }
 
     struct resource_response_t response =
         execute_resource_request (state, (struct resource_request_t) {
                                              .from_target = entry->target,
-                                             .type = reflected_type->build_rule_primary_input_type,
+                                             .type = entry->build.new_build_source_primary_input_type,
                                              .name = entry->name,
                                              .mode = RESOURCE_REQUEST_MODE_BUILD_REQUIRED,
                                              .needed_to_build_entry = entry,
@@ -3452,7 +3422,7 @@ static struct build_step_output_t execute_build_primary_start (struct build_stat
         KAN_LOG (resource_pipeline_build, KAN_LOG_ERROR,
                  "[Target \"%s\"] Failed to process build start for \"%s\" of type \"%s\" as it wasn't possible to "
                  "request build rule primary input of type \"%s\".",
-                 entry->target->name, entry->name, entry->type->name, reflected_type->build_rule_primary_input_type);
+                 entry->target->name, entry->name, entry->type->name, entry->build.new_build_source_primary_input_type)
         return output;
     }
 
@@ -3494,10 +3464,8 @@ static struct build_step_output_t execute_build_primary_process_primary (struct 
         primary_reference_array = get_references_from_resource_entry_unsafe (primary);
     }
 
-    const struct kan_resource_reflected_data_resource_type_t *reflected_type =
-        kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, entry->type->name);
-    KAN_ASSERT (reflected_type->produced_from_build_rule)
-
+    // We should not have started build task if there is no suitable build rule.
+    KAN_ASSERT (entry->build.internal_build_rule)
     kan_dynamic_array_set_capacity (&entry->new_build_secondary_inputs, primary_reference_array->size);
     bool has_failed_secondary_inputs = false;
 
@@ -3509,11 +3477,11 @@ static struct build_step_output_t execute_build_primary_process_primary (struct 
         if (reference->type)
         {
             bool used_for_build = false;
-            for (kan_memory_size_t type_index = 0u; type_index < reflected_type->build_rule_secondary_types.size;
+            for (kan_memory_size_t type_index = 0u; type_index < entry->build.internal_build_rule->secondary_types.size;
                  ++type_index)
             {
                 if (reference->type ==
-                    ((kan_interned_string_t *) reflected_type->build_rule_secondary_types.data)[type_index])
+                    ((kan_interned_string_t *) entry->build.internal_build_rule->secondary_types.data)[type_index])
                 {
                     used_for_build = true;
                     break;
@@ -3714,9 +3682,10 @@ static enum subroutine_result_t interface_produce_secondary_output_check_reprodu
         return SUBROUTINE_RESULT_SKIPPED;
     }
 
-    if (reproduced->class != RESOURCE_PRODUCTION_CLASS_SECONDARY || !reproduced->initial_log_secondary_entry ||
-        reproduced->initial_log_secondary_entry->producer_type != parent_entry->type->name ||
-        reproduced->initial_log_secondary_entry->producer_name != parent_entry->name)
+    if (!reproduced->initial_log_entry ||
+        reproduced->initial_log_entry->source != KAN_RESOURCE_LOG_ENTRY_SOURCE_SECONDARY ||
+        reproduced->initial_log_entry->source_secondary.producer_type != parent_entry->type->name ||
+        reproduced->initial_log_entry->source_secondary.producer_name != parent_entry->name)
     {
         KAN_LOG (resource_pipeline_build, KAN_LOG_ERROR,
                  "[Target \"%s\"] Failed to produce secondary \"%s\" of type \"%s\" from \"%s\" of type \"%s\" as "
@@ -3738,6 +3707,7 @@ static enum subroutine_result_t interface_produce_secondary_output_check_reprodu
 
         reproduced->header.status = RESOURCE_STATUS_BUILDING;
         reproduced->build.internal_next_build_task = RESOURCE_ENTRY_NEXT_BUILD_TASK_BUILD_START;
+        reproduced->build.new_build_source = KAN_RESOURCE_LOG_ENTRY_SOURCE_SECONDARY;
 
         KAN_ATOMIC_INT_SCOPED_LOCK (&state->build_queue_lock)
         // Use unblocked order as we'd like to save and unload reproduced secondary as soon as possible.
@@ -3838,13 +3808,12 @@ static bool interface_produce_secondary_output (kan_resource_build_rule_interfac
     }
 
     entry = resource_entry_create (container, name);
-    entry->class = RESOURCE_PRODUCTION_CLASS_SECONDARY;
-
     KAN_ATOMIC_INT_SCOPED_LOCK_WRITE (&entry->header.lock)
     KAN_ATOMIC_INT_SCOPED_LOCK_WRITE (&entry->build.lock)
 
     entry->header.status = RESOURCE_STATUS_BUILDING;
     entry->build.internal_next_build_task = RESOURCE_ENTRY_NEXT_BUILD_TASK_BUILD_START;
+    entry->build.new_build_source = KAN_RESOURCE_LOG_ENTRY_SOURCE_SECONDARY;
     entry->build.internal_producer_entry = parent_entry;
     move_secondary_output_data_to_entry (state, type_data, entry, data);
 
@@ -3896,20 +3865,6 @@ static void cleanup_build_rule_context (struct kan_resource_build_rule_context_t
     build_context->secondary_input_first = NULL;
 }
 
-static void replace_entry_current_file_location (struct resource_entry_t *entry,
-                                                 const struct kan_file_system_path_container_t *path)
-{
-    if (entry->current_file_location)
-    {
-        kan_free_general (entry->allocation_group, entry->current_file_location,
-                          strlen (entry->current_file_location) + 1u);
-    }
-
-    entry->current_file_location = kan_allocate_general (entry->allocation_group, path->length + 1u, alignof (char));
-    memcpy (entry->current_file_location, path->path, path->length);
-    entry->current_file_location[path->length] = '\0';
-}
-
 /// \details In case of import build rules, can be executed right away from start task call.
 static struct build_step_output_t execute_build_execute_build_rule (struct build_state_t *state,
                                                                     struct resource_entry_t *entry)
@@ -3921,9 +3876,8 @@ static struct build_step_output_t execute_build_execute_build_rule (struct build
         .loaded_data_to_manage = NULL,
     };
 
-    const struct kan_resource_reflected_data_resource_type_t *reflected_type =
-        kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, entry->type->name);
-    KAN_ASSERT (reflected_type->produced_from_build_rule)
+    // We should not have started build task if there is no suitable build rule.
+    KAN_ASSERT (entry->build.internal_build_rule)
 
     struct build_rule_interface_data_t interface_data = {
         .state = state,
@@ -3946,7 +3900,7 @@ static struct build_step_output_t execute_build_execute_build_rule (struct build
     struct raw_third_party_entry_t *primary_third_party = NULL;
     CUSHION_DEFER { cleanup_build_rule_context (&build_context, entry, primary); }
 
-    if (reflected_type->build_rule_primary_input_type)
+    if (entry->build.internal_build_rule->primary_input_type)
     {
         primary = entry->build.internal_primary_input_entry;
         KAN_ATOMIC_INT_SCOPED_LOCK_READ (&primary->header.lock)
@@ -3974,10 +3928,10 @@ static struct build_step_output_t execute_build_execute_build_rule (struct build
         build_context.primary_third_party_path = primary_third_party->file_location;
     }
 
-    if (reflected_type->build_rule_platform_configuration_type)
+    if (entry->build.internal_build_rule->platform_configuration_type)
     {
-        struct platform_configuration_entry_t *configuration_entry =
-            build_state_find_platform_configuration (state, reflected_type->build_rule_platform_configuration_type);
+        struct platform_configuration_entry_t *configuration_entry = build_state_find_platform_configuration (
+            state, entry->build.internal_build_rule->platform_configuration_type);
 
         if (!configuration_entry)
         {
@@ -3985,7 +3939,7 @@ static struct build_step_output_t execute_build_execute_build_rule (struct build
                      "[Target \"%s\"] Failed to build \"%s\" of type \"%s\" as platform configuration entry \"%s\" is "
                      "not found.",
                      entry->target->name, entry->name, entry->type->name,
-                     reflected_type->build_rule_platform_configuration_type);
+                     entry->build.internal_build_rule->platform_configuration_type)
             return output;
         }
 
@@ -4127,7 +4081,7 @@ static struct build_step_output_t execute_build_execute_build_rule (struct build
         kan_allocation_group_stack_pop ();
     }
 
-    const enum kan_resource_build_rule_result_t result = reflected_type->build_rule_functor (&build_context);
+    const enum kan_resource_build_rule_result_t result = entry->build.internal_build_rule->functor (&build_context);
     switch (result)
     {
     case KAN_RESOURCE_BUILD_RULE_SUCCESS:
@@ -4145,6 +4099,9 @@ static struct build_step_output_t execute_build_execute_build_rule (struct build
         loaded_data = NULL;
         break;
     }
+
+    const struct kan_resource_reflected_data_resource_type_t *reflected_type =
+        kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, entry->type->name);
 
     switch (result)
     {
@@ -4268,11 +4225,13 @@ static struct build_step_output_t execute_build_secondary_start (struct build_st
     else
     {
         // Must've been produced earlier, check if producer is up-to-date.
-        KAN_ASSERT (entry->initial_log_secondary_entry)
+        KAN_ASSERT (entry->initial_log_entry)
+        KAN_ASSERT (entry->initial_log_entry->source == KAN_RESOURCE_LOG_ENTRY_SOURCE_SECONDARY)
+
         request = (struct resource_request_t) {
             .from_target = entry->target,
-            .type = entry->initial_log_secondary_entry->producer_type,
-            .name = entry->initial_log_secondary_entry->producer_name,
+            .type = entry->initial_log_entry->source_secondary.producer_type,
+            .name = entry->initial_log_entry->source_secondary.producer_name,
             .mode = RESOURCE_REQUEST_MODE_BUILD_REQUIRED,
             .needed_to_build_entry = entry,
         };
@@ -4284,8 +4243,7 @@ static struct build_step_output_t execute_build_secondary_start (struct build_st
         KAN_LOG (resource_pipeline_build, KAN_LOG_ERROR,
                  "[Target \"%s\"] Failed to process build start for \"%s\" of type \"%s\" as it wasn't possible to "
                  "request producer resource \"%s\" of type \"%s\".",
-                 entry->target->name, entry->name, entry->type->name, entry->initial_log_secondary_entry->producer_type,
-                 entry->initial_log_secondary_entry->producer_name);
+                 entry->target->name, entry->name, entry->type->name, request.type, request.name)
         return output;
     }
 
@@ -4442,17 +4400,17 @@ static struct build_step_output_t execute_build_step (struct build_state_t *stat
         break;
 
     case RESOURCE_ENTRY_NEXT_BUILD_TASK_BUILD_START:
-        switch (entry->class)
+        switch (entry->build.new_build_source)
         {
-        case RESOURCE_PRODUCTION_CLASS_RAW:
+        case KAN_RESOURCE_LOG_ENTRY_SOURCE_RAW:
             output = execute_build_raw_start (state, entry);
             break;
 
-        case RESOURCE_PRODUCTION_CLASS_PRIMARY:
+        case KAN_RESOURCE_LOG_ENTRY_SOURCE_PRIMARY:
             output = execute_build_primary_start (state, entry);
             break;
 
-        case RESOURCE_PRODUCTION_CLASS_SECONDARY:
+        case KAN_RESOURCE_LOG_ENTRY_SOURCE_SECONDARY:
             output = execute_build_secondary_start (state, entry);
             break;
         }
@@ -4460,21 +4418,20 @@ static struct build_step_output_t execute_build_step (struct build_state_t *stat
         break;
 
     case RESOURCE_ENTRY_NEXT_BUILD_TASK_BUILD_PROCESS_PRIMARY:
-
-        switch (entry->class)
+        switch (entry->build.new_build_source)
         {
-        case RESOURCE_PRODUCTION_CLASS_RAW:
+        case KAN_RESOURCE_LOG_ENTRY_SOURCE_RAW:
             KAN_ASSERT_FORMATTED (false,
                                   "[Target \"%s\"] Got process primary input task for resource \"%s\" of type \"%s\" "
                                   "which is raw and therefore cannot get this task. It is an internal error.",
                                   entry->target->name, entry->name, entry->type->name)
             break;
 
-        case RESOURCE_PRODUCTION_CLASS_PRIMARY:
+        case KAN_RESOURCE_LOG_ENTRY_SOURCE_PRIMARY:
             output = execute_build_primary_process_primary (state, entry);
             break;
 
-        case RESOURCE_PRODUCTION_CLASS_SECONDARY:
+        case KAN_RESOURCE_LOG_ENTRY_SOURCE_SECONDARY:
             output = execute_build_secondary_process_primary (state, entry);
             break;
         }
@@ -5046,55 +5003,25 @@ static bool execute_deployment_caching_step_for_entry (struct build_state_t *sta
                                                        struct kan_file_system_path_container_t *reused_path)
 {
     enum deployment_step_target_location_t old_location = DEPLOYMENT_STEP_TARGET_LOCATION_NONE;
-    switch (entry->class)
+    if (entry->initial_log_entry)
     {
-    case RESOURCE_PRODUCTION_CLASS_RAW:
-        if (entry->initial_log_raw_entry && entry->initial_log_raw_entry->deployed)
+        switch (entry->initial_log_entry->saved_directory)
         {
+        case KAN_RESOURCE_LOG_SAVED_DIRECTORY_DEPLOY:
             old_location = DEPLOYMENT_STEP_TARGET_LOCATION_DEPLOY;
-        }
+            break;
 
-        break;
-
-    case RESOURCE_PRODUCTION_CLASS_PRIMARY:
-        if (entry->initial_log_built_entry)
-        {
-            switch (entry->initial_log_built_entry->saved_directory)
+        case KAN_RESOURCE_LOG_SAVED_DIRECTORY_CACHE:
+            if (entry->initial_log_entry->source != KAN_RESOURCE_LOG_ENTRY_SOURCE_RAW)
             {
-            case KAN_RESOURCE_LOG_SAVED_DIRECTORY_DEPLOY:
-                old_location = DEPLOYMENT_STEP_TARGET_LOCATION_DEPLOY;
-                break;
-
-            case KAN_RESOURCE_LOG_SAVED_DIRECTORY_CACHE:
                 old_location = DEPLOYMENT_STEP_TARGET_LOCATION_CACHE;
-                break;
-
-            case KAN_RESOURCE_LOG_SAVED_DIRECTORY_UNSUPPORTED:
-                break;
             }
+
+            break;
+
+        case KAN_RESOURCE_LOG_SAVED_DIRECTORY_UNSUPPORTED:
+            break;
         }
-
-        break;
-
-    case RESOURCE_PRODUCTION_CLASS_SECONDARY:
-        if (entry->initial_log_secondary_entry)
-        {
-            switch (entry->initial_log_secondary_entry->saved_directory)
-            {
-            case KAN_RESOURCE_LOG_SAVED_DIRECTORY_DEPLOY:
-                old_location = DEPLOYMENT_STEP_TARGET_LOCATION_DEPLOY;
-                break;
-
-            case KAN_RESOURCE_LOG_SAVED_DIRECTORY_CACHE:
-                old_location = DEPLOYMENT_STEP_TARGET_LOCATION_CACHE;
-                break;
-
-            case KAN_RESOURCE_LOG_SAVED_DIRECTORY_UNSUPPORTED:
-                break;
-            }
-        }
-
-        break;
     }
 
     enum deployment_step_target_location_t new_location = DEPLOYMENT_STEP_TARGET_LOCATION_NONE;
@@ -5107,7 +5034,7 @@ static bool execute_deployment_caching_step_for_entry (struct build_state_t *sta
              entry->header.status != RESOURCE_STATUS_PLATFORM_UNSUPPORTED &&
              // Raw files are preserved as raw files, so there is no sense to physically cache them.
              // Cache mark is only needed on them to check whether they were used in build at all.
-             entry->class != RESOURCE_PRODUCTION_CLASS_RAW)
+             !entry->located_in_raw_resources)
     {
         new_location = DEPLOYMENT_STEP_TARGET_LOCATION_CACHE;
     }
@@ -5181,13 +5108,12 @@ static bool execute_deployment_caching_step_for_entry (struct build_state_t *sta
             return false;
 
         case RESOURCE_STATUS_AVAILABLE:
-            switch (entry->class)
+            if (entry->located_in_raw_resources)
             {
-            case RESOURCE_PRODUCTION_CLASS_RAW:
                 return deploy_raw_resource (state, entry, reused_path);
-
-            case RESOURCE_PRODUCTION_CLASS_PRIMARY:
-            case RESOURCE_PRODUCTION_CLASS_SECONDARY:
+            }
+            else
+            {
                 return move_produced_file_for_cache_or_deployment (entry, new_location, reused_path);
             }
 
@@ -5388,249 +5314,142 @@ static void add_entry_to_build_log (struct build_state_t *state,
 
     if (entry->header.passed_build_routine_mark)
     {
-        switch (entry->class)
+        struct kan_resource_log_entry_t *log_entry = kan_dynamic_array_add_last (&log_target->entries);
+        if (!log_entry)
         {
-        case RESOURCE_PRODUCTION_CLASS_RAW:
-        {
-            struct kan_resource_log_raw_entry_t *log_entry = kan_dynamic_array_add_last (&log_target->raw);
-            if (!log_entry)
-            {
-                kan_dynamic_array_set_capacity (&log_target->raw, log_target->raw.size * 2u);
-                log_entry = kan_dynamic_array_add_last (&log_target->raw);
-                KAN_ASSERT (entry)
-            }
-
-            kan_resource_log_raw_entry_init (log_entry);
-            log_entry->type = entry->type->name;
-            log_entry->name = entry->name;
-            log_entry->version = entry->header.available_version;
-            log_entry->deployed = entry->header.deployment_mark;
-
-            kan_dynamic_array_set_capacity (&log_entry->references, entry->new_references.size);
-            log_entry->references.size = entry->new_references.size;
-            memcpy (log_entry->references.data, entry->new_references.data,
-                    sizeof (struct kan_resource_log_reference_t) * log_entry->references.size);
-            break;
+            kan_dynamic_array_set_capacity (&log_target->entries, log_target->entries.size * 2u);
+            log_entry = kan_dynamic_array_add_last (&log_target->entries);
+            KAN_ASSERT (entry)
         }
 
-        case RESOURCE_PRODUCTION_CLASS_PRIMARY:
+        kan_resource_log_entry_init (log_entry);
+        log_entry->type = entry->type->name;
+        log_entry->name = entry->name;
+        log_entry->version = entry->header.available_version;
+
+        kan_dynamic_array_set_capacity (&log_entry->references, entry->new_references.size);
+        log_entry->references.size = entry->new_references.size;
+
+        memcpy (log_entry->references.data, entry->new_references.data,
+                sizeof (struct kan_resource_log_reference_t) * log_entry->references.size);
+
+        if (entry->header.status == RESOURCE_STATUS_PLATFORM_UNSUPPORTED)
         {
-            struct kan_resource_log_built_entry_t *log_entry = kan_dynamic_array_add_last (&log_target->built);
-            if (!log_entry)
-            {
-                kan_dynamic_array_set_capacity (&log_target->built, log_target->built.size * 2u);
-                log_entry = kan_dynamic_array_add_last (&log_target->built);
-                KAN_ASSERT (entry)
-            }
+            log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_UNSUPPORTED;
+        }
+        else if (entry->header.deployment_mark)
+        {
+            log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_DEPLOY;
+        }
+        else if (entry->header.cache_mark && !entry->located_in_raw_resources)
+        {
+            log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_CACHE;
+        }
 
-            kan_resource_log_built_entry_init (log_entry);
-            log_entry->type = entry->type->name;
-            log_entry->name = entry->name;
-            log_entry->version = entry->header.available_version;
+        log_entry->source = entry->build.new_build_source;
+        switch (log_entry->source)
+        {
+        case KAN_RESOURCE_LOG_ENTRY_SOURCE_RAW:
+            break;
 
-            const struct kan_resource_reflected_data_resource_type_t *reflected_type =
-                kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data,
-                                                                         entry->type->name);
+        case KAN_RESOURCE_LOG_ENTRY_SOURCE_PRIMARY:
+            KAN_ASSERT (entry->build.internal_build_rule)
+            log_entry->source_primary.primary_input_type = entry->build.internal_build_rule->primary_input_type;
 
-            if (reflected_type->build_rule_platform_configuration_type)
+            if (entry->build.internal_build_rule->platform_configuration_type)
             {
                 const struct platform_configuration_entry_t *platform_configuration =
-                    build_state_find_platform_configuration (state,
-                                                             reflected_type->build_rule_platform_configuration_type);
+                    build_state_find_platform_configuration (
+                        state, entry->build.internal_build_rule->platform_configuration_type);
 
                 // If we've successfully built this entry, then configuration is here.
                 KAN_ASSERT (platform_configuration)
-                log_entry->platform_configuration_time = platform_configuration->file_time;
+                log_entry->source_primary.platform_configuration_time = platform_configuration->file_time;
             }
             else
             {
-                log_entry->platform_configuration_time = 0u;
+                log_entry->source_primary.platform_configuration_time = 0u;
             }
 
-            log_entry->rule_version = reflected_type->build_rule_version;
-            if (reflected_type->build_rule_primary_input_type)
+            log_entry->source_primary.rule_version = entry->build.internal_build_rule->version;
+            if (entry->build.internal_build_rule->primary_input_type)
             {
                 // If we've successfully built this entry, then primary input is here.
                 KAN_ASSERT (entry->build.internal_primary_input_entry)
-                log_entry->primary_input_version = entry->build.internal_primary_input_entry->header.available_version;
+                log_entry->source_primary.primary_input_version =
+                    entry->build.internal_primary_input_entry->header.available_version;
             }
             else
             {
                 // If we've successfully built this entry, then primary input is here.
                 KAN_ASSERT (entry->build.internal_primary_input_third_party)
-                log_entry->primary_input_version.type_version = 0u;
-                log_entry->primary_input_version.last_modification_time =
+                log_entry->source_primary.primary_input_version.type_version = 0u;
+                log_entry->source_primary.primary_input_version.last_modification_time =
                     entry->build.internal_primary_input_third_party->last_modification_time;
             }
 
-            if (entry->header.status == RESOURCE_STATUS_PLATFORM_UNSUPPORTED)
-            {
-                log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_UNSUPPORTED;
-            }
-            else if (entry->header.deployment_mark)
-            {
-                log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_DEPLOY;
-            }
-            else if (entry->header.cache_mark)
-            {
-                log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_CACHE;
-            }
-
-            kan_dynamic_array_set_capacity (&log_entry->references, entry->new_references.size);
-            log_entry->references.size = entry->new_references.size;
-
-            memcpy (log_entry->references.data, entry->new_references.data,
-                    sizeof (struct kan_resource_log_reference_t) * log_entry->references.size);
-            kan_dynamic_array_set_capacity (&log_entry->secondary_inputs, entry->new_build_secondary_inputs.size);
-
-            for (kan_memory_size_t index = 0u; index < entry->new_build_secondary_inputs.size; ++index)
-            {
-                struct new_build_secondary_input_t *input =
-                    &((struct new_build_secondary_input_t *) entry->new_build_secondary_inputs.data)[index];
-
-                struct kan_resource_log_secondary_input_t *output =
-                    kan_dynamic_array_add_last (&log_entry->secondary_inputs);
-                KAN_ASSERT (output)
-
-                if (input->entry)
-                {
-                    output->type = input->entry->type->name;
-                    output->name = input->entry->name;
-                    output->version = input->entry->header.available_version;
-                }
-                else
-                {
-                    output->type = NULL;
-                    output->name = input->third_party_entry->name;
-                    output->version.type_version = 0u;
-                    output->version.last_modification_time = input->third_party_entry->last_modification_time;
-                }
-            }
-
             break;
-        }
 
-        case RESOURCE_PRODUCTION_CLASS_SECONDARY:
-        {
-            struct kan_resource_log_secondary_entry_t *log_entry = kan_dynamic_array_add_last (&log_target->secondary);
-            if (!log_entry)
-            {
-                kan_dynamic_array_set_capacity (&log_target->secondary, log_target->secondary.size * 2u);
-                log_entry = kan_dynamic_array_add_last (&log_target->secondary);
-                KAN_ASSERT (entry)
-            }
-
-            kan_resource_log_secondary_entry_init (log_entry);
-            log_entry->type = entry->type->name;
-            log_entry->name = entry->name;
-            log_entry->version = entry->header.available_version;
-
-            KAN_ASSERT (entry->header.status != RESOURCE_STATUS_PLATFORM_UNSUPPORTED)
-            if (entry->header.deployment_mark)
-            {
-                log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_DEPLOY;
-            }
-            else if (entry->header.cache_mark)
-            {
-                log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_CACHE;
-            }
-
+        case KAN_RESOURCE_LOG_ENTRY_SOURCE_SECONDARY:
             // If we've successfully built this entry, then producer is here.
             KAN_ASSERT (entry->build.internal_producer_entry)
-            log_entry->producer_type = entry->build.internal_producer_entry->type->name;
-            log_entry->producer_name = entry->build.internal_producer_entry->name;
-            log_entry->producer_version = entry->build.internal_producer_entry->header.available_version;
-
-            kan_dynamic_array_set_capacity (&log_entry->references, entry->new_references.size);
-            log_entry->references.size = entry->new_references.size;
-            memcpy (log_entry->references.data, entry->new_references.data,
-                    sizeof (struct kan_resource_log_reference_t) * log_entry->references.size);
+            log_entry->source_secondary.producer_type = entry->build.internal_producer_entry->type->name;
+            log_entry->source_secondary.producer_name = entry->build.internal_producer_entry->name;
+            log_entry->source_secondary.producer_version =
+                entry->build.internal_producer_entry->header.available_version;
             break;
         }
+
+        kan_dynamic_array_set_capacity (&log_entry->additional_dependencies, entry->new_build_secondary_inputs.size);
+        for (kan_memory_size_t index = 0u; index < entry->new_build_secondary_inputs.size; ++index)
+        {
+            struct new_build_secondary_input_t *input =
+                &((struct new_build_secondary_input_t *) entry->new_build_secondary_inputs.data)[index];
+
+            struct kan_resource_log_dependency_t *output =
+                kan_dynamic_array_add_last (&log_entry->additional_dependencies);
+            KAN_ASSERT (output)
+
+            if (input->entry)
+            {
+                output->type = input->entry->type->name;
+                output->name = input->entry->name;
+                output->version = input->entry->header.available_version;
+            }
+            else
+            {
+                output->type = NULL;
+                output->name = input->third_party_entry->name;
+                output->version.type_version = 0u;
+                output->version.last_modification_time = input->third_party_entry->last_modification_time;
+            }
         }
     }
     else
     {
-        switch (entry->class)
+        struct kan_resource_log_entry_t *log_entry = kan_dynamic_array_add_last (&log_target->entries);
+        if (!log_entry)
         {
-        case RESOURCE_PRODUCTION_CLASS_RAW:
-        {
-            struct kan_resource_log_raw_entry_t *log_entry = kan_dynamic_array_add_last (&log_target->raw);
-            if (!log_entry)
-            {
-                kan_dynamic_array_set_capacity (&log_target->raw, log_target->raw.size * 2u);
-                log_entry = kan_dynamic_array_add_last (&log_target->raw);
-                KAN_ASSERT (entry)
-            }
-
-            // Should never get that status, only primary resources can get it.
-            KAN_ASSERT (entry->header.status != RESOURCE_STATUS_PLATFORM_UNSUPPORTED)
-            KAN_ASSERT (entry->initial_log_raw_entry)
-            kan_resource_log_raw_entry_init_copy (log_entry, entry->initial_log_raw_entry);
-
-            log_entry->version = entry->header.available_version;
-            log_entry->deployed = entry->header.deployment_mark;
-            break;
+            kan_dynamic_array_set_capacity (&log_target->entries, log_target->entries.size * 2u);
+            log_entry = kan_dynamic_array_add_last (&log_target->entries);
+            KAN_ASSERT (entry)
         }
 
-        case RESOURCE_PRODUCTION_CLASS_PRIMARY:
+        KAN_ASSERT (entry->initial_log_entry)
+        kan_resource_log_entry_init_copy (log_entry, entry->initial_log_entry);
+        log_entry->version = entry->header.available_version;
+
+        if (entry->header.status == RESOURCE_STATUS_PLATFORM_UNSUPPORTED)
         {
-            struct kan_resource_log_built_entry_t *log_entry = kan_dynamic_array_add_last (&log_target->built);
-            if (!log_entry)
-            {
-                kan_dynamic_array_set_capacity (&log_target->built, log_target->built.size * 2u);
-                log_entry = kan_dynamic_array_add_last (&log_target->built);
-                KAN_ASSERT (entry)
-            }
-
-            KAN_ASSERT (entry->initial_log_built_entry)
-            kan_resource_log_built_entry_init_copy (log_entry, entry->initial_log_built_entry);
-            log_entry->version = entry->header.available_version;
-
-            if (entry->header.status == RESOURCE_STATUS_PLATFORM_UNSUPPORTED)
-            {
-                log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_UNSUPPORTED;
-            }
-            else if (entry->header.deployment_mark)
-            {
-                log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_DEPLOY;
-            }
-            else if (entry->header.cache_mark)
-            {
-                log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_CACHE;
-            }
-
-            break;
+            log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_UNSUPPORTED;
         }
-
-        case RESOURCE_PRODUCTION_CLASS_SECONDARY:
+        else if (entry->header.deployment_mark)
         {
-            struct kan_resource_log_secondary_entry_t *log_entry = kan_dynamic_array_add_last (&log_target->secondary);
-            if (!log_entry)
-            {
-                kan_dynamic_array_set_capacity (&log_target->secondary, log_target->secondary.size * 2u);
-                log_entry = kan_dynamic_array_add_last (&log_target->secondary);
-                KAN_ASSERT (entry)
-            }
-
-            // Should never get that status, only primary resources can get it.
-            KAN_ASSERT (entry->header.status != RESOURCE_STATUS_PLATFORM_UNSUPPORTED)
-            KAN_ASSERT (entry->initial_log_secondary_entry)
-
-            kan_resource_log_secondary_entry_init_copy (log_entry, entry->initial_log_secondary_entry);
-            log_entry->version = entry->header.available_version;
-
-            if (entry->header.deployment_mark)
-            {
-                log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_DEPLOY;
-            }
-            else if (entry->header.cache_mark)
-            {
-                log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_CACHE;
-            }
-
-            break;
+            log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_DEPLOY;
         }
+        else if (entry->header.cache_mark && !entry->located_in_raw_resources)
+        {
+            log_entry->saved_directory = KAN_RESOURCE_LOG_SAVED_DIRECTORY_CACHE;
         }
     }
 }
@@ -5675,10 +5494,7 @@ static bool generate_and_save_build_log (struct build_state_t *state)
 
         kan_resource_log_target_init (log_target);
         log_target->name = target->name;
-
-        kan_dynamic_array_set_capacity (&log_target->raw, KAN_RESOURCE_PIPELINE_BUILD_LOG_ENTRIES_CAPACITY);
-        kan_dynamic_array_set_capacity (&log_target->built, KAN_RESOURCE_PIPELINE_BUILD_LOG_ENTRIES_CAPACITY);
-        kan_dynamic_array_set_capacity (&log_target->secondary, KAN_RESOURCE_PIPELINE_BUILD_LOG_ENTRIES_CAPACITY);
+        kan_dynamic_array_set_capacity (&log_target->entries, KAN_RESOURCE_PIPELINE_BUILD_LOG_ENTRIES_CAPACITY);
 
         struct resource_type_container_t *container =
             (struct resource_type_container_t *) target->resource_types.items.first;
@@ -5831,6 +5647,8 @@ static enum kan_resource_build_result_t execute_build (struct build_state_t *sta
                      entry->type->name, entry->target->name)
             failed_list_item = (struct build_info_list_item_t *) failed_list_item->node.next;
         }
+
+        return KAN_RESOURCE_BUILD_RESULT_ERROR_BUILD_FAILED;
     }
 
     const bool deployment_successful = execute_deployment_caching_step (state);
@@ -6116,22 +5934,17 @@ static void execute_pack_for_target (kan_memory_size_t user_data)
         else
         {
             struct kan_stream_t *entry_stream = NULL;
-            switch (entry->class)
-            {
-            case RESOURCE_PRODUCTION_CLASS_RAW:
+            if (entry->located_in_raw_resources)
             {
                 struct kan_file_system_path_container_t deploy_path;
                 kan_file_system_path_container_copy_string (&deploy_path, state->setup->project->workspace_directory);
                 append_entry_target_location_to_path_container (entry, DEPLOYMENT_STEP_TARGET_LOCATION_DEPLOY,
                                                                 &deploy_path);
                 entry_stream = kan_direct_file_stream_open_for_read (deploy_path.path, true);
-                break;
             }
-
-            case RESOURCE_PRODUCTION_CLASS_PRIMARY:
-            case RESOURCE_PRODUCTION_CLASS_SECONDARY:
+            else
+            {
                 entry_stream = kan_direct_file_stream_open_for_read (entry->current_file_location, true);
-                break;
             }
 
             if (!entry_stream)

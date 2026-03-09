@@ -25,6 +25,11 @@
 /// references are always considered secondary inputs. Build rule can also produce secondary outputs of any resource
 /// type through `kan_resource_build_rule_context_t::produce_secondary_output` function.
 ///
+/// There can be several build rules to build one resource type or resource type that can be used as raw resource can
+/// also be built by built rules -- having build rules does not mean that resource cannot be stored in raw format.
+/// That is useful for cases like image import -- atlases could be constructed from plain pngs and described directly or
+/// could be built from editor-specific files through special adapter resource.
+///
 /// Special kind of rules -- import-rules -- are used exclusively for parsing third party files as they treat third
 /// party resource file as their primary input. It is used as a neat trick to avoid parsing one third party resource
 /// several times, which could've happened if it was just passed as secondary input.

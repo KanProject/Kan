@@ -10,6 +10,8 @@ set (KAN_RESOURCE_PIPELINE_RD_RESOURCE_TYPE_BUCKETS "67" CACHE STRING
         "Initial count of buckets for scanned information about resource types in resources reflected data.")
 set (KAN_RESOURCE_PIPELINE_RD_REFERENCER_STRUCTS_BUCKETS "129" CACHE STRING
         "Initial count of buckets for scanned information about referencer structs in resources reflected data.")
+set (KAN_RESOURCE_PIPELINE_RD_BUILD_RULE_CAPACITY "2" CACHE STRING
+        "Initial count of buckets for scanned information about resource types in resources reflected data.")
 set (KAN_RESOURCE_PIPELINE_PATCH_SECTION_STACK "8" CACHE STRING
         "Max size of patch section stack for reference detection algorithm.")
 
@@ -17,4 +19,5 @@ concrete_compile_definitions (
         PRIVATE
         KAN_RESOURCE_PIPELINE_RD_RESOURCE_TYPE_BUCKETS=${KAN_RESOURCE_PIPELINE_RD_RESOURCE_TYPE_BUCKETS}
         KAN_RESOURCE_PIPELINE_RD_REFERENCER_STRUCTS_BUCKETS=${KAN_RESOURCE_PIPELINE_RD_REFERENCER_STRUCTS_BUCKETS}
+        KAN_RESOURCE_PIPELINE_RD_BUILD_RULE_CAPACITY=${KAN_RESOURCE_PIPELINE_RD_BUILD_RULE_CAPACITY}
         KAN_RESOURCE_PIPELINE_PATCH_SECTION_STACK=${KAN_RESOURCE_PIPELINE_PATCH_SECTION_STACK})

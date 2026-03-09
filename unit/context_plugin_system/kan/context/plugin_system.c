@@ -229,7 +229,7 @@ static inline void update_hot_reload_id (struct plugin_system_t *system)
 
 static inline void init_hot_reload_directory (struct plugin_system_t *plugin_system)
 {
-#if KAN_PLUGIN_SYSTEM_USE_PATCH_ELF_FIX
+#if defined(KAN_PLUGIN_SYSTEM_USE_PATCH_ELF_FIX)
     // See CMakeLists.txt for explanation on patchelf fix.
     struct kan_trivial_string_buffer_t patch_command;
     kan_trivial_string_buffer_init (&patch_command, plugin_system->group, 4096u);
@@ -315,7 +315,7 @@ static inline void init_hot_reload_directory (struct plugin_system_t *plugin_sys
             input_stream->operations->close (input_stream);
             output_stream->operations->close (output_stream);
 
-#if KAN_PLUGIN_SYSTEM_USE_PATCH_ELF_FIX
+#if defined(KAN_PLUGIN_SYSTEM_USE_PATCH_ELF_FIX)
             const kan_instance_size_t base_size = patch_command.size;
             CUSHION_DEFER { kan_trivial_string_buffer_reset (&patch_command, base_size); }
 

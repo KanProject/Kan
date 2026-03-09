@@ -37,26 +37,37 @@ kan_allocation_group_t kan_resource_reflected_data_get_allocation_group (void)
     return allocation_group;
 }
 
+void kan_resource_reflected_data_build_rule_init (struct kan_resource_reflected_data_build_rule_t *instance)
+{
+    instance->primary_input_type = NULL;
+    instance->platform_configuration_type = NULL;
+
+    kan_dynamic_array_init (&instance->secondary_types, 0u, sizeof (kan_interned_string_t),
+                            alignof (kan_interned_string_t), allocation_group);
+
+    instance->functor = NULL;
+    instance->version = 0u;
+}
+
+void kan_resource_reflected_data_build_rule_shutdown (struct kan_resource_reflected_data_build_rule_t *instance)
+{
+    kan_dynamic_array_shutdown (&instance->secondary_types);
+}
+
 void kan_resource_reflected_data_resource_type_init (struct kan_resource_reflected_data_resource_type_t *instance)
 {
     instance->name = NULL;
     instance->resource_type_meta = NULL;
+    instance->struct_type = NULL;
+    instance->resource_type_meta = NULL;
 
-    instance->produced_from_build_rule = false;
-    instance->build_rule_primary_input_type = NULL;
-    instance->build_rule_platform_configuration_type = NULL;
-
-    instance->name = NULL;
-    kan_dynamic_array_init (&instance->build_rule_secondary_types, 0u, sizeof (kan_interned_string_t),
-                            alignof (kan_interned_string_t), allocation_group);
-
-    instance->build_rule_functor = NULL;
-    instance->build_rule_version = 0u;
+    kan_dynamic_array_init (&instance->produced_from, 0u, sizeof (struct kan_resource_reflected_data_build_rule_t),
+                            alignof (struct kan_resource_reflected_data_build_rule_t), allocation_group);
 }
 
 void kan_resource_reflected_data_resource_type_shutdown (struct kan_resource_reflected_data_resource_type_t *instance)
 {
-    kan_dynamic_array_shutdown (&instance->build_rule_secondary_types);
+    KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->produced_from, kan_resource_reflected_data_build_rule)
 }
 
 void kan_resource_reflected_data_referencer_struct_init (
@@ -89,27 +100,32 @@ static void scan_potential_resource_type (struct kan_resource_reflected_data_sto
                               "Resource type \"%s\" has several resource type metas.", struct_to_scan->name)
 #endif
 
+        struct kan_resource_reflected_data_resource_type_t *node =
+            kan_allocate_batched (allocation_group, sizeof (struct kan_resource_reflected_data_resource_type_t));
+        kan_resource_reflected_data_resource_type_init (node);
+
+        node->name = struct_to_scan->name;
+        node->struct_type = struct_to_scan;
+        node->resource_type_meta = resource_type;
+
         iterator = kan_reflection_registry_query_struct_meta (output->registry, struct_to_scan->name,
                                                               KAN_STATIC_INTERNED_ID_GET (kan_resource_build_rule_t));
-        const struct kan_resource_build_rule_t *build_rule = kan_reflection_struct_meta_iterator_get (&iterator);
 
-#if defined(KAN_WITH_ASSERT)
-        kan_reflection_struct_meta_iterator_next (&iterator);
-        KAN_ASSERT_FORMATTED (!kan_reflection_struct_meta_iterator_get (&iterator),
-                              "Resource type \"%s\" has several build rule metas.", struct_to_scan->name)
-
-        // If this is a build rule, primary input type should not be root.
-        if (build_rule)
+        for (const struct kan_resource_build_rule_t *build_rule;
+             (build_rule = kan_reflection_struct_meta_iterator_get (&iterator));
+             kan_reflection_struct_meta_iterator_next (&iterator))
         {
+#if defined(KAN_WITH_ASSERT)
             if (build_rule->primary_input_type)
             {
                 // Assert that primary input is resource type and not root.
-                iterator = kan_reflection_registry_query_struct_meta (
-                    output->registry, kan_string_intern (build_rule->primary_input_type),
-                    KAN_STATIC_INTERNED_ID_GET (kan_resource_type_meta_t));
+                struct kan_reflection_struct_meta_iterator_t assert_iterator =
+                    kan_reflection_registry_query_struct_meta (output->registry,
+                                                               kan_string_intern (build_rule->primary_input_type),
+                                                               KAN_STATIC_INTERNED_ID_GET (kan_resource_type_meta_t));
 
                 const struct kan_resource_type_meta_t *primary_input_resource_type =
-                    kan_reflection_struct_meta_iterator_get (&iterator);
+                    kan_reflection_struct_meta_iterator_get (&assert_iterator);
 
                 KAN_ASSERT_FORMATTED (
                     primary_input_resource_type,
@@ -129,12 +145,12 @@ static void scan_potential_resource_type (struct kan_resource_reflected_data_sto
                 // Assert that secondary input types are resource types.
                 for (kan_instance_size_t index = 0u; index < build_rule->secondary_types_count; ++index)
                 {
-                    iterator = kan_reflection_registry_query_struct_meta (
+                    assert_iterator = kan_reflection_registry_query_struct_meta (
                         output->registry, kan_string_intern (build_rule->secondary_types[index]),
                         KAN_STATIC_INTERNED_ID_GET (kan_resource_type_meta_t));
 
                     KAN_ASSERT_FORMATTED (
-                        kan_reflection_struct_meta_iterator_get (&iterator),
+                        kan_reflection_struct_meta_iterator_get (&assert_iterator),
                         "Resource type \"%s\" is registered as secondary input for build rule for \"%s\" resource "
                         "type, but it does not exist.",
                         build_rule->secondary_types[index], struct_to_scan->name)
@@ -147,34 +163,50 @@ static void scan_potential_resource_type (struct kan_resource_reflected_data_sto
                                       "build rule and therefore should not have secondary inputs at all.",
                                       struct_to_scan->name)
             }
-        }
+
+            for (kan_instance_size_t index = 0u; index < node->produced_from.size; ++index)
+            {
+                struct kan_resource_reflected_data_build_rule_t *other_rule =
+                    &((struct kan_resource_reflected_data_build_rule_t *) node->produced_from.data)[index];
+
+                KAN_ASSERT_FORMATTED (
+                    other_rule->primary_input_type != kan_string_intern (build_rule->primary_input_type),
+                    "Encountered several build rules for building \"%s\" resource type from \"%s\" resource type. "
+                    "Having several build rules for one (built_type, primary_input_type) pair is not supported.",
+                    struct_to_scan->name, build_rule->primary_input_type)
+            }
 #endif
 
-        struct kan_resource_reflected_data_resource_type_t *node =
-            kan_allocate_batched (allocation_group, sizeof (struct kan_resource_reflected_data_resource_type_t));
-        kan_resource_reflected_data_resource_type_init (node);
+            struct kan_resource_reflected_data_build_rule_t *rule_output =
+                kan_dynamic_array_add_last (&node->produced_from);
 
-        node->name = struct_to_scan->name;
-        node->struct_type = struct_to_scan;
-        node->resource_type_meta = resource_type;
+            if (!rule_output)
+            {
+                kan_dynamic_array_set_capacity (
+                    &node->produced_from,
+                    KAN_MAX (KAN_RESOURCE_PIPELINE_RD_BUILD_RULE_CAPACITY, node->produced_from.size * 2u));
+                rule_output = kan_dynamic_array_add_last (&node->produced_from);
+            }
 
-        if (build_rule)
-        {
-            node->produced_from_build_rule = true;
-            node->build_rule_primary_input_type = kan_string_intern (build_rule->primary_input_type);
-            node->build_rule_platform_configuration_type = kan_string_intern (build_rule->platform_configuration_type);
-            kan_dynamic_array_set_capacity (&node->build_rule_secondary_types, build_rule->secondary_types_count);
+            kan_allocation_group_stack_push (node->produced_from.allocation_group);
+            kan_resource_reflected_data_build_rule_init (rule_output);
+            kan_allocation_group_stack_pop ();
+
+            rule_output->primary_input_type = kan_string_intern (build_rule->primary_input_type);
+            rule_output->platform_configuration_type = kan_string_intern (build_rule->platform_configuration_type);
+            kan_dynamic_array_set_capacity (&rule_output->secondary_types, build_rule->secondary_types_count);
 
             for (kan_instance_size_t index = 0u; index < build_rule->secondary_types_count; ++index)
             {
-                *(kan_interned_string_t *) kan_dynamic_array_add_last (&node->build_rule_secondary_types) =
+                *(kan_interned_string_t *) kan_dynamic_array_add_last (&rule_output->secondary_types) =
                     kan_string_intern (build_rule->secondary_types[index]);
             }
 
-            node->build_rule_functor = build_rule->functor;
-            node->build_rule_version = build_rule->version;
+            rule_output->functor = build_rule->functor;
+            rule_output->version = build_rule->version;
         }
 
+        kan_dynamic_array_set_capacity (&node->produced_from, node->produced_from.size);
         node->node.hash = KAN_HASH_OBJECT_POINTER (node->name);
         kan_hash_storage_update_bucket_count_default (&output->resource_types,
                                                       KAN_RESOURCE_PIPELINE_RD_RESOURCE_TYPE_BUCKETS);

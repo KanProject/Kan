@@ -272,9 +272,9 @@ static enum kan_resource_build_rule_result_t material_transient_build (
                       pass_header->name, variant_header->name);
             transient->pipeline_name = kan_string_intern (name_buffer);
 
-            if (!context->produce_secondary_output (context->interface,
-                                                    KAN_STATIC_INTERNED_ID_GET (kan_resource_rpl_pipeline_header_t),
-                                                    transient->pipeline_name, &pipeline_header))
+            if (!context->produce_native_secondary_output (
+                    context->interface, KAN_STATIC_INTERNED_ID_GET (kan_resource_rpl_pipeline_header_t),
+                    transient->pipeline_name, &pipeline_header))
             {
                 KAN_LOG (resource_render_foundation_material, KAN_LOG_ERROR,
                          "Failed to produce pipeline \"%s\" for material \"%s\".", transient->pipeline_name,
@@ -317,9 +317,9 @@ static enum kan_resource_build_rule_result_t material_transient_build (
                       pass_header->name);
             transient->pipeline_name = kan_string_intern (name_buffer);
 
-            if (!context->produce_secondary_output (context->interface,
-                                                    KAN_STATIC_INTERNED_ID_GET (kan_resource_rpl_pipeline_header_t),
-                                                    transient->pipeline_name, &pipeline_header))
+            if (!context->produce_native_secondary_output (
+                    context->interface, KAN_STATIC_INTERNED_ID_GET (kan_resource_rpl_pipeline_header_t),
+                    transient->pipeline_name, &pipeline_header))
             {
                 KAN_LOG (resource_render_foundation_material, KAN_LOG_ERROR,
                          "Failed to produce pipeline \"%s\" for material \"%s\".", transient->pipeline_name,

@@ -46,6 +46,7 @@ struct kan_resource_log_reference_t
 };
 
 /// \brief Contains full resource version: type version in code and file timestamp.
+/// \details Third party resources always have zero type version.
 struct kan_resource_log_version_t
 {
     kan_resource_version_t type_version;
@@ -106,9 +107,7 @@ struct kan_resource_log_entry_source_secondary_t
 };
 
 /// \brief Contains information about additional built entry source dependency.
-/// \details Can point to any native entry and even to third party ones. Third party files are not de-facto log entries
-///          as we never change them during build process: we can only read or deploy them. Which means that having only
-///          data that is present here is enough for processing third party inputs.
+/// \details Can point to any native entry or third party entry, in which case `type` is `NULL`.
 struct kan_resource_log_dependency_t
 {
     kan_interned_string_t type;
@@ -117,6 +116,8 @@ struct kan_resource_log_dependency_t
 };
 
 /// \brief Contains full information about resource.
+/// \details Both native and third party resources are logged as such entries.
+///          Third party resources have `NULL` instead of `type` as they do not have any native type.
 struct kan_resource_log_entry_t
 {
     kan_interned_string_t type;

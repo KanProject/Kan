@@ -23,7 +23,9 @@
 /// has the same name as primary input resource. Resource references from primary input will be considered secondary
 /// inputs and loaded if their types are listed in `kan_resource_build_rule_t::secondary_types`. Third party resource
 /// references are always considered secondary inputs. Build rule can also produce secondary outputs of any resource
-/// type through `kan_resource_build_rule_context_t::produce_secondary_output` function.
+/// type through `kan_resource_build_rule_context_t::produce_native_secondary_output` function. Third party byproducts,
+/// for example png's exported from drawing applications, can also be registered as third party secondary resources
+/// through `kan_resource_build_rule_context_t::produce_third_party_secondary_output.
 ///
 /// There can be several build rules to build one resource type or resource type that can be used as raw resource can
 /// also be built by built rules -- having build rules does not mean that resource cannot be stored in raw format.
@@ -141,11 +143,17 @@ struct kan_resource_build_rule_secondary_node_t
 
 KAN_HANDLE_DEFINE (kan_resource_build_rule_interface_t);
 
-/// \brief Declares signature for secondary output production and registration. Returns registered name.
+/// \brief Declares signature for native secondary output production and registration.
 /// \details Returns given whether production was successfully registered. `data` is allowed to point to stack as move
 ///          and reset functors from `kan_resource_type_meta_t` are used according to that meta docs.
-typedef bool (*kan_resource_build_rule_produce_secondary_output_functor_t) (
+typedef bool (*kan_resource_build_rule_produce_native_secondary_output_functor_t) (
     kan_resource_build_rule_interface_t interface, kan_interned_string_t type, kan_interned_string_t name, void *data);
+
+/// \brief Declares signature for third party secondary output production and registration.
+/// \details Returns given whether production was successfully registered.
+///          Returns name of the resource through output variable.
+typedef bool (*kan_resource_build_rule_produce_third_party_secondary_output_functor_t) (
+    kan_resource_build_rule_interface_t interface, const char *path, kan_interned_string_t *name_output);
 
 /// \brief Context that is provided to build rule execution functor.
 struct kan_resource_build_rule_context_t
@@ -173,14 +181,18 @@ struct kan_resource_build_rule_context_t
     const void *platform_configuration;
 
     /// \brief Path to a temporary directory that could be used for temporary outputs from third party tools.
-    /// \details Deleted after build execution.
+    /// \details Deleted after build execution. To preserve outputs as third party resources, produce them as secondary
+    ///          resources using `produce_third_party_secondary_output`.
     const char *temporary_workspace;
 
     /// \brief Opaque interface data that is used to pass information to additional capability functors.
     kan_resource_build_rule_interface_t interface;
 
-    /// \brief Functor that is used to produce secondary outputs.
-    kan_resource_build_rule_produce_secondary_output_functor_t produce_secondary_output;
+    /// \brief Functor that is used to produce native secondary outputs.
+    kan_resource_build_rule_produce_native_secondary_output_functor_t produce_native_secondary_output;
+
+    /// \brief Functor that is used to produce third party secondary outputs.
+    kan_resource_build_rule_produce_third_party_secondary_output_functor_t produce_third_party_secondary_output;
 };
 
 /// \brief Functor for build rule implementation logic.

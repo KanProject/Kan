@@ -138,38 +138,39 @@ RESOURCE_PIPELINE_BUILD_API enum kan_resource_build_result_t kan_resource_build 
 RESOURCE_PIPELINE_BUILD_API bool kan_resource_project_load (struct kan_resource_project_t *project,
                                                             const char *from_path);
 
+/// \brief Deploy and cache subdirectory where third party resources are stored.
+#define KAN_RESOURCE_PROJECT_THIRD_PARTY_SUBDIRECTORY "third_party"
+
 /// \brief Helper that appends path to deployed entry to container with workspace path.
+/// \details If `type` is `NULL`, then path for third party resource is generated.
 static inline void kan_resource_build_append_deploy_path_in_workspace (
     struct kan_file_system_path_container_t *container, const char *target, const char *type, const char *name)
 {
     kan_file_system_path_container_append (container, KAN_RESOURCE_PROJECT_WORKSPACE_DEPLOY_DIRECTORY);
     kan_file_system_path_container_append (container, target);
-    kan_file_system_path_container_append (container, type);
+    kan_file_system_path_container_append (container, type ? type : KAN_RESOURCE_PROJECT_THIRD_PARTY_SUBDIRECTORY);
     kan_file_system_path_container_append (container, name);
-    kan_file_system_path_container_add_suffix (container, ".bin");
-}
 
-/// \brief Deploy subdirectory where third party resources are deployed as symlinks.
-#define KAN_RESOURCE_PROJECT_DEPLOY_THIRD_PARTY_SUBDIRECTORY "third_party"
-
-static inline void kan_resource_build_append_third_party_deploy_path_in_workspace (
-    struct kan_file_system_path_container_t *container, const char *target, const char *name)
-{
-    kan_file_system_path_container_append (container, KAN_RESOURCE_PROJECT_WORKSPACE_DEPLOY_DIRECTORY);
-    kan_file_system_path_container_append (container, target);
-    kan_file_system_path_container_append (container, KAN_RESOURCE_PROJECT_DEPLOY_THIRD_PARTY_SUBDIRECTORY);
-    kan_file_system_path_container_append (container, name);
+    if (type)
+    {
+        kan_file_system_path_container_add_suffix (container, ".bin");
+    }
 }
 
 /// \brief Helper that appends path to cached entry to container with workspace path.
+/// \details If `type` is `NULL`, then path for third party resource is generated.
 static inline void kan_resource_build_append_cache_path_in_workspace (
     struct kan_file_system_path_container_t *container, const char *target, const char *type, const char *name)
 {
     kan_file_system_path_container_append (container, KAN_RESOURCE_PROJECT_WORKSPACE_CACHE_DIRECTORY);
     kan_file_system_path_container_append (container, target);
-    kan_file_system_path_container_append (container, type);
+    kan_file_system_path_container_append (container, type ? type : KAN_RESOURCE_PROJECT_THIRD_PARTY_SUBDIRECTORY);
     kan_file_system_path_container_append (container, name);
-    kan_file_system_path_container_add_suffix (container, ".bin");
+
+    if (type)
+    {
+        kan_file_system_path_container_add_suffix (container, ".bin");
+    }
 }
 
 /// \brief Helper that appends path to built pack to container with workspace path.

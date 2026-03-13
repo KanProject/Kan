@@ -4230,21 +4230,22 @@ static struct build_step_output_t execute_build_secondary_process_primary (struc
         return output;
     }
 
-    const struct kan_resource_reflected_data_resource_type_t *reflected_type =
-        kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, entry->type->name);
-
     output.result = BUILD_STEP_RESULT_SUCCESSFUL;
     output.status = RESOURCE_STATUS_AVAILABLE;
-    output.available_version.type_version = reflected_type->resource_type_meta->version;
     output.available_version.last_modification_time = status.last_modification_time_ns;
 
     if (entry->type)
     {
+        const struct kan_resource_reflected_data_resource_type_t *reflected_type =
+            kan_resource_reflected_data_storage_query_resource_type (state->setup->reflected_data, entry->type->name);
+        output.available_version.type_version = reflected_type->resource_type_meta->version;
+
         output.loaded_data_to_manage = entry->build.internal_transient_secondary_output;
         entry->build.internal_transient_secondary_output = NULL;
     }
     else
     {
+        output.available_version.type_version = 0u;
         output.loaded_data_to_manage = NULL;
         kan_free_general (entry->allocation_group, entry->build.internal_transient_secondary_path,
                           strlen (entry->build.internal_transient_secondary_path) + 1u);

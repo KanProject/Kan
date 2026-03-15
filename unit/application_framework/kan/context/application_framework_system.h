@@ -32,9 +32,23 @@ struct kan_application_framework_system_config_t
     /// \brief Arguments passed to application framework. Managed by application framework itself.
     char **arguments;
 
-    /// \brief Command for automatic plugin code build and hot reload.
-    /// \details It should be left NULL when hot reload is disabled.
-    char *auto_build_command;
+    /// \brief Whether auto build feature is enabled.
+    /// \details Auto build is a development-only feature that executes given command every time in a loop with timed
+    ///          delay between executions. As build system already checks file times, there is no sense to use our
+    ///          own file system watcher: it would do the same thing and build system might do it better.
+    bool enable_auto_build;
+
+    /// \brief If ::enable_auto_build and not NULL, path to the cmake executable.
+    char *auto_build_cmake;
+
+    /// \brief If ::enable_auto_build and not NULL, path to the cmake build directory.
+    char *auto_build_directory;
+
+    /// \brief If ::enable_auto_build and not NULL, target to be built by CMake.
+    char *auto_build_target;
+
+    /// \brief If ::enable_auto_build and not NULL, path to the cmake build directory.
+    char *auto_build_config;
 
     /// \brief Path to file used as a lock file to prevent concurrent builds from several auto build triggers.
     char *auto_build_lock_file;

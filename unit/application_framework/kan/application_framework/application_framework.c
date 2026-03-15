@@ -105,7 +105,10 @@ void kan_application_framework_program_configuration_init (
     instance->log_name = NULL;
     instance->program_world = NULL;
     instance->enable_auto_build = false;
-    instance->auto_build_command = NULL;
+    instance->auto_build_cmake = NULL;
+    instance->auto_build_directory = NULL;
+    instance->auto_build_target = NULL;
+    instance->auto_build_config = NULL;
     instance->auto_build_delay_ns = 1000000000u;
 }
 
@@ -115,10 +118,28 @@ void kan_application_framework_program_configuration_shutdown (
     KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->enabled_systems,
                                                 kan_application_framework_system_configuration)
 
-    if (instance->auto_build_command)
+    if (instance->auto_build_cmake)
     {
-        kan_free_general (config_allocation_group, instance->auto_build_command,
-                          strlen (instance->auto_build_command) + 1u);
+        kan_free_general (config_allocation_group, instance->auto_build_cmake,
+                          strlen (instance->auto_build_cmake) + 1u);
+    }
+
+    if (instance->auto_build_directory)
+    {
+        kan_free_general (config_allocation_group, instance->auto_build_directory,
+                          strlen (instance->auto_build_directory) + 1u);
+    }
+
+    if (instance->auto_build_target)
+    {
+        kan_free_general (config_allocation_group, instance->auto_build_target,
+                          strlen (instance->auto_build_target) + 1u);
+    }
+
+    if (instance->auto_build_config)
+    {
+        kan_free_general (config_allocation_group, instance->auto_build_config,
+                          strlen (instance->auto_build_config) + 1u);
     }
 }
 
@@ -534,10 +555,12 @@ int kan_application_framework_run_with_configuration (
     struct kan_application_framework_system_config_t application_framework_system_config;
     application_framework_system_config.arguments_count = arguments_count;
     application_framework_system_config.arguments = arguments;
-    application_framework_system_config.auto_build_command =
-        auto_build_enabled ? program_configuration->auto_build_command : NULL;
-    application_framework_system_config.auto_build_lock_file =
-        auto_build_enabled ? core_configuration->auto_build_lock_file : NULL;
+    application_framework_system_config.enable_auto_build = auto_build_enabled;
+    application_framework_system_config.auto_build_cmake = program_configuration->auto_build_cmake;
+    application_framework_system_config.auto_build_directory = program_configuration->auto_build_directory;
+    application_framework_system_config.auto_build_target = program_configuration->auto_build_target;
+    application_framework_system_config.auto_build_config = program_configuration->auto_build_config;
+    application_framework_system_config.auto_build_lock_file = core_configuration->auto_build_lock_file;
     application_framework_system_config.auto_build_delay_ns = program_configuration->auto_build_delay_ns;
 
     if (!kan_context_request_system (context, KAN_CONTEXT_APPLICATION_FRAMEWORK_SYSTEM_NAME,

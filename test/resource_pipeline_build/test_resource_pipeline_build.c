@@ -2831,12 +2831,12 @@ KAN_TEST_CASE (various_rules_for_one_type)
         load_binary_from (script_storage, read_path.path, KAN_STATIC_INTERNED_ID_GET (sum_resource_t), &resource);
         KAN_TEST_CHECK (resource.sum == 6u)
     }
-    
+
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
         kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t",
                                                             "multiline.txt");
-        
+
         struct sum_resource_t resource;
         load_binary_from (script_storage, read_path.path, KAN_STATIC_INTERNED_ID_GET (sum_resource_t), &resource);
         KAN_TEST_CHECK (resource.sum == 36u)

@@ -64,7 +64,7 @@ struct hot_reload_coordination_system_t
     kan_context_t context;
     kan_allocation_group_t group;
 
-    struct kan_atomic_int_t state;
+    enum hot_reload_coordination_state_t state;
     bool paused;
 
     enum hot_reload_file_watcher_state_t watcher_state;
@@ -85,7 +85,7 @@ kan_context_system_t hot_reload_coordination_system_create (kan_allocation_group
         group, sizeof (struct hot_reload_coordination_system_t), alignof (struct hot_reload_coordination_system_t));
 
     system->group = group;
-    system->state = kan_atomic_int_init (HOT_RELOAD_COORDINATION_STATE_DORMANT);
+    system->state = HOT_RELOAD_COORDINATION_STATE_DORMANT;
     system->paused = false;
 
     system->watcher_state = HOT_RELOAD_FILE_WATCHER_STATE_AVAILABLE;
@@ -167,7 +167,7 @@ static void hot_reload_coordination_system_update (kan_context_system_t handle)
         break;
 
     case HOT_RELOAD_FILE_WATCHER_STATE_BLOCKED:
-        if (kan_atomic_int_get (&system->state) != HOT_RELOAD_COORDINATION_STATE_EXECUTING)
+        if (system->state != HOT_RELOAD_COORDINATION_STATE_EXECUTING)
         {
             system->watcher_state = HOT_RELOAD_FILE_WATCHER_STATE_SAFE_WAIT;
             system->watcher_state_transition_after_ns = current_time_ns + system->config.change_wait_time_ns;
@@ -241,43 +241,37 @@ static void hot_reload_coordination_system_update (kan_context_system_t handle)
         break;
     }
 
-    const enum hot_reload_file_watcher_state_t old_watcher_state = system->watcher_state;
-    KAN_ATOMIC_INT_COMPARE_AND_SET (&system->state)
+    switch (system->state)
     {
-        system->watcher_state = old_watcher_state;
-        switch ((enum hot_reload_coordination_state_t) old_value)
+    case HOT_RELOAD_COORDINATION_STATE_DORMANT:
+    case HOT_RELOAD_COORDINATION_STATE_EXECUTING:
+        break;
+
+    case HOT_RELOAD_COORDINATION_STATE_REQUESTED:
+    case HOT_RELOAD_COORDINATION_STATE_DELAYED:
+        if (system->paused || system->watcher_state != HOT_RELOAD_FILE_WATCHER_STATE_AVAILABLE)
         {
-        case HOT_RELOAD_COORDINATION_STATE_DORMANT:
-        case HOT_RELOAD_COORDINATION_STATE_EXECUTING:
-            new_value = old_value;
-            break;
-
-        case HOT_RELOAD_COORDINATION_STATE_REQUESTED:
-        case HOT_RELOAD_COORDINATION_STATE_DELAYED:
-            if (system->paused || system->watcher_state != HOT_RELOAD_FILE_WATCHER_STATE_AVAILABLE)
-            {
-                new_value = HOT_RELOAD_COORDINATION_STATE_DORMANT;
-            }
-            else
-            {
-                new_value = HOT_RELOAD_COORDINATION_STATE_SCHEDULED;
-            }
-
-            break;
-
-        case HOT_RELOAD_COORDINATION_STATE_SCHEDULED:
-            if (system->paused)
-            {
-                new_value = HOT_RELOAD_COORDINATION_STATE_DORMANT;
-            }
-            else
-            {
-                system->watcher_state = HOT_RELOAD_FILE_WATCHER_STATE_BLOCKED;
-                new_value = HOT_RELOAD_COORDINATION_STATE_EXECUTING;
-            }
-
-            break;
+            system->state = HOT_RELOAD_COORDINATION_STATE_DORMANT;
         }
+        else
+        {
+            system->state = HOT_RELOAD_COORDINATION_STATE_SCHEDULED;
+        }
+
+        break;
+
+    case HOT_RELOAD_COORDINATION_STATE_SCHEDULED:
+        if (system->paused)
+        {
+            system->state = HOT_RELOAD_COORDINATION_STATE_DORMANT;
+        }
+        else
+        {
+            system->watcher_state = HOT_RELOAD_FILE_WATCHER_STATE_BLOCKED;
+            system->state = HOT_RELOAD_COORDINATION_STATE_EXECUTING;
+        }
+
+        break;
     }
 }
 
@@ -372,13 +366,13 @@ bool kan_hot_reload_coordination_system_is_possible (void) { return true; }
 bool kan_hot_reload_coordination_system_is_reload_allowed (kan_context_system_t system)
 {
     struct hot_reload_coordination_system_t *data = KAN_HANDLE_GET (system);
-    return !data->paused && kan_atomic_int_get (&data->state) == HOT_RELOAD_COORDINATION_STATE_DORMANT;
+    return !data->paused && data->state == HOT_RELOAD_COORDINATION_STATE_DORMANT;
 }
 
 bool kan_hot_reload_coordination_system_is_scheduled (kan_context_system_t system)
 {
     struct hot_reload_coordination_system_t *data = KAN_HANDLE_GET (system);
-    switch ((enum hot_reload_coordination_state_t) kan_atomic_int_get (&data->state))
+    switch (data->state)
     {
     case HOT_RELOAD_COORDINATION_STATE_DORMANT:
     case HOT_RELOAD_COORDINATION_STATE_EXECUTING:
@@ -398,15 +392,15 @@ bool kan_hot_reload_coordination_system_is_scheduled (kan_context_system_t syste
 bool kan_hot_reload_coordination_system_is_executing (kan_context_system_t system)
 {
     struct hot_reload_coordination_system_t *data = KAN_HANDLE_GET (system);
-    return kan_atomic_int_get (&data->state) == HOT_RELOAD_COORDINATION_STATE_EXECUTING;
+    return data->state == HOT_RELOAD_COORDINATION_STATE_EXECUTING;
 }
 
 void kan_hot_reload_coordination_system_schedule (kan_context_system_t system)
 {
     struct hot_reload_coordination_system_t *data = KAN_HANDLE_GET (system);
     // If failed, that scheduling routine is broken by the user.
-    KAN_ASSERT (kan_atomic_int_get (&data->state) == HOT_RELOAD_COORDINATION_STATE_DORMANT)
-    kan_atomic_int_set (&data->state, HOT_RELOAD_COORDINATION_STATE_REQUESTED);
+    KAN_ASSERT (data->state == HOT_RELOAD_COORDINATION_STATE_DORMANT)
+    data->state = HOT_RELOAD_COORDINATION_STATE_REQUESTED;
 }
 
 void kan_hot_reload_coordination_system_delay (kan_context_system_t system)
@@ -415,15 +409,15 @@ void kan_hot_reload_coordination_system_delay (kan_context_system_t system)
     // or broken scheduling routine due to user mistake.
     KAN_ASSERT (kan_hot_reload_coordination_system_is_scheduled (system))
     struct hot_reload_coordination_system_t *data = KAN_HANDLE_GET (system);
-    kan_atomic_int_set (&data->state, HOT_RELOAD_COORDINATION_STATE_DELAYED);
+    data->state = HOT_RELOAD_COORDINATION_STATE_DELAYED;
 }
 
 void kan_hot_reload_coordination_system_finish (kan_context_system_t system)
 {
     struct hot_reload_coordination_system_t *data = KAN_HANDLE_GET (system);
     // If failed, that scheduling routine is broken by the user.
-    KAN_ASSERT (kan_atomic_int_get (&data->state) == HOT_RELOAD_COORDINATION_STATE_EXECUTING)
-    kan_atomic_int_set (&data->state, HOT_RELOAD_COORDINATION_STATE_DORMANT);
+    KAN_ASSERT (data->state == HOT_RELOAD_COORDINATION_STATE_EXECUTING)
+    data->state = HOT_RELOAD_COORDINATION_STATE_DORMANT;
 }
 
 kan_hot_reload_file_event_provider_t kan_hot_reload_file_event_provider_create (kan_context_system_t system,

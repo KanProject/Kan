@@ -99,7 +99,7 @@ void kan_platform_argument_list_append (kan_platform_argument_list_t instance, c
         kan_allocate_batched (arguments_allocation_group, sizeof (struct argument_list_node_t));
     kan_bd_list_add (list, NULL, &new_node->node);
 
-    const kan_instance_size_t length = strlen (value);
+    const kan_instance_size_t length = (kan_instance_size_t) strlen (value);
     new_node->value = kan_allocate_general (arguments_allocation_group, length + 1u, alignof (char));
     memcpy (new_node->value, value, length + 1u);
 }

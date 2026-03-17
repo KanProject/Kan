@@ -3667,7 +3667,7 @@ static bool interface_produce_third_party_secondary_output (kan_resource_build_r
     struct build_state_t *state = interface_data->state;
     struct resource_entry_t *parent_entry = interface_data->entry;
 
-    const kan_instance_size_t path_length = strlen (path);
+    const kan_instance_size_t path_length = (kan_instance_size_t) strlen (path);
     const char *entry_name_end = path + path_length;
     const char *entry_name_begin = entry_name_end;
 

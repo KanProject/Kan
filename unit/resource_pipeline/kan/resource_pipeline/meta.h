@@ -7,6 +7,7 @@
 #include <kan/container/interned_string.h>
 #include <kan/hash/hash.h>
 #include <kan/reflection/markup.h>
+#include <kan/reflection/registry.h>
 #include <kan/stream/stream.h>
 
 /// \file
@@ -193,6 +194,12 @@ struct kan_resource_build_rule_context_t
 
     /// \brief Functor that is used to produce third party secondary outputs.
     kan_resource_build_rule_produce_third_party_secondary_output_functor_t produce_third_party_secondary_output;
+
+    /// \brief Reflection registry that is being used by build tool.
+    /// \details In some cases, import build rules need to run third party tool with separate import scripts, that will
+    ///          produce some kind of an output readable data file that describes imported data. Then this file needs to
+    ///          be loaded and post processed by build rule logic, and registry is needed for loading.
+    kan_reflection_registry_t reflection_registry;
 };
 
 /// \brief Functor for build rule implementation logic.

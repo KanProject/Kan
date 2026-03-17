@@ -6,6 +6,7 @@
 #include <kan/container/dynamic_array.h>
 #include <kan/container/interned_string.h>
 #include <kan/error/critical.h>
+#include <kan/math/inline.h>
 #include <kan/reflection/markup.h>
 #include <kan/resource_render_foundation/atlas.h>
 

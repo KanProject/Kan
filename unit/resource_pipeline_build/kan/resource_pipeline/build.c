@@ -3760,6 +3760,7 @@ static struct build_step_output_t execute_build_execute_build_rule (struct build
         .interface = KAN_HANDLE_SET (kan_resource_build_rule_interface_t, &interface_data),
         .produce_native_secondary_output = interface_produce_native_secondary_output,
         .produce_third_party_secondary_output = interface_produce_third_party_secondary_output,
+        .reflection_registry = state->setup->reflected_data->registry,
     };
 
     struct kan_resource_build_rule_secondary_node_t *context_secondary_input_last = NULL;

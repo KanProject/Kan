@@ -205,10 +205,22 @@ void kan_platform_process_detach (kan_platform_process_t process) { SDL_DestroyP
 
 bool kan_platform_process_wait (kan_platform_process_t process, int *return_code_output)
 {
-    return SDL_WaitProcess (KAN_HANDLE_GET (process), true, return_code_output);
+    bool result = SDL_WaitProcess (KAN_HANDLE_GET (process), true, return_code_output);
+    if (result)
+    {
+        SDL_DestroyProcess (KAN_HANDLE_GET (process));
+    }
+
+    return result;
 }
 
 bool kan_platform_process_try_finalize (kan_platform_process_t process, int *return_code_output)
 {
-    return SDL_WaitProcess (KAN_HANDLE_GET (process), false, return_code_output);
+    bool result = SDL_WaitProcess (KAN_HANDLE_GET (process), false, return_code_output);
+    if (result)
+    {
+        SDL_DestroyProcess (KAN_HANDLE_GET (process));
+    }
+
+    return result;
 }

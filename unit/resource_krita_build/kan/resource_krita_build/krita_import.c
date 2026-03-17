@@ -74,7 +74,14 @@ enum kan_resource_build_rule_result_t krita_import_build (struct kan_resource_bu
 
     kan_platform_environment_t environment = kan_platform_environment_create_and_retrieve ();
     CUSHION_DEFER { kan_platform_environment_destroy (environment); }
-    kan_platform_environment_set (environment, "PYTHONPATH", path_container.path);
+
+    const char *python_path_variable = "PYTHONPATH";
+#if __CUSHION_PRESERVE__ defined(_WIN32)
+    // On Windows Krita ignores PYTHONPATH for some reason and we have to use PYTHONHOME.
+    // But we cannot use PYTHONHOME on other platforms as it would break them.
+    python_path_variable = "PYTHONHOME";
+#endif
+    kan_platform_environment_set (environment, python_path_variable, path_container.path);
 
     kan_platform_argument_list_t arguments = kan_platform_argument_list_create ();
     CUSHION_DEFER { kan_platform_argument_list_destroy (arguments); }
@@ -113,7 +120,7 @@ enum kan_resource_build_rule_result_t krita_import_build (struct kan_resource_bu
         return KAN_RESOURCE_BUILD_RULE_FAILURE;
     }
 
-    struct kan_stream_t *input_stream = kan_direct_file_stream_open_for_read (path_container.path, false);
+    struct kan_stream_t *input_stream = kan_direct_file_stream_open_for_read (path_container.path, true);
     if (!input_stream)
     {
         KAN_LOG_WITH_BUFFER (KAN_FILE_SYSTEM_MAX_PATH_LENGTH * 2u, resource_krita_import, KAN_LOG_ERROR,

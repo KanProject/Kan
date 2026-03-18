@@ -39,7 +39,7 @@ void kan_unorm16_value_noise_2d_build (struct kan_unorm16_value_noise_2d_t *inst
     KAN_ASSERT (cell_height > 0u)
     KAN_ASSERT (cell_height <= UINT16_MAX)
     instance->cell_width = cell_width;
-    instance->cell_height = cell_width;
+    instance->cell_height = cell_height;
     instance->cells_x = width / cell_width + 1u + (width % cell_width > 0u ? 1u : 0u);
     instance->cells_y = height / cell_height + 1u + (height % cell_height > 0u ? 1u : 0u);
     instance->values.size = 0u;

@@ -20,46 +20,42 @@
 
 KAN_C_HEADER_BEGIN
 
-/// \brief Value noise implementation that generates uniformly distributed uint16_t points and
-///        simple linear interpolation during sampling.
-/// \details Aimed to be used for cases like weight map where smoothness of output does not matter.
-///          For example, can be used to generate land outline on map by generating "it is land" weights that can
-///          then split into land and sea by using percentiles.
-struct kan_unorm16_value_noise_2d_t
+/// \brief Value noise implementation that operates on floating point numbers on an unsigned integer grid.
+/// \details Floating point values are mapped into interval that is specified during
+///          `kan_floating_grid_value_noise_2d_build`.
+struct kan_floating_grid_value_noise_2d_t
 {
     kan_instance_size_t cell_width;
     kan_instance_size_t cell_height;
     kan_instance_size_t cells_x;
     kan_instance_size_t cells_y;
 
-    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (uint16_t)
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (kan_floating_t)
     struct kan_dynamic_array_t values;
 };
 
 /// \brief Initializes empty value noise instance.
-MATH_API void kan_unorm16_value_noise_2d_init (struct kan_unorm16_value_noise_2d_t *instance);
+MATH_API void kan_floating_grid_value_noise_2d_init (struct kan_floating_grid_value_noise_2d_t *instance);
 
 /// \brief Shuts down value noise instance.
-MATH_API void kan_unorm16_value_noise_2d_shutdown (struct kan_unorm16_value_noise_2d_t *instance);
+MATH_API void kan_floating_grid_value_noise_2d_shutdown (struct kan_floating_grid_value_noise_2d_t *instance);
 
 /// \brief Clears any data inside value noise and deallocates memory.
-MATH_API void kan_unorm16_value_noise_2d_reset (struct kan_unorm16_value_noise_2d_t *instance);
+MATH_API void kan_floating_grid_value_noise_2d_reset (struct kan_floating_grid_value_noise_2d_t *instance);
 
 /// \brief Builds value noise lattice for given grid size with given random generator.
-/// \invariant Cell width and cell height are not higher than UINT16_MAX.
-MATH_API void kan_unorm16_value_noise_2d_build (struct kan_unorm16_value_noise_2d_t *instance,
-                                                struct kan_random_xoshiro_t *generator,
-                                                kan_instance_size_t width,
-                                                kan_instance_size_t height,
-                                                kan_instance_size_t cell_width,
-                                                kan_instance_size_t cell_height);
+MATH_API void kan_floating_grid_value_noise_2d_build (struct kan_floating_grid_value_noise_2d_t *instance,
+                                                      struct kan_random_xoshiro_t *generator,
+                                                      kan_instance_size_t width,
+                                                      kan_instance_size_t height,
+                                                      kan_instance_size_t cell_width,
+                                                      kan_instance_size_t cell_height,
+                                                      kan_floating_t min,
+                                                      kan_floating_t max);
 
 /// \brief Samples built value noise lattice at given point.
-/// \warning Returns 0 if if out of bounds or when there is no built lattice.
-/// \details Returns `kan_instance_size_t` instead of `uint16_t` as it is usually simpler for calculations and avoids
-///          unnecessary value conversions on user side as well.
-MATH_API kan_instance_size_t kan_unorm16_value_noise_2d_sample (const struct kan_unorm16_value_noise_2d_t *instance,
-                                                                kan_instance_size_t x,
-                                                                kan_instance_size_t y);
+/// \warning Returns 0.0 if out of bounds or when there is no built lattice.
+MATH_API kan_floating_t kan_floating_grid_value_noise_2d_sample (
+    const struct kan_floating_grid_value_noise_2d_t *instance, kan_instance_size_t x, kan_instance_size_t y);
 
 KAN_C_HEADER_END

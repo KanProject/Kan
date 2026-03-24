@@ -769,6 +769,12 @@ static inline uint32_t kan_random_xoshiro_next (struct kan_random_xoshiro_t *gen
 #undef ROTL
 }
 
+/// \broef Convenience adapter for properly generating [0.0, 1.0] floats from 32-bit random numbers.
+static inline kan_floating_t kan_random_xoshiro_next_floating (struct kan_random_xoshiro_t *generator)
+{
+    return (float) (kan_random_xoshiro_next (generator) >> 8u) * 0x1p-24f;
+}
+
 /// \brief Helper for fitting uint32_t received from random generator inside [0, MAX) range.
 /// \details Logically close to just using modulo, however least significant bits that are preferred by modulo are the
 ///          least stable bits, therefore for relatively small MAX values (less that several thousands) division should

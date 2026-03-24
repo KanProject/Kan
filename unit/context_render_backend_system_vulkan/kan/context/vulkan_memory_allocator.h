@@ -27,6 +27,8 @@
 KAN_LOG_EXPECT_CATEGORY (vulkan_memory_allocator);
 
 #define VMA_DEBUG_LOG(...) __CUSHION_PRESERVE__ KAN_LOG (vulkan_memory_allocator, KAN_LOG_DEBUG, __VA_ARGS__)
+#define VMA_LEAK_LOG_FORMAT(format, ...)                                                                               \
+    __CUSHION_PRESERVE__ KAN_LOG (vulkan_memory_allocator, KAN_LOG_ERROR, format, __VA_ARGS__)
 
 KAN_MUTE_THIRD_PARTY_WARNINGS_BEGIN
 #include <vk_mem_alloc.h>

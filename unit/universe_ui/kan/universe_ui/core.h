@@ -358,7 +358,7 @@ enum kan_ui_size_flags_t
     /// \brief When no flags are set, size is treated as fixed.
     KAN_UI_SIZE_FLAG_NONE = 0u,
 
-    /// \brief Size will be treated as min size, layout children may increase size along this axis.
+    /// \brief Size will be treated as base size, layout children may increase size along this axis.
     /// \warning Ignores children with different layer value.
     KAN_UI_SIZE_FLAG_FIT_CHILDREN = 1u << 0u,
 
@@ -367,6 +367,10 @@ enum kan_ui_size_flags_t
     /// \details If several nodes that are children of the same parent are trying to grow, the smallest ones will grow
     ///          first, ideally making all grow nodes same-sized if there is enough remaining space.
     KAN_UI_SIZE_FLAG_GROW = 1u << 1u,
+
+    /// \brief Node base size will be zero and size field will be treated as max size for other size-increasing logic.
+    /// \details Affects behaviors of `KAN_UI_SIZE_FLAG_FIT_CHILDREN` and `KAN_UI_SIZE_FLAG_GROW`.
+    KAN_UI_SIZE_FLAG_TREAT_AS_MAX = 1u << 2u,
 };
 
 /// \brief Specifies how node is aligned horizontally unless its parent layout orders children along X axis.

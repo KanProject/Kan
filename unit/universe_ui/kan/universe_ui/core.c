@@ -495,6 +495,9 @@ struct layout_temporary_data_t
     kan_instance_offset_t width_px;
     kan_instance_offset_t height_px;
 
+    kan_instance_offset_t max_width_px;
+    kan_instance_offset_t max_height_px;
+
     kan_instance_offset_t children_width_usage_px;
     kan_instance_offset_t children_height_usage_px;
 
@@ -576,6 +579,8 @@ static struct layout_temporary_data_t *layout_temporary_data_create (struct ui_l
 
     data->width_px = 0;
     data->height_px = 0;
+    data->max_width_px = 0;
+    data->max_height_px = 0;
 
     data->children_width_usage_px = 0;
     data->children_height_usage_px = 0;
@@ -618,8 +623,27 @@ static bool layout_base_pass (struct ui_layout_state_t *state,
         return short_circuit;
     }
 
-    data->width_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.width);
-    data->height_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.height);
+    if ((node->element.width_flags & KAN_UI_SIZE_FLAG_TREAT_AS_MAX) == 0u)
+    {
+        data->width_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.width);
+        data->max_width_px = KAN_INT_MAX (kan_instance_offset_t);
+    }
+    else
+    {
+        data->width_px = 0;
+        data->max_width_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.width);
+    }
+
+    if ((node->element.height_flags & KAN_UI_SIZE_FLAG_TREAT_AS_MAX) == 0u)
+    {
+        data->height_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.height);
+        data->max_height_px = KAN_INT_MAX (kan_instance_offset_t);
+    }
+    else
+    {
+        data->height_px = 0;
+        data->max_height_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.height);
+    }
 
     data->cached_margin_left_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.margin.left);
     data->cached_margin_right_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.margin.right);
@@ -873,12 +897,12 @@ static void layout_size_pass (struct ui_layout_state_t *state,
 
     if (node->element.width_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN)
     {
-        data->width_px = KAN_MAX (data->width_px, data->children_width_usage_px);
+        data->width_px = KAN_CLAMP (data->children_width_usage_px, data->width_px, data->max_width_px);
     }
 
     if (node->element.height_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN)
     {
-        data->height_px = KAN_MAX (data->height_px, data->children_height_usage_px);
+        data->height_px = KAN_CLAMP (data->children_height_usage_px, data->height_px, data->max_height_px);
     }
 }
 
@@ -917,14 +941,18 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
         {
             const kan_instance_offset_t offset_x =
                 kan_ui_calculate_coordinate (state->transient.ui, node->element.frame_offset_x);
-            data->width_px = KAN_MAX (data->width_px, state->transient.ui->viewport_width - offset_x);
+
+            data->width_px =
+                KAN_CLAMP (state->transient.ui->viewport_width - offset_x, data->width_px, data->max_width_px);
         }
 
         if (node->element.height_flags & KAN_UI_SIZE_FLAG_GROW)
         {
             const kan_instance_offset_t offset_y =
                 kan_ui_calculate_coordinate (state->transient.ui, node->element.frame_offset_y);
-            data->height_px = KAN_MAX (data->height_px, state->transient.ui->viewport_height - offset_y);
+
+            data->height_px =
+                KAN_CLAMP (state->transient.ui->viewport_height - offset_y, data->height_px, data->max_height_px);
         }
     }
     else if (root)
@@ -932,12 +960,12 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
         // When root, need to grow itself from cached growth.
         if (node->element.width_flags & KAN_UI_SIZE_FLAG_GROW)
         {
-            data->width_px += drawable->cached.grow_width;
+            data->width_px = KAN_MIN (data->max_width_px, data->width_px + drawable->cached.grow_width);
         }
 
         if (node->element.height_flags & KAN_UI_SIZE_FLAG_GROW)
         {
-            data->height_px += drawable->cached.grow_height;
+            data->height_px = KAN_MIN (data->max_height_px, data->height_px + drawable->cached.grow_height);
         }
     }
 
@@ -958,7 +986,8 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
             continue;
         }
 
-        if (access->child->element.width_flags & KAN_UI_SIZE_FLAG_GROW)
+        if ((access->child->element.width_flags & KAN_UI_SIZE_FLAG_GROW) &&
+            child_data->width_px < child_data->max_width_px)
         {
             if (data->cached_layout == KAN_UI_LAYOUT_HORIZONTAL_CONTAINER)
             {
@@ -1021,15 +1050,17 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
                         kan_ui_calculate_coordinate (state->transient.ui, access->child->element.frame_offset_x);
                 }
 
-                if (child_data->width_px < width_available)
+                if (child_data->width_px < width_available && child_data->width_px < child_data->max_width_px)
                 {
-                    access->drawable->cached.grow_width = width_available - child_data->width_px;
-                    child_data->width_px = width_available;
+                    const kan_instance_offset_t new_width = KAN_MIN (data->max_width_px, width_available);
+                    access->drawable->cached.grow_width = new_width - child_data->width_px;
+                    child_data->width_px = new_width;
                 }
             }
         }
 
-        if (access->child->element.height_flags & KAN_UI_SIZE_FLAG_GROW)
+        if ((access->child->element.height_flags & KAN_UI_SIZE_FLAG_GROW) &&
+            child_data->height_px < child_data->max_height_px)
         {
             if (data->cached_layout == KAN_UI_LAYOUT_VERTICAL_CONTAINER)
             {
@@ -1053,10 +1084,11 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
                         kan_ui_calculate_coordinate (state->transient.ui, access->child->element.frame_offset_y);
                 }
 
-                if (child_data->height_px < height_available)
+                if (child_data->height_px < height_available && child_data->height_px < child_data->max_height_px)
                 {
-                    access->drawable->cached.grow_height = height_available - child_data->height_px;
-                    child_data->height_px = height_available;
+                    const kan_instance_offset_t new_height = KAN_MIN (data->max_height_px, height_available);
+                    access->drawable->cached.grow_height = new_height - child_data->height_px;
+                    child_data->height_px = new_height;
                 }
             }
         }
@@ -1072,6 +1104,7 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
             struct layout_temporary_data_t *first_data =                                                               \
                 first_grow_##AXIS_NAME##_node->access->drawable->temporary_data;                                       \
             struct layout_grow_node_t *barrier = first_grow_##AXIS_NAME##_node->next;                                  \
+            kan_instance_offset_t max_to_give = KAN_INT_MAX (kan_instance_offset_t);                                   \
                                                                                                                        \
             while (barrier)                                                                                            \
             {                                                                                                          \
@@ -1080,6 +1113,10 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
                 {                                                                                                      \
                     break;                                                                                             \
                 }                                                                                                      \
+                                                                                                                       \
+                /* If assert has failed, then internal logic is broken. */                                             \
+                KAN_ASSERT (second_data->AXIS_NAME##_px < second_data->max_##AXIS_NAME##_px)                           \
+                max_to_give = KAN_MIN (max_to_give, second_data->max_##AXIS_NAME##_px - second_data->AXIS_NAME##_px);  \
                                                                                                                        \
                 ++candidate_count;                                                                                     \
                 barrier = barrier->next;                                                                               \
@@ -1091,18 +1128,18 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
                 break;                                                                                                 \
             }                                                                                                          \
                                                                                                                        \
-            kan_instance_offset_t max_to_give;                                                                         \
             if (barrier)                                                                                               \
             {                                                                                                          \
                 struct layout_temporary_data_t *barrier_data = barrier->access->drawable->temporary_data;              \
-                max_to_give = barrier_data->AXIS_NAME##_px - first_data->AXIS_NAME##_px;                               \
+                max_to_give = KAN_MIN (max_to_give, barrier_data->AXIS_NAME##_px - first_data->AXIS_NAME##_px);        \
             }                                                                                                          \
             else                                                                                                       \
             {                                                                                                          \
-                max_to_give = left_to_give;                                                                            \
+                max_to_give = KAN_MIN (max_to_give, left_to_give);                                                     \
             }                                                                                                          \
                                                                                                                        \
             kan_instance_offset_t give_every = KAN_MIN (left_to_give / candidate_count, max_to_give);                  \
+            struct layout_grow_node_t *previous = NULL;                                                                \
             struct layout_grow_node_t *receiver = first_grow_##AXIS_NAME##_node;                                       \
                                                                                                                        \
             while (receiver != barrier)                                                                                \
@@ -1110,6 +1147,24 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
                 struct layout_temporary_data_t *receiver_data = receiver->access->drawable->temporary_data;            \
                 receiver_data->AXIS_NAME##_px += give_every;                                                           \
                 receiver->access->drawable->cached.grow_##AXIS_NAME += give_every;                                     \
+                                                                                                                       \
+                if (receiver_data->AXIS_NAME##_px < receiver_data->max_##AXIS_NAME##_px)                               \
+                {                                                                                                      \
+                    previous = receiver;                                                                               \
+                }                                                                                                      \
+                else                                                                                                   \
+                {                                                                                                      \
+                    /* Remove node that cannot be grown anymore. */                                                    \
+                    if (previous)                                                                                      \
+                    {                                                                                                  \
+                        previous->next = receiver->next;                                                               \
+                    }                                                                                                  \
+                    else                                                                                               \
+                    {                                                                                                  \
+                        first_grow_##AXIS_NAME##_node = receiver->next;                                                \
+                    }                                                                                                  \
+                }                                                                                                      \
+                                                                                                                       \
                 receiver = receiver->next;                                                                             \
             }                                                                                                          \
                                                                                                                        \

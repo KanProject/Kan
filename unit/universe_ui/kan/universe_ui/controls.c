@@ -26,6 +26,13 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_n
 };
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_key_binding_cascade_deletion = {
+    .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+    .child_type_name = "kan_ui_node_key_binding_t",
+    .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+};
+
+KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
 UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_text_behavior_cascade_deletion = {
     .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
     .child_type_name = "kan_ui_node_text_behavior_t",
@@ -55,10 +62,40 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t
         .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
 };
 
+KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_map_behavior_cascade_deletion = {
+    .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+    .child_type_name = "kan_ui_node_map_behavior_t",
+    .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+};
+
+KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_map_pin_cascade_deletion = {
+    .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+    .child_type_name = "kan_ui_node_map_pin_t",
+    .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+};
+
+KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_popup_behavior_cascade_deletion = {
+    .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+    .child_type_name = "kan_ui_node_popup_behavior_t",
+    .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+};
+
+KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t
+    kan_ui_node_hide_popup_on_press_cascade_deletion = {
+        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+        .child_type_name = "kan_ui_node_hide_popup_on_press_t",
+        .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+};
+
 struct kan_ui_node_down_mark_t
 {
     kan_ui_node_id_t id;
-    float down_until_s;
+    kan_floating_t down_until_s;
+    enum kan_platform_scan_code_t down_from_key;
 };
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
@@ -86,17 +123,18 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_on_insert_event_t kan_ui_no
         },
 };
 
-struct kan_ui_node_hit_box_on_style_change_event_t
+struct kan_ui_node_hit_box_on_state_change_event_t
 {
     kan_ui_node_id_t id;
 };
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_hit_box_t)
-UNIVERSE_UI_API struct kan_repository_meta_automatic_on_change_event_t kan_ui_node_hit_box_on_style_change_event = {
-    .event_type = "kan_ui_node_hit_box_on_style_change_event_t",
-    .observed_fields_count = 1u,
+UNIVERSE_UI_API struct kan_repository_meta_automatic_on_change_event_t kan_ui_node_hit_box_on_state_change_event = {
+    .event_type = "kan_ui_node_hit_box_on_state_change_event_t",
+    .observed_fields_count = 2u,
     .observed_fields =
         (struct kan_repository_field_path_t[]) {
+            {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"disabled"}},
             {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"interactable_style"}},
         },
     .unchanged_copy_outs_count = 0u,
@@ -166,6 +204,24 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_on_insert_event_t kan_ui_no
             },
 };
 
+struct kan_ui_node_popup_behavior_on_insert_event_t
+{
+    kan_ui_node_id_t id;
+};
+
+KAN_REFLECTION_STRUCT_META (kan_ui_node_popup_behavior_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_on_insert_event_t kan_ui_node_popup_behavior_on_insert_event = {
+    .event_type = "kan_ui_node_popup_behavior_on_insert_event_t",
+    .copy_outs_count = 1u,
+    .copy_outs =
+        (struct kan_repository_copy_out_t[]) {
+            {
+                .source_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+                .target_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+            },
+        },
+};
+
 enum kan_ui_node_scroll_line_class_t
 {
     KAN_UI_NODE_SCROLL_LINE_CLASS_HORIZONTAL = 0u,
@@ -178,7 +234,7 @@ struct kan_ui_node_scroll_line_state_t
     kan_ui_node_id_t behavior_id;
     kan_ui_node_id_t knob_id;
     enum kan_ui_node_scroll_line_class_t class;
-    float visible_until_s;
+    kan_floating_t visible_until_s;
 };
 
 KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
@@ -196,6 +252,27 @@ UNIVERSE_UI_API void kan_ui_node_scroll_line_state_init (struct kan_ui_node_scro
     instance->class = KAN_UI_NODE_SCROLL_LINE_CLASS_HORIZONTAL;
     instance->visible_until_s = 0.0f;
 }
+
+enum kan_ui_node_popup_action_t
+{
+    KAN_UI_NODE_POPUP_ACTION_NONE = 0u,
+    KAN_UI_NODE_POPUP_ACTION_SHOW,
+    KAN_UI_NODE_POPUP_ACTION_HIDE,
+};
+
+struct kan_ui_node_popup_state_t
+{
+    kan_immutable kan_ui_node_id_t id;
+    enum kan_ui_node_popup_action_t pending_action;
+    kan_floating_t pending_action_time_s;
+};
+
+KAN_REFLECTION_STRUCT_META (kan_ui_node_t)
+UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_node_popup_state_cascade_deletion = {
+    .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+    .child_type_name = "kan_ui_node_popup_state_t",
+    .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
+};
 
 struct ui_controls_input_private_singleton_t
 {
@@ -233,7 +310,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_controls_input)
     state->application_system_handle = kan_context_query (context, KAN_CONTEXT_APPLICATION_SYSTEM_NAME);
 
     kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_TIME_BEGIN_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_TIME_END_CHECKPOINT);
     kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_CONTROLS_INPUT_BEGIN_CHECKPOINT);
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_CONTROLS_INPUT_END_CHECKPOINT);
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_CONTROLS_PRE_LAYOUT_BEGIN_CHECKPOINT);
@@ -270,7 +347,8 @@ static const struct kan_ui_node_hit_box_t *find_hit_box_at (
     KAN_UML_SEQUENCE_READ (hit_box, kan_ui_node_hit_box_t)
     {
         KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &hit_box->id)
-        if (!drawable || drawable->fully_clipped_out || (found && found_index > drawable->draw_index))
+        if (!drawable || drawable->hidden_permanently || drawable->hidden_temporary ||
+            (found && found_index > drawable->draw_index))
         {
             continue;
         }
@@ -322,7 +400,45 @@ static const struct kan_ui_node_hit_box_t *find_hit_box_at (
     return found;
 }
 
-#define FOCUS_FLAGS_MASK (KAN_UI_DEFAULT_MARK_FLAG_HOVERED | KAN_UI_DEFAULT_MARK_FLAG_DOWN)
+static const struct kan_ui_node_hit_box_t *find_hit_box_from_key_binding (
+    struct ui_controls_input_state_t *state,
+    enum kan_platform_scan_code_t scan_code,
+    struct kan_repository_indexed_value_read_access_t *output_access)
+{
+    kan_instance_size_t found_index = KAN_INT_MAX (kan_instance_size_t);
+    const struct kan_ui_node_hit_box_t *found = NULL;
+
+    KAN_UML_SEQUENCE_READ (binding, kan_ui_node_key_binding_t)
+    {
+        if (binding->scan_code != scan_code)
+        {
+            continue;
+        }
+
+        KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &binding->id)
+        KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &binding->id)
+
+        if (!hit_box || !drawable || drawable->hidden_permanently || drawable->hidden_temporary ||
+            (found && found_index > drawable->draw_index))
+        {
+            continue;
+        }
+
+        if (found)
+        {
+            kan_repository_indexed_value_read_access_close (output_access);
+        }
+
+        found_index = drawable->draw_index;
+        found = hit_box;
+        KAN_UM_ACCESS_ESCAPE (*output_access, hit_box);
+    }
+
+    return found;
+}
+
+#define FOCUS_FLAGS_MASK                                                                                               \
+    (KAN_UI_DEFAULT_MARK_FLAG_HOVERED | KAN_UI_DEFAULT_MARK_FLAG_DOWN | KAN_UI_DEFAULT_MARK_FLAG_DISABLED)
 #define SET_FOCUS_FLAGS(TARGET, FLAGS) (TARGET) = ((TARGET) & ~FOCUS_FLAGS_MASK) | (FLAGS)
 
 static inline void use_hit_box_interaction_visuals (struct ui_controls_input_state_t *state,
@@ -344,7 +460,7 @@ static inline void use_hit_box_interaction_visuals (struct ui_controls_input_sta
         drawable->main_draw_command.image.record_index = regular_image_index;
     }
 
-    for (kan_loop_size_t index = 0u; index < drawable->additional_draw_commands.size; ++index)
+    for (kan_memory_size_t index = 0u; index < drawable->additional_draw_commands.size; ++index)
     {
         struct kan_ui_draw_command_data_t *command =
             &((struct kan_ui_draw_command_data_t *) drawable->additional_draw_commands.data)[index];
@@ -372,23 +488,31 @@ enum hit_box_interaction_flags_t
 {
     FOCUS_STATE_HOVERED = 1u << 0u,
     FOCUS_STATE_DOWN = 1u << 1u,
+    FOCUS_STATE_DISABLED = 1u << 2u,
 };
 
 static inline enum hit_box_interaction_flags_t calculate_hit_box_interaction_flags (
     struct ui_controls_input_state_t *state,
     const struct kan_ui_input_singleton_t *public,
-    kan_ui_node_id_t hit_box_id,
+    const struct kan_ui_node_hit_box_t *hit_box,
     bool force_not_down)
 {
     enum hit_box_interaction_flags_t flags = 0u;
-    if (KAN_TYPED_ID_32_IS_EQUAL (public->current_hovered_id, hit_box_id))
+    if (hit_box->disabled)
+    {
+        flags |= FOCUS_STATE_DISABLED;
+        // If disabled, then cannot be hovered or down by definition.
+        return flags;
+    }
+
+    if (KAN_TYPED_ID_32_IS_EQUAL (public->current_hovered_id, hit_box->id))
     {
         flags |= FOCUS_STATE_HOVERED;
     }
 
     if (!force_not_down)
     {
-        KAN_UMI_VALUE_READ_OPTIONAL (down_mark, kan_ui_node_down_mark_t, id, &hit_box_id)
+        KAN_UMI_VALUE_READ_OPTIONAL (down_mark, kan_ui_node_down_mark_t, id, &hit_box->id)
         if (down_mark)
         {
             flags |= FOCUS_STATE_DOWN;
@@ -396,6 +520,24 @@ static inline enum hit_box_interaction_flags_t calculate_hit_box_interaction_fla
     }
 
     return flags;
+}
+
+static inline const struct kan_resource_ui_hit_box_interaction_style_t *find_interactable_style (
+    const struct kan_ui_bundle_singleton_t *bundle, kan_interned_string_t style_name)
+{
+    for (kan_memory_size_t index = 0u; index < bundle->available_bundle.hit_box_interaction_styles.size; ++index)
+    {
+        const struct kan_resource_ui_hit_box_interaction_style_t *style =
+            &((struct kan_resource_ui_hit_box_interaction_style_t *)
+                  bundle->available_bundle.hit_box_interaction_styles.data)[index];
+
+        if (style->name == style_name)
+        {
+            return style;
+        }
+    }
+
+    return NULL;
 }
 
 static inline uint32_t select_image_for_hit_box_interaction (struct ui_controls_input_state_t *state,
@@ -408,25 +550,23 @@ static inline uint32_t select_image_for_hit_box_interaction (struct ui_controls_
         return KAN_INT_MAX (uint32_t);
     }
 
-    for (kan_loop_size_t index = 0u; index < bundle->available_bundle.hit_box_interaction_styles.size; ++index)
+    const struct kan_resource_ui_hit_box_interaction_style_t *style = find_interactable_style (bundle, style_name);
+    if (style)
     {
-        const struct kan_resource_ui_hit_box_interaction_style_t *style =
-            &((struct kan_resource_ui_hit_box_interaction_style_t *)
-                  bundle->available_bundle.hit_box_interaction_styles.data)[index];
-
-        if (style->name == style_name)
+        if (flags & FOCUS_STATE_DOWN)
         {
-            if (flags & FOCUS_STATE_DOWN)
-            {
-                return query_image (state, bundle, style->down_image);
-            }
-            else if (flags & FOCUS_STATE_HOVERED)
-            {
-                return query_image (state, bundle, style->hovered_image);
-            }
-
-            return query_image (state, bundle, style->regular_image);
+            return query_image (state, bundle, style->down_image);
         }
+        else if (flags & FOCUS_STATE_HOVERED)
+        {
+            return query_image (state, bundle, style->hovered_image);
+        }
+        else if (flags & FOCUS_STATE_DISABLED)
+        {
+            return query_image (state, bundle, style->disabled_image);
+        }
+
+        return query_image (state, bundle, style->regular_image);
     }
 
     return KAN_INT_MAX (uint32_t);
@@ -441,16 +581,10 @@ static void update_interacted_scroll_line_visibility (struct ui_controls_input_s
     if (KAN_FLOATING_IS_NEAR (line_state->visible_until_s, 0.0f))
     {
         // If was invisible, make visible again.
-        KAN_UMI_VALUE_UPDATE_OPTIONAL (line_drawable, kan_ui_node_drawable_t, id, &line_state->id)
-        if (line_drawable)
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (line_node, kan_ui_node_t, id, &line_state->id)
+        if (line_node)
         {
-            line_drawable->hidden = false;
-        }
-
-        KAN_UMI_VALUE_UPDATE_OPTIONAL (knob_drawable, kan_ui_node_drawable_t, id, &line_state->knob_id)
-        if (knob_drawable)
-        {
-            knob_drawable->hidden = false;
+            line_node->render.hide_children = false;
         }
     }
 
@@ -473,7 +607,7 @@ static void apply_hit_box_interaction_visuals (struct ui_controls_input_state_t 
 {
     KAN_ASSERT (hit_box->interactable)
     const enum hit_box_interaction_flags_t flags =
-        calculate_hit_box_interaction_flags (state, public, hit_box->id, force_not_down);
+        calculate_hit_box_interaction_flags (state, public, hit_box, force_not_down);
 
     const uint32_t image_index =
         select_image_for_hit_box_interaction (state, bundle, hit_box->interactable_style, flags);
@@ -489,8 +623,13 @@ static void apply_hit_box_interaction_visuals (struct ui_controls_input_state_t 
         ui_mark_flags |= KAN_UI_DEFAULT_MARK_FLAG_HOVERED;
     }
 
+    if (flags & FOCUS_STATE_DISABLED)
+    {
+        ui_mark_flags |= KAN_UI_DEFAULT_MARK_FLAG_DISABLED;
+    }
+
     use_hit_box_interaction_visuals (state, hit_box->id, ui_mark_flags, image_index);
-    for (kan_loop_size_t index = 0u; index < hit_box->propagate_interaction_visuals.size; ++index)
+    for (kan_memory_size_t index = 0u; index < hit_box->propagate_interaction_visuals.size; ++index)
     {
         use_hit_box_interaction_visuals (state,
                                          ((kan_ui_node_id_t *) hit_box->propagate_interaction_visuals.data)[index],
@@ -509,19 +648,20 @@ static void update_scroll_horizontal_knob (struct ui_controls_input_state_t *sta
                                            const struct kan_ui_node_scroll_behavior_t *behavior,
                                            const struct kan_ui_node_drawable_t *main_drawable,
                                            const struct kan_ui_node_drawable_t *container_drawable,
-                                           float scroll_value_px)
+                                           kan_floating_t scroll_value_px)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (horizontal_line_drawable, kan_ui_node_drawable_t, id, &behavior->horizontal_line_id)
     KAN_UMI_VALUE_UPDATE_OPTIONAL (horizontal_knob_node, kan_ui_node_t, id, &behavior->horizontal_knob_id)
 
     if (horizontal_line_drawable && horizontal_knob_node)
     {
-        const float knob_size_ratio = KAN_MIN (1.0f, (float) main_drawable->width / (float) container_drawable->width);
-        const float knob_size_px = knob_size_ratio * (float) horizontal_line_drawable->width;
+        const kan_floating_t knob_size_ratio =
+            KAN_MIN (1.0f, (kan_floating_t) main_drawable->width / (kan_floating_t) container_drawable->width);
+        const kan_floating_t knob_size_px = knob_size_ratio * (kan_floating_t) horizontal_line_drawable->width;
         horizontal_knob_node->element.width = KAN_UI_VALUE_PX (knob_size_px);
 
-        const float knob_offset_ratio = scroll_value_px / (float) container_drawable->width;
-        const float knob_offset_px = knob_offset_ratio * (float) horizontal_line_drawable->width;
+        const kan_floating_t knob_offset_ratio = scroll_value_px / (kan_floating_t) container_drawable->width;
+        const kan_floating_t knob_offset_px = knob_offset_ratio * (kan_floating_t) horizontal_line_drawable->width;
         horizontal_knob_node->element.frame_offset_x = KAN_UI_VALUE_PX (knob_offset_px);
     }
 }
@@ -530,20 +670,20 @@ static void update_scroll_vertical_knob (struct ui_controls_input_state_t *state
                                          const struct kan_ui_node_scroll_behavior_t *behavior,
                                          const struct kan_ui_node_drawable_t *main_drawable,
                                          const struct kan_ui_node_drawable_t *container_drawable,
-                                         float scroll_value_px)
+                                         kan_floating_t scroll_value_px)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (vertical_line_drawable, kan_ui_node_drawable_t, id, &behavior->vertical_line_id)
     KAN_UMI_VALUE_UPDATE_OPTIONAL (vertical_knob_node, kan_ui_node_t, id, &behavior->vertical_knob_id)
 
     if (vertical_line_drawable && vertical_knob_node)
     {
-        const float knob_size_ratio =
-            KAN_MIN (1.0f, (float) main_drawable->height / (float) container_drawable->height);
-        const float knob_size_px = knob_size_ratio * (float) vertical_line_drawable->height;
+        const kan_floating_t knob_size_ratio =
+            KAN_MIN (1.0f, (kan_floating_t) main_drawable->height / (kan_floating_t) container_drawable->height);
+        const kan_floating_t knob_size_px = knob_size_ratio * (kan_floating_t) vertical_line_drawable->height;
         vertical_knob_node->element.height = KAN_UI_VALUE_PX (knob_size_px);
 
-        const float knob_offset_ratio = scroll_value_px / (float) container_drawable->height;
-        const float knob_offset_px = knob_offset_ratio * (float) vertical_line_drawable->height;
+        const kan_floating_t knob_offset_ratio = scroll_value_px / (kan_floating_t) container_drawable->height;
+        const kan_floating_t knob_offset_px = knob_offset_ratio * (kan_floating_t) vertical_line_drawable->height;
         vertical_knob_node->element.frame_offset_y = KAN_UI_VALUE_PX (knob_offset_px);
     }
 }
@@ -554,10 +694,10 @@ static inline void update_horizontal_scroll_absolute (struct ui_controls_input_s
                                                       const struct kan_ui_node_drawable_t *main_drawable,
                                                       struct kan_ui_node_t *container_node,
                                                       const struct kan_ui_node_drawable_t *container_drawable,
-                                                      float value_px)
+                                                      kan_floating_t value_px)
 {
-    const float new_scroll_px =
-        KAN_CLAMP (value_px, 0.0f, (float) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
+    const kan_floating_t new_scroll_px =
+        KAN_CLAMP (value_px, 0.0f, (kan_floating_t) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
     container_node->render.scroll_x =
         kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_x, new_scroll_px);
     update_scroll_horizontal_knob (state, behavior, main_drawable, container_drawable, new_scroll_px);
@@ -569,10 +709,10 @@ static inline void update_vertical_scroll_absolute (struct ui_controls_input_sta
                                                     const struct kan_ui_node_drawable_t *main_drawable,
                                                     struct kan_ui_node_t *container_node,
                                                     const struct kan_ui_node_drawable_t *container_drawable,
-                                                    float value_px)
+                                                    kan_floating_t value_px)
 {
-    const float new_scroll_px =
-        KAN_CLAMP (value_px, 0.0f, (float) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
+    const kan_floating_t new_scroll_px =
+        KAN_CLAMP (value_px, 0.0f, (kan_floating_t) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
     container_node->render.scroll_y =
         kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_y, new_scroll_px);
     update_scroll_vertical_knob (state, behavior, main_drawable, container_drawable, new_scroll_px);
@@ -593,9 +733,10 @@ static void ensure_scroll_is_in_limits (struct ui_controls_input_state_t *state,
 
     if (behavior->horizontal)
     {
-        const float current_scroll_px = kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_x);
-        const float new_scroll_px = KAN_CLAMP (current_scroll_px, 0.0f,
-                                               (float) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
+        const kan_floating_t current_scroll_px =
+            kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_x);
+        const kan_floating_t new_scroll_px = KAN_CLAMP (
+            current_scroll_px, 0.0f, (kan_floating_t) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
 
         container_node->render.scroll_x =
             kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_x, new_scroll_px);
@@ -604,9 +745,11 @@ static void ensure_scroll_is_in_limits (struct ui_controls_input_state_t *state,
 
     if (behavior->vertical)
     {
-        const float current_scroll_px = kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_y);
-        const float new_scroll_px = KAN_CLAMP (
-            current_scroll_px, 0.0f, (float) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
+        const kan_floating_t current_scroll_px =
+            kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_y);
+        const kan_floating_t new_scroll_px =
+            KAN_CLAMP (current_scroll_px, 0.0f,
+                       (kan_floating_t) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
 
         container_node->render.scroll_y =
             kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_y, new_scroll_px);
@@ -617,19 +760,43 @@ static void ensure_scroll_is_in_limits (struct ui_controls_input_state_t *state,
 static void hide_scroll_line (struct ui_controls_input_state_t *state,
                               struct kan_ui_node_scroll_line_state_t *line_state)
 {
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_drawable, kan_ui_node_drawable_t, id, &line_state->id)
-    if (line_drawable)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_node, kan_ui_node_t, id, &line_state->id)
+    if (line_node)
     {
-        line_drawable->hidden = true;
-    }
-
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (knob_drawable, kan_ui_node_drawable_t, id, &line_state->knob_id)
-    if (knob_drawable)
-    {
-        knob_drawable->hidden = true;
+        line_node->render.hide_children = true;
     }
 
     line_state->visible_until_s = 0.0f;
+}
+
+static bool process_hit_box_insertion (struct ui_controls_input_state_t *state,
+                                       struct kan_ui_input_singleton_t *public,
+                                       const struct kan_ui_bundle_singleton_t *bundle)
+{
+    bool hit_boxes_changed = false;
+    KAN_UML_EVENT_FETCH (hit_box_inserted_event, kan_ui_node_hit_box_on_insert_event_t)
+    {
+        KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &hit_box_inserted_event->id)
+        if (!hit_box)
+        {
+            continue;
+        }
+
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (node, kan_ui_node_t, id, &hit_box_inserted_event->id)
+        if (node)
+        {
+            node->event_on_laid_out = true;
+            hit_boxes_changed = true;
+        }
+
+        // We have to initialize visuals.
+        if (hit_box->interactable)
+        {
+            apply_hit_box_interaction_visuals (state, public, bundle, hit_box, false);
+        }
+    }
+
+    return hit_boxes_changed;
 }
 
 static void process_scroll_behavior_insertion (struct ui_controls_input_state_t *state,
@@ -693,7 +860,7 @@ static void process_scroll_behavior_insertion (struct ui_controls_input_state_t 
     }
 }
 
-static void process_line_edit_behavior_lifetime (struct ui_controls_input_state_t *state)
+static void process_line_edit_behavior_insertion (struct ui_controls_input_state_t *state)
 {
     KAN_UML_EVENT_FETCH (line_edit_behavior_inserted_event, kan_ui_node_line_edit_behavior_on_insert_event_t)
     {
@@ -724,24 +891,18 @@ static void process_line_edit_behavior_lifetime (struct ui_controls_input_state_
     }
 }
 
-static void sanitize_input_receiver_selection (struct ui_controls_input_state_t *state,
-                                               struct kan_ui_input_singleton_t *public)
+static void process_popup_behavior_insertion (struct ui_controls_input_state_t *state)
 {
-    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
+    KAN_UML_EVENT_FETCH (popup_behavior_inserted_event, kan_ui_node_popup_behavior_on_insert_event_t)
     {
-        KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &public->input_receiver_id)
-        if (!node)
+        KAN_UMI_VALUE_READ_OPTIONAL (behavior, kan_ui_node_popup_behavior_t, id, &popup_behavior_inserted_event->id)
+        if (!behavior)
         {
-            if (private->input_receiver_requested_text_input && KAN_HANDLE_IS_VALID (public->linked_window_handle))
-            {
-                kan_application_window_remove_text_listener (state->application_system_handle,
-                                                             public->linked_window_handle);
-            }
-
-            public->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
-            private->input_receiver_requested_text_input = false;
+            continue;
         }
+
+        KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &popup_behavior_inserted_event->id)
+        node->render.hidden = true;
     }
 }
 
@@ -755,6 +916,76 @@ static void clear_line_edit_selection_visuals (struct ui_controls_input_state_t 
 
     KAN_UMI_VALUE_UPDATE_REQUIRED (hit_box, kan_ui_node_hit_box_t, id, &behavior->id)
     hit_box->interactable_style = behavior->interactable_style_regular;
+}
+
+static void line_edit_sanitize_content_on_node_deselection (struct kan_ui_node_line_edit_behavior_t *behavior)
+{
+    switch (behavior->content_type)
+    {
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_ANY:
+        break;
+
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT:
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT:
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_FLOAT:
+        // Size is 1 for zero terminator.
+        if (behavior->content_utf8.size <= 1u)
+        {
+            // Do not leave numeric content at "unparseable empty string" state, add zero.
+            kan_ui_node_line_edit_behavior_set_content (behavior, "0", behavior->content_style, behavior->content_mark);
+        }
+
+        break;
+    }
+}
+
+static inline void deselect_input_receiver_behavior (struct ui_controls_input_state_t *state,
+                                                     struct kan_ui_input_singleton_t *public,
+                                                     struct ui_controls_input_private_singleton_t *private)
+{
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
+    if (line_edit_behavior)
+    {
+        clear_line_edit_selection_visuals (state, line_edit_behavior);
+        line_edit_sanitize_content_on_node_deselection (line_edit_behavior);
+    }
+
+    if (private->input_receiver_requested_text_input && KAN_HANDLE_IS_VALID (public->linked_window_handle))
+    {
+        kan_application_window_remove_text_listener (state->application_system_handle, public->linked_window_handle);
+    }
+
+    public->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    private->input_receiver_requested_text_input = false;
+}
+
+static void sanitize_input_receiver_selection (struct ui_controls_input_state_t *state,
+                                               struct kan_ui_input_singleton_t *public)
+{
+    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
+    if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
+    {
+        KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &public->input_receiver_id)
+        if (!node)
+        {
+            deselect_input_receiver_behavior (state, public, private);
+            return;
+        }
+
+        KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &public->input_receiver_id)
+        if (!drawable || drawable->hidden_permanently || drawable->hidden_temporary)
+        {
+            deselect_input_receiver_behavior (state, public, private);
+            return;
+        }
+
+        KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &public->input_receiver_id)
+        if (hit_box && hit_box->disabled)
+        {
+            deselect_input_receiver_behavior (state, public, private);
+            return;
+        }
+    }
 }
 
 static void process_line_edit_content_dirty_outer (struct ui_controls_input_state_t *state,
@@ -775,6 +1006,7 @@ static void process_line_edit_content_dirty_outer (struct ui_controls_input_stat
         {
             public->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
             clear_line_edit_selection_visuals (state, behavior);
+            line_edit_sanitize_content_on_node_deselection (behavior);
         }
     }
 }
@@ -795,7 +1027,7 @@ static void line_edit_erase_subsequence (struct kan_ui_node_line_edit_behavior_t
     // If not full erase, move data.
     if (behavior->content_utf8.size - 1u != size)
     {
-        for (kan_loop_size_t index = min; index < behavior->content_utf8.size - size - 1u; ++index)
+        for (kan_memory_size_t index = min; index < behavior->content_utf8.size - size - 1u; ++index)
         {
             if (index + size < behavior->content_utf8.size - 1u)
             {
@@ -871,8 +1103,8 @@ static void line_edit_paste_text (struct kan_ui_node_line_edit_behavior_t *behav
                                                                           behavior->content_utf8.size + filtered_size));
     }
 
-    for (kan_loop_size_t index = behavior->content_utf8.size - 1u;
-         index >= behavior->cursor_content_location && index != KAN_INT_MAX (kan_loop_size_t); --index)
+    for (kan_memory_size_t index = behavior->content_utf8.size - 1u;
+         index >= behavior->cursor_content_location && index != KAN_INT_MAX (kan_memory_size_t); --index)
     {
         behavior->content_utf8.data[index + filtered_size] = behavior->content_utf8.data[index];
     }
@@ -938,7 +1170,7 @@ static void line_edit_process_horizontal_arrow (struct kan_ui_node_line_edit_beh
         return;
     }
 
-    for (kan_loop_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
+    for (kan_memory_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
          ++sequence_index)
     {
         const struct kan_text_shaped_edition_sequence_data_t *sequence =
@@ -968,7 +1200,7 @@ static void line_edit_process_horizontal_arrow (struct kan_ui_node_line_edit_beh
             return;
         }
 
-        for (kan_loop_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
+        for (kan_memory_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
         {
             const struct kan_text_shaped_edition_cluster_data_t *cluster =
                 &((struct kan_text_shaped_edition_cluster_data_t *) sequence->clusters.data)[cluster_index];
@@ -1034,7 +1266,7 @@ static void line_edit_process_horizontal_arrow (struct kan_ui_node_line_edit_beh
     go_to_the_previous_cluster_in_sequences_before:
     {
         --sequence_index;
-        while (sequence_index != KAN_INT_MAX (kan_loop_size_t))
+        while (sequence_index != KAN_INT_MAX (kan_memory_size_t))
         {
             sequence = &((struct kan_text_shaped_edition_sequence_data_t *)
                              shaping_unit->shaped_edition_sequences.data)[sequence_index];
@@ -1067,20 +1299,122 @@ static void line_edit_process_horizontal_arrow (struct kan_ui_node_line_edit_beh
     }
 }
 
-static void process_key_down_internal (struct ui_controls_input_state_t *state,
-                                       struct kan_ui_input_singleton_t *public,
-                                       const struct kan_ui_singleton_t *ui,
-                                       const struct kan_platform_application_event_t *event)
+static void prolong_hit_box_down_visuals (struct ui_controls_input_state_t *state,
+                                          struct kan_ui_input_singleton_t *public,
+                                          const struct kan_ui_bundle_singleton_t *bundle,
+                                          const struct kan_ui_node_hit_box_t *hit_box)
 {
-    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    if (!KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id) ||
-        // We do not process keyboard input while mouse is down.
-        public->mouse_button_down_flags != 0u)
+    if (!hit_box->interactable_style)
     {
         return;
     }
 
+    const struct kan_resource_ui_hit_box_interaction_style_t *selected_style =
+        find_interactable_style (bundle, hit_box->interactable_style);
+
+    if (!selected_style)
+    {
+        // No style -> no animation.
+        return;
+    }
+
+    KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (existent_mark, kan_ui_node_down_mark_t, id, &hit_box->id)
+
+    if (existent_mark)
+    {
+        existent_mark->down_until_s = ui->animation_global_time_s + selected_style->down_state_s;
+        // Already had mark, no visual update needed.
+        return;
+    }
+
+    KAN_UMO_INDEXED_INSERT (new_mark, kan_ui_node_down_mark_t)
+    {
+        new_mark->id = hit_box->id;
+        new_mark->down_until_s = ui->animation_global_time_s + selected_style->down_state_s;
+        new_mark->down_from_key = KAN_PLATFORM_SCAN_CODE_UNKNOWN;
+    }
+
+    apply_hit_box_interaction_visuals (state, public, bundle, hit_box, false);
+}
+
+static void on_press_begin_internal (struct ui_controls_input_state_t *state,
+                                     struct kan_ui_input_singleton_t *public,
+                                     const struct kan_ui_singleton_t *ui,
+                                     kan_ui_node_id_t press_id);
+
+static void simulate_press_begin_from_key_binding (struct ui_controls_input_state_t *state,
+                                                   struct kan_ui_input_singleton_t *public,
+                                                   const struct kan_ui_singleton_t *ui,
+                                                   const struct kan_ui_bundle_singleton_t *bundle,
+                                                   const struct kan_platform_application_event_t *event)
+{
+    struct kan_repository_indexed_value_read_access_t access;
+    const struct kan_ui_node_hit_box_t *hit_box =
+        find_hit_box_from_key_binding (state, event->keyboard.scan_code, &access);
+
+    const kan_ui_node_id_t hit_box_id = hit_box ? hit_box->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    const bool filtered = hit_box && hit_box->interactable && !hit_box->disabled;
+
+    if (filtered)
+    {
+        KAN_UMO_EVENT_INSERT_INIT (kan_ui_press_begin_t) {
+            .node_id = hit_box->id,
+            .mouse_button_down_flags = 0u,
+            .at_x = public->last_mouse_x,
+            .at_y = public->last_mouse_y,
+        };
+
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (existent_mark, kan_ui_node_down_mark_t, id, &hit_box->id)
+        if (existent_mark)
+        {
+            existent_mark->down_from_key = event->keyboard.scan_code;
+        }
+        else
+        {
+            KAN_UMO_INDEXED_INSERT (new_mark, kan_ui_node_down_mark_t)
+            {
+                new_mark->id = hit_box->id;
+                new_mark->down_until_s = 0.0f;
+                new_mark->down_from_key = event->keyboard.scan_code;
+            }
+
+            apply_hit_box_interaction_visuals (state, public, bundle, hit_box, false);
+        }
+    }
+
+    if (hit_box)
+    {
+        kan_repository_indexed_value_read_access_close (&access);
+    }
+
+    if (filtered)
+    {
+        on_press_begin_internal (state, public, ui, hit_box_id);
+    }
+}
+
+static void process_key_down_internal (struct ui_controls_input_state_t *state,
+                                       struct kan_ui_input_singleton_t *public,
+                                       const struct kan_ui_singleton_t *ui,
+                                       const struct kan_ui_bundle_singleton_t *bundle,
+                                       const struct kan_platform_application_event_t *event)
+{
+    if (!KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
+    {
+        simulate_press_begin_from_key_binding (state, public, ui, bundle, event);
+        return;
+    }
+
+    // We do not process keyboard input for input receivers while mouse is down.
+    if (public->mouse_button_down_flags != 0u)
+    {
+        return;
+    }
+
+    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
     KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
+
     if (line_edit_behavior)
     {
         switch (event->keyboard.scan_code)
@@ -1136,7 +1470,7 @@ static void process_key_down_internal (struct ui_controls_input_state_t *state,
                 }
                 else
                 {
-                    uint8_t *iterator =
+                    const uint8_t *iterator =
                         line_edit_behavior->content_utf8.data + line_edit_behavior->cursor_content_location;
 
                     if (kan_text_utf8_next (&iterator, line_edit_behavior->content_utf8.data +
@@ -1183,6 +1517,71 @@ static void process_key_down_internal (struct ui_controls_input_state_t *state,
     }
 }
 
+static void on_press_end_internal (struct ui_controls_input_state_t *state,
+                                   struct kan_ui_input_singleton_t *public,
+                                   const struct kan_ui_singleton_t *ui,
+                                   kan_ui_node_id_t press_id,
+                                   bool continuous);
+
+static void simulate_press_end_from_key_binding (struct ui_controls_input_state_t *state,
+                                                 struct kan_ui_input_singleton_t *public,
+                                                 const struct kan_ui_singleton_t *ui,
+                                                 const struct kan_ui_bundle_singleton_t *bundle,
+                                                 const struct kan_platform_application_event_t *event)
+{
+    KAN_UML_SEQUENCE_UPDATE (down_mark, kan_ui_node_down_mark_t)
+    {
+        if (down_mark->down_from_key != event->keyboard.scan_code)
+        {
+            continue;
+        }
+
+        down_mark->down_from_key = KAN_PLATFORM_SCAN_CODE_UNKNOWN;
+        KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &down_mark->id)
+
+        if (hit_box)
+        {
+            KAN_UMO_EVENT_INSERT_INIT (kan_ui_press_end_t) {
+                .node_id = hit_box->id,
+                .mouse_button_down_inclusive_flags = 0u,
+                .continuous_press = true,
+                .at_x = public->last_mouse_x,
+                .at_y = public->last_mouse_y,
+            };
+
+            const struct kan_resource_ui_hit_box_interaction_style_t *selected_style =
+                find_interactable_style (bundle, hit_box->interactable_style);
+
+            if (selected_style)
+            {
+                down_mark->down_until_s = ui->animation_global_time_s + selected_style->down_state_s;
+            }
+
+            KAN_UM_ACCESS_CLOSE_IMMEDIATELY (hit_box);
+            on_press_end_internal (state, public, ui, down_mark->id, true);
+        }
+    }
+}
+
+static void process_key_up_internal (struct ui_controls_input_state_t *state,
+                                     struct kan_ui_input_singleton_t *public,
+                                     const struct kan_ui_singleton_t *ui,
+                                     const struct kan_ui_bundle_singleton_t *bundle,
+                                     const struct kan_platform_application_event_t *event)
+{
+    if (!KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
+    {
+        simulate_press_end_from_key_binding (state, public, ui, bundle, event);
+        return;
+    }
+
+    // We do not process keyboard input for input receivers while mouse is down.
+    if (public->mouse_button_down_flags != 0u)
+    {
+        return;
+    }
+}
+
 static void process_text_input_internal (struct ui_controls_input_state_t *state,
                                          struct kan_ui_input_singleton_t *public,
                                          const struct kan_ui_singleton_t *ui,
@@ -1203,57 +1602,12 @@ static void process_text_input_internal (struct ui_controls_input_state_t *state
     }
 }
 
-static void prolong_hit_box_down_visuals (struct ui_controls_input_state_t *state,
-                                          struct kan_ui_input_singleton_t *public,
-                                          const struct kan_ui_bundle_singleton_t *bundle,
-                                          const struct kan_ui_node_hit_box_t *hit_box)
-{
-    const struct kan_resource_ui_hit_box_interaction_style_t *selected_style = NULL;
-
-    for (kan_loop_size_t index = 0u; index < bundle->available_bundle.hit_box_interaction_styles.size; ++index)
-    {
-        const struct kan_resource_ui_hit_box_interaction_style_t *style =
-            &((struct kan_resource_ui_hit_box_interaction_style_t *)
-                  bundle->available_bundle.hit_box_interaction_styles.data)[index];
-
-        if (style->name == hit_box->interactable_style)
-        {
-            selected_style = style;
-            break;
-        }
-    }
-
-    if (!selected_style)
-    {
-        // No style -> no animation.
-        return;
-    }
-
-    KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (existent_mark, kan_ui_node_down_mark_t, id, &hit_box->id)
-
-    if (existent_mark)
-    {
-        existent_mark->down_until_s = ui->animation_global_time_s + selected_style->down_state_s;
-        // Already had mark, no visual update needed.
-        return;
-    }
-
-    KAN_UMO_INDEXED_INSERT (new_mark, kan_ui_node_down_mark_t)
-    {
-        new_mark->id = hit_box->id;
-        new_mark->down_until_s = ui->animation_global_time_s + selected_style->down_state_s;
-    }
-
-    apply_hit_box_interaction_visuals (state, public, bundle, hit_box, false);
-}
-
 static void apply_scroll_relative_input (struct ui_controls_input_state_t *state,
                                          struct kan_ui_input_singleton_t *public,
                                          const struct kan_ui_singleton_t *ui,
                                          const struct kan_ui_node_scroll_behavior_t *behavior,
-                                         float delta_x_px,
-                                         float delta_y_px,
+                                         kan_floating_t delta_x_px,
+                                         kan_floating_t delta_y_px,
                                          bool allow_y_to_x)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (main_drawable, kan_ui_node_drawable_t, id, &behavior->id)
@@ -1273,31 +1627,41 @@ static void apply_scroll_relative_input (struct ui_controls_input_state_t *state
 
     if (behavior->horizontal && !KAN_FLOATING_IS_NEAR (delta_x_px, 0.0f))
     {
-        const float current_scroll_px = kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_x);
-        const float new_scroll_px = KAN_CLAMP (current_scroll_px + delta_x_px, 0.0f,
-                                               (float) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
+        const kan_floating_t current_scroll_px =
+            kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_x);
+        const kan_floating_t new_scroll_px =
+            KAN_CLAMP (current_scroll_px + delta_x_px, 0.0f,
+                       (kan_floating_t) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
 
         container_node->render.scroll_x =
             kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_x, new_scroll_px);
         update_scroll_horizontal_knob (state, behavior, main_drawable, container_drawable, new_scroll_px);
 
-        KAN_UMI_VALUE_UPDATE_REQUIRED (line_state, kan_ui_node_scroll_line_state_t, id, &behavior->horizontal_line_id)
-        update_interacted_scroll_line_visibility (state, public, line_state, behavior, false);
+        if (KAN_TYPED_ID_32_IS_VALID (behavior->horizontal_line_id))
+        {
+            KAN_UMI_VALUE_UPDATE_REQUIRED (line_state, kan_ui_node_scroll_line_state_t, id,
+                                           &behavior->horizontal_line_id)
+            update_interacted_scroll_line_visibility (state, public, line_state, behavior, false);
+        }
     }
 
     if (behavior->vertical && !KAN_FLOATING_IS_NEAR (delta_y_px, 0.0f))
     {
-        const float current_scroll_px = kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_y);
-        const float new_scroll_px =
+        const kan_floating_t current_scroll_px =
+            kan_ui_calculate_coordinate_floating (ui, container_node->render.scroll_y);
+        const kan_floating_t new_scroll_px =
             KAN_CLAMP (current_scroll_px + delta_y_px, 0.0f,
-                       (float) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
+                       (kan_floating_t) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
 
         container_node->render.scroll_y =
             kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_y, new_scroll_px);
         update_scroll_vertical_knob (state, behavior, main_drawable, container_drawable, new_scroll_px);
 
-        KAN_UMI_VALUE_UPDATE_REQUIRED (line_state, kan_ui_node_scroll_line_state_t, id, &behavior->vertical_line_id)
-        update_interacted_scroll_line_visibility (state, public, line_state, behavior, false);
+        if (KAN_TYPED_ID_32_IS_VALID (behavior->vertical_line_id))
+        {
+            KAN_UMI_VALUE_UPDATE_REQUIRED (line_state, kan_ui_node_scroll_line_state_t, id, &behavior->vertical_line_id)
+            update_interacted_scroll_line_visibility (state, public, line_state, behavior, false);
+        }
     }
 }
 
@@ -1306,7 +1670,7 @@ static void apply_scroll_absolute_horizontal (struct ui_controls_input_state_t *
                                               const struct kan_ui_singleton_t *ui,
                                               const struct kan_ui_node_scroll_behavior_t *behavior,
                                               struct kan_ui_node_scroll_line_state_t *line_state,
-                                              float value_px)
+                                              kan_floating_t value_px)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (main_drawable, kan_ui_node_drawable_t, id, &behavior->id)
     KAN_UMI_VALUE_UPDATE_REQUIRED (container_node, kan_ui_node_t, id, &behavior->container_id)
@@ -1319,8 +1683,8 @@ static void apply_scroll_absolute_horizontal (struct ui_controls_input_state_t *
 
     if (behavior->horizontal)
     {
-        const float new_scroll_px =
-            KAN_CLAMP (value_px, 0.0f, (float) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
+        const kan_floating_t new_scroll_px = KAN_CLAMP (
+            value_px, 0.0f, (kan_floating_t) (KAN_MAX (0, container_drawable->width - main_drawable->width)));
 
         container_node->render.scroll_x =
             kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_x, new_scroll_px);
@@ -1335,7 +1699,7 @@ static void apply_scroll_absolute_vertical (struct ui_controls_input_state_t *st
                                             const struct kan_ui_singleton_t *ui,
                                             const struct kan_ui_node_scroll_behavior_t *behavior,
                                             struct kan_ui_node_scroll_line_state_t *line_state,
-                                            float value_px)
+                                            kan_floating_t value_px)
 {
     KAN_UMI_VALUE_READ_OPTIONAL (main_drawable, kan_ui_node_drawable_t, id, &behavior->id)
     KAN_UMI_VALUE_UPDATE_REQUIRED (container_node, kan_ui_node_t, id, &behavior->container_id)
@@ -1348,8 +1712,8 @@ static void apply_scroll_absolute_vertical (struct ui_controls_input_state_t *st
 
     if (behavior->vertical)
     {
-        const float new_scroll_px =
-            KAN_CLAMP (value_px, 0.0f, (float) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
+        const kan_floating_t new_scroll_px = KAN_CLAMP (
+            value_px, 0.0f, (kan_floating_t) (KAN_MAX (0, container_drawable->height - main_drawable->height)));
 
         container_node->render.scroll_y =
             kan_ui_coordinate_from_pixels (ui, behavior->offset_coordinate_type_y, new_scroll_px);
@@ -1377,8 +1741,9 @@ static void place_scroll_line_knob_at_press (struct ui_controls_input_state_t *s
         {
             const kan_instance_offset_t local_offset =
                 KAN_MAX (0, public->last_mouse_x - line_drawable->global_x - private->press_knob_offset);
-            const float target_px =
-                (float) local_offset * (float) container_drawable->width / (float) line_drawable->width;
+            const kan_floating_t target_px = (kan_floating_t) local_offset *
+                                             (kan_floating_t) container_drawable->width /
+                                             (kan_floating_t) line_drawable->width;
 
             // Due to access from inside interacted visibility update, a little bit ad-hoc.
             KAN_UM_ACCESS_CLOSE_IMMEDIATELY (line_drawable);
@@ -1390,8 +1755,9 @@ static void place_scroll_line_knob_at_press (struct ui_controls_input_state_t *s
         {
             const kan_instance_offset_t local_offset =
                 KAN_MAX (0, public->last_mouse_y - line_drawable->global_y - private->press_knob_offset);
-            const float target_px =
-                (float) local_offset * (float) container_drawable->height / (float) line_drawable->height;
+            const kan_floating_t target_px = (kan_floating_t) local_offset *
+                                             (kan_floating_t) container_drawable->height /
+                                             (kan_floating_t) line_drawable->height;
 
             // Due to access from inside interacted visibility update, a little bit ad-hoc.
             KAN_UM_ACCESS_CLOSE_IMMEDIATELY (line_drawable);
@@ -1441,7 +1807,7 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
     // like mouse pointer can travel anywhere.
     const struct kan_text_shaped_edition_sequence_data_t *selected_sequence = NULL;
 
-    for (kan_loop_size_t index = 0u; index < shaping_unit->shaped_edition_sequences.size; ++index)
+    for (kan_memory_size_t index = 0u; index < shaping_unit->shaped_edition_sequences.size; ++index)
     {
         const struct kan_text_shaped_edition_sequence_data_t *sequence =
             &((struct kan_text_shaped_edition_sequence_data_t *) shaping_unit->shaped_edition_sequences.data)[index];
@@ -1465,7 +1831,7 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
 
     const bool forward_base_direction =
         shaping_unit->request.reading_direction == KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
-    kan_loop_size_t cluster_index = 0u;
+    kan_instance_size_t cluster_index = 0u;
 
     while (cluster_index < selected_sequence->clusters.size)
     {
@@ -1476,7 +1842,7 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
         if (!cluster->matching_reading_direction)
         {
             kan_instance_size_t run_ends_at = selected_sequence->clusters.size;
-            for (kan_loop_size_t scan_index = cluster_index + 1u; scan_index < selected_sequence->clusters.size;
+            for (kan_instance_size_t scan_index = cluster_index + 1u; scan_index < selected_sequence->clusters.size;
                  ++scan_index)
             {
                 const struct kan_text_shaped_edition_cluster_data_t *scan_cluster =
@@ -1489,9 +1855,9 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
                 }
             }
 
-            for (kan_loop_size_t run_index = run_ends_at - 1u;
+            for (kan_memory_size_t run_index = run_ends_at - 1u;
                  // Overflow guard is important here.
-                 run_index >= cluster_index && run_index != KAN_INT_MAX (kan_loop_size_t); --run_index)
+                 run_index >= cluster_index && run_index != KAN_INT_MAX (kan_memory_size_t); --run_index)
             {
                 const struct kan_text_shaped_edition_cluster_data_t *run_cluster =
                     &((struct kan_text_shaped_edition_cluster_data_t *) selected_sequence->clusters.data)[run_index];
@@ -1556,7 +1922,7 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
                 // to get the first cluster of bidi inverted direction.
                 kan_instance_size_t run_ends_at = selected_sequence->clusters.size;
 
-                for (kan_loop_size_t scan_index = cluster_index + 2u; scan_index < selected_sequence->clusters.size;
+                for (kan_instance_size_t scan_index = cluster_index + 2u; scan_index < selected_sequence->clusters.size;
                      ++scan_index)
                 {
                     const struct kan_text_shaped_edition_cluster_data_t *scan_cluster = &(
@@ -1583,19 +1949,41 @@ static kan_instance_size_t calculate_content_position_on_shaped_text (struct ui_
     return selected_sequence->end_at_index;
 }
 
+static void on_map_behavior_press_motion (struct ui_controls_input_state_t *state,
+                                          struct kan_ui_node_map_behavior_t *behavior,
+                                          kan_floating_t x_relative,
+                                          kan_floating_t y_relative)
+{
+    KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &behavior->id)
+    if (!behavior->movement_enabled || !drawable || drawable->height <= 0 || behavior->camera_half_height <= 0.0f)
+    {
+        return;
+    }
+
+    const kan_floating_t px_to_unit = behavior->camera_half_height * 2.0f / (kan_floating_t) drawable->height;
+    // As we're dragging the map by pressing and moving pointer, direction is inverted.
+    behavior->camera_origin.x -= x_relative * px_to_unit;
+    behavior->camera_origin.y -= y_relative * px_to_unit;
+    behavior->dirty = true;
+}
+
 static void on_press_motion_internal (struct ui_controls_input_state_t *state,
                                       struct kan_ui_input_singleton_t *public,
-                                      const struct kan_ui_singleton_t *ui)
+                                      const struct kan_ui_singleton_t *ui,
+                                      // Press id might be different for simulated pressed from key bindings.
+                                      kan_ui_node_id_t press_id,
+                                      kan_floating_t x_relative,
+                                      kan_floating_t y_relative)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id, &public->press_started_on_id)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id, &press_id)
 
     if (scroll_line_state)
     {
         place_scroll_line_knob_at_press (state, public, private, ui, scroll_line_state);
     }
 
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &press_id)
     if (line_edit_behavior)
     {
         private->line_edit_press_moved = true;
@@ -1611,33 +1999,66 @@ static void on_press_motion_internal (struct ui_controls_input_state_t *state,
             KAN_MAX (private->line_edit_press_start_content_location, current_content_location);
         line_edit_behavior->text_visuals_dirty = true;
     }
+
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (map_behavior, kan_ui_node_map_behavior_t, id, &press_id)
+    if (map_behavior)
+    {
+        on_map_behavior_press_motion (state, map_behavior, x_relative, y_relative);
+    }
 }
 
-static inline void deselect_input_receiver_behavior (struct ui_controls_input_state_t *state,
-                                                     struct kan_ui_input_singleton_t *public,
-                                                     struct ui_controls_input_private_singleton_t *private)
+static bool is_in_child_hierarchy_of (struct ui_controls_input_state_t *state,
+                                      kan_ui_node_id_t id_to_check,
+                                      kan_ui_node_id_t hierarchy_id)
 {
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
-    if (line_edit_behavior)
+    while (KAN_TYPED_ID_32_IS_VALID (id_to_check))
     {
-        clear_line_edit_selection_visuals (state, line_edit_behavior);
+        if (KAN_TYPED_ID_32_IS_EQUAL (id_to_check, hierarchy_id))
+        {
+            return true;
+        }
+
+        // It is possible to get incorrect initial id from press end interaction if element was deleted during
+        // interaction. For the sake of simplicity, we just use optional here instead of checking input with
+        // optional first and then using required queries.
+        KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &id_to_check)
+
+        if (!node)
+        {
+            return false;
+        }
+
+        id_to_check = node->parent_id;
     }
 
-    if (private->input_receiver_requested_text_input && KAN_HANDLE_IS_VALID (public->linked_window_handle))
-    {
-        kan_application_window_remove_text_listener (state->application_system_handle, public->linked_window_handle);
-    }
+    return false;
+}
 
-    public->input_receiver_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
-    private->input_receiver_requested_text_input = false;
+static void hide_popups_due_to_outside_interaction (struct ui_controls_input_state_t *state,
+                                                    kan_ui_node_id_t interacted_id)
+{
+    KAN_UML_SEQUENCE_UPDATE (popup_state, kan_ui_node_popup_state_t)
+    {
+        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_popup_behavior_t, id, &popup_state->id)
+        if (behavior->hide_flags & KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_OUTSIDE_INTERACTION)
+        {
+            if (!is_in_child_hierarchy_of (state, interacted_id, popup_state->id))
+            {
+                popup_state->pending_action = KAN_UI_NODE_POPUP_ACTION_HIDE;
+                popup_state->pending_action_time_s = 0.0f;
+            }
+        }
+    }
 }
 
 static void on_press_begin_internal (struct ui_controls_input_state_t *state,
                                      struct kan_ui_input_singleton_t *public,
-                                     const struct kan_ui_singleton_t *ui)
+                                     const struct kan_ui_singleton_t *ui,
+                                     // Press id might be different for simulated pressed from key bindings.
+                                     kan_ui_node_id_t press_id)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id, &public->press_started_on_id)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (scroll_line_state, kan_ui_node_scroll_line_state_t, id, &press_id)
 
     if (scroll_line_state)
     {
@@ -1686,14 +2107,12 @@ static void on_press_begin_internal (struct ui_controls_input_state_t *state,
     }
 
     if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id) &&
-        !KAN_TYPED_ID_32_IS_EQUAL (public->input_receiver_id, public->press_started_on_id))
+        !KAN_TYPED_ID_32_IS_EQUAL (public->input_receiver_id, press_id))
     {
         deselect_input_receiver_behavior (state, public, private);
     }
 
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
-                                   &public->press_started_on_id)
-
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &press_id)
     if (line_edit_behavior && !line_edit_behavior->content_dirty)
     {
         private->line_edit_selected_this_press =
@@ -1720,59 +2139,294 @@ static void on_press_begin_internal (struct ui_controls_input_state_t *state,
 
 static void on_press_begin_filtered_out_internal (struct ui_controls_input_state_t *state,
                                                   struct kan_ui_input_singleton_t *public,
-                                                  const struct kan_ui_singleton_t *ui)
+                                                  const struct kan_ui_singleton_t *ui,
+                                                  kan_ui_node_id_t filtered_out_element_id)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
     if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
     {
         deselect_input_receiver_behavior (state, public, private);
     }
+
+    hide_popups_due_to_outside_interaction (state, filtered_out_element_id);
 }
 
 static void on_multi_click_internal (struct ui_controls_input_state_t *state,
                                      struct kan_ui_input_singleton_t *public,
                                      const struct kan_ui_singleton_t *ui,
+                                     kan_ui_node_id_t multi_click_id,
                                      kan_instance_size_t clicks_count)
 {
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
-    if (line_edit_behavior && clicks_count == 2u)
+    if (KAN_TYPED_ID_32_IS_EQUAL (multi_click_id, public->input_receiver_id))
     {
-        line_edit_behavior->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
-        line_edit_behavior->selection_content_min = 0u;
-        // Minus 1 due to null terminator inside content.
-        line_edit_behavior->selection_content_max = line_edit_behavior->content_utf8.size - 1u;
-        line_edit_behavior->text_visuals_dirty = true;
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id,
+                                       &public->input_receiver_id)
+        if (line_edit_behavior && clicks_count == 2u)
+        {
+            line_edit_behavior->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
+            line_edit_behavior->selection_content_min = 0u;
+            // Minus 1 due to null terminator inside content.
+            line_edit_behavior->selection_content_max = line_edit_behavior->content_utf8.size - 1u;
+            line_edit_behavior->text_visuals_dirty = true;
+        }
+    }
+
+    hide_popups_due_to_outside_interaction (state, multi_click_id);
+}
+
+static inline void schedule_popup_show (struct ui_controls_input_state_t *state,
+                                        const struct kan_ui_singleton_t *ui,
+                                        kan_ui_node_id_t popup_id,
+                                        kan_floating_t show_after_s)
+{
+    bool state_updated = false;
+    KAN_UML_SEQUENCE_UPDATE (popup_state, kan_ui_node_popup_state_t)
+    {
+        if (KAN_TYPED_ID_32_IS_EQUAL (popup_state->id, popup_id))
+        {
+            // We have existing state. We only need to update show action time if any.
+            if (popup_state->pending_action == KAN_UI_NODE_POPUP_ACTION_SHOW)
+            {
+                popup_state->pending_action_time_s = KAN_MIN (popup_state->pending_action_time_s, show_after_s);
+            }
+
+            state_updated = true;
+            break;
+        }
+    }
+
+    if (!state_updated)
+    {
+        KAN_UMI_INDEXED_INSERT (new_popup_state, kan_ui_node_popup_state_t)
+        new_popup_state->id = popup_id;
+        new_popup_state->pending_action = KAN_UI_NODE_POPUP_ACTION_SHOW;
+        new_popup_state->pending_action_time_s = show_after_s;
     }
 }
 
 static void on_press_end_internal (struct ui_controls_input_state_t *state,
                                    struct kan_ui_input_singleton_t *public,
                                    const struct kan_ui_singleton_t *ui,
+                                   // Press id might be different for simulated pressed from key bindings.
+                                   kan_ui_node_id_t press_id,
                                    bool continuous)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &public->input_receiver_id)
-
-    if (line_edit_behavior)
+    if (KAN_TYPED_ID_32_IS_EQUAL (public->input_receiver_id, press_id))
     {
-        if (!private->line_edit_press_moved ||
-            (line_edit_behavior->selection_content_min != KAN_INT_MAX (kan_instance_size_t) &&
-             line_edit_behavior->selection_content_min == line_edit_behavior->selection_content_max))
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (line_edit_behavior, kan_ui_node_line_edit_behavior_t, id, &press_id)
+        if (line_edit_behavior)
         {
-            line_edit_behavior->cursor_content_location = calculate_content_position_on_shaped_text (
-                state, line_edit_behavior->text_id, line_edit_behavior->shaping_unit_id, public->last_mouse_x,
-                public->last_mouse_y);
+            if (!private->line_edit_press_moved ||
+                (line_edit_behavior->selection_content_min != KAN_INT_MAX (kan_instance_size_t) &&
+                 line_edit_behavior->selection_content_min == line_edit_behavior->selection_content_max))
+            {
+                line_edit_behavior->cursor_content_location = calculate_content_position_on_shaped_text (
+                    state, line_edit_behavior->text_id, line_edit_behavior->shaping_unit_id, public->last_mouse_x,
+                    public->last_mouse_y);
 
-            line_edit_behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
-            line_edit_behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
-            line_edit_behavior->text_visuals_dirty = true;
+                line_edit_behavior->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
+                line_edit_behavior->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
+                line_edit_behavior->text_visuals_dirty = true;
+            }
+
+            if (private->line_edit_selected_this_press && !private->input_receiver_requested_text_input &&
+                KAN_HANDLE_IS_VALID (public->linked_window_handle))
+            {
+                kan_application_window_add_text_listener (state->application_system_handle,
+                                                          public->linked_window_handle);
+                private->input_receiver_requested_text_input = true;
+            }
+        }
+    }
+
+    // Must be done before triggering popups in order to avoid hide-triggered interaction.
+    hide_popups_due_to_outside_interaction (state, press_id);
+
+    if (continuous)
+    {
+        KAN_UML_VALUE_READ (popup_behavior, kan_ui_node_popup_behavior_t, trigger_id, &press_id)
+        {
+            if (popup_behavior->trigger_flags & KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_PRESS_END)
+            {
+                // Use zero time to show as soon as possible.
+                schedule_popup_show (state, ui, popup_behavior->id, 0.0f);
+            }
         }
 
-        if (private->line_edit_selected_this_press && !private->input_receiver_requested_text_input &&
-            KAN_HANDLE_IS_VALID (public->linked_window_handle))
+        KAN_UML_VALUE_READ (hide_popup, kan_ui_node_hide_popup_on_press_t, id, &press_id)
         {
-            kan_application_window_add_text_listener (state->application_system_handle, public->linked_window_handle);
-            private->input_receiver_requested_text_input = true;
+            KAN_UML_SEQUENCE_UPDATE (popup_state, kan_ui_node_popup_state_t)
+            {
+                if (KAN_TYPED_ID_32_IS_EQUAL (popup_state->id, hide_popup->popup_id))
+                {
+                    popup_state->pending_action = KAN_UI_NODE_POPUP_ACTION_HIDE;
+                    popup_state->pending_action_time_s = 0.0f;
+                }
+            }
+        }
+    }
+}
+
+static void on_map_behavior_zoom (struct ui_controls_input_state_t *state,
+                                  struct kan_ui_input_singleton_t *public,
+                                  const struct kan_ui_singleton_t *ui,
+                                  struct kan_ui_node_map_behavior_t *behavior,
+                                  kan_floating_t zoom)
+{
+    KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &behavior->id)
+    if (!behavior->zoom_enabled || !drawable || drawable->height <= 0 || behavior->camera_half_height <= 0.0f)
+    {
+        return;
+    }
+
+    // We'd like to cache pre-zoom mouse position in order to move camera after zoom to keep mouse position relation to
+    // the map, as it is usually done on web maps.
+    kan_floating_t px_to_unit = behavior->camera_half_height * 2.0f / (kan_floating_t) drawable->height;
+    const kan_instance_offset_t mouse_relative_x = public->last_mouse_x - drawable->global_x - drawable->width / 2;
+    const kan_instance_offset_t mouse_relative_y = public->last_mouse_y - drawable->global_y - drawable->height / 2;
+
+    const kan_floating_t mouse_location_x = behavior->camera_origin.x + px_to_unit * (kan_floating_t) mouse_relative_x;
+    const kan_floating_t mouse_location_y = behavior->camera_origin.y + px_to_unit * (kan_floating_t) mouse_relative_y;
+
+    // Apply zoom value to half height.
+    const kan_floating_t strength = KAN_MAX (0.0f, 1.0f - zoom * behavior->scroll_zoom_speed);
+
+    behavior->camera_half_height = KAN_CLAMP (behavior->camera_half_height * strength, behavior->camera_min_half_height,
+                                              behavior->camera_max_half_height);
+
+    // Now calculate origin back from mouse location.
+    px_to_unit = behavior->camera_half_height * 2.0f / (kan_floating_t) drawable->height;
+    behavior->camera_origin.x = mouse_location_x - px_to_unit * (kan_floating_t) mouse_relative_x;
+    behavior->camera_origin.y = mouse_location_y - px_to_unit * (kan_floating_t) mouse_relative_y;
+    behavior->dirty = true;
+}
+
+static void trigger_popups_on_new_hovered_node (struct ui_controls_input_state_t *state,
+                                                struct kan_ui_input_singleton_t *public,
+                                                const struct kan_ui_singleton_t *ui)
+{
+    KAN_UML_VALUE_READ (behavior, kan_ui_node_popup_behavior_t, trigger_id, &public->current_hovered_id)
+    {
+        if (behavior->trigger_flags & KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_HOVER_TIMER)
+        {
+            schedule_popup_show (state, ui, behavior->id, ui->animation_global_time_s + behavior->hover_timer_s);
+        }
+    }
+}
+
+static inline bool is_popup_triggered (struct ui_controls_input_state_t *state,
+                                       struct kan_ui_input_singleton_t *public,
+                                       const struct kan_ui_node_popup_behavior_t *behavior)
+{
+    if ((behavior->trigger_flags & KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_HOVER_TIMER) &&
+        KAN_TYPED_ID_32_IS_VALID (behavior->trigger_id) &&
+        KAN_TYPED_ID_32_IS_EQUAL (public->current_hovered_id, behavior->trigger_id))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+static bool is_popup_preserved (struct ui_controls_input_state_t *state,
+                                struct kan_ui_input_singleton_t *public,
+                                const struct kan_ui_node_popup_behavior_t *behavior)
+{
+    if (behavior->hide_flags & KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_PRESERVE_WHILE_POINTED)
+    {
+        // Preservation under pointer implementation is not optimized right now at all.
+        // If this simple implementation starts to cause issues, it should definitely be optimized and refactored.
+        kan_ui_node_id_t under_cursor_id = public->current_hovered_id;
+
+        if (!KAN_TYPED_ID_32_IS_VALID (under_cursor_id))
+        {
+            // Find what is under cursor right now as we have no quick info from hover.
+            struct kan_repository_indexed_sequence_read_access_t hit_box_access;
+            const struct kan_ui_node_hit_box_t *hit_box = find_hit_box_at (
+                state, HIT_BOX_SEARCH_MODE_POINTER, public->last_mouse_x, public->last_mouse_y, &hit_box_access);
+
+            if (hit_box)
+            {
+                under_cursor_id = hit_box->id;
+                kan_repository_indexed_sequence_read_access_close (&hit_box_access);
+            }
+        }
+
+        if (is_in_child_hierarchy_of (state, under_cursor_id, behavior->id))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static void update_popup_states (struct ui_controls_input_state_t *state,
+                                 struct kan_ui_input_singleton_t *public,
+                                 const struct kan_ui_singleton_t *ui)
+{
+    KAN_UML_SEQUENCE_WRITE (popup_state, kan_ui_node_popup_state_t)
+    {
+        KAN_UMI_VALUE_READ_REQUIRED (behavior, kan_ui_node_popup_behavior_t, id, &popup_state->id)
+        switch (popup_state->pending_action)
+        {
+        case KAN_UI_NODE_POPUP_ACTION_NONE:
+            break;
+
+        case KAN_UI_NODE_POPUP_ACTION_SHOW:
+            // Check the timer first as show action might've been sent this frame from logic that has no persistent
+            // triggers: for example press end.
+            if (popup_state->pending_action_time_s <= ui->animation_global_time_s ||
+                // Check for animation time overflow loop.
+                ui->animation_global_time_s < ui->animation_delta_time_s)
+            {
+                KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &popup_state->id)
+                node->render.hidden = false;
+
+                if (behavior->hide_flags & KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_TIMER)
+                {
+                    popup_state->pending_action = KAN_UI_NODE_POPUP_ACTION_HIDE;
+                    popup_state->pending_action_time_s = ui->animation_global_time_s + behavior->hide_timer_s;
+                }
+                else
+                {
+                    popup_state->pending_action = KAN_UI_NODE_POPUP_ACTION_NONE;
+                }
+
+                break;
+            }
+
+            if (!is_popup_triggered (state, public, behavior))
+            {
+                // Reasons to show are no longer valid.
+                KAN_UM_ACCESS_DELETE (popup_state);
+                break;
+            }
+
+            break;
+
+        case KAN_UI_NODE_POPUP_ACTION_HIDE:
+            if (is_popup_triggered (state, public, behavior) || is_popup_preserved (state, public, behavior))
+            {
+                if (behavior->hide_flags & KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_TIMER)
+                {
+                    popup_state->pending_action_time_s = ui->animation_global_time_s + behavior->hide_timer_s;
+                }
+
+                break;
+            }
+
+            if (popup_state->pending_action_time_s <= ui->animation_global_time_s ||
+                // Check for animation time overflow loop.
+                ui->animation_global_time_s < ui->animation_delta_time_s)
+            {
+                KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &popup_state->id)
+                node->render.hidden = true;
+                KAN_UM_ACCESS_DELETE (popup_state);
+            }
+
+            break;
         }
     }
 }
@@ -1784,11 +2438,9 @@ static void process_events (struct ui_controls_input_state_t *state,
                             bool visuals_changed,
                             bool hit_boxes_changed)
 {
-    enum input_hit_box_mouse_update_mode_t mouse_hit_box_update = visuals_changed || hit_boxes_changed ?
-                                                                      INPUT_HIT_BOX_MOUSE_UPDATE_MODE_EXECUTE :
-                                                                      INPUT_HIT_BOX_MOUSE_UPDATE_MODE_NONE;
-
+    bool do_mouse_hit_box_full_update = visuals_changed || hit_boxes_changed;
     const struct kan_platform_application_event_t *event;
+
     while (
         (event = kan_application_system_event_iterator_get (state->application_system_handle, public->event_iterator)))
     {
@@ -1812,7 +2464,7 @@ static void process_events (struct ui_controls_input_state_t *state,
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_WINDOW_LEAVE_FULLSCREEN:
             if (KAN_TYPED_ID_32_IS_EQUAL (event->window.id, public->linked_window_id))
             {
-                mouse_hit_box_update = INPUT_HIT_BOX_MOUSE_UPDATE_MODE_RESET;
+                do_mouse_hit_box_full_update = true;
                 // Also end press just in case.
                 public->mouse_button_down_flags = 0u;
 
@@ -1826,7 +2478,13 @@ static void process_events (struct ui_controls_input_state_t *state,
                         .at_y = public->last_mouse_y,
                     };
 
-                    on_press_end_internal (state, public, ui, false);
+                    on_press_end_internal (state, public, ui, public->press_started_on_id, false);
+                }
+
+                // Reset key dependencies on down marks as we might never get the key up event due to losing focus.
+                KAN_UML_SEQUENCE_UPDATE (down_mark, kan_ui_node_down_mark_t)
+                {
+                    down_mark->down_from_key = KAN_PLATFORM_SCAN_CODE_UNKNOWN;
                 }
 
                 public->mouse_button_down_inclusive_flags = 0u;
@@ -1837,15 +2495,23 @@ static void process_events (struct ui_controls_input_state_t *state,
             break;
 
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_KEY_DOWN:
-            if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_motion.window_id, public->linked_window_id))
+            if (KAN_TYPED_ID_32_IS_EQUAL (event->keyboard.window_id, public->linked_window_id))
             {
-                process_key_down_internal (state, public, ui, event);
+                process_key_down_internal (state, public, ui, bundle, event);
+            }
+
+            break;
+
+        case KAN_PLATFORM_APPLICATION_EVENT_TYPE_KEY_UP:
+            if (KAN_TYPED_ID_32_IS_EQUAL (event->keyboard.window_id, public->linked_window_id))
+            {
+                process_key_up_internal (state, public, ui, bundle, event);
             }
 
             break;
 
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_TEXT_INPUT:
-            if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_motion.window_id, public->linked_window_id))
+            if (KAN_TYPED_ID_32_IS_EQUAL (event->text_input.window_id, public->linked_window_id))
             {
                 process_text_input_internal (state, public, ui, event);
             }
@@ -1855,13 +2521,25 @@ static void process_events (struct ui_controls_input_state_t *state,
         case KAN_PLATFORM_APPLICATION_EVENT_TYPE_MOUSE_MOTION:
             if (KAN_TYPED_ID_32_IS_EQUAL (event->mouse_motion.window_id, public->linked_window_id))
             {
-                mouse_hit_box_update = INPUT_HIT_BOX_MOUSE_UPDATE_MODE_EXECUTE;
+                do_mouse_hit_box_full_update = true;
                 public->last_mouse_x = public->viewport_offset_x + (kan_instance_offset_t) event->mouse_motion.window_x;
                 public->last_mouse_y = public->viewport_offset_y + (kan_instance_offset_t) event->mouse_motion.window_y;
 
                 if (public->press_filtered_in)
                 {
-                    on_press_motion_internal (state, public, ui);
+                    KAN_UMO_EVENT_INSERT_INIT (kan_ui_press_motion_t) {
+                        .node_id = public->press_started_on_id,
+                        .mouse_button_down_flags = public->mouse_button_down_flags,
+                        .mouse_button_down_inclusive_flags = public->mouse_button_down_inclusive_flags,
+                        .at_x = public->last_mouse_x,
+                        .at_y = public->last_mouse_y,
+                        .delta_x = (kan_instance_offset_t) event->mouse_motion.window_x_relative,
+                        .delta_y = (kan_instance_offset_t) event->mouse_motion.window_y_relative,
+                    };
+
+                    on_press_motion_internal (state, public, ui, public->press_started_on_id,
+                                              event->mouse_motion.window_x_relative,
+                                              event->mouse_motion.window_y_relative);
                 }
             }
 
@@ -1884,8 +2562,12 @@ static void process_events (struct ui_controls_input_state_t *state,
                 const struct kan_ui_node_hit_box_t *element = find_hit_box_at (
                     state, HIT_BOX_SEARCH_MODE_POINTER, public->last_mouse_x, public->last_mouse_y, &element_access);
 
-                public->press_filtered_in = !element || ((new_press || multi_click) && element->interactable &&
-                                                         (element->mouse_button_down_flags & flag));
+                public->press_filtered_in =
+                    !element || ((new_press || multi_click) && element->interactable && !element->disabled &&
+                                 (element->mouse_button_down_flags & flag));
+
+                const kan_ui_node_id_t element_id =
+                    element ? element->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
 
                 public->press_started_on_id =
                     element && public->press_filtered_in ? element->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
@@ -1912,6 +2594,14 @@ static void process_events (struct ui_controls_input_state_t *state,
                     public->mouse_button_down_flags &= ~flag;
                     if (new_press)
                     {
+                        KAN_UMO_EVENT_INSERT_INIT (kan_ui_press_end_t) {
+                            .node_id = public->press_started_on_id,
+                            .mouse_button_down_inclusive_flags = public->mouse_button_down_inclusive_flags,
+                            .continuous_press = true,
+                            .at_x = public->last_mouse_x,
+                            .at_y = public->last_mouse_y,
+                        };
+
                         public->press_filtered_in = false;
                         public->press_started_on_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
                     }
@@ -1937,18 +2627,18 @@ static void process_events (struct ui_controls_input_state_t *state,
                 {
                     if (public->press_filtered_in)
                     {
-                        on_press_begin_internal (state, public, ui);
+                        on_press_begin_internal (state, public, ui, public->press_started_on_id);
                     }
                     else
                     {
                         // Special callback for the cases when we need to reset press-based selection.
-                        on_press_begin_filtered_out_internal (state, public, ui);
+                        on_press_begin_filtered_out_internal (state, public, ui, element_id);
                     }
                 }
 
                 if (multi_click)
                 {
-                    on_multi_click_internal (state, public, ui, event->mouse_button.clicks);
+                    on_multi_click_internal (state, public, ui, element_id, event->mouse_button.clicks);
                 }
             }
 
@@ -1992,7 +2682,7 @@ static void process_events (struct ui_controls_input_state_t *state,
 
                         // We process press internally after closing access to the hit box as
                         // it might be needed to modify hit box while processing the press.
-                        on_press_end_internal (state, public, ui, continuous);
+                        on_press_end_internal (state, public, ui, public->press_started_on_id, continuous);
                     }
 
                     public->mouse_button_down_inclusive_flags = 0u;
@@ -2014,14 +2704,31 @@ static void process_events (struct ui_controls_input_state_t *state,
                 const struct kan_ui_node_hit_box_t *element = find_hit_box_at (
                     state, HIT_BOX_SEARCH_MODE_SCROLL, public->last_mouse_x, public->last_mouse_y, &element_access);
 
-                if (element)
+                if (!element || (element->interactable && !element->disabled))
+                {
+                    KAN_UMO_EVENT_INSERT_INIT (kan_ui_scroll_t) {
+                        .node_id = element ? element->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t),
+                        .scroll_x = event->mouse_wheel.wheel_x,
+                        .scroll_y = event->mouse_wheel.wheel_y,
+                        .delta_time_s = ui->animation_delta_time_s,
+                        .at_x = public->last_mouse_x,
+                        .at_y = public->last_mouse_y,
+                    };
+
+                    hide_popups_due_to_outside_interaction (
+                        state, element ? element->id : KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t));
+                }
+
+                bool processed_input = false;
+                if (element && element->interactable && !element->disabled)
                 {
                     KAN_UMI_VALUE_READ_OPTIONAL (scroll_behaviour, kan_ui_node_scroll_behavior_t, id, &element->id)
                     if (scroll_behaviour)
                     {
-                        const float speed_x =
+                        processed_input = true;
+                        const kan_floating_t speed_x =
                             kan_ui_calculate_coordinate_floating (ui, scroll_behaviour->mouse_speed_x);
-                        const float speed_y =
+                        const kan_floating_t speed_y =
                             kan_ui_calculate_coordinate_floating (ui, scroll_behaviour->mouse_speed_y);
 
                         apply_scroll_relative_input (state, public, ui, scroll_behaviour,
@@ -2030,18 +2737,26 @@ static void process_events (struct ui_controls_input_state_t *state,
                                                      true);
                     }
 
-                    kan_repository_indexed_sequence_read_access_close (&element_access);
-
-                    // If mouse wheel input was passed to scroll behavior, deselect line edit so the user won't
-                    // unexpectedly input anything into it.
-                    if (scroll_behaviour)
+                    KAN_UMI_VALUE_UPDATE_OPTIONAL (map_behavior, kan_ui_node_map_behavior_t, id, &element->id)
+                    if (map_behavior)
                     {
-                        if (KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
-                        {
-                            KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
-                            deselect_input_receiver_behavior (state, public, private);
-                        }
+                        processed_input = true;
+                        on_map_behavior_zoom (state, public, ui, map_behavior,
+                                              event->mouse_wheel.wheel_y * ui->animation_delta_time_s);
                     }
+                }
+
+                if (element)
+                {
+                    kan_repository_indexed_sequence_read_access_close (&element_access);
+                }
+
+                // If mouse wheel input was passed to some behavior, deselect input receiver so the user won't
+                // unexpectedly input anything into it.
+                if (processed_input && KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
+                {
+                    KAN_UMI_SINGLETON_WRITE (private, ui_controls_input_private_singleton_t)
+                    deselect_input_receiver_behavior (state, public, private);
                 }
             }
 
@@ -2056,32 +2771,12 @@ static void process_events (struct ui_controls_input_state_t *state,
         public->event_iterator = kan_application_system_event_iterator_advance (public->event_iterator);
     }
 
-    switch (mouse_hit_box_update)
-    {
-    case INPUT_HIT_BOX_MOUSE_UPDATE_MODE_NONE:
-        break;
-
-    case INPUT_HIT_BOX_MOUSE_UPDATE_MODE_RESET:
-    {
-        KAN_UMI_VALUE_READ_OPTIONAL (old_hovered, kan_ui_node_hit_box_t, id, &public->current_hovered_id)
-        public->current_hovered_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
-        public->last_mouse_x = 0;
-        public->last_mouse_y = 0;
-
-        if (old_hovered)
-        {
-            apply_hit_box_interaction_visuals (state, public, bundle, old_hovered, false);
-        }
-
-        break;
-    }
-
-    case INPUT_HIT_BOX_MOUSE_UPDATE_MODE_EXECUTE:
+    if (do_mouse_hit_box_full_update)
     {
         struct kan_repository_indexed_sequence_read_access_t new_hovered_access;
         const struct kan_ui_node_hit_box_t *new_hovered = find_hit_box_at (
             state, HIT_BOX_SEARCH_MODE_POINTER, public->last_mouse_x, public->last_mouse_y, &new_hovered_access);
-        const bool new_hovered_applicable = new_hovered && new_hovered->interactable;
+        const bool new_hovered_applicable = new_hovered && new_hovered->interactable && !new_hovered->disabled;
 
         if (!new_hovered_applicable || !KAN_TYPED_ID_32_IS_EQUAL (public->current_hovered_id, new_hovered->id))
         {
@@ -2097,6 +2792,7 @@ static void process_events (struct ui_controls_input_state_t *state,
             if (new_hovered_applicable)
             {
                 apply_hit_box_interaction_visuals (state, public, bundle, new_hovered, false);
+                trigger_popups_on_new_hovered_node (state, public, ui);
             }
         }
 
@@ -2104,11 +2800,24 @@ static void process_events (struct ui_controls_input_state_t *state,
         {
             kan_repository_indexed_sequence_read_access_close (&new_hovered_access);
         }
-
-        break;
     }
+    // Just check focused hit box validity.
+    else if (KAN_TYPED_ID_32_IS_VALID (public->current_hovered_id))
+    {
+        KAN_UMI_VALUE_READ_OPTIONAL (old_hovered, kan_ui_node_hit_box_t, id, &public->current_hovered_id)
+        const bool reset = !old_hovered || old_hovered->disabled;
+
+        if (reset)
+        {
+            public->current_hovered_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+            if (old_hovered)
+            {
+                apply_hit_box_interaction_visuals (state, public, bundle, old_hovered, false);
+            }
+        }
     }
 
+    update_popup_states (state, public, ui);
     if (public->press_filtered_in && KAN_TYPED_ID_32_IS_VALID (public->press_started_on_id))
     {
         KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &public->press_started_on_id)
@@ -2117,6 +2826,359 @@ static void process_events (struct ui_controls_input_state_t *state,
             prolong_hit_box_down_visuals (state, public, bundle, hit_box);
         }
     }
+}
+
+/// \details Just a helper that skips whitespaces in user input,
+static inline kan_unicode_codepoint_t line_edit_parse_numeric_next_codepoint (const uint8_t **iterator,
+                                                                              const uint8_t *boundary)
+{
+    while (true)
+    {
+        const kan_unicode_codepoint_t codepoint = kan_text_utf8_next (iterator, boundary);
+        if (codepoint == ' ' || codepoint == '\t')
+        {
+            continue;
+        }
+
+        return codepoint;
+    }
+}
+
+static inline kan_stable_size_t line_edit_parse_positive_decimal (const uint8_t **iterator,
+                                                                  const uint8_t *boundary,
+                                                                  bool *output_success)
+{
+    kan_stable_size_t result = 0u;
+    *output_success = false;
+    kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+
+    if (!codepoint)
+    {
+        // Empty input.
+        return 0u;
+    }
+
+    while (codepoint)
+    {
+        if (codepoint < '0' || codepoint > '9')
+        {
+            return 0u;
+        }
+
+        const kan_stable_size_t new_result = result * 10u + (codepoint - '0');
+        if (new_result <= result && result != 0u)
+        {
+            // Overflow.
+            return 0u;
+        }
+
+        result = new_result;
+        codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+    }
+
+    *output_success = true;
+    return result;
+}
+
+static inline kan_stable_size_t line_edit_parse_binary_after_prefix (const uint8_t **iterator,
+                                                                     const uint8_t *boundary,
+                                                                     bool *output_success)
+{
+    kan_stable_size_t result = 0u;
+    *output_success = false;
+    kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+
+    if (!codepoint)
+    {
+        // Empty input.
+        return 0u;
+    }
+
+    while (codepoint)
+    {
+        if (codepoint != '0' && codepoint != '1')
+        {
+            return 0u;
+        }
+
+        const kan_stable_size_t new_result = result * 2u + (codepoint - '0');
+        if (new_result <= result && result != 0u)
+        {
+            // Overflow.
+            return 0u;
+        }
+
+        result = new_result;
+        codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+    }
+
+    *output_success = true;
+    return result;
+}
+
+static inline kan_stable_size_t line_edit_parse_hex_after_prefix (const uint8_t **iterator,
+                                                                  const uint8_t *boundary,
+                                                                  bool *output_success)
+{
+    kan_stable_size_t result = 0u;
+    *output_success = false;
+    kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+
+    if (!codepoint)
+    {
+        // Empty input.
+        return 0u;
+    }
+
+    while (codepoint)
+    {
+        kan_stable_size_t digit = 0u;
+        switch (codepoint)
+        {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            digit = codepoint - '0';
+            break;
+
+        case 'a':
+        case 'b':
+        case 'c':
+        case 'd':
+        case 'e':
+        case 'f':
+            digit = 10u + (codepoint - 'a');
+            break;
+
+        case 'A':
+        case 'B':
+        case 'C':
+        case 'D':
+        case 'E':
+        case 'F':
+            digit = 10u + (codepoint - 'A');
+            break;
+
+        default:
+            return 0u;
+        }
+
+        const kan_stable_size_t new_result = result * 16u + digit;
+        if (new_result <= result && result != 0u)
+        {
+            // Overflow.
+            return 0u;
+        }
+
+        result = new_result;
+        codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+    }
+
+    *output_success = true;
+    return result;
+}
+
+static bool line_edit_parse_uint (struct kan_ui_node_line_edit_behavior_t *behavior)
+{
+    behavior->content_uint.has_parsed_content = false;
+    const uint8_t *iterator = behavior->content_utf8.data;
+    const uint8_t *boundary = behavior->content_utf8.data + behavior->content_utf8.size;
+
+    if (!iterator)
+    {
+        return false;
+    }
+
+    const uint8_t *pre_lookup_iterator = iterator;
+    kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (&iterator, boundary);
+
+    if (codepoint == '0')
+    {
+        codepoint = line_edit_parse_numeric_next_codepoint (&iterator, boundary);
+        switch (codepoint)
+        {
+        case 'x':
+        case 'X':
+            behavior->content_uint.parsed_content =
+                line_edit_parse_hex_after_prefix (&iterator, boundary, &behavior->content_uint.has_parsed_content);
+            break;
+
+        case 'b':
+        case 'B':
+            behavior->content_uint.parsed_content =
+                line_edit_parse_binary_after_prefix (&iterator, boundary, &behavior->content_uint.has_parsed_content);
+            break;
+
+        default:
+            // Lookup didn't find prefix, parse as regular decimal.
+            iterator = pre_lookup_iterator;
+            behavior->content_uint.parsed_content =
+                line_edit_parse_positive_decimal (&iterator, boundary, &behavior->content_uint.has_parsed_content);
+            break;
+        }
+    }
+    else
+    {
+        // No prefix, parse as regular decimal.
+        iterator = pre_lookup_iterator;
+        behavior->content_uint.parsed_content =
+            line_edit_parse_positive_decimal (&iterator, boundary, &behavior->content_uint.has_parsed_content);
+    }
+
+    if (behavior->content_uint.has_parsed_content && behavior->content_uint.has_limits)
+    {
+        behavior->content_uint.has_parsed_content =
+            behavior->content_uint.parsed_content >= behavior->content_uint.min &&
+            behavior->content_uint.parsed_content < behavior->content_uint.max;
+    }
+
+    return behavior->content_uint.has_parsed_content;
+}
+
+static bool line_edit_parse_sint (struct kan_ui_node_line_edit_behavior_t *behavior)
+{
+    behavior->content_sint.has_parsed_content = false;
+    const uint8_t *iterator = behavior->content_utf8.data;
+    const uint8_t *boundary = behavior->content_utf8.data + behavior->content_utf8.size;
+
+    if (!iterator)
+    {
+        return false;
+    }
+
+    const uint8_t *pre_lookup_iterator = iterator;
+    kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (&iterator, boundary);
+
+    if (codepoint == '-')
+    {
+        // Negative value, parse as positive and invert.
+        const kan_stable_size_t positive_value =
+            line_edit_parse_positive_decimal (&iterator, boundary, &behavior->content_sint.has_parsed_content);
+
+        if (behavior->content_sint.has_parsed_content)
+        {
+            const kan_stable_size_t inverted_value = KAN_INT_MAX (kan_stable_size_t) - positive_value + 1u;
+            behavior->content_sint.has_parsed_content = inverted_value > KAN_INT_MAX (kan_stable_offset_t);
+            behavior->content_sint.parsed_content = (kan_stable_offset_t) inverted_value;
+        }
+    }
+    else
+    {
+        // Regular positive number as lookup didn't find anything.
+        iterator = pre_lookup_iterator;
+        const kan_stable_size_t positive_value =
+            line_edit_parse_positive_decimal (&iterator, boundary, &behavior->content_sint.has_parsed_content);
+
+        if (behavior->content_sint.has_parsed_content)
+        {
+            behavior->content_sint.has_parsed_content = positive_value <= KAN_INT_MAX (kan_stable_offset_t);
+            behavior->content_sint.parsed_content = (kan_stable_offset_t) positive_value;
+        }
+    }
+
+    if (behavior->content_sint.has_parsed_content && behavior->content_sint.has_limits)
+    {
+        behavior->content_sint.has_parsed_content =
+            behavior->content_sint.parsed_content >= behavior->content_sint.min &&
+            behavior->content_sint.parsed_content < behavior->content_sint.max;
+    }
+
+    return behavior->content_sint.has_parsed_content;
+}
+
+static inline kan_floating_t line_edit_parse_positive_floating (const uint8_t **iterator,
+                                                                const uint8_t *boundary,
+                                                                bool *output_success)
+{
+    kan_floating_t result = 0.0f;
+    *output_success = false;
+    kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+
+    if (!codepoint)
+    {
+        // Empty input.
+        return 0u;
+    }
+
+    bool reading_fractional = false;
+    kan_floating_t fractional_modifier = 0.1f;
+
+    while (codepoint)
+    {
+        if (codepoint == '.')
+        {
+            if (reading_fractional)
+            {
+                // Second dot, error.
+                return 0.0f;
+            }
+
+            reading_fractional = true;
+            codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+            continue;
+        }
+
+        if (reading_fractional)
+        {
+            result += fractional_modifier * (kan_floating_t) (codepoint - '0');
+            fractional_modifier *= 0.1f;
+        }
+        else
+        {
+            result = result * 10.0f + (kan_floating_t) (codepoint - '0');
+        }
+
+        codepoint = line_edit_parse_numeric_next_codepoint (iterator, boundary);
+    }
+
+    *output_success = true;
+    return result;
+}
+
+static bool line_edit_parse_float (struct kan_ui_node_line_edit_behavior_t *behavior)
+{
+    behavior->content_float.has_parsed_content = false;
+    const uint8_t *iterator = behavior->content_utf8.data;
+    const uint8_t *boundary = behavior->content_utf8.data + behavior->content_utf8.size;
+
+    if (!iterator)
+    {
+        return false;
+    }
+
+    const uint8_t *pre_lookup_iterator = iterator;
+    kan_unicode_codepoint_t codepoint = line_edit_parse_numeric_next_codepoint (&iterator, boundary);
+
+    if (codepoint == '-')
+    {
+        // Negative value, parse as positive and invert.
+        behavior->content_float.parsed_content =
+            line_edit_parse_positive_floating (&iterator, boundary, &behavior->content_float.has_parsed_content);
+        behavior->content_float.parsed_content = -behavior->content_float.parsed_content;
+    }
+    else
+    {
+        // Regular positive number as lookup didn't find anything.
+        iterator = pre_lookup_iterator;
+        behavior->content_float.parsed_content =
+            line_edit_parse_positive_floating (&iterator, boundary, &behavior->content_float.has_parsed_content);
+    }
+
+    if (behavior->content_float.has_parsed_content && behavior->content_float.has_limits)
+    {
+        behavior->content_float.has_parsed_content =
+            behavior->content_float.parsed_content >= behavior->content_float.min &&
+            behavior->content_float.parsed_content < behavior->content_float.max;
+    }
+
+    return behavior->content_float.has_parsed_content;
 }
 
 static void process_line_edit_content_dirty_inner (struct ui_controls_input_state_t *state)
@@ -2140,8 +3202,28 @@ static void process_line_edit_content_dirty_inner (struct ui_controls_input_stat
             kan_text_destroy (shaping_unit->request.text);
         }
 
+        bool content_valid = true;
+        switch (behavior->content_type)
+        {
+        case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_ANY:
+            break;
+
+        case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT:
+            content_valid = line_edit_parse_uint (behavior);
+            break;
+
+        case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT:
+            content_valid = line_edit_parse_sint (behavior);
+            break;
+
+        case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_FLOAT:
+            content_valid = line_edit_parse_float (behavior);
+            break;
+        }
+
         struct kan_text_item_t new_text_items[] = {
-            KAN_INIT_TEXT_ITEM_STYLE (behavior->content_style, behavior->content_mark),
+            KAN_INIT_TEXT_ITEM_STYLE (content_valid ? behavior->content_style : behavior->content_style_when_invalid,
+                                      content_valid ? behavior->content_mark : behavior->content_mark_when_invalid),
             KAN_INIT_TEXT_ITEM_UTF8 ((const char *) behavior->content_utf8.data),
         };
 
@@ -2161,14 +3243,15 @@ static void process_line_edit_content_dirty_inner (struct ui_controls_input_stat
 
         behavior->content_dirty = false;
         behavior->text_visuals_dirty = true;
+        KAN_UMO_EVENT_INSERT_INIT (kan_line_edit_content_changed_t) {.node_id = behavior->id};
     }
 }
 
-static void process_interactable_style_changes (struct ui_controls_input_state_t *state,
+static void process_interactable_state_changes (struct ui_controls_input_state_t *state,
                                                 const struct kan_ui_input_singleton_t *public,
                                                 const struct kan_ui_bundle_singleton_t *bundle)
 {
-    KAN_UML_EVENT_FETCH (changed_event, kan_ui_node_hit_box_on_style_change_event_t)
+    KAN_UML_EVENT_FETCH (changed_event, kan_ui_node_hit_box_on_state_change_event_t)
     {
         KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &changed_event->id)
         if (hit_box && hit_box->interactable)
@@ -2185,11 +3268,16 @@ static void clear_old_down_marks (struct ui_controls_input_state_t *state,
 {
     KAN_UML_SEQUENCE_DELETE (down_mark, kan_ui_node_down_mark_t)
     {
+        if (down_mark->down_from_key != KAN_PLATFORM_SCAN_CODE_UNKNOWN)
+        {
+            continue;
+        }
+
         if (ui->animation_global_time_s > down_mark->down_until_s ||
             // Check for animation time overflow loop.
             ui->animation_global_time_s < ui->animation_delta_time_s)
         {
-            KAN_UMI_VALUE_UPDATE_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &down_mark->id)
+            KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &down_mark->id)
             if (hit_box)
             {
                 apply_hit_box_interaction_visuals (state, public, bundle, hit_box, true);
@@ -2213,16 +3301,10 @@ static void update_scroll_line_visibility (struct ui_controls_input_state_t *sta
              // Check for animation time overflow loop.
              ui->animation_global_time_s < ui->animation_delta_time_s))
         {
-            KAN_UMI_VALUE_UPDATE_OPTIONAL (line_drawable, kan_ui_node_drawable_t, id, &line_state->id)
-            if (line_drawable)
+            KAN_UMI_VALUE_UPDATE_OPTIONAL (line_node, kan_ui_node_t, id, &line_state->id)
+            if (line_node)
             {
-                line_drawable->hidden = true;
-            }
-
-            KAN_UMI_VALUE_UPDATE_OPTIONAL (knob_drawable, kan_ui_node_drawable_t, id, &line_state->knob_id)
-            if (knob_drawable)
-            {
-                knob_drawable->hidden = true;
+                line_node->render.hide_children = true;
             }
 
             line_state->visible_until_s = 0.0f;
@@ -2252,37 +3334,17 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_input)
 
     KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
     bool visuals_changed = false;
-    bool hit_boxes_changed = false;
 
     KAN_UML_EVENT_FETCH (bundle_updated_event, kan_ui_bundle_updated_t)
     {
         visuals_changed = INPUT_HIT_BOX_MOUSE_UPDATE_MODE_EXECUTE;
     }
 
-    KAN_UML_EVENT_FETCH (hit_box_inserted_event, kan_ui_node_hit_box_on_insert_event_t)
-    {
-        KAN_UMI_VALUE_READ_OPTIONAL (hit_box, kan_ui_node_hit_box_t, id, &hit_box_inserted_event->id)
-        if (!hit_box)
-        {
-            continue;
-        }
-
-        KAN_UMI_VALUE_UPDATE_OPTIONAL (node, kan_ui_node_t, id, &hit_box_inserted_event->id)
-        if (node)
-        {
-            node->event_on_laid_out = true;
-            hit_boxes_changed = true;
-        }
-
-        // We have to initialize visuals.
-        if (hit_box->interactable)
-        {
-            apply_hit_box_interaction_visuals (state, public, bundle, hit_box, false);
-        }
-    }
-
+    bool hit_boxes_changed = process_hit_box_insertion (state, public, bundle);
     process_scroll_behavior_insertion (state, ui);
-    process_line_edit_behavior_lifetime (state);
+    process_line_edit_behavior_insertion (state);
+    process_popup_behavior_insertion (state);
+
     sanitize_input_receiver_selection (state, public);
     process_line_edit_content_dirty_outer (state, public);
 
@@ -2308,7 +3370,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_input)
     process_events (state, public, ui, bundle, visuals_changed, hit_boxes_changed);
     process_line_edit_content_dirty_inner (state);
 
-    process_interactable_style_changes (state, public, bundle);
+    process_interactable_state_changes (state, public, bundle);
     clear_old_down_marks (state, ui, public, bundle);
     update_scroll_line_visibility (state, ui);
 }
@@ -2344,17 +3406,124 @@ static void sync_ui_size_from_text_secondary (struct ui_controls_pre_layout_stat
         switch (shaping_unit->request.orientation)
         {
         case KAN_TEXT_ORIENTATION_HORIZONTAL:
-            node->element.height = KAN_UI_VALUE_PX ((float) shaping_unit->shaped_secondary_size);
+            node->element.height = KAN_UI_VALUE_PX ((kan_floating_t) shaping_unit->shaped_secondary_size);
             break;
 
         case KAN_TEXT_ORIENTATION_VERTICAL:
-            node->element.width = KAN_UI_VALUE_PX ((float) shaping_unit->shaped_secondary_size);
+            node->element.width = KAN_UI_VALUE_PX ((kan_floating_t) shaping_unit->shaped_secondary_size);
             break;
         }
     }
 
     KAN_UMI_VALUE_UPDATE_REQUIRED (drawable, kan_ui_node_drawable_t, id, &node->id)
-    drawable->hidden = false;
+    drawable->hidden_temporary = false;
+}
+
+/// \details Intentionally not dependant on mutator as adjustment can be needed on pre render during
+///          rare laid out cases.
+static inline void map_behavior_sanitize_camera (struct kan_ui_node_map_behavior_t *map_behavior,
+                                                 const struct kan_ui_node_drawable_t *drawable)
+{
+    if (drawable->width <= 0 || drawable->height <= 0)
+    {
+        return;
+    }
+
+    KAN_ASSERT (map_behavior->camera_min_half_height > 0.0f)
+    const kan_floating_t ratio = (kan_floating_t) drawable->width / (kan_floating_t) drawable->height;
+
+    map_behavior->camera_half_height = KAN_CLAMP (
+        map_behavior->camera_half_height, map_behavior->camera_min_half_height, map_behavior->camera_max_half_height);
+
+    // Limit half height to avoid situation when map does not touch any of the borders when user provided infinitely
+    // high max half height (which is expected for the cases when whole map should be visible).
+    const kan_floating_t visible_height = map_behavior->camera_half_height * 2.0f;
+    const kan_floating_t visible_width = ratio * visible_height;
+
+    if (visible_width > map_behavior->width && visible_height > map_behavior->height)
+    {
+        const kan_floating_t fit_height_value = map_behavior->height * 0.5f;
+        const kan_floating_t fit_width_value = map_behavior->width * 0.5f / ratio;
+        map_behavior->camera_half_height = KAN_MAX (fit_height_value, fit_width_value);
+    }
+
+    // Adjust origin to prevent camera from flying outside of borders (when possible with current half height).
+    const kan_floating_t camera_half_height = map_behavior->camera_half_height;
+    const kan_floating_t camera_half_width = ratio * camera_half_height;
+
+    if (camera_half_width * 2.0f >= map_behavior->width)
+    {
+        // Rare whole map case, place origin in the map center.
+        map_behavior->camera_origin.x = map_behavior->width * 0.5f;
+    }
+    else if (map_behavior->camera_origin.x - camera_half_width < 0.0f)
+    {
+        map_behavior->camera_origin.x = camera_half_width;
+    }
+    else if (map_behavior->camera_origin.x + camera_half_width > map_behavior->width)
+    {
+        map_behavior->camera_origin.x = map_behavior->width - camera_half_width;
+    }
+
+    if (camera_half_height * 2.0f >= map_behavior->height)
+    {
+        // Rare whole map case, place origin in the map center.
+        map_behavior->camera_origin.y = map_behavior->height * 0.5f;
+    }
+    else if (map_behavior->camera_origin.y - camera_half_height < 0.0f)
+    {
+        map_behavior->camera_origin.y = camera_half_height;
+    }
+    else if (map_behavior->camera_origin.y + camera_half_height > map_behavior->height)
+    {
+        map_behavior->camera_origin.y = map_behavior->height - camera_half_height;
+    }
+}
+
+static void make_map_pin_hierarchy_visible (struct ui_controls_pre_layout_state_t *state,
+                                            const struct kan_ui_node_t *node)
+{
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &node->id)
+    if (drawable)
+    {
+        drawable->hidden_temporary = false;
+    }
+
+    KAN_UML_VALUE_READ (child, kan_ui_node_t, parent_id, &node->id) { make_map_pin_hierarchy_visible (state, child); }
+}
+
+static void resolve_dirty_map_behavior (struct ui_controls_pre_layout_state_t *state,
+                                        struct kan_ui_node_map_behavior_t *map_behavior)
+{
+    KAN_UMI_VALUE_READ_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &map_behavior->id)
+    if (!drawable || drawable->width <= 0 || drawable->height <= 0 || map_behavior->width <= 0.0f ||
+        map_behavior->height <= 0.0f)
+    {
+        return;
+    }
+
+    map_behavior_sanitize_camera (map_behavior, drawable);
+    const kan_floating_t unit_to_px = (kan_floating_t) drawable->height / (map_behavior->camera_half_height * 2.0f);
+
+    KAN_UML_VALUE_READ (pin, kan_ui_node_map_pin_t, map_id, &map_behavior->id)
+    {
+        KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &pin->id)
+        if (pin->sync_location)
+        {
+            node->element.frame_offset_x = KAN_UI_VALUE_PX (pin->location.x * unit_to_px);
+            node->element.frame_offset_y = KAN_UI_VALUE_PX (pin->location.y * unit_to_px);
+        }
+
+        if (pin->sync_size)
+        {
+            node->element.width = KAN_UI_VALUE_PX (pin->size.x * unit_to_px);
+            node->element.width = KAN_UI_VALUE_PX (pin->size.y * unit_to_px);
+        }
+
+        make_map_pin_hierarchy_visible (state, node);
+    }
+
+    map_behavior->dirty = false;
 }
 
 UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_pre_layout)
@@ -2389,6 +3558,11 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_pre_layout)
             KAN_UMI_VALUE_UPDATE_REQUIRED (node, kan_ui_node_t, id, &text_behavior->id)
             sync_ui_size_from_text_secondary (state, node, text_behavior);
         }
+    }
+
+    KAN_UML_SIGNAL_UPDATE (map_behavior, kan_ui_node_map_behavior_t, dirty, true)
+    {
+        resolve_dirty_map_behavior (state, map_behavior);
     }
 }
 
@@ -2460,8 +3634,38 @@ static void text_behavior_post_laid_out (struct ui_controls_post_layout_state_t 
 
     if (shaping_unit->dirty && text_behavior->sync_ui_size_from_text_secondary)
     {
-        // Will be shown again once
-        drawable->hidden = true;
+        // Will be shown again once more.
+        drawable->hidden_temporary = true;
+    }
+}
+
+static void make_map_pin_hierarchy_hidden (struct ui_controls_post_layout_state_t *state,
+                                           const struct kan_ui_node_t *node)
+{
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (drawable, kan_ui_node_drawable_t, id, &node->id)
+    if (drawable)
+    {
+        drawable->hidden_temporary = true;
+    }
+
+    KAN_UML_VALUE_READ (child, kan_ui_node_t, parent_id, &node->id) { make_map_pin_hierarchy_hidden (state, child); }
+}
+
+static void map_behavior_post_laid_out (struct ui_controls_post_layout_state_t *state,
+                                        const struct kan_ui_node_drawable_t *drawable,
+                                        struct kan_ui_node_map_behavior_t *map_behavior)
+{
+    map_behavior_sanitize_camera (map_behavior, drawable);
+    map_behavior->dirty = true;
+
+    // When map was laid out, it means that we cannot update pins properly this frame and need to hide them for one
+    // frame. It is technically not the best decision, but the easiest one due to the fact that we do not expect maps
+    // to be laid out often -- only when initializing UI and when UI scale was changed, therefore it was decided to
+    // stick to this decision as the easiest one.
+    KAN_UML_VALUE_READ (pin, kan_ui_node_map_pin_t, map_id, &map_behavior->id)
+    {
+        KAN_UMI_VALUE_READ_REQUIRED (node, kan_ui_node_t, id, &pin->id)
+        make_map_pin_hierarchy_hidden (state, node);
     }
 }
 
@@ -2490,6 +3694,12 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_post_layout)
             // Need to update text edition visuals for the new text size even if shaping was not triggered by this.
             // Mostly a safeguard logic.
             line_edit_behavior->text_visuals_dirty = true;
+        }
+
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (map_behavior, kan_ui_node_map_behavior_t, id, &laid_out_event->node_id)
+        if (map_behavior)
+        {
+            map_behavior_post_laid_out (state, drawable, map_behavior);
         }
     }
 }
@@ -2575,7 +3785,7 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
         kan_instance_offset_t cursor_y_min = 0;
         kan_instance_offset_t cursor_y_max = 0;
 
-        for (kan_loop_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
+        for (kan_memory_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
              ++sequence_index)
         {
             const struct kan_text_shaped_edition_sequence_data_t *sequence =
@@ -2594,7 +3804,7 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
                 break;
             }
 
-            for (kan_loop_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
+            for (kan_memory_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
             {
                 const struct kan_text_shaped_edition_cluster_data_t *cluster =
                     &((struct kan_text_shaped_edition_cluster_data_t *) sequence->clusters.data)[cluster_index];
@@ -2664,7 +3874,7 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
         behavior->selection_image_index != KAN_INT_MAX (uint32_t))
     {
         const kan_instance_offset_t selection_leeway = kan_ui_calculate_coordinate (ui, behavior->selection_leeway);
-        for (kan_loop_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
+        for (kan_memory_size_t sequence_index = 0u; sequence_index < shaping_unit->shaped_edition_sequences.size;
              ++sequence_index)
         {
             const struct kan_text_shaped_edition_sequence_data_t *sequence =
@@ -2703,7 +3913,7 @@ static void regenerate_line_edit_behavior_text_visuals (struct ui_controls_pre_r
         selection_max = KAN_INT_MAX (kan_instance_offset_t);                                                           \
     }
 
-            for (kan_loop_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
+            for (kan_memory_size_t cluster_index = 0u; cluster_index < sequence->clusters.size; ++cluster_index)
             {
                 const struct kan_text_shaped_edition_cluster_data_t *cluster =
                     &((struct kan_text_shaped_edition_cluster_data_t *) sequence->clusters.data)[cluster_index];
@@ -2812,6 +4022,7 @@ void kan_ui_node_hit_box_init (struct kan_ui_node_hit_box_t *instance)
 
     instance->interactable = false;
     instance->scroll_passthrough = false;
+    instance->disabled = false;
 
     instance->interactable_style = NULL;
     instance->mouse_button_down_flags = 1u << KAN_PLATFORM_MOUSE_BUTTON_LEFT;
@@ -2893,6 +4104,10 @@ void kan_ui_node_line_edit_behavior_init (struct kan_ui_node_line_edit_behavior_
     instance->cursor_content_location = KAN_INT_MAX (kan_instance_size_t);
     instance->selection_content_min = KAN_INT_MAX (kan_instance_size_t);
     instance->selection_content_max = KAN_INT_MAX (kan_instance_size_t);
+
+    instance->content_type = KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_ANY;
+    instance->content_style_when_invalid = NULL;
+    instance->content_mark_when_invalid = 0u;
 }
 
 void kan_ui_node_line_edit_behavior_set_content (struct kan_ui_node_line_edit_behavior_t *instance,
@@ -2911,7 +4126,127 @@ void kan_ui_node_line_edit_behavior_set_content (struct kan_ui_node_line_edit_be
     instance->content_dirty = true;
 }
 
+void kan_ui_node_line_edit_behavior_set_content_type (struct kan_ui_node_line_edit_behavior_t *instance,
+                                                      enum kan_ui_node_line_edit_content_type_t content_type,
+                                                      kan_interned_string_t content_style_when_invalid,
+                                                      uint32_t content_mark_when_invalid)
+{
+    instance->content_type = content_type;
+    instance->content_style_when_invalid = content_style_when_invalid;
+    instance->content_mark_when_invalid = content_mark_when_invalid;
+
+    switch (content_type)
+    {
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_ANY:
+        break;
+
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT:
+        instance->content_uint.has_parsed_content = false;
+        instance->content_uint.has_limits = false;
+        instance->content_uint.parsed_content = 0u;
+        instance->content_uint.min = 0u;
+        instance->content_uint.max = 0u;
+        break;
+
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT:
+        instance->content_sint.has_parsed_content = false;
+        instance->content_sint.has_limits = false;
+        instance->content_sint.parsed_content = 0;
+        instance->content_sint.min = 0;
+        instance->content_sint.max = 0;
+        break;
+
+    case KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_FLOAT:
+        instance->content_float.has_parsed_content = false;
+        instance->content_float.has_limits = false;
+        instance->content_float.parsed_content = 0.0f;
+        instance->content_float.min = 0.0f;
+        instance->content_float.max = 0.0f;
+        break;
+    }
+
+    instance->content_dirty = true;
+}
+
+void kan_ui_node_line_edit_behavior_set_content_uint_limits (struct kan_ui_node_line_edit_behavior_t *instance,
+                                                             kan_instance_size_t min,
+                                                             kan_instance_size_t max)
+{
+    KAN_ASSERT (instance->content_type == KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT)
+    instance->content_uint.has_limits = true;
+    instance->content_uint.min = min;
+    instance->content_uint.max = max;
+    instance->content_dirty = true;
+}
+
+void kan_ui_node_line_edit_behavior_set_content_sint_limits (struct kan_ui_node_line_edit_behavior_t *instance,
+                                                             kan_instance_offset_t min,
+                                                             kan_instance_offset_t max)
+{
+    KAN_ASSERT (instance->content_type == KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT)
+    instance->content_sint.has_limits = true;
+    instance->content_sint.min = min;
+    instance->content_sint.max = max;
+    instance->content_dirty = true;
+}
+
+void kan_ui_node_line_edit_behavior_set_content_float_limits (struct kan_ui_node_line_edit_behavior_t *instance,
+                                                              kan_floating_t min,
+                                                              kan_floating_t max)
+{
+    KAN_ASSERT (instance->content_type == KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_FLOAT)
+    instance->content_float.has_limits = true;
+    instance->content_float.min = min;
+    instance->content_float.max = max;
+    instance->content_dirty = true;
+}
+
 void kan_ui_node_line_edit_behavior_shutdown (struct kan_ui_node_line_edit_behavior_t *instance)
 {
     kan_dynamic_array_shutdown (&instance->content_utf8);
+}
+
+void kan_ui_node_map_behavior_init (struct kan_ui_node_map_behavior_t *instance)
+{
+    instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->movement_enabled = true;
+    instance->zoom_enabled = true;
+    instance->dirty = true;
+
+    instance->camera_origin = kan_make_float_vector_2_t (0.0f, 0.0f);
+    instance->camera_half_height = 1.0f;
+    instance->camera_min_half_height = 1.0f;
+    instance->camera_max_half_height = 1.0f;
+
+    instance->scroll_zoom_speed = 10.0f;
+    instance->width = 1.0f;
+    instance->height = 1.0f;
+}
+
+void kan_ui_node_map_pin_init (struct kan_ui_node_map_pin_t *instance)
+{
+    instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->map_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+
+    instance->location = kan_make_float_vector_2_t (0.0f, 0.0f);
+    instance->size = kan_make_float_vector_2_t (0.0f, 0.0f);
+
+    instance->sync_location = true;
+    instance->sync_size = false;
+}
+
+void kan_ui_node_popup_behavior_init (struct kan_ui_node_popup_behavior_t *instance)
+{
+    instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->trigger_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->trigger_flags = 0u;
+    instance->hide_flags = 0u;
+    instance->hover_timer_s = 1.0f;
+    instance->hide_timer_s = 0.5f;
+}
+
+void kan_ui_node_hide_popup_on_press_init (struct kan_ui_node_hide_popup_on_press_t *instance)
+{
+    instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->popup_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
 }

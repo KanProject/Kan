@@ -55,11 +55,7 @@ struct example_argument_meta_min_max_t
     int64_t max_value;
 };
 
-static void function_call_functor_stub (kan_functor_user_data_t user_data,
-                                        void *return_pointer,
-                                        void *arguments_pointer)
-{
-}
+static void function_call_functor_stub (kan_memory_size_t user_data, void *return_pointer, void *arguments_pointer) {}
 
 KAN_TEST_CASE (registry)
 {
@@ -1125,7 +1121,7 @@ static void check_generic_migration_result (const struct migration_source_t *sou
     KAN_TEST_CHECK (source->dynamic_array.size == target->dynamic_array.size)
 
     const uint64_t min_size = KAN_MIN (source->dynamic_array.size, target->dynamic_array.size);
-    for (kan_loop_size_t index = 0u; index < min_size; ++index)
+    for (kan_memory_size_t index = 0u; index < min_size; ++index)
     {
         check_first_enum_migration_result (((const enum first_enum_source_t *) source->dynamic_array.data)[index],
                                            ((const enum first_enum_target_t *) target->dynamic_array.data)[index]);

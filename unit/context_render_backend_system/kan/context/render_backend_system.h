@@ -7,6 +7,7 @@
 #include <kan/container/interned_string.h>
 #include <kan/context/application_system.h>
 #include <kan/context/context.h>
+#include <kan/math/inline.h>
 
 ///// \file
 /// \brief Contains full API of render backed context system with functional basic graphics interface.
@@ -333,7 +334,7 @@ struct kan_render_supported_device_info_t
     enum kan_render_device_type_t device_type;
     enum kan_render_device_memory_type_t memory_type;
     bool anisotropy_supported;
-    float anisotropy_max;
+    kan_floating_t anisotropy_max;
     uint8_t image_format_support[KAN_RENDER_IMAGE_FORMAT_COUNT];
 };
 
@@ -535,27 +536,18 @@ struct kan_render_pass_description_t
 /// \brief Describes viewport bounds.
 struct kan_render_viewport_bounds_t
 {
-    float x;
-    float y;
-    float width;
-    float height;
-    float depth_min;
-    float depth_max;
-};
-
-/// \brief Describes color for clearing.
-struct kan_render_clear_color_t
-{
-    float r;
-    float g;
-    float b;
-    float a;
+    kan_floating_t x;
+    kan_floating_t y;
+    kan_floating_t width;
+    kan_floating_t height;
+    kan_floating_t depth_min;
+    kan_floating_t depth_max;
 };
 
 /// \brief Describes depth and stencil values for clearing.
 struct kan_render_clear_depth_stencil_t
 {
-    float depth;
+    kan_floating_t depth;
     uint8_t stencil;
 };
 
@@ -564,7 +556,7 @@ struct kan_render_clear_value_t
 {
     union
     {
-        struct kan_render_clear_color_t color;
+        struct kan_color_linear_t color;
         struct kan_render_clear_depth_stencil_t depth_stencil;
     };
 };
@@ -623,8 +615,8 @@ CONTEXT_RENDER_BACKEND_SYSTEM_API void kan_render_pass_instance_indices (kan_ren
 
 /// \brief Submits bounds for depth-bounds test if pipeline uses it.
 CONTEXT_RENDER_BACKEND_SYSTEM_API void kan_render_pass_instance_depth_bounds (kan_render_pass_instance_t pass_instance,
-                                                                              float min,
-                                                                              float max);
+                                                                              kan_floating_t min,
+                                                                              kan_floating_t max);
 
 /// \brief Submits push constant if supported by the pipeline.
 CONTEXT_RENDER_BACKEND_SYSTEM_API void kan_render_pass_instance_push_constant (kan_render_pass_instance_t pass_instance,
@@ -919,17 +911,17 @@ struct kan_render_graphics_pipeline_description_t
 
     kan_instance_size_t output_setups_count;
     struct kan_render_color_output_setup_description_t *output_setups;
-    float blend_constant_r;
-    float blend_constant_g;
-    float blend_constant_b;
-    float blend_constant_a;
+    kan_floating_t blend_constant_r;
+    kan_floating_t blend_constant_g;
+    kan_floating_t blend_constant_b;
+    kan_floating_t blend_constant_a;
 
     bool depth_test_enabled;
     bool depth_write_enabled;
     bool depth_bounds_test_enabled;
     enum kan_render_compare_operation_t depth_compare_operation;
-    float min_depth;
-    float max_depth;
+    kan_floating_t min_depth;
+    kan_floating_t max_depth;
 
     bool stencil_test_enabled;
     struct kan_render_stencil_test_t stencil_front;
@@ -1041,7 +1033,7 @@ struct kan_render_sampler_t
     bool depth_compare_enabled;
     bool anisotropy_enabled;
     enum kan_render_compare_operation_t depth_compare;
-    float anisotropy_max;
+    kan_floating_t anisotropy_max;
 };
 
 /// \brief Contains information for sampler binding update.
@@ -1206,11 +1198,10 @@ kan_render_image_create (kan_render_context_t context, struct kan_render_image_d
 /// \invariant Should not be used on render target images.
 /// \warning Is executed on GPU before any other command for this image. Only last clear this frame is applied.
 ///          Therefore, order of execution might be different from order of CPU calls.
-CONTEXT_RENDER_BACKEND_SYSTEM_API void kan_render_image_clear_color (
-    kan_render_image_t image,
-    kan_instance_size_t layer,
-    uint8_t mip,
-    const struct kan_render_clear_color_t *clear_color);
+CONTEXT_RENDER_BACKEND_SYSTEM_API void kan_render_image_clear_color (kan_render_image_t image,
+                                                                     kan_instance_size_t layer,
+                                                                     uint8_t mip,
+                                                                     const struct kan_color_linear_t *clear_color);
 
 /// \brief Schedules data upload to given image layer and mip.
 /// \warning Is executed on GPU after clear and before all copy and mip generation commands.

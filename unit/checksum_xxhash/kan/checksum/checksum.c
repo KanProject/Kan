@@ -30,16 +30,16 @@ kan_checksum_state_t kan_checksum_create (void)
     return KAN_HANDLE_SET (kan_checksum_state_t, state);
 }
 
-void kan_checksum_append (kan_checksum_state_t state, kan_file_size_t size, void *data)
+void kan_checksum_append (kan_checksum_state_t state, kan_stable_size_t size, void *data)
 {
     XXH3_state_t *xxhash_state = KAN_HANDLE_GET (state);
     XXH3_64bits_update (xxhash_state, data, (size_t) size);
 }
 
-kan_file_size_t kan_checksum_finalize (kan_checksum_state_t state)
+kan_stable_size_t kan_checksum_finalize (kan_checksum_state_t state)
 {
     XXH3_state_t *xxhash_state = KAN_HANDLE_GET (state);
-    kan_file_size_t checksum = (kan_file_size_t) XXH3_64bits_digest (xxhash_state);
+    kan_stable_size_t checksum = (kan_stable_size_t) XXH3_64bits_digest (xxhash_state);
     kan_free_general (allocation_group, xxhash_state, sizeof (XXH3_state_t));
     return checksum;
 }

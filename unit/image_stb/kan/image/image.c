@@ -84,14 +84,14 @@ void *stb_realloc (void *pointer, size_t new_size)
 static int stb_read (void *user_data, char *output_data, int size_to_read)
 {
     struct kan_stream_t *stream = user_data;
-    kan_file_size_t was_read = stream->operations->read (stream, (kan_file_size_t) size_to_read, output_data);
+    kan_stable_size_t was_read = stream->operations->read (stream, (kan_stable_size_t) size_to_read, output_data);
     return (int) was_read;
 }
 
 static void stb_skip (void *user_data, int delta)
 {
     struct kan_stream_t *stream = user_data;
-    stream->operations->seek (stream, KAN_STREAM_SEEK_CURRENT, (kan_file_offset_t) delta);
+    stream->operations->seek (stream, KAN_STREAM_SEEK_CURRENT, (kan_stable_offset_t) delta);
 }
 
 static int stb_eof (void *user_data)
@@ -119,7 +119,7 @@ static stbi_io_callbacks read_io_callbacks = {
 static void stb_write (void *user_data, void *data, int size)
 {
     struct kan_stream_t *stream = user_data;
-    stream->operations->write (stream, (kan_file_size_t) size, data);
+    stream->operations->write (stream, (kan_stable_size_t) size, data);
 }
 
 void kan_image_raw_data_init (struct kan_image_raw_data_t *data)

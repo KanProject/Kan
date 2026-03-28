@@ -6,7 +6,7 @@ static inline void destroy_frame_buffer_image_views (struct render_backend_syste
                                                      kan_instance_size_t attachments_count,
                                                      VkImageView *image_views)
 {
-    for (kan_loop_size_t index = 0u; index < attachments_count; ++index)
+    for (kan_memory_size_t index = 0u; index < attachments_count; ++index)
     {
         if (image_views[index] != VK_NULL_HANDLE)
         {
@@ -29,7 +29,7 @@ struct render_backend_frame_buffer_t *render_backend_system_create_frame_buffer 
     kan_instance_size_t width = 0u;
     kan_instance_size_t height = 0u;
 
-    for (kan_loop_size_t attachment_index = 0u; attachment_index < description->attachments_count; ++attachment_index)
+    for (kan_memory_size_t attachment_index = 0u; attachment_index < description->attachments_count; ++attachment_index)
     {
         struct render_backend_image_t *image = KAN_HANDLE_GET (description->attachments[attachment_index].image);
         vulkan_size_t attachment_width = (vulkan_size_t) image->description.width;
@@ -60,7 +60,7 @@ struct render_backend_frame_buffer_t *render_backend_system_create_frame_buffer 
         kan_allocate_general (system->frame_buffer_wrapper_allocation_group,
                               sizeof (VkImageView) * description->attachments_count, alignof (VkImageView));
 
-    for (kan_loop_size_t attachment_index = 0u; attachment_index < description->attachments_count; ++attachment_index)
+    for (kan_memory_size_t attachment_index = 0u; attachment_index < description->attachments_count; ++attachment_index)
     {
         struct render_backend_image_t *image = KAN_HANDLE_GET (description->attachments[attachment_index].image);
         VkImageViewCreateInfo create_info = {
@@ -187,7 +187,7 @@ struct render_backend_frame_buffer_t *render_backend_system_create_frame_buffer 
                               sizeof (struct render_backend_frame_buffer_attachment_t) * buffer->attachments_count,
                               alignof (struct render_backend_frame_buffer_attachment_t));
 
-    for (kan_loop_size_t index = 0u; index < buffer->attachments_count; ++index)
+    for (kan_memory_size_t index = 0u; index < buffer->attachments_count; ++index)
     {
         struct kan_render_frame_buffer_attachment_description_t *source = &description->attachments[index];
         struct render_backend_frame_buffer_attachment_t *target = &buffer->attachments[index];

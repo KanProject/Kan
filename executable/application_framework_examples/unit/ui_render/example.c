@@ -3,8 +3,8 @@
 #include <kan/context/all_system_names.h>
 #include <kan/context/application_framework_system.h>
 #include <kan/context/application_system.h>
-#include <kan/inline_math/inline_math.h>
 #include <kan/log/logging.h>
+#include <kan/math/inline.h>
 #include <kan/precise_time/precise_time.h>
 #include <kan/resource_pipeline/meta.h>
 #include <kan/test_expectation/test_expectation.h>
@@ -113,7 +113,7 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
     KAN_UIM_CLEAR_EVERYTHING
     const uint32_t default_text_mark = KAN_UI_DEFAULT_TEXT_MAKE_MARK (0u, KAN_UI_DEFAULT_TEXT_MARK_FLAG_OUTLINE);
     const kan_instance_size_t button_images[] = {image_button_negative, image_button_positive, image_button_neutral};
-    const float button_sizes[] = {0.25f, 0.20f, 0.15f};
+    const kan_floating_t button_sizes[] = {0.25f, 0.20f, 0.15f};
     const char *button_texts[] = {"Evil color!", "Good color!", "Neutral!"};
 
     KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
@@ -138,14 +138,14 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
         KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL (top_text, "Centered window with nine-slice buttons for tests.",
                                                 default_text_mark);
         KAN_UIM_WIDGET_TEXT (top_text, KAN_UI_VALUE_PX (24.0f));
+        top_text_node->order.local = -999; // Small value to always be on top.
         top_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-        top_text_node->local_element_order = -999; // Small value to always be on top.
 
         KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL (remark_text, "Button colors are selected from color table by the way.",
                                                 default_text_mark);
         KAN_UIM_WIDGET_TEXT (remark_text, KAN_UI_VALUE_PX (24.0f));
+        remark_text_node->order.local = -100;
         remark_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-        remark_text_node->local_element_order = -100;
 
         KAN_NEW_TEXT_SHAPING_UNIT (icons_test_text);
         icons_test_text_shaping_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER;
@@ -158,28 +158,29 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
         };
 
         KAN_UIM_WIDGET_TEXT (icons_test_text, KAN_UI_VALUE_PX (24.0f));
+        icons_test_text_node->order.local = 100;
         icons_test_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-        icons_test_text_node->local_element_order = 100;
 
         KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL (bottom_text, "This text should always be at the bottom.",
                                                 default_text_mark);
         bottom_text_shaping_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_RIGHT;
 
         KAN_UIM_WIDGET_TEXT (bottom_text, KAN_UI_VALUE_PX (24.0f));
+        bottom_text_node->order.local = 999; // Big value to always be on bottom.
         bottom_text_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-        bottom_text_node->local_element_order = 999; // Big value to always be on bottom.
 
         KAN_UIM_NEW_NODE (horizontal);
+        horizontal_node->order.local = 0;
         horizontal_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN | KAN_UI_SIZE_FLAG_GROW;
         horizontal_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
-        horizontal_node->local_element_order = 0;
         horizontal_node->layout.layout = KAN_UI_LAYOUT_HORIZONTAL_CONTAINER;
 
         KAN_UIM_CHILDREN (horizontal)
         {
-            for (kan_loop_size_t column = 0u; column < 3u; ++column)
+            for (kan_memory_size_t column = 0u; column < 3u; ++column)
             {
                 KAN_UIM_NEW_NODE (column);
+                column_node->order.local = (kan_instance_offset_t) column;
                 column_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
                 column_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
 
@@ -189,13 +190,12 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                 }
 
                 column_node->element.margin = KAN_UI_RECT_PT (16.0f, 16.0f, 0.0f, 0.0f);
-                column_node->local_element_order = (kan_instance_offset_t) column;
                 column_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;
                 const kan_instance_size_t button_type_count = sizeof (button_images) / sizeof (button_images[0u]);
 
                 KAN_UIM_CHILDREN (column)
                 {
-                    for (kan_loop_size_t button = 0u; button < 6u; ++button)
+                    for (kan_memory_size_t button = 0u; button < 6u; ++button)
                     {
                         KAN_UIM_WIDGET_IMAGE (button,
                                               KAN_UI_IMAGE_COMMAND_DEFAULT (button_images[button % button_type_count]));
@@ -241,7 +241,7 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
 
     KAN_UIM_CHILDREN (status_row)
     {
-        for (kan_loop_size_t index = 0u; index < 9u; ++index)
+        for (kan_memory_size_t index = 0u; index < 9u; ++index)
         {
             KAN_UIM_WIDGET_IMAGE (status, KAN_UI_IMAGE_COMMAND_DEFAULT (image_shield));
             status_node->element.width = KAN_UI_VALUE_VH (0.075f);
@@ -254,22 +254,22 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
     }
 
     KAN_UIM_NEW_NODE (tiled_column);
+    tiled_column_node->order.local = -1; // Below window.
     tiled_column_node->element.width_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
     tiled_column_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;
 
     tiled_column_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT;
     tiled_column_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_TOP;
-    tiled_column_node->local_element_order = -1; // Below window.
 
     tiled_column_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;
     tiled_column_node->render.clip = true;
 
     KAN_UIM_CHILDREN (tiled_column)
     {
-        const float widths[] = {0.8f, 0.4f, 0.2f};
-        const float heights[] = {0.2f, 0.1f, 0.4f};
+        const kan_floating_t widths[] = {0.8f, 0.4f, 0.2f};
+        const kan_floating_t heights[] = {0.2f, 0.1f, 0.4f};
 
-        for (kan_loop_size_t index = 0u; index < sizeof (widths) / sizeof (widths[0u]); ++index)
+        for (kan_memory_size_t index = 0u; index < sizeof (widths) / sizeof (widths[0u]); ++index)
         {
             KAN_UIM_WIDGET_IMAGE (tiled, KAN_UI_IMAGE_COMMAND_DEFAULT (image_tiled_slice));
             tiled_node->element.width = KAN_UI_VALUE_VH (widths[index]);
@@ -337,7 +337,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_EXECUTE (ui_example_
         locale->selected_locale = kan_string_intern ("en");
 
         KAN_UMI_SINGLETON_WRITE (ui_render_graph, kan_ui_render_graph_singleton_t)
-        ui_render_graph->clear_color = kan_color_linear_to_srgb (kan_make_color_linear (0.0f, 1.0f, 1.0f, 1.0f));
+        ui_render_graph->clear_color = kan_make_color_linear (0.0f, 1.0f, 1.0f, 1.0f);
 
         render_context->color_table_values_dirty = true;
         render_context->color_table_values.size = 0u;
@@ -347,7 +347,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_EXECUTE (ui_example_
         struct kan_color_linear_t *color_positive = kan_dynamic_array_add_last (&render_context->color_table_values);
         struct kan_color_linear_t *color_neutral = kan_dynamic_array_add_last (&render_context->color_table_values);
 
-        *color_negative = kan_make_color_linear (0.8f, 0.0f, 0.0f, 1.0);
+        *color_negative = kan_make_color_linear (0.8f, 0.0f, 0.0f, 1.0f);
         *color_positive = kan_make_color_linear (0.8f, 0.8f, 0.0f, 1.0f);
         *color_neutral = kan_make_color_linear (0.0f, 0.8f, 0.8f, 1.0f);
     }

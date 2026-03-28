@@ -92,7 +92,7 @@ static void visit_to_generate_update_sequence (struct update_system_t *system,
     struct update_connection_request_t *other_request = system->first_connection_request;
     while (other_request)
     {
-        for (kan_loop_size_t index = 0u; index < other_request->dependencies.size; ++index)
+        for (kan_memory_size_t index = 0u; index < other_request->dependencies.size; ++index)
         {
             if (KAN_HANDLE_IS_EQUAL (((kan_context_system_t *) other_request->dependencies.data)[index],
                                      request->system))
@@ -122,7 +122,7 @@ CONTEXT_UPDATE_SYSTEM_API void update_system_init (kan_context_system_t handle)
     // It is okay to loop over everything as there shouldn't be lots of context systems.
     while (request)
     {
-        for (kan_loop_size_t index = 0u; index < request->dependencies.size; ++index)
+        for (kan_memory_size_t index = 0u; index < request->dependencies.size; ++index)
         {
             const kan_context_system_t dependency = ((kan_context_system_t *) request->dependencies.data)[index];
             struct update_connection_request_t *other_request = system->first_connection_request;
@@ -241,7 +241,7 @@ void kan_update_system_connect_on_run (kan_context_system_t update_system,
                 KAN_MAX (request->dependencies.size + dependencies_count, request->dependencies.capacity * 2u));
         }
 
-        for (kan_loop_size_t index = 0u; index < dependencies_count; ++index)
+        for (kan_memory_size_t index = 0u; index < dependencies_count; ++index)
         {
             if (KAN_HANDLE_IS_VALID (dependencies[index]))
             {
@@ -250,7 +250,7 @@ void kan_update_system_connect_on_run (kan_context_system_t update_system,
         }
     }
 
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) dependency_of_count; ++index)
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) dependency_of_count; ++index)
     {
         const kan_context_system_t dependency_of_system = dependency_of[index];
         if (!KAN_HANDLE_IS_VALID (dependency_of_system))
@@ -306,7 +306,7 @@ void kan_update_system_disconnect_on_run (kan_context_system_t update_system, ka
     // Check that we're not in connection phase.
     KAN_ASSERT (!system->first_connection_request)
 
-    for (kan_loop_size_t index = 0u; index < system->update_sequence.size; ++index)
+    for (kan_instance_size_t index = 0u; index < system->update_sequence.size; ++index)
     {
         struct update_callable_t *callable = &((struct update_callable_t *) system->update_sequence.data)[index];
         if (KAN_HANDLE_IS_EQUAL (callable->system, other_system))
@@ -322,7 +322,7 @@ void kan_update_system_run (kan_context_system_t update_system)
     struct update_system_t *system = KAN_HANDLE_GET (update_system);
     KAN_CPU_SCOPED_STATIC_SECTION (context_update_system)
 
-    for (kan_loop_size_t index = 0u; index < system->update_sequence.size; ++index)
+    for (kan_memory_size_t index = 0u; index < system->update_sequence.size; ++index)
     {
         struct update_callable_t *callable = &((struct update_callable_t *) system->update_sequence.data)[index];
         callable->functor (callable->system);

@@ -23,7 +23,7 @@ static void load_pipeline_source (const char *path, struct kan_dynamic_array_t *
     KAN_TEST_ASSERT (file_stream)
 
     KAN_TEST_ASSERT (file_stream->operations->seek (file_stream, KAN_STREAM_SEEK_END, 0))
-    kan_file_size_t size = file_stream->operations->tell (file_stream);
+    kan_stable_size_t size = file_stream->operations->tell (file_stream);
     KAN_TEST_ASSERT (file_stream->operations->seek (file_stream, KAN_STREAM_SEEK_START, 0))
 
     kan_dynamic_array_init (output, (kan_instance_size_t) (size + 1u), sizeof (char), alignof (char),
@@ -382,7 +382,7 @@ KAN_TEST_CASE (benchmark)
 #define BENCHMARK_CYCLES 2500u
     clock_t benchmark_begin = clock ();
 
-    for (kan_loop_size_t index = 0u; index < BENCHMARK_CYCLES; ++index)
+    for (kan_memory_size_t index = 0u; index < BENCHMARK_CYCLES; ++index)
     {
         benchmark_step (&source, false);
     }

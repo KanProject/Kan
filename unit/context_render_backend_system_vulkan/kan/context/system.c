@@ -172,8 +172,8 @@ static void query_device_memory_type (VkPhysicalDevice device, enum kan_render_d
     bool is_host_visible[VK_MAX_MEMORY_HEAPS];
     bool is_host_coherent[VK_MAX_MEMORY_HEAPS];
 
-    for (kan_loop_size_t memory_type_index = 0u;
-         memory_type_index < (kan_loop_size_t) memory_properties.memoryTypeCount; ++memory_type_index)
+    for (kan_memory_size_t memory_type_index = 0u;
+         memory_type_index < (kan_memory_size_t) memory_properties.memoryTypeCount; ++memory_type_index)
     {
         is_host_visible[memory_properties.memoryTypes[memory_type_index].heapIndex] |=
             (memory_properties.memoryTypes[memory_type_index].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) ?
@@ -189,7 +189,7 @@ static void query_device_memory_type (VkPhysicalDevice device, enum kan_render_d
     bool any_local_non_visible = false;
     bool any_local_non_coherent = false;
 
-    for (kan_loop_size_t heap_index = 0u; heap_index < (kan_loop_size_t) memory_properties.memoryHeapCount;
+    for (kan_memory_size_t heap_index = 0u; heap_index < (kan_memory_size_t) memory_properties.memoryHeapCount;
          ++heap_index)
     {
         if (memory_properties.memoryHeaps[heap_index].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
@@ -240,9 +240,9 @@ static void render_backend_system_query_devices (struct render_backend_system_t 
                               sizeof (struct kan_render_supported_devices_t) +
                                   sizeof (struct kan_render_supported_device_info_t) * physical_device_count,
                               alignof (struct kan_render_supported_devices_t));
-    system->supported_devices->supported_device_count = (kan_loop_size_t) physical_device_count;
+    system->supported_devices->supported_device_count = (kan_memory_size_t) physical_device_count;
 
-    for (kan_loop_size_t device_index = 0u; device_index < physical_device_count; ++device_index)
+    for (kan_memory_size_t device_index = 0u; device_index < physical_device_count; ++device_index)
     {
         struct kan_render_supported_device_info_t *device_info = &system->supported_devices->devices[device_index];
         static_assert (sizeof (kan_render_device_t) >= sizeof (VkPhysicalDevice), "Can store Vulkan handle in Kan id.");
@@ -285,7 +285,7 @@ static void render_backend_system_query_devices (struct render_backend_system_t 
         device_info->anisotropy_supported = (bool) device_features.samplerAnisotropy;
         device_info->anisotropy_max = device_properties.limits.maxSamplerAnisotropy;
 
-        for (kan_loop_size_t format = 0u; format < KAN_RENDER_IMAGE_FORMAT_COUNT; ++format)
+        for (kan_memory_size_t format = 0u; format < KAN_RENDER_IMAGE_FORMAT_COUNT; ++format)
         {
             device_info->image_format_support[format] = 0u;
             VkFormatProperties format_properties;
@@ -344,7 +344,7 @@ void render_backend_system_init (kan_context_system_t handle)
 #endif
 
     KAN_LOG (render_backend_system_vulkan, KAN_LOG_INFO, "Preparing to create Vulkan instance. Used extensions:")
-    for (kan_loop_size_t index = 0u; index < extensions.size; ++index)
+    for (kan_memory_size_t index = 0u; index < extensions.size; ++index)
     {
         KAN_LOG (render_backend_system_vulkan, KAN_LOG_INFO, "    - %s", ((char **) extensions.data)[index])
     }
@@ -403,7 +403,7 @@ void render_backend_system_init (kan_context_system_t handle)
     vkEnumerateInstanceLayerProperties (&layer_properties_count, layer_properties);
     system->has_validation_layer = false;
 
-    for (kan_loop_size_t index = 0u; index < layer_properties_count; ++index)
+    for (kan_memory_size_t index = 0u; index < layer_properties_count; ++index)
     {
         if (strcmp (layer_properties[index].layerName, "VK_LAYER_KHRONOS_validation") == 0)
         {
@@ -436,7 +436,7 @@ void render_backend_system_init (kan_context_system_t handle)
     }
 
     volkLoadInstance (system->instance);
-    for (kan_loop_size_t index = 0u; index < extensions.size; ++index)
+    for (kan_memory_size_t index = 0u; index < extensions.size; ++index)
     {
         kan_free_general (system->utility_allocation_group, ((char **) extensions.data)[index],
                           strlen (((char **) extensions.data)[index]) + 1u);
@@ -473,7 +473,7 @@ void render_backend_system_init (kan_context_system_t handle)
 
 static void render_backend_system_destroy_schedule_states (struct render_backend_system_t *system)
 {
-    for (kan_loop_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
+    for (kan_memory_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
     {
         struct render_backend_schedule_state_t *state = &system->schedule_states[index];
         kan_stack_group_allocator_shutdown (&state->item_allocator);
@@ -482,7 +482,7 @@ static void render_backend_system_destroy_schedule_states (struct render_backend
 
 static void render_backend_system_destroy_command_states (struct render_backend_system_t *system)
 {
-    for (kan_loop_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
+    for (kan_memory_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
     {
         struct render_backend_command_state_t *state = &system->command_states[index];
 
@@ -514,7 +514,7 @@ static void render_backend_system_destroy_command_states (struct render_backend_
 
 static void render_backend_system_destroy_synchronization_objects (struct render_backend_system_t *system)
 {
-    for (kan_loop_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
+    for (kan_memory_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
     {
         if (system->render_finished_semaphores[index] != VK_NULL_HANDLE)
         {
@@ -588,7 +588,7 @@ void render_backend_system_destroy (kan_context_system_t handle)
     if (system->device != VK_NULL_HANDLE)
     {
         // Destroy all detached data so we won't leak memory.
-        for (kan_loop_size_t schedule_index = 0u; schedule_index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT;
+        for (kan_memory_size_t schedule_index = 0u; schedule_index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT;
              ++schedule_index)
         {
             struct render_backend_schedule_state_t *schedule = &system->schedule_states[schedule_index];
@@ -789,7 +789,7 @@ bool kan_render_backend_system_select_device (kan_context_system_t render_backen
     }
 
     struct kan_render_supported_device_info_t *device_info = NULL;
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) system->supported_devices->supported_device_count;
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) system->supported_devices->supported_device_count;
          ++index)
     {
         if (KAN_HANDLE_IS_EQUAL (system->supported_devices->devices[index].id, device))
@@ -884,7 +884,7 @@ bool kan_render_backend_system_select_device (kan_context_system_t render_backen
         return false;
     }
 
-    float queues_priorities = 0.0f;
+    kan_floating_t queues_priorities = 0.0f;
     VkDeviceQueueCreateInfo queues_create_info[] = {
         {
             .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -1063,7 +1063,7 @@ bool kan_render_backend_system_select_device (kan_context_system_t render_backen
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     };
 
-    for (kan_loop_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
+    for (kan_memory_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
     {
         system->render_finished_semaphores[index] = VK_NULL_HANDLE;
         system->in_flight_fences[index] = VK_NULL_HANDLE;
@@ -1071,7 +1071,7 @@ bool kan_render_backend_system_select_device (kan_context_system_t render_backen
     }
 
     bool synchronization_objects_created = true;
-    for (kan_loop_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
+    for (kan_memory_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
     {
         if (vkCreateSemaphore (system->device, &semaphore_creation_info, VULKAN_ALLOCATION_CALLBACKS (system),
                                &system->render_finished_semaphores[index]) != VK_SUCCESS)
@@ -1149,7 +1149,7 @@ bool kan_render_backend_system_select_device (kan_context_system_t render_backen
     }
 #endif
 
-    for (kan_loop_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
+    for (kan_memory_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
     {
         system->command_states[index].command_pool = VK_NULL_HANDLE;
 #if defined(KAN_CONTEXT_RENDER_BACKEND_VULKAN_PRINT_FRAME_TIMES)
@@ -1159,7 +1159,7 @@ bool kan_render_backend_system_select_device (kan_context_system_t render_backen
     }
 
     bool command_states_created = true;
-    for (kan_loop_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
+    for (kan_memory_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
     {
         VkCommandPoolCreateInfo graphics_command_pool_info = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -1301,7 +1301,7 @@ bool kan_render_backend_system_select_device (kan_context_system_t render_backen
     vkSetDebugUtilsObjectNameEXT (system->device, &object_name);
 #endif
 
-    for (kan_loop_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
+    for (kan_memory_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
     {
         struct render_backend_schedule_state_t *state = &system->schedule_states[index];
         kan_stack_group_allocator_init (&state->item_allocator, system->schedule_allocation_group,
@@ -1566,7 +1566,7 @@ static void render_backend_system_submit_transfer (struct render_backend_system_
                 }
 
                 struct scheduled_image_upload_range_t *range = sequence_first_range;
-                for (kan_loop_size_t index = 0u; index < sequence_size; ++index, range = range->next)
+                for (kan_memory_size_t index = 0u; index < sequence_size; ++index, range = range->next)
                 {
                     temporary_copy_regions[index] = (VkBufferImageCopy) {
                         .bufferOffset = (vulkan_size_t) range->staging_buffer_offset,
@@ -2023,7 +2023,7 @@ static void process_surface_blit_requests (struct render_backend_system_t *syste
     VkImageMemoryBarrier *image_barriers = image_barriers_static;
 
     struct scheduled_surface_blit_request_t *request = first_request;
-    kan_loop_size_t requests_count = 0u;
+    kan_memory_size_t requests_count = 0u;
 
     while (request)
     {
@@ -2552,7 +2552,7 @@ static inline void execute_pass_instance_submission (struct render_backend_syste
                                   alignof (VkImageMemoryBarrier));
     }
 
-    for (kan_loop_size_t attachment_index = 0u; attachment_index < pass_instance->frame_buffer->attachments_count;
+    for (kan_memory_size_t attachment_index = 0u; attachment_index < pass_instance->frame_buffer->attachments_count;
          ++attachment_index)
     {
         struct render_backend_frame_buffer_attachment_t *attachment =
@@ -2638,7 +2638,7 @@ static inline void execute_pass_instance_submission (struct render_backend_syste
     // Transition readable render targets so they can be used in shaders for sampling.
     added_barriers = 0u;
 
-    for (kan_loop_size_t attachment_index = 0u; attachment_index < pass_instance->frame_buffer->attachments_count;
+    for (kan_memory_size_t attachment_index = 0u; attachment_index < pass_instance->frame_buffer->attachments_count;
          ++attachment_index)
     {
         struct render_backend_frame_buffer_attachment_t *attachment =
@@ -3338,7 +3338,7 @@ static bool render_backend_surface_create_swap_chain_image_views (struct render_
 
 static void render_backend_surface_destroy_semaphores (struct render_backend_surface_t *surface)
 {
-    for (kan_loop_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
+    for (kan_memory_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
     {
         if (surface->image_available_semaphores[index] != VK_NULL_HANDLE)
         {
@@ -3351,7 +3351,7 @@ static void render_backend_surface_destroy_semaphores (struct render_backend_sur
 
 static bool render_backend_surface_create_semaphores (struct render_backend_surface_t *surface)
 {
-    for (kan_loop_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
+    for (kan_memory_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
     {
         surface->image_available_semaphores[index] = VK_NULL_HANDLE;
     }
@@ -3363,7 +3363,7 @@ static bool render_backend_surface_create_semaphores (struct render_backend_surf
         .flags = 0u,
     };
 
-    for (kan_loop_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
+    for (kan_memory_size_t index = 0u; index < KAN_CONTEXT_RENDER_BACKEND_VULKAN_FRAMES_IN_FLIGHT; ++index)
     {
         if (vkCreateSemaphore (surface->system->device, &semaphore_creation_info,
                                VULKAN_ALLOCATION_CALLBACKS (surface->system),
@@ -3569,7 +3569,7 @@ static void render_backend_surface_create_swap_chain (struct render_backend_surf
     bool present_mode_found = false;
     VkPresentModeKHR surface_present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
-    for (kan_loop_size_t queue_index = 0u; queue_index < (kan_loop_size_t) KAN_RENDER_SURFACE_PRESENT_MODE_COUNT;
+    for (kan_memory_size_t queue_index = 0u; queue_index < (kan_memory_size_t) KAN_RENDER_SURFACE_PRESENT_MODE_COUNT;
          ++queue_index)
     {
         VkPresentModeKHR requested_mode = VK_PRESENT_MODE_MAX_ENUM_KHR;
@@ -3604,7 +3604,7 @@ static void render_backend_surface_create_swap_chain (struct render_backend_surf
             break;
         }
 
-        for (kan_loop_size_t supported_index = 0u; supported_index < (kan_loop_size_t) present_modes_count;
+        for (kan_memory_size_t supported_index = 0u; supported_index < (kan_memory_size_t) present_modes_count;
              ++supported_index)
         {
             if (present_modes[supported_index] == requested_mode)
@@ -3894,9 +3894,9 @@ bool kan_render_backend_system_next_frame (kan_context_system_t render_backend_s
 
             if (GET_AVAILABILITY (0u) && GET_AVAILABILITY (1u))
             {
-                const float difference_ns_float =
-                    system->timestamp_period * (float) (GET_TIMESTAMP (1u) - GET_TIMESTAMP (0u));
-                const kan_time_size_t difference_ns = lroundf (difference_ns_float);
+                const kan_floating_t difference_ns_float =
+                    system->timestamp_period * (kan_floating_t) (GET_TIMESTAMP (1u) - GET_TIMESTAMP (0u));
+                const kan_stable_size_t difference_ns = lroundf (difference_ns_float);
 
                 KAN_LOG (render_backend_system_vulkan, KAN_LOG_INFO, "Recovered GPU frame time: %lu ns.",
                          (unsigned long) difference_ns)
@@ -4197,7 +4197,7 @@ kan_render_surface_t kan_render_backend_system_create_surface (
     new_surface->current_frame_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     bool encountered_invalid_present_mode = false;
 
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) KAN_RENDER_SURFACE_PRESENT_MODE_COUNT; ++index)
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) KAN_RENDER_SURFACE_PRESENT_MODE_COUNT; ++index)
     {
         if (encountered_invalid_present_mode)
         {

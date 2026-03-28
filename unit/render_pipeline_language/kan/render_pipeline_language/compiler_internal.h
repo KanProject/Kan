@@ -26,15 +26,6 @@ KAN_C_HEADER_BEGIN
 KAN_LOG_EXPECT_CATEGORY (rpl_compiler_context);
 KAN_LOG_EXPECT_CATEGORY (rpl_compiler_instance);
 
-/// \brief SPIRV used 32-bit integers for everything inside bytecode.
-typedef uint32_t spirv_size_t;
-
-/// \brief Unsigned integer type for SPIRV bytecode.
-typedef uint32_t spirv_unsigned_literal_t;
-
-/// \brief Signed integer type for SPIRV bytecode.
-typedef uint32_t spirv_signed_literal_t;
-
 enum compile_time_evaluation_value_type_t
 {
     COMPILE_TIME_EVALUATION_VALUE_TYPE_ERROR = 0u,
@@ -51,8 +42,8 @@ struct compile_time_evaluation_value_t
     union
     {
         bool boolean_value;
-        kan_instance_size_t uint_value;
-        kan_instance_offset_t sint_value;
+        uint32_t uint_value;
+        int32_t sint_value;
         float float_value;
         kan_interned_string_t string_value;
     };
@@ -147,7 +138,7 @@ struct compiler_instance_type_definition_t
 
     bool array_size_runtime;
     kan_instance_size_t array_dimensions_count;
-    kan_instance_size_t *array_dimensions;
+    uint32_t *array_dimensions;
 };
 
 struct compiler_instance_variable_t
@@ -185,8 +176,8 @@ struct compiler_instance_struct_node_t
     kan_interned_string_t source_name;
     kan_instance_size_t source_line;
 
-    spirv_size_t spirv_id_value;
-    spirv_size_t spirv_id_function_pointer;
+    uint32_t spirv_id_value;
+    uint32_t spirv_id_function_pointer;
 
     /// \details Used only in resolve, therefore actual structure is kept in resolve object.
     struct resolve_field_alias_node_t *first_field_alias;
@@ -210,8 +201,8 @@ struct compiler_instance_container_field_stage_node_t
 {
     struct compiler_instance_container_field_stage_node_t *next;
     enum kan_rpl_pipeline_stage_t user_stage;
-    spirv_size_t spirv_id_input;
-    spirv_size_t spirv_id_output;
+    uint32_t spirv_id_input;
+    uint32_t spirv_id_output;
 };
 
 struct compiler_instance_container_field_node_t
@@ -269,7 +260,7 @@ struct compiler_instance_buffer_node_t
     struct compiler_instance_declaration_node_t *first_field;
     kan_instance_size_t binding;
 
-    spirv_size_t structured_variable_spirv_id;
+    uint32_t structured_variable_spirv_id;
 
     kan_interned_string_t module_name;
     kan_interned_string_t source_name;
@@ -288,7 +279,7 @@ struct compiler_instance_sampler_node_t
 
     kan_instance_size_t binding;
 
-    spirv_size_t variable_spirv_id;
+    uint32_t variable_spirv_id;
 
     kan_interned_string_t module_name;
     kan_interned_string_t source_name;
@@ -301,12 +292,12 @@ struct compiler_instance_image_node_t
     kan_interned_string_t name;
     enum kan_rpl_set_t set;
     enum kan_rpl_image_type_t type;
-    kan_instance_size_t array_size;
+    uint32_t array_size;
 
     bool used;
     kan_instance_size_t binding;
 
-    spirv_size_t variable_spirv_id;
+    uint32_t variable_spirv_id;
 
     kan_interned_string_t module_name;
     kan_interned_string_t source_name;
@@ -371,7 +362,7 @@ enum compiler_instance_expression_type_t
 struct compiler_instance_structured_access_chain_t
 {
     struct compiler_instance_structured_access_chain_t *next;
-    kan_instance_size_t index;
+    uint32_t index;
 };
 
 struct compiler_instance_structured_access_suffix_t
@@ -417,7 +408,7 @@ struct compiler_instance_scope_variable_item_t
 {
     struct compiler_instance_scope_variable_item_t *next;
     struct compiler_instance_variable_t *variable;
-    spirv_size_t spirv_id;
+    uint32_t spirv_id;
 };
 
 struct compiler_instance_scope_suffix_t
@@ -495,8 +486,8 @@ struct compiler_instance_for_suffix_t
     struct compiler_instance_expression_node_t *step;
     struct compiler_instance_expression_node_t *body;
 
-    spirv_size_t spirv_label_break;
-    spirv_size_t spirv_label_continue;
+    uint32_t spirv_label_break;
+    uint32_t spirv_label_continue;
 };
 
 struct compiler_instance_while_suffix_t
@@ -504,8 +495,8 @@ struct compiler_instance_while_suffix_t
     struct compiler_instance_expression_node_t *condition;
     struct compiler_instance_expression_node_t *body;
 
-    spirv_size_t spirv_label_break;
-    spirv_size_t spirv_label_continue;
+    uint32_t spirv_label_break;
+    uint32_t spirv_label_continue;
 };
 
 struct compiler_instance_expression_node_t
@@ -521,8 +512,8 @@ struct compiler_instance_expression_node_t
         struct compiler_instance_swizzle_suffix_t swizzle;
         struct compiler_instance_container_field_node_t *container_field_access;
         float floating_literal;
-        kan_instance_size_t unsigned_literal;
-        kan_instance_offset_t signed_literal;
+        uint32_t unsigned_literal;
+        int32_t signed_literal;
         struct compiler_instance_variable_declaration_suffix_t variable_declaration;
         struct compiler_instance_binary_operation_suffix_t binary_operation;
         struct compiler_instance_unary_operation_suffix_t unary_operation;
@@ -604,9 +595,9 @@ struct compiler_instance_function_node_t
     struct compiler_instance_sampler_access_node_t *first_sampler_access;
     struct compiler_instance_image_access_node_t *first_image_access;
 
-    spirv_size_t spirv_id;
-    spirv_size_t spirv_external_library_id;
-    spirv_size_t spirv_external_instruction_id;
+    uint32_t spirv_id;
+    uint32_t spirv_external_library_id;
+    uint32_t spirv_external_instruction_id;
     const struct spirv_generation_function_type_t *spirv_function_type;
 
     kan_interned_string_t module_name;
@@ -974,7 +965,7 @@ void kan_rpl_compiler_ensure_statics_initialized (void);
 
 static inline struct inbuilt_vector_type_t *find_inbuilt_vector_type (kan_interned_string_t name)
 {
-    for (kan_loop_size_t index = 0u;
+    for (kan_memory_size_t index = 0u;
          index < sizeof (kan_rpl_compiler_statics.vector_types) / sizeof (kan_rpl_compiler_statics.vector_types[0u]);
          ++index)
     {
@@ -989,7 +980,7 @@ static inline struct inbuilt_vector_type_t *find_inbuilt_vector_type (kan_intern
 
 static inline struct inbuilt_matrix_type_t *find_inbuilt_matrix_type (kan_interned_string_t name)
 {
-    for (kan_loop_size_t index = 0u;
+    for (kan_memory_size_t index = 0u;
          index < sizeof (kan_rpl_compiler_statics.matrix_types) / sizeof (kan_rpl_compiler_statics.matrix_types[0u]);
          ++index)
     {
@@ -1151,7 +1142,7 @@ static inline void calculate_type_definition_size_and_alignment (struct compiler
         break;
     }
 
-    for (kan_loop_size_t dimension = dimension_offset; dimension < definition->array_dimensions_count; ++dimension)
+    for (kan_memory_size_t dimension = dimension_offset; dimension < definition->array_dimensions_count; ++dimension)
     {
         *size *= definition->array_dimensions[dimension];
     }

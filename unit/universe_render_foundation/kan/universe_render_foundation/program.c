@@ -76,7 +76,7 @@ static kan_render_pipeline_parameter_set_layout_t construct_parameter_set_layout
     }
 
     kan_instance_size_t binding_output_index = 0u;
-    for (kan_loop_size_t index = 0u; index < meta->buffers.size; ++index, ++binding_output_index)
+    for (kan_memory_size_t index = 0u; index < meta->buffers.size; ++index, ++binding_output_index)
     {
         struct kan_rpl_meta_buffer_t *buffer = &((struct kan_rpl_meta_buffer_t *) meta->buffers.data)[index];
         enum kan_render_parameter_binding_type_t binding_type = KAN_RENDER_PARAMETER_BINDING_TYPE_UNIFORM_BUFFER;
@@ -105,7 +105,7 @@ static kan_render_pipeline_parameter_set_layout_t construct_parameter_set_layout
         };
     }
 
-    for (kan_loop_size_t index = 0u; index < meta->samplers.size; ++index, ++binding_output_index)
+    for (kan_memory_size_t index = 0u; index < meta->samplers.size; ++index, ++binding_output_index)
     {
         struct kan_rpl_meta_sampler_t *sampler = &((struct kan_rpl_meta_sampler_t *) meta->samplers.data)[index];
         bindings[binding_output_index] = (struct kan_render_parameter_binding_description_t) {
@@ -116,7 +116,7 @@ static kan_render_pipeline_parameter_set_layout_t construct_parameter_set_layout
         };
     }
 
-    for (kan_loop_size_t index = 0u; index < meta->images.size; ++index, ++binding_output_index)
+    for (kan_memory_size_t index = 0u; index < meta->images.size; ++index, ++binding_output_index)
     {
         struct kan_rpl_meta_image_t *image = &((struct kan_rpl_meta_image_t *) meta->images.data)[index];
         bindings[binding_output_index] = (struct kan_render_parameter_binding_description_t) {
@@ -456,7 +456,7 @@ static void load_pass (struct render_foundation_program_core_management_state_t 
         pass->pass = KAN_HANDLE_SET_INVALID (kan_render_pass_t);
     }
 
-    for (kan_loop_size_t variant_index = 0u; variant_index < pass->variants.size; ++variant_index)
+    for (kan_memory_size_t variant_index = 0u; variant_index < pass->variants.size; ++variant_index)
     {
         kan_render_foundation_pass_variant_shutdown (
             &((struct kan_render_foundation_pass_variant_t *) pass->variants.data)[variant_index]);
@@ -483,7 +483,7 @@ static void load_pass (struct render_foundation_program_core_management_state_t 
     }
 
     kan_dynamic_array_set_capacity (&pass->attachments, resource->attachments.size);
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) resource->attachments.size; ++index)
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) resource->attachments.size; ++index)
     {
         struct kan_render_foundation_pass_attachment_t *output = kan_dynamic_array_add_last (&pass->attachments);
         KAN_ASSERT (output)
@@ -496,7 +496,7 @@ static void load_pass (struct render_foundation_program_core_management_state_t 
     }
 
     kan_dynamic_array_set_capacity (&pass->variants, resource->variants.size);
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) resource->variants.size; ++index)
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) resource->variants.size; ++index)
     {
         struct kan_render_foundation_pass_variant_t *output = kan_dynamic_array_add_last (&pass->variants);
         KAN_ASSERT (output)
@@ -693,7 +693,7 @@ static void add_attributes_from_source (const struct kan_rpl_meta_attribute_sour
                                         struct kan_render_attribute_description_t *attributes,
                                         kan_instance_size_t *attribute_output_index_pointer)
 {
-    for (kan_loop_size_t attribute_index = 0u; attribute_index < source->attributes.size;
+    for (kan_memory_size_t attribute_index = 0u; attribute_index < source->attributes.size;
          ++attribute_index, ++*attribute_output_index_pointer)
     {
         struct kan_rpl_meta_attribute_t *attribute =
@@ -1039,7 +1039,7 @@ static void load_material (struct render_foundation_program_core_management_stat
                 alignof (struct kan_render_attribute_source_description_t));
         }
 
-        for (kan_loop_size_t index = 0u; index < resource->vertex_attribute_sources.size; ++index)
+        for (kan_memory_size_t index = 0u; index < resource->vertex_attribute_sources.size; ++index)
         {
             struct kan_rpl_meta_attribute_source_t *source =
                 &((struct kan_rpl_meta_attribute_source_t *) resource->vertex_attribute_sources.data)[index];
@@ -1075,7 +1075,8 @@ static void load_material (struct render_foundation_program_core_management_stat
         }
 
         kan_instance_size_t attribute_output_index = 0u;
-        for (kan_loop_size_t source_index = 0u; source_index < resource->vertex_attribute_sources.size; ++source_index)
+        for (kan_memory_size_t source_index = 0u; source_index < resource->vertex_attribute_sources.size;
+             ++source_index)
         {
             struct kan_rpl_meta_attribute_source_t *source =
                 &((struct kan_rpl_meta_attribute_source_t *) resource->vertex_attribute_sources.data)[source_index];
@@ -1093,7 +1094,7 @@ static void load_material (struct render_foundation_program_core_management_stat
                                              KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_CACHE;
     kan_dynamic_array_set_capacity (&loaded->pipelines, resource->pipelines.size);
 
-    for (kan_loop_size_t index = 0u; index < resource->pipelines.size; ++index)
+    for (kan_memory_size_t index = 0u; index < resource->pipelines.size; ++index)
     {
         const struct kan_resource_material_pipeline_t *input =
             &((struct kan_resource_material_pipeline_t *) resource->pipelines.data)[index];
@@ -1136,7 +1137,7 @@ static void load_material (struct render_foundation_program_core_management_stat
         CUSHION_DEFER { kan_render_code_module_destroy (code_module); }
         kan_render_pipeline_parameter_set_layout_t pass_layout = KAN_HANDLE_INITIALIZE_INVALID;
 
-        for (kan_loop_size_t variant_index = 0u; variant_index < pass->variants.size; ++variant_index)
+        for (kan_memory_size_t variant_index = 0u; variant_index < pass->variants.size; ++variant_index)
         {
             const struct kan_render_foundation_pass_variant_t *variant =
                 &((struct kan_render_foundation_pass_variant_t *) pass->variants.data)[variant_index];
@@ -1193,7 +1194,7 @@ static void load_material (struct render_foundation_program_core_management_stat
                     alignof (struct kan_render_color_output_setup_description_t));
             }
 
-            for (kan_loop_size_t color_index = 0u; color_index < input->color_outputs.size; ++color_index)
+            for (kan_memory_size_t color_index = 0u; color_index < input->color_outputs.size; ++color_index)
             {
                 struct kan_rpl_meta_color_output_t *color_output =
                     &((struct kan_rpl_meta_color_output_t *) input->color_outputs.data)[color_index];
@@ -1244,7 +1245,7 @@ static void load_material (struct render_foundation_program_core_management_stat
                     alignof (struct kan_render_pipeline_code_entry_point_t));
             }
 
-            for (kan_loop_size_t point_index = 0u; point_index < code_module_usage.entry_points_count; ++point_index)
+            for (kan_memory_size_t point_index = 0u; point_index < code_module_usage.entry_points_count; ++point_index)
             {
                 struct kan_rpl_entry_point_t *entry_point =
                     &((struct kan_rpl_entry_point_t *) input->entry_points.data)[point_index];
@@ -1364,7 +1365,7 @@ static void load_material (struct render_foundation_program_core_management_stat
     }
 
     kan_dynamic_array_set_capacity (&loaded->vertex_attribute_sources, resource->vertex_attribute_sources.size);
-    for (kan_loop_size_t index = 0u; index < resource->vertex_attribute_sources.size; ++index)
+    for (kan_memory_size_t index = 0u; index < resource->vertex_attribute_sources.size; ++index)
     {
         const struct kan_rpl_meta_attribute_source_t *input =
             &((struct kan_rpl_meta_attribute_source_t *) resource->vertex_attribute_sources.data)[index];
@@ -1657,7 +1658,7 @@ static void remap_material_link_priorities (struct render_foundation_material_in
         material->instance_references > 0u ? KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_ACTIVE :
                                              KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_CACHE;
 
-    for (kan_loop_size_t index = 0u; index < loaded->pipelines.size; ++index)
+    for (kan_memory_size_t index = 0u; index < loaded->pipelines.size; ++index)
     {
         const struct kan_render_material_pipeline_t *pipeline =
             &((struct kan_render_material_pipeline_t *) loaded->pipelines.data)[index];
@@ -1908,7 +1909,7 @@ static void advance_material_instance_from_waiting_resource_state (
     // Add usages for all textures mentioned in the resource.
     KAN_UMI_SINGLETON_READ (texture_singleton, kan_render_texture_singleton_t)
 
-    for (kan_loop_size_t index = 0u; index < resource->images.size; ++index)
+    for (kan_memory_size_t index = 0u; index < resource->images.size; ++index)
     {
         const struct kan_resource_image_binding_t *binding =
             &((struct kan_resource_image_binding_t *) resource->images.data)[index];
@@ -1981,7 +1982,7 @@ static void load_material_instance (struct render_foundation_material_instance_m
     struct kan_render_parameter_update_description_t *bindings_output = bindings;
     kan_dynamic_array_set_capacity (&loaded->bound_buffers, resource->buffers.size);
 
-    for (kan_loop_size_t index = 0u; index < resource->buffers.size; ++index)
+    for (kan_memory_size_t index = 0u; index < resource->buffers.size; ++index)
     {
         const struct kan_resource_buffer_binding_t *buffer_binding =
             &((struct kan_resource_buffer_binding_t *) resource->buffers.data)[index];
@@ -2036,7 +2037,7 @@ static void load_material_instance (struct render_foundation_material_instance_m
         ++bindings_output;
     }
 
-    for (kan_loop_size_t index = 0u; index < resource->samplers.size; ++index)
+    for (kan_memory_size_t index = 0u; index < resource->samplers.size; ++index)
     {
         const struct kan_resource_sampler_binding_t *sampler_binding =
             &((struct kan_resource_sampler_binding_t *) resource->samplers.data)[index];
@@ -2087,7 +2088,7 @@ static void load_material_instance (struct render_foundation_material_instance_m
         }
 
         kan_dynamic_array_set_capacity (&loaded->variants, resource->variants.size);
-        for (kan_loop_size_t index = 0u; index < resource->variants.size; ++index)
+        for (kan_memory_size_t index = 0u; index < resource->variants.size; ++index)
         {
             const struct kan_resource_material_variant_t *source =
                 &((struct kan_resource_material_variant_t *) resource->variants.data)[index];

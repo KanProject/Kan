@@ -49,7 +49,7 @@ static inline bool kan_reflection_check_visibility (const struct kan_reflection_
         KAN_ASSERT (visibility_condition_field)
 
 #define CHECK_CONDITIONS(TYPE)                                                                                         \
-    for (kan_loop_size_t index = 0u; index < visibility_condition_values_count; ++index)                               \
+    for (kan_memory_size_t index = 0u; index < visibility_condition_values_count; ++index)                             \
     {                                                                                                                  \
         if (*(const TYPE *) (visibility_value_pointer_with_offset) == (TYPE) visibility_condition_values[index])       \
         {                                                                                                              \

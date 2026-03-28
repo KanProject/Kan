@@ -109,7 +109,7 @@ CONTAINER_API void kan_dynamic_array_shutdown (struct kan_dynamic_array_t *array
         kan_dynamic_array_shutdown (&(ARRAY));
 #else
 #    define KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS(ARRAY, TYPE)                                                         \
-        for (kan_loop_size_t array_item_index = 0u; array_item_index < (ARRAY).size; ++array_item_index)               \
+        for (kan_memory_size_t array_item_index = 0u; array_item_index < (ARRAY).size; ++array_item_index)             \
         {                                                                                                              \
             TYPE *value = &((TYPE *) (ARRAY).data)[array_item_index];                                                  \
             __CUSHION_WRAPPED__                                                                                        \

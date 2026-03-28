@@ -4,7 +4,7 @@
 
 #include <kan/api_common/c_header.h>
 #include <kan/api_common/core_types.h>
-#include <kan/inline_math/inline_math.h>
+#include <kan/math/inline.h>
 #include <kan/resource_ui/bundle.h>
 #include <kan/threading/atomic.h>
 #include <kan/universe/universe.h>
@@ -92,6 +92,11 @@ KAN_C_HEADER_BEGIN
 /// \brief Group that is used to add all ui core mutators: both layout and render ones.
 #define KAN_UI_CORE_MUTATOR_GROUP "ui_core"
 
+/// \brief Group that is used to add all ui bundle management mutators.
+/// \details Bundle management should be done in as-high-as-possible game worlds, therefore it is separated into special
+///          mutator group.
+#define KAN_UI_BUNDLE_MANAGEMENT_MUTATOR_GROUP "ui_bundle_management"
+
 /// \brief Checkpoint, after which ui ui time update mutators are executed.
 #define KAN_UI_TIME_BEGIN_CHECKPOINT "ui_time_begin"
 
@@ -133,22 +138,22 @@ struct kan_ui_singleton_t
     struct kan_atomic_int_t node_id_counter;
 
     /// \brief Affects point-based UI coordinates..
-    float scale;
+    kan_floating_t scale;
 
     kan_instance_offset_t viewport_width;
     kan_instance_offset_t viewport_height;
 
     /// \brief Global time for UI gpu-based animations.
-    float animation_global_time_s;
+    kan_floating_t animation_global_time_s;
 
     /// \brief Delta time for UI animations and for delta time bound input.
-    float animation_delta_time_s;
+    kan_floating_t animation_delta_time_s;
 
     /// \brief Global time for UI animations loops back to zero when it becomes higher than this value.
-    float animation_global_time_loop_s;
+    kan_floating_t animation_global_time_loop_s;
 
     /// \brief Use to calculate deltas for `animation_global_time_s`.
-    kan_time_size_t last_time_ns;
+    kan_stable_size_t last_time_ns;
 };
 
 UNIVERSE_UI_API void kan_ui_singleton_init (struct kan_ui_singleton_t *instance);
@@ -221,7 +226,7 @@ enum kan_ui_coordinate_type_t
 struct kan_ui_coordinate_t
 {
     enum kan_ui_coordinate_type_t type;
-    float value;
+    kan_floating_t value;
 };
 
 #define KAN_UI_VALUE_BUILD(TYPE, VALUE) ((struct kan_ui_coordinate_t) {.type = TYPE, .value = (VALUE)})
@@ -230,10 +235,10 @@ struct kan_ui_coordinate_t
 #define KAN_UI_VALUE_VH(VALUE) KAN_UI_VALUE_BUILD (KAN_UI_VH, VALUE)
 #define KAN_UI_VALUE_VW(VALUE) KAN_UI_VALUE_BUILD (KAN_UI_VW, VALUE)
 
-static inline float kan_ui_calculate_coordinate_floating (const struct kan_ui_singleton_t *ui,
-                                                          struct kan_ui_coordinate_t coordinate)
+static inline kan_floating_t kan_ui_calculate_coordinate_floating (const struct kan_ui_singleton_t *ui,
+                                                                   struct kan_ui_coordinate_t coordinate)
 {
-    float floating_value = 0.0f;
+    kan_floating_t floating_value = 0.0f;
     switch (coordinate.type)
     {
     case KAN_UI_PT:
@@ -245,11 +250,11 @@ static inline float kan_ui_calculate_coordinate_floating (const struct kan_ui_si
         break;
 
     case KAN_UI_VH:
-        floating_value = coordinate.value * (float) ui->viewport_height;
+        floating_value = coordinate.value * (kan_floating_t) ui->viewport_height;
         break;
 
     case KAN_UI_VW:
-        floating_value = coordinate.value * (float) ui->viewport_width;
+        floating_value = coordinate.value * (kan_floating_t) ui->viewport_width;
         break;
     }
 
@@ -264,7 +269,7 @@ static inline kan_instance_offset_t kan_ui_calculate_coordinate (const struct ka
 
 static inline struct kan_ui_coordinate_t kan_ui_coordinate_from_pixels (const struct kan_ui_singleton_t *ui,
                                                                         enum kan_ui_coordinate_type_t type,
-                                                                        float pixels)
+                                                                        kan_floating_t pixels)
 {
     struct kan_ui_coordinate_t result = {
         .type = type,
@@ -282,11 +287,11 @@ static inline struct kan_ui_coordinate_t kan_ui_coordinate_from_pixels (const st
         break;
 
     case KAN_UI_VH:
-        result.value = pixels / (float) ui->viewport_height;
+        result.value = pixels / (kan_floating_t) ui->viewport_height;
         break;
 
     case KAN_UI_VW:
-        result.value = pixels / (float) ui->viewport_width;
+        result.value = pixels / (kan_floating_t) ui->viewport_width;
         break;
     }
 
@@ -315,6 +320,37 @@ struct kan_ui_rect_t
 #define KAN_UI_RECT_VH(LEFT, RIGHT, TOP, BOTTOM) KAN_UI_RECT_BUILD (KAN_UI_VALUE_VH, LEFT, RIGHT, TOP, BOTTOM)
 #define KAN_UI_RECT_VW(LEFT, RIGHT, TOP, BOTTOM) KAN_UI_RECT_BUILD (KAN_UI_VALUE_VW, LEFT, RIGHT, TOP, BOTTOM)
 
+/// \brief Value for `kan_ui_node_order_setup_t::layer` that indicates that layer value from parent should be used.
+#define KAN_UI_RENDER_LAYER_INHERIT 0u
+
+/// \brief Contains ordering-related configuration for the UI node.
+/// \details Changing order data usually costs much more than other setup changes.
+struct kan_ui_node_order_setup_t
+{
+    /// \brief Layer index allows to override draw and input orders independently of UI hierarchy.
+    /// \details There are cases when parts of the widget should be drawn with their own independent order and
+    ///          independent clip rect, for example drop down lists and tooltips, that need to be drawn of top of all
+    ///          other widgets that are near their owner widget. Layers make it possible by introducing following
+    ///          behavior:
+    ///          - Nodes with higher layer value are always placed on top of nodes with lower value.
+    ///          - When child layer is different from parent layer, parent clip rect is ignored.
+    ///          - When child layer is different from parent layer, child is excluded from regular layout calculations,
+    ///            (for example ignores paddings) and instead is aligned like it is a child of frame layout. This
+    ///            behavior is usually desired for layered widgets.
+    ///          In real cases, having multiple layers might be required, especially when there is a complex tooltip
+    ///          system (which is common for strategy genre) and some master menu on top of that with its own tooltips.
+    ///          Games like Crusader Kings 3 are good example of that.
+    ///          It is advised for the game code to define their own layer constants and use them while creating nodes.
+    ///          Keep in mind that layer value is default-initialized to `KAN_UI_RENDER_LAYER_INHERIT`, therefore it is
+    ///          not required to explicitly set layer in every node.
+    uint8_t layer;
+
+    /// \brief Local integer value used to sort child elements.
+    /// \details For frame layout children or for root nodes affects only draw order.
+    ///          For container layout children, affects positions on container layout.
+    kan_instance_offset_t local;
+};
+
 /// \brief Flags that alter the behavior of the UI node size calculation.
 KAN_REFLECTION_FLAGS
 enum kan_ui_size_flags_t
@@ -322,14 +358,19 @@ enum kan_ui_size_flags_t
     /// \brief When no flags are set, size is treated as fixed.
     KAN_UI_SIZE_FLAG_NONE = 0u,
 
-    /// \brief Size will be treated as min size, layout children may increase size along this axis.
-    /// \warning Ignored for frame layouts.
+    /// \brief Size will be treated as base size, layout children may increase size along this axis.
+    /// \warning Ignores children with different layer value.
     KAN_UI_SIZE_FLAG_FIT_CHILDREN = 1u << 0u,
 
     /// \brief If parent layout has remaining space along this axis, this node will attempt to grow along this axis.
+    /// \warning Ignored if parent has different layer value.
     /// \details If several nodes that are children of the same parent are trying to grow, the smallest ones will grow
     ///          first, ideally making all grow nodes same-sized if there is enough remaining space.
     KAN_UI_SIZE_FLAG_GROW = 1u << 1u,
+
+    /// \brief Node base size will be zero and size field will be treated as max size for other size-increasing logic.
+    /// \details Affects behaviors of `KAN_UI_SIZE_FLAG_FIT_CHILDREN` and `KAN_UI_SIZE_FLAG_GROW`.
+    KAN_UI_SIZE_FLAG_TREAT_AS_MAX = 1u << 2u,
 };
 
 /// \brief Specifies how node is aligned horizontally unless its parent layout orders children along X axis.
@@ -338,6 +379,12 @@ enum kan_ui_horizontal_alignment_t
     KAN_UI_HORIZONTAL_ALIGNMENT_LEFT = 0u,
     KAN_UI_HORIZONTAL_ALIGNMENT_CENTER,
     KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT,
+
+    /// \brief Right border of the element will be left border of the parent. Intended for popups and tooltips.
+    KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_LEFT,
+
+    /// \brief Left border of the element will be right border of the parent. Intended for popups and tooltips.
+    KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_RIGHT,
 };
 
 /// \brief Specifies how node is aligned vertically unless its parent layout orders children along Y axis.
@@ -346,6 +393,12 @@ enum kan_ui_vertical_alignment_t
     KAN_UI_VERTICAL_ALIGNMENT_TOP = 0u,
     KAN_UI_VERTICAL_ALIGNMENT_CENTER,
     KAN_UI_VERTICAL_ALIGNMENT_BOTTOM,
+
+    /// \brief Bottom border of the element will be top border of the parent. Intended for popups and tooltips.
+    KAN_UI_VERTICAL_ALIGNMENT_ABOVE,
+
+    /// \brief Top border of the element will be bottom border of the parent. Intended for popups and tooltips.
+    KAN_UI_VERTICAL_ALIGNMENT_BELOW,
 };
 
 /// \brief Contains element-scope configuration for the UI node.
@@ -412,6 +465,28 @@ struct kan_ui_node_render_setup_t
 
     /// \brief If true, use self bounds to clip self and all children.
     bool clip;
+
+    /// \brief If true, this node and all its children will not be rendered and will not be interactable.
+    /// \details It is advised to use this feature sparingly as hidden nodes are still processed and all logic connected
+    ///          to them is still processed, although discarded due to hidden status. General rule of thumb is that it
+    ///          is okay to use hidden nodes for small situational parts of the UI like drop downs, tooltips and error
+    ///          icons, but having whole big layouts like sub-screens or tabs as hidden must be avoided.
+    bool hidden;
+
+    /// \brief Does the same thing as `hidden`, but only applies to children, not to the node itself.
+    /// \details Mostly used for convenience in some cases as it makes implementation for that cases easier and does
+    ///          not make core logic more difficult. Typical use case for that is "appear when mouse enters" elements
+    ///          where root element is just a hit box without drawable and all children should be hidden unless this
+    ///          hit box is focused: we cannot hide hit box as it won't be interactable then, but we'd like an easy
+    ///          way to hide all the children.
+    bool hide_children;
+
+    /// \brief If element ends up fully or partially out of viewport, it will be moved to make it fully inside viewport.
+    /// \details Mostly useful for elements that are not very tightly bound to some position and that can end up out
+    ///          of screen while it is important to keep them inside screen. Best example of such elements are tooltips.
+    ///          Keep in mind that this flag does not reset clip rects, therefore for the cases like tooltips it is
+    ///          advised to combine this flag with separate `::layer` usage.
+    bool viewport_bound;
 };
 
 /// \brief Node is a building block of UI elements hierarchy and used to define anything that is added to the ui.
@@ -423,13 +498,8 @@ struct kan_ui_node_t
     /// \brief If true, `kan_ui_node_laid_out_t` will be sent every time this node is laid out due to dirty status.
     bool event_on_laid_out;
 
+    struct kan_ui_node_order_setup_t order;
     struct kan_ui_node_element_setup_t element;
-
-    /// \brief Local integer value used to sort child elements.
-    /// \details For frame layout children or for root nodes affects only draw order.
-    ///          For container layout children, affects positions on container layout.
-    kan_instance_offset_t local_element_order;
-
     struct kan_ui_node_layout_setup_t layout;
     struct kan_ui_node_render_setup_t render;
 };
@@ -587,9 +657,10 @@ enum kan_ui_default_command_mark_flag_t
     KAN_UI_DEFAULT_MARK_FLAG_NONE = 0u,
     KAN_UI_DEFAULT_MARK_FLAG_HOVERED = 1u << 8u,
     KAN_UI_DEFAULT_MARK_FLAG_DOWN = 1u << 9u,
+    KAN_UI_DEFAULT_MARK_FLAG_DISABLED = 1u << 10u,
 
     /// \brief Used for blinking primitives like text cursors.
-    KAN_UI_DEFAULT_MARK_FLAG_BLINK = 1u << 10u,
+    KAN_UI_DEFAULT_MARK_FLAG_BLINK = 1u << 11u,
 };
 
 /// \brief Helper for building marks for the ui draw pipelines for draw commands.
@@ -607,7 +678,7 @@ struct kan_ui_draw_command_data_t
 
     /// \brief Used to calculate local time for primitive animation on GPU if any animation is used.
     /// \details Relative to `kan_ui_render_graph_singleton_t::animation_global_time_s`.
-    float animation_start_time_s;
+    kan_floating_t animation_start_time_s;
 
     /// \brief If inside `kan_ui_node_drawable_t::additional_draw_commands`, setting this to true results in this
     ///        command being executed prior to `kan_ui_node_drawable_t::main_draw_command`.
@@ -645,6 +716,9 @@ struct kan_ui_layout_cached_t
     kan_instance_offset_t compound_margin_right;
     kan_instance_offset_t compound_margin_top;
     kan_instance_offset_t compound_margin_bottom;
+    struct kan_ui_clip_rect_t parent_clip_rect;
+    bool hidden_by_parent;
+    uint8_t parent_layer;
 };
 
 /// \brief Internal enum for deciding how much we need to recalculate in layout update.
@@ -663,14 +737,20 @@ struct kan_ui_node_drawable_t
     /// \brief Internal index that is used to sort draw commands.
     kan_instance_size_t draw_index;
 
-    /// \brief True if fully clipped out and can never be visible.
-    bool fully_clipped_out;
+    /// \brief True if permanently hidden until next time this node is laid out again.
+    /// \details Happens when fully clipped out by clip rects or hidden by `kan_ui_node_render_setup_t::hidden`.
+    bool hidden_permanently;
 
     /// \brief If true, drawable will not be rendered.
     /// \details Does not affect children. Mostly intended to be used by controls for temporary hide/show logic.
-    ///          For the high level ui node management logic, it is advised to just delete nodes that should not
-    ///          be visible, for example HUD elements that are only shown when user clicks on some button.
-    bool hidden;
+    ///          For the high level ui node management logic, it is advised to either delete hidden nodes or use
+    ///          `kan_ui_node_render_setup_t::hidden` as it applies to the hierarchies.
+    bool hidden_temporary;
+
+    /// \brief Draw layer that was calculated for the drawable during last layout execution.
+    /// \invariant Should not be changed outside of layout logic as that change would not be properly processed.
+    /// \details See `kan_ui_node_order_setup_t::layer`.
+    uint8_t draw_layer;
 
     /// \brief Clip rect that should be used to render this element.
     struct kan_ui_clip_rect_t clip_rect;
@@ -722,7 +802,7 @@ struct kan_ui_render_graph_singleton_t
     kan_render_image_t final_image;
 
     /// \brief Clear color for UI viewport render target image.
-    struct kan_color_srgb_t clear_color;
+    struct kan_color_linear_t clear_color;
 };
 
 UNIVERSE_UI_API void kan_ui_render_graph_singleton_init (struct kan_ui_render_graph_singleton_t *instance);

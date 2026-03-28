@@ -132,7 +132,7 @@ struct window_set_boolean_parameter_suffix_t
 struct window_set_floating_point_parameter_suffix_t
 {
     kan_application_system_window_t window_handle;
-    float value;
+    kan_floating_t value;
 };
 
 struct window_add_resource_suffix_t
@@ -150,15 +150,15 @@ struct window_remove_resource_suffix_t
 
 struct warp_mouse_global_suffix_t
 {
-    float global_x;
-    float global_y;
+    kan_floating_t global_x;
+    kan_floating_t global_y;
 };
 
 struct warp_mouse_to_window_suffix_t
 {
     kan_application_system_window_t window_handle;
-    float local_x;
-    float local_y;
+    kan_floating_t local_x;
+    kan_floating_t local_y;
 };
 
 struct set_cursor_visible_suffix_t
@@ -222,7 +222,12 @@ struct application_system_t
     /// \details Initial clipboard content is still not captured on Linux on X11, seems to be internal SDL bug.
     bool initial_clipboard_update_done;
 
+    bool scan_code_name_table_ready;
+
     struct kan_atomic_int_t resource_id_counter;
+
+    /// \details Scan code names table is cached as calling platform function is not thread safe.
+    const char *scan_code_name_table[KAN_PLATFORM_SCAN_CODE_COUNT];
 };
 
 static inline struct event_node_t *allocate_event_node (kan_allocation_group_t events_group)
@@ -276,6 +281,7 @@ kan_context_system_t application_system_create (kan_allocation_group_t group, vo
 
     system->clipboard_content = NULL;
     system->initial_clipboard_update_done = false;
+    system->scan_code_name_table_ready = false;
     system->resource_id_counter = kan_atomic_int_init (0);
 
     kan_cpu_static_sections_ensure_initialized ();
@@ -746,7 +752,9 @@ static inline void flush_operations (struct application_system_t *system)
     system->last_operation = NULL;
 }
 
-static inline void clean_and_pull_events (struct application_system_t *system, bool *needs_clipboard_update)
+static inline void clean_and_pull_events (struct application_system_t *system,
+                                          bool *needs_clipboard_update,
+                                          bool *needs_scan_code_table_update)
 {
     struct event_node_t *event_node;
     while ((event_node = (struct event_node_t *) kan_event_queue_clean_oldest (&system->event_queue)))
@@ -764,9 +772,18 @@ static inline void clean_and_pull_events (struct application_system_t *system, b
         if (node)
         {
             kan_platform_application_event_move (&event, &node->event);
-            if (node->event.type == KAN_PLATFORM_APPLICATION_EVENT_TYPE_CLIPBOARD_UPDATE)
+            switch (node->event.type)
             {
+            case KAN_PLATFORM_APPLICATION_EVENT_TYPE_LOCALE_CHANGED:
+                *needs_scan_code_table_update = true;
+                break;
+
+            case KAN_PLATFORM_APPLICATION_EVENT_TYPE_CLIPBOARD_UPDATE:
                 *needs_clipboard_update = true;
+                break;
+
+            default:
+                break;
             }
 
             kan_event_queue_submit_end (&system->event_queue, &allocate_event_node (system->events_group)->node);
@@ -805,7 +822,7 @@ static inline void sync_info_and_clipboard (struct application_system_t *system,
         }
 
         struct display_info_holder_t *current_holder = system->first_display_info;
-        for (kan_loop_size_t index = 0u; index < display_ids.size; ++index)
+        for (kan_memory_size_t index = 0u; index < display_ids.size; ++index)
         {
             kan_platform_display_id_t display_id = ((kan_platform_display_id_t *) display_ids.data)[index];
             current_holder->info.id = display_id;
@@ -925,15 +942,32 @@ static inline void sync_info_and_clipboard (struct application_system_t *system,
     }
 }
 
+static inline void update_scan_code_name_table (struct application_system_t *system)
+{
+    KAN_CPU_SCOPED_STATIC_SECTION (context_application_system_update_scan_code_name_table)
+    for (enum kan_platform_scan_code_t scan_code = 0u; scan_code < KAN_PLATFORM_SCAN_CODE_COUNT; ++scan_code)
+    {
+        system->scan_code_name_table[scan_code] = kan_platform_get_scan_code_name (scan_code);
+    }
+
+    system->scan_code_name_table_ready = true;
+}
+
 void kan_application_system_sync_in_main_thread (kan_context_system_t system_handle)
 {
     struct application_system_t *system = KAN_HANDLE_GET (system_handle);
     bool update_clipboard;
+    bool update_scan_code_table;
 
     KAN_CPU_SCOPED_STATIC_SECTION (context_application_system_sync_in_main_thread)
     flush_operations (system);
-    clean_and_pull_events (system, &update_clipboard);
+    clean_and_pull_events (system, &update_clipboard, &update_scan_code_table);
     sync_info_and_clipboard (system, update_clipboard);
+
+    if (update_scan_code_table || !system->scan_code_name_table_ready)
+    {
+        update_scan_code_name_table (system);
+    }
 }
 
 void kan_application_system_prepare_for_destroy_in_main_thread (kan_context_system_t system_handle)
@@ -1372,7 +1406,7 @@ void kan_application_system_window_set_keyboard_grab (kan_context_system_t syste
 
 void kan_application_system_window_set_opacity (kan_context_system_t system_handle,
                                                 kan_application_system_window_t window_handle,
-                                                float opacity)
+                                                kan_floating_t opacity)
 {
     struct application_system_t *system = KAN_HANDLE_GET (system_handle);
     KAN_ATOMIC_INT_SCOPED_LOCK (&system->operation_submission_lock)
@@ -1486,7 +1520,9 @@ const struct kan_application_system_mouse_state_t *kan_application_system_get_mo
     return &system->mouse_state;
 }
 
-void kan_application_system_warp_mouse_global (kan_context_system_t system_handle, float global_x, float global_y)
+void kan_application_system_warp_mouse_global (kan_context_system_t system_handle,
+                                               kan_floating_t global_x,
+                                               kan_floating_t global_y)
 {
     struct application_system_t *system = KAN_HANDLE_GET (system_handle);
     KAN_ATOMIC_INT_SCOPED_LOCK (&system->operation_submission_lock)
@@ -1501,8 +1537,8 @@ void kan_application_system_warp_mouse_global (kan_context_system_t system_handl
 
 void kan_application_system_warp_mouse_to_window (kan_context_system_t system_handle,
                                                   kan_application_system_window_t window_handle,
-                                                  float local_x,
-                                                  float local_y)
+                                                  kan_floating_t local_x,
+                                                  kan_floating_t local_y)
 {
     struct application_system_t *system = KAN_HANDLE_GET (system_handle);
     KAN_ATOMIC_INT_SCOPED_LOCK (&system->operation_submission_lock)
@@ -1556,6 +1592,13 @@ void kan_application_system_clipboard_set_text_sequence (kan_context_system_t sy
     text_copied[text_length] = '\0';
     operation->clipboard_set_text_suffix.text = text_copied;
     insert_operation (system, operation);
+}
+
+const char *kan_application_system_get_scan_code_name (kan_context_system_t system_handle,
+                                                       enum kan_platform_scan_code_t scan_code)
+{
+    struct application_system_t *system = KAN_HANDLE_GET (system_handle);
+    return scan_code < KAN_PLATFORM_SCAN_CODE_COUNT ? system->scan_code_name_table[scan_code] : NULL;
 }
 
 void kan_application_system_push_fake_event (kan_context_system_t system_handle,

@@ -504,7 +504,7 @@ RENDER_PIPELINE_LANGUAGE_API bool kan_rpl_compiler_context_set_option_uint (
     kan_rpl_compiler_context_t compiler_context,
     enum kan_rpl_option_target_scope_t target_scope,
     kan_interned_string_t name,
-    kan_instance_size_t value);
+    uint32_t value);
 
 /// \brief Attempts to set sint option value.
 /// \details `target_scope` used to restrict operation to specified option scope if needed for validation.
@@ -512,7 +512,7 @@ RENDER_PIPELINE_LANGUAGE_API bool kan_rpl_compiler_context_set_option_sint (
     kan_rpl_compiler_context_t compiler_context,
     enum kan_rpl_option_target_scope_t target_scope,
     kan_interned_string_t name,
-    kan_instance_offset_t value);
+    int32_t value);
 
 /// \brief Attempts to set float option value.
 /// \details `target_scope` used to restrict operation to specified option scope if needed for validation.
@@ -520,7 +520,7 @@ RENDER_PIPELINE_LANGUAGE_API bool kan_rpl_compiler_context_set_option_float (
     kan_rpl_compiler_context_t compiler_context,
     enum kan_rpl_option_target_scope_t target_scope,
     kan_interned_string_t name,
-    kan_floating_t value);
+    float value);
 
 /// \brief Attempts to set float option value.
 /// \details `target_scope` used to restrict operation to specified option scope if needed for validation.

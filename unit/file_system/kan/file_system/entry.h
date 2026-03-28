@@ -29,11 +29,11 @@ struct kan_file_system_entry_status_t
     enum kan_file_system_entry_type_t type;
 
     /// \warning Not used for KAN_FILE_SYSTEM_ENTRY_TYPE_DIRECTORY.
-    kan_file_size_t size;
+    kan_stable_size_t size;
 
     /// \brief In nanoseconds from Unix epoch in UTC zone.
     /// \warning Not used for KAN_FILE_SYSTEM_ENTRY_TYPE_DIRECTORY.
-    kan_time_size_t last_modification_time_ns;
+    kan_stable_size_t last_modification_time_ns;
 
     /// \warning Not used for KAN_FILE_SYSTEM_ENTRY_TYPE_DIRECTORY.
     bool read_only;

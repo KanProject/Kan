@@ -5,8 +5,8 @@
 #include <kan/api_common/min_max.h>
 #include <kan/file_system/stream.h>
 #include <kan/image/image.h>
-#include <kan/inline_math/inline_math.h>
 #include <kan/log/logging.h>
+#include <kan/math/inline.h>
 #include <kan/memory/allocation.h>
 #include <kan/resource_pipeline/meta.h>
 #include <kan/resource_render_foundation_build/texture.h>
@@ -89,19 +89,19 @@ RESOURCE_RENDER_FOUNDATION_BUILD_API struct kan_resource_build_rule_t kan_resour
     .version = CUSHION_START_NS_X64,
 };
 
-static void free_transitive_mip_data (float **image_mips,
+static void free_transitive_mip_data (kan_floating_t **image_mips,
                                       kan_instance_size_t channels,
                                       struct kan_resource_texture_t *output,
                                       kan_allocation_group_t mips_allocation_group)
 {
-    for (kan_loop_size_t mip = 0u; mip < (kan_loop_size_t) output->mips; ++mip)
+    for (kan_memory_size_t mip = 0u; mip < (kan_memory_size_t) output->mips; ++mip)
     {
         const kan_instance_size_t width = output->width >> mip;
         const kan_instance_size_t height = output->height >> mip;
-        kan_free_general (mips_allocation_group, image_mips[mip], width * height * channels * sizeof (float));
+        kan_free_general (mips_allocation_group, image_mips[mip], width * height * channels * sizeof (kan_floating_t));
     }
 
-    kan_free_general (mips_allocation_group, image_mips, sizeof (float *) * output->mips);
+    kan_free_general (mips_allocation_group, image_mips, sizeof (kan_floating_t *) * output->mips);
 }
 
 static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_build_rule_context_t *context)
@@ -152,7 +152,7 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
     // compressing transitive data back-and-forth from float and to float. For example, to properly generate averaged
     // mips for srgb-encoded data we need to transfer it to rgb first and then to srgb back if target format is srgb,
     // which is usually the case.
-    float **image_mips = NULL;
+    kan_floating_t **image_mips = NULL;
     kan_instance_size_t image_channels = 0u;
 
     kan_allocation_group_t main_allocation_group =
@@ -223,64 +223,66 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
         }
 
         // Allocate data arrays per mip.
-        image_mips = kan_allocate_general (mips_allocation_group, sizeof (float *) * output->mips, alignof (float *));
+        image_mips = kan_allocate_general (mips_allocation_group, sizeof (kan_floating_t *) * output->mips,
+                                           alignof (kan_floating_t *));
 
-        for (kan_loop_size_t mip = 0u; mip < (kan_loop_size_t) output->mips; ++mip)
+        for (kan_memory_size_t mip = 0u; mip < (kan_memory_size_t) output->mips; ++mip)
         {
             const kan_instance_size_t width = output->width >> mip;
             KAN_ASSERT (width > 0u)
             const kan_instance_size_t height = output->height >> mip;
             KAN_ASSERT (height > 0u)
-            image_mips[mip] = kan_allocate_general (mips_allocation_group,
-                                                    width * height * image_channels * sizeof (float), alignof (float));
+            image_mips[mip] =
+                kan_allocate_general (mips_allocation_group, width * height * image_channels * sizeof (kan_floating_t),
+                                      alignof (kan_floating_t));
         }
 
         // Properly decode first mip from image data.
-        const kan_loop_size_t source_pixel_count = image_data.width * image_data.height;
+        const kan_memory_size_t source_pixel_count = image_data.width * image_data.height;
         const uint8_t *source_pixel = image_data.data;
-        float *target_pixel = image_mips[0u];
+        kan_floating_t *target_pixel = image_mips[0u];
 
         switch (input->image_class)
         {
         case KAN_RESOURCE_TEXTURE_IMAGE_CLASS_COLOR_SRGB:
-            for (kan_loop_size_t pixel_index = 0u; pixel_index < source_pixel_count;
+            for (kan_memory_size_t pixel_index = 0u; pixel_index < source_pixel_count;
                  ++pixel_index, source_pixel += sizeof (uint32_t), target_pixel += 4u)
             {
-                target_pixel[0u] = kan_color_transfer_srgb_to_rgb ((float) source_pixel[0u] / 255.0f);
-                target_pixel[1u] = kan_color_transfer_srgb_to_rgb ((float) source_pixel[1u] / 255.0f);
-                target_pixel[2u] = kan_color_transfer_srgb_to_rgb ((float) source_pixel[2u] / 255.0f);
+                target_pixel[0u] = kan_color_transfer_srgb_to_rgb ((kan_floating_t) source_pixel[0u] / 255.0f);
+                target_pixel[1u] = kan_color_transfer_srgb_to_rgb ((kan_floating_t) source_pixel[1u] / 255.0f);
+                target_pixel[2u] = kan_color_transfer_srgb_to_rgb ((kan_floating_t) source_pixel[2u] / 255.0f);
                 // Alpha is not in sRGB color space.
-                target_pixel[3u] = (float) source_pixel[3u] / 255.0f;
+                target_pixel[3u] = (kan_floating_t) source_pixel[3u] / 255.0f;
             }
 
             break;
 
         case KAN_RESOURCE_TEXTURE_IMAGE_CLASS_COLOR_RGB:
-            for (kan_loop_size_t pixel_index = 0u; pixel_index < source_pixel_count;
+            for (kan_memory_size_t pixel_index = 0u; pixel_index < source_pixel_count;
                  ++pixel_index, source_pixel += sizeof (uint32_t), target_pixel += 4u)
             {
-                target_pixel[0u] = (float) source_pixel[0u] / 255.0f;
-                target_pixel[1u] = (float) source_pixel[1u] / 255.0f;
-                target_pixel[2u] = (float) source_pixel[2u] / 255.0f;
-                target_pixel[3u] = (float) source_pixel[3u] / 255.0f;
+                target_pixel[0u] = (kan_floating_t) source_pixel[0u] / 255.0f;
+                target_pixel[1u] = (kan_floating_t) source_pixel[1u] / 255.0f;
+                target_pixel[2u] = (kan_floating_t) source_pixel[2u] / 255.0f;
+                target_pixel[3u] = (kan_floating_t) source_pixel[3u] / 255.0f;
             }
 
             break;
 
         case KAN_RESOURCE_TEXTURE_IMAGE_CLASS_DEPTH_GRAYSCALE:
-            for (kan_loop_size_t pixel_index = 0u; pixel_index < source_pixel_count;
+            for (kan_memory_size_t pixel_index = 0u; pixel_index < source_pixel_count;
                  ++pixel_index, source_pixel += sizeof (uint32_t), ++target_pixel)
             {
-                *target_pixel = (float) source_pixel[0u] / 255.0f;
+                *target_pixel = (kan_floating_t) source_pixel[0u] / 255.0f;
             }
 
             break;
 
         case KAN_RESOURCE_TEXTURE_IMAGE_CLASS_DEPTH_FLOAT_32:
-            for (kan_loop_size_t pixel_index = 0u; pixel_index < source_pixel_count;
+            for (kan_memory_size_t pixel_index = 0u; pixel_index < source_pixel_count;
                  ++pixel_index, source_pixel += sizeof (uint32_t), ++target_pixel)
             {
-                *target_pixel = *(float *) source_pixel;
+                *target_pixel = *(kan_floating_t *) source_pixel;
             }
 
             break;
@@ -288,7 +290,7 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
     }
 
     CUSHION_DEFER { free_transitive_mip_data (image_mips, image_channels, output, mips_allocation_group); };
-    for (kan_loop_size_t next_mip = 1u; next_mip < output->mips; ++next_mip)
+    for (kan_memory_size_t next_mip = 1u; next_mip < output->mips; ++next_mip)
     {
         const kan_instance_size_t source_width = output->width >> (next_mip - 1u);
         KAN_ASSERT (source_width > 0u)
@@ -300,15 +302,15 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
         const kan_instance_size_t mip_height = output->height >> next_mip;
         KAN_ASSERT (mip_height > 0u)
 
-        const float *source_data = image_mips[next_mip - 1u];
-        float *target_data = image_mips[next_mip];
+        const kan_floating_t *source_data = image_mips[next_mip - 1u];
+        kan_floating_t *target_data = image_mips[next_mip];
 
-        for (kan_loop_size_t y = 0u; y < (kan_loop_size_t) mip_height; ++y)
+        for (kan_memory_size_t y = 0u; y < (kan_memory_size_t) mip_height; ++y)
         {
-            for (kan_loop_size_t x = 0u; x < (kan_loop_size_t) mip_width; ++x)
+            for (kan_memory_size_t x = 0u; x < (kan_memory_size_t) mip_width; ++x)
             {
-                float *mip_pixel = target_data + image_channels * (y * mip_width + x);
-                for (kan_loop_size_t channel = 0u; channel < image_channels; ++channel)
+                kan_floating_t *mip_pixel = target_data + image_channels * (y * mip_width + x);
+                for (kan_memory_size_t channel = 0u; channel < image_channels; ++channel)
                 {
                     switch (preset->mip_generation)
                     {
@@ -326,21 +328,21 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                     }
                 }
 
-                kan_loop_size_t average_samples = 0u;
-                for (kan_loop_size_t offset_y = 0u; offset_y < 2u; ++offset_y)
+                kan_memory_size_t average_samples = 0u;
+                for (kan_memory_size_t offset_y = 0u; offset_y < 2u; ++offset_y)
                 {
-                    for (kan_loop_size_t offset_x = 0u; offset_x < 2u; ++offset_x)
+                    for (kan_memory_size_t offset_x = 0u; offset_x < 2u; ++offset_x)
                     {
-                        const kan_loop_size_t sample_x = x * 2u + offset_x;
-                        const kan_loop_size_t sample_y = y * 2u + offset_y;
+                        const kan_memory_size_t sample_x = x * 2u + offset_x;
+                        const kan_memory_size_t sample_y = y * 2u + offset_y;
 
                         if (sample_x < source_width && sample_y < source_height)
                         {
-                            const float *sample_pixel =
+                            const kan_floating_t *sample_pixel =
                                 source_data + image_channels * (sample_y * source_width + sample_x);
                             ++average_samples;
 
-                            for (kan_loop_size_t channel = 0u; channel < image_channels; ++channel)
+                            for (kan_memory_size_t channel = 0u; channel < image_channels; ++channel)
                             {
                                 switch (preset->mip_generation)
                                 {
@@ -366,8 +368,8 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                 case KAN_RESOURCE_TEXTURE_MIP_GENERATION_AVERAGE:
                 {
                     KAN_ASSERT (average_samples > 0u)
-                    const float average_modifier = 1.0f / (float) average_samples;
-                    for (kan_loop_size_t channel = 0u; channel < image_channels; ++channel)
+                    const kan_floating_t average_modifier = 1.0f / (kan_floating_t) average_samples;
+                    for (kan_memory_size_t channel = 0u; channel < image_channels; ++channel)
                     {
                         mip_pixel[channel] *= average_modifier;
                     }
@@ -392,14 +394,14 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
     bool conversion_successful = true;
     kan_dynamic_array_set_capacity (&output->formats, preset->supported_target_formats.size);
 
-    for (kan_loop_size_t format_index = 0u; format_index < preset->supported_target_formats.size; ++format_index)
+    for (kan_memory_size_t format_index = 0u; format_index < preset->supported_target_formats.size; ++format_index)
     {
         enum kan_resource_texture_format_t format =
             ((enum kan_resource_texture_format_t *) preset->supported_target_formats.data)[format_index];
         bool supported_by_platform = false;
 
-        for (kan_loop_size_t configuration_index = 0u;
-             configuration_index < (kan_loop_size_t) configuration->supported_formats.size; ++configuration_index)
+        for (kan_memory_size_t configuration_index = 0u;
+             configuration_index < (kan_memory_size_t) configuration->supported_formats.size; ++configuration_index)
         {
             if (format ==
                 ((enum kan_resource_texture_format_t *) configuration->supported_formats.data)[configuration_index])
@@ -482,11 +484,11 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
         item->format = format;
         kan_dynamic_array_set_capacity (&item->data_per_mip, output->mips);
 
-        for (kan_loop_size_t mip = 0u; mip < (kan_loop_size_t) output->mips; ++mip)
+        for (kan_memory_size_t mip = 0u; mip < (kan_memory_size_t) output->mips; ++mip)
         {
             const kan_instance_size_t width = output->width >> mip;
             const kan_instance_size_t height = output->height >> mip;
-            const kan_loop_size_t source_pixel_count = width * height;
+            const kan_memory_size_t source_pixel_count = width * height;
             const char *target_format_name = "unknown";
 
 #define CLAMPED_UINT_COLOR(VALUE) (uint8_t) (255.0f * KAN_CLAMP (VALUE, 0.0f, 1.0f))
@@ -497,10 +499,10 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                 target_format_name = "r_srgb";
                 kan_dynamic_array_set_capacity (&texture_data.data, sizeof (uint8_t) * width * height);
                 texture_data.data.size = texture_data.data.capacity;
-                const float *source_pixel = image_mips[mip];
+                const kan_floating_t *source_pixel = image_mips[mip];
                 uint8_t *target_pixel = texture_data.data.data;
 
-                for (kan_loop_size_t pixel_index = 0u; pixel_index < source_pixel_count;
+                for (kan_memory_size_t pixel_index = 0u; pixel_index < source_pixel_count;
                      ++pixel_index, source_pixel += 4u, ++target_pixel)
                 {
                     target_pixel[0u] = CLAMPED_UINT_COLOR (kan_color_transfer_rgb_to_srgb (source_pixel[0u]));
@@ -514,10 +516,10 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                 target_format_name = "rg_srgb";
                 kan_dynamic_array_set_capacity (&texture_data.data, sizeof (uint16_t) * width * height);
                 texture_data.data.size = texture_data.data.capacity;
-                const float *source_pixel = image_mips[mip];
+                const kan_floating_t *source_pixel = image_mips[mip];
                 uint8_t *target_pixel = texture_data.data.data;
 
-                for (kan_loop_size_t pixel_index = 0u; pixel_index < source_pixel_count;
+                for (kan_memory_size_t pixel_index = 0u; pixel_index < source_pixel_count;
                      ++pixel_index, source_pixel += 4u, target_pixel += 2u)
                 {
                     target_pixel[0u] = CLAMPED_UINT_COLOR (kan_color_transfer_rgb_to_srgb (source_pixel[0u]));
@@ -532,10 +534,10 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                 target_format_name = "rgba_srgb";
                 kan_dynamic_array_set_capacity (&texture_data.data, sizeof (uint32_t) * width * height);
                 texture_data.data.size = texture_data.data.capacity;
-                const float *source_pixel = image_mips[mip];
+                const kan_floating_t *source_pixel = image_mips[mip];
                 uint8_t *target_pixel = texture_data.data.data;
 
-                for (kan_loop_size_t pixel_index = 0u; pixel_index < source_pixel_count;
+                for (kan_memory_size_t pixel_index = 0u; pixel_index < source_pixel_count;
                      ++pixel_index, source_pixel += 4u, target_pixel += 4u)
                 {
                     target_pixel[0u] = CLAMPED_UINT_COLOR (kan_color_transfer_rgb_to_srgb (source_pixel[0u]));
@@ -553,10 +555,10 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                 target_format_name = "r_unorm";
                 kan_dynamic_array_set_capacity (&texture_data.data, sizeof (uint8_t) * width * height);
                 texture_data.data.size = texture_data.data.capacity;
-                const float *source_pixel = image_mips[mip];
+                const kan_floating_t *source_pixel = image_mips[mip];
                 uint8_t *target_pixel = texture_data.data.data;
 
-                for (kan_loop_size_t pixel_index = 0u; pixel_index < source_pixel_count;
+                for (kan_memory_size_t pixel_index = 0u; pixel_index < source_pixel_count;
                      ++pixel_index, source_pixel += 4u, ++target_pixel)
                 {
                     target_pixel[0u] = CLAMPED_UINT_COLOR (source_pixel[0u]);
@@ -570,10 +572,10 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                 target_format_name = "rg_unorm";
                 kan_dynamic_array_set_capacity (&texture_data.data, sizeof (uint16_t) * width * height);
                 texture_data.data.size = texture_data.data.capacity;
-                const float *source_pixel = image_mips[mip];
+                const kan_floating_t *source_pixel = image_mips[mip];
                 uint8_t *target_pixel = texture_data.data.data;
 
-                for (kan_loop_size_t pixel_index = 0u; pixel_index < source_pixel_count;
+                for (kan_memory_size_t pixel_index = 0u; pixel_index < source_pixel_count;
                      ++pixel_index, source_pixel += 4u, target_pixel += 2u)
                 {
                     target_pixel[0u] = CLAMPED_UINT_COLOR (source_pixel[0u]);
@@ -588,10 +590,10 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                 target_format_name = "rgba_unorm";
                 kan_dynamic_array_set_capacity (&texture_data.data, sizeof (uint32_t) * width * height);
                 texture_data.data.size = texture_data.data.capacity;
-                const float *source_pixel = image_mips[mip];
+                const kan_floating_t *source_pixel = image_mips[mip];
                 uint8_t *target_pixel = texture_data.data.data;
 
-                for (kan_loop_size_t pixel_index = 0u; pixel_index < source_pixel_count;
+                for (kan_memory_size_t pixel_index = 0u; pixel_index < source_pixel_count;
                      ++pixel_index, source_pixel += 4u, target_pixel += 4u)
                 {
                     target_pixel[0u] = CLAMPED_UINT_COLOR (source_pixel[0u]);
@@ -608,13 +610,14 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                 target_format_name = "d16";
                 kan_dynamic_array_set_capacity (&texture_data.data, sizeof (uint16_t) * width * height);
                 texture_data.data.size = texture_data.data.capacity;
-                const float *source_pixel = image_mips[mip];
-                uint16_t *target_pixel = texture_data.data.data;
+                const kan_floating_t *source_pixel = image_mips[mip];
+                uint16_t *target_pixel = (uint16_t *) texture_data.data.data;
 
-                for (kan_loop_size_t pixel_index = 0u; pixel_index < source_pixel_count;
+                for (kan_memory_size_t pixel_index = 0u; pixel_index < source_pixel_count;
                      ++pixel_index, ++source_pixel, ++target_pixel)
                 {
-                    *target_pixel = (uint16_t) (KAN_CLAMP (*source_pixel, 0.0f, 1.0f) * (float) KAN_INT_MAX (uint16_t));
+                    *target_pixel =
+                        (uint16_t) (KAN_CLAMP (*source_pixel, 0.0f, 1.0f) * (kan_floating_t) KAN_INT_MAX (uint16_t));
                 }
 
                 break;
@@ -623,9 +626,9 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
             case KAN_RESOURCE_TEXTURE_FORMAT_UNCOMPRESSED_D32:
             {
                 target_format_name = "d32";
-                kan_dynamic_array_set_capacity (&texture_data.data, sizeof (float) * width * height);
+                kan_dynamic_array_set_capacity (&texture_data.data, sizeof (kan_floating_t) * width * height);
                 texture_data.data.size = texture_data.data.capacity;
-                memcpy (texture_data.data.data, image_mips[mip], sizeof (float) * width * height);
+                memcpy (texture_data.data.data, image_mips[mip], sizeof (kan_floating_t) * width * height);
                 break;
             }
             }
@@ -638,7 +641,7 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
             kan_interned_string_t *spot = kan_dynamic_array_add_last (&item->data_per_mip);
             *spot = kan_string_intern (name_buffer);
 
-            if (!context->produce_secondary_output (
+            if (!context->produce_native_secondary_output (
                     context->interface, KAN_STATIC_INTERNED_ID_GET (kan_resource_texture_data_t), *spot, &texture_data))
             {
                 KAN_LOG (resource_render_foundation_texture, KAN_LOG_ERROR,

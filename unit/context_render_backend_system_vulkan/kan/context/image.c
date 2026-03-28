@@ -153,7 +153,7 @@ struct render_backend_image_t *render_backend_system_create_image (struct render
             kan_allocate_general (system->image_wrapper_allocation_group,
                                   sizeof (VkImageLayout) * image->description.layers, alignof (VkImageLayout));
 
-        for (kan_loop_size_t index = 0u; index < image->description.layers; ++index)
+        for (kan_memory_size_t index = 0u; index < image->description.layers; ++index)
         {
             image->last_command_layouts_per_layer[index] = VK_IMAGE_LAYOUT_UNDEFINED;
         }
@@ -245,7 +245,7 @@ static inline struct scheduled_image_upload_t *find_or_add_image_upload_to_sched
 void kan_render_image_clear_color (kan_render_image_t image,
                                    kan_instance_size_t layer,
                                    uint8_t mip,
-                                   const struct kan_render_clear_color_t *clear_color)
+                                   const struct kan_color_linear_t *clear_color)
 {
     struct render_backend_image_t *image_data = KAN_HANDLE_GET (image);
     KAN_CPU_SCOPED_STATIC_SECTION (render_backend_image_upload)

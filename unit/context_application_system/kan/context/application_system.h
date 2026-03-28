@@ -60,7 +60,7 @@ struct kan_application_system_display_info_t
     kan_platform_display_id_t id;
     struct kan_platform_integer_bounds_t bounds;
     enum kan_platform_display_orientation_t orientation;
-    float content_scale;
+    kan_floating_t content_scale;
 
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_platform_display_mode_t)
     struct kan_dynamic_array_t fullscreen_modes;
@@ -80,9 +80,9 @@ struct kan_application_system_window_info_t
     kan_platform_window_id_t id;
     kan_platform_display_id_t display_id;
 
-    float pixel_density;
-    float display_scale;
-    float opacity;
+    kan_floating_t pixel_density;
+    kan_floating_t display_scale;
+    kan_floating_t opacity;
 
     enum kan_platform_pixel_format_t pixel_format;
     enum kan_platform_window_flag_t flags;
@@ -116,10 +116,10 @@ KAN_TYPED_ID_32_DEFINE (kan_application_system_window_resource_id_t);
 struct kan_application_system_mouse_state_t
 {
     uint8_t button_mask;
-    float local_x;
-    float local_y;
-    float global_x;
-    float global_y;
+    kan_floating_t local_x;
+    kan_floating_t local_y;
+    kan_floating_t global_x;
+    kan_floating_t global_y;
 };
 
 /// \brief Synchronizes application state with application system.
@@ -280,7 +280,7 @@ CONTEXT_APPLICATION_SYSTEM_API void kan_application_system_window_set_keyboard_g
 
 /// \brief Adapts `kan_platform_application_window_set_opacity`.
 CONTEXT_APPLICATION_SYSTEM_API void kan_application_system_window_set_opacity (
-    kan_context_system_t system_handle, kan_application_system_window_t window_handle, float opacity);
+    kan_context_system_t system_handle, kan_application_system_window_t window_handle, kan_floating_t opacity);
 
 /// \brief Adapts `kan_platform_application_window_set_focusable`.
 CONTEXT_APPLICATION_SYSTEM_API void kan_application_window_set_focusable (kan_context_system_t system_handle,
@@ -319,12 +319,15 @@ kan_application_system_get_mouse_state (kan_context_system_t system_handle);
 
 /// \brief Adapts `kan_platform_application_warp_mouse_global`.
 CONTEXT_APPLICATION_SYSTEM_API void kan_application_system_warp_mouse_global (kan_context_system_t system_handle,
-                                                                              float global_x,
-                                                                              float global_y);
+                                                                              kan_floating_t global_x,
+                                                                              kan_floating_t global_y);
 
 /// \brief Adapts `kan_platform_application_warp_mouse_in_window`.
 CONTEXT_APPLICATION_SYSTEM_API void kan_application_system_warp_mouse_to_window (
-    kan_context_system_t system_handle, kan_application_system_window_t window_handle, float local_x, float local_y);
+    kan_context_system_t system_handle,
+    kan_application_system_window_t window_handle,
+    kan_floating_t local_x,
+    kan_floating_t local_y);
 
 /// \brief Adapts `kan_platform_application_system_set_cursor_visible`.
 CONTEXT_APPLICATION_SYSTEM_API void kan_application_system_set_cursor_visible (kan_context_system_t system_handle,
@@ -341,6 +344,10 @@ CONTEXT_APPLICATION_SYSTEM_API void kan_application_system_clipboard_set_text (k
 /// \brief Adapts `kan_platform_application_put_text_into_clipboard`.
 CONTEXT_APPLICATION_SYSTEM_API void kan_application_system_clipboard_set_text_sequence (
     kan_context_system_t system_handle, const char *text_begin, const char *text_end);
+
+/// \brief Adapts `kan_platform_get_scan_code_name`.
+CONTEXT_APPLICATION_SYSTEM_API const char *kan_application_system_get_scan_code_name (
+    kan_context_system_t system_handle, enum kan_platform_scan_code_t scan_code);
 
 /// \brief Push fake event that will be read during next sync.
 /// \details Event data is moved out, therefore shutting down pushed event is optional.

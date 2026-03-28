@@ -22,7 +22,7 @@ struct render_backend_pipeline_parameter_set_layout_t *render_backend_system_reg
     uint8_t sampler_binding_count = 0u;
     uint8_t image_binding_count = 0u;
 
-    for (kan_loop_size_t binding_index = 0u; binding_index < description->bindings_count; ++binding_index)
+    for (kan_memory_size_t binding_index = 0u; binding_index < description->bindings_count; ++binding_index)
     {
         struct kan_render_parameter_binding_description_t *binding_description = &description->bindings[binding_index];
         switch (binding_description->type)
@@ -74,7 +74,7 @@ struct render_backend_pipeline_parameter_set_layout_t *render_backend_system_reg
             // As we pack binding counts and stability to hash, this check is quite easy.
             bool compatible = true;
 
-            for (kan_loop_size_t binding_index = 0u; binding_index < description->bindings_count; ++binding_index)
+            for (kan_memory_size_t binding_index = 0u; binding_index < description->bindings_count; ++binding_index)
             {
                 struct kan_render_parameter_binding_description_t *binding_description =
                     &description->bindings[binding_index];
@@ -127,7 +127,7 @@ struct render_backend_pipeline_parameter_set_layout_t *render_backend_system_reg
     }
 
     vulkan_size_t used_binding_index_count = 0u;
-    for (kan_loop_size_t binding_index = 0u; binding_index < description->bindings_count; ++binding_index)
+    for (kan_memory_size_t binding_index = 0u; binding_index < description->bindings_count; ++binding_index)
     {
         struct kan_render_parameter_binding_description_t *binding_description = &description->bindings[binding_index];
         VkDescriptorSetLayoutBinding *vulkan_binding = &bindings[binding_index];
@@ -263,7 +263,7 @@ struct render_backend_pipeline_parameter_set_layout_t *render_backend_system_reg
     }
 
     // Copy proper applied info from description.
-    for (kan_loop_size_t binding_index = 0u; binding_index < description->bindings_count; ++binding_index)
+    for (kan_memory_size_t binding_index = 0u; binding_index < description->bindings_count; ++binding_index)
     {
         struct kan_render_parameter_binding_description_t *binding_description = &description->bindings[binding_index];
         layout->bindings[binding_description->binding].type = binding_description->type;

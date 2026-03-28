@@ -232,7 +232,7 @@ kan_hash_t kan_reflection_hash_struct (kan_reflection_registry_t registry,
         case KAN_REFLECTION_ARCHETYPE_INLINE_ARRAY:
         {
             const kan_instance_size_t size = kan_reflection_get_inline_array_size (iterator.field, address);
-            for (kan_loop_size_t index = 0u; index < size; ++index)
+            for (kan_memory_size_t index = 0u; index < size; ++index)
             {
                 void *item_address = ((uint8_t *) address) + iterator.field->archetype_inline_array.item_size * index;
                 switch (iterator.field->archetype_dynamic_array.item_archetype)
@@ -260,7 +260,7 @@ kan_hash_t kan_reflection_hash_struct (kan_reflection_registry_t registry,
         case KAN_REFLECTION_ARCHETYPE_DYNAMIC_ARRAY:
         {
             struct kan_dynamic_array_t *array = address;
-            for (kan_loop_size_t index = 0u; index < array->size; ++index)
+            for (kan_memory_size_t index = 0u; index < array->size; ++index)
             {
                 void *item_address =
                     ((uint8_t *) array->data) + iterator.field->archetype_dynamic_array.item_size * index;
@@ -433,7 +433,7 @@ bool kan_reflection_are_structs_equal (kan_reflection_registry_t registry,
                 return false;
             }
 
-            for (kan_loop_size_t index = 0u; index < first_size; ++index)
+            for (kan_memory_size_t index = 0u; index < first_size; ++index)
             {
                 void *first_item_address =
                     ((uint8_t *) first_address) + first_iterator.field->archetype_inline_array.item_size * index;
@@ -477,7 +477,7 @@ bool kan_reflection_are_structs_equal (kan_reflection_registry_t registry,
                 return false;
             }
 
-            for (kan_loop_size_t index = 0u; index < first_array->size; ++index)
+            for (kan_memory_size_t index = 0u; index < first_array->size; ++index)
             {
                 void *first_item_address =
                     ((uint8_t *) first_array->data) + first_iterator.field->archetype_dynamic_array.item_size * index;
@@ -644,7 +644,7 @@ void kan_reflection_move_struct (kan_reflection_registry_t registry,
         case KAN_REFLECTION_ARCHETYPE_INLINE_ARRAY:
         {
             const kan_instance_size_t size = kan_reflection_get_inline_array_size (iterator.field, source_address);
-            for (kan_loop_size_t index = 0u; index < size; ++index)
+            for (kan_memory_size_t index = 0u; index < size; ++index)
             {
                 void *target_item_address =
                     ((uint8_t *) target_address) + iterator.field->archetype_inline_array.item_size * index;
@@ -757,7 +757,7 @@ void kan_reflection_reset_struct (kan_reflection_registry_t registry,
 
                 if (item_type->shutdown)
                 {
-                    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) size; ++index)
+                    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) size; ++index)
                     {
                         item_type->shutdown (
                             item_type->functor_user_data,
@@ -767,7 +767,7 @@ void kan_reflection_reset_struct (kan_reflection_registry_t registry,
             }
             else if (iterator.field->archetype_inline_array.item_archetype == KAN_REFLECTION_ARCHETYPE_PATCH)
             {
-                for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) size; ++index)
+                for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) size; ++index)
                 {
                     kan_reflection_patch_destroy (
                         *(kan_reflection_patch_t *) (((uint8_t *) address) +
@@ -788,7 +788,7 @@ void kan_reflection_reset_struct (kan_reflection_registry_t registry,
 
                 if (item_type->shutdown)
                 {
-                    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) array->size; ++index)
+                    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) array->size; ++index)
                     {
                         item_type->shutdown (item_type->functor_user_data,
                                              ((uint8_t *) array->data) + array->item_size * index);
@@ -797,7 +797,7 @@ void kan_reflection_reset_struct (kan_reflection_registry_t registry,
             }
             else if (iterator.field->archetype_inline_array.item_archetype == KAN_REFLECTION_ARCHETYPE_PATCH)
             {
-                for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) array->size; ++index)
+                for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) array->size; ++index)
                 {
                     kan_reflection_patch_destroy (
                         *(kan_reflection_patch_t *) (((uint8_t *) array->data) + array->item_size * index));

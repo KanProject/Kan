@@ -9,8 +9,8 @@
 #include <kan/file_system/path_container.h>
 #include <kan/file_system/stream.h>
 #include <kan/image/image.h>
-#include <kan/inline_math/inline_math.h>
 #include <kan/log/logging.h>
+#include <kan/math/inline.h>
 #include <kan/precise_time/precise_time.h>
 #include <kan/resource_pipeline/meta.h>
 #include <kan/test_expectation/test_expectation.h>
@@ -296,13 +296,13 @@ APPLICATION_FRAMEWORK_EXAMPLES_DEFERRED_RENDER_API void example_deferred_render_
     instance->cube_index_count = 0u;
 
     instance->instanced_data_allocator = KAN_HANDLE_SET_INVALID (kan_render_frame_lifetime_buffer_allocator_t);
-    for (kan_loop_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
+    for (kan_memory_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
     {
         deferred_render_scene_view_data_init (&instance->scene_view[index]);
     }
 
     deferred_render_shadow_pass_data_init (&instance->directional_light_shadow_pass);
-    for (kan_loop_size_t index = 0u; index < POINT_LIGHTS_SHADOW_PASS_COUNT; ++index)
+    for (kan_memory_size_t index = 0u; index < POINT_LIGHTS_SHADOW_PASS_COUNT; ++index)
     {
         deferred_render_shadow_pass_data_init (&instance->point_light_shadow_passes[index]);
     }
@@ -544,7 +544,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_DEFERRED_RENDER_API void example_deferred_render_
     }
 
     deferred_render_shadow_pass_data_shutdown (&instance->directional_light_shadow_pass);
-    for (kan_loop_size_t index = 0u; index < POINT_LIGHTS_SHADOW_PASS_COUNT; ++index)
+    for (kan_memory_size_t index = 0u; index < POINT_LIGHTS_SHADOW_PASS_COUNT; ++index)
     {
         deferred_render_shadow_pass_data_shutdown (&instance->point_light_shadow_passes[index]);
     }
@@ -593,7 +593,7 @@ static inline kan_render_graphics_pipeline_t find_pipeline (const struct kan_ren
                                                             kan_interned_string_t pass_name,
                                                             kan_interned_string_t variant_name)
 {
-    for (kan_loop_size_t index = 0u; index < material->pipelines.size; ++index)
+    for (kan_memory_size_t index = 0u; index < material->pipelines.size; ++index)
     {
         const struct kan_render_material_pipeline_t *loaded =
             &((struct kan_render_material_pipeline_t *) material->pipelines.data)[index];
@@ -774,9 +774,7 @@ static bool try_render_ambient_lighting (struct deferred_render_state_t *state,
     KAN_ASSERT (ambient_material->vertex_attribute_sources.size == 1u)
     KAN_ASSERT (!ambient_material->has_instanced_attribute_source)
 
-    const struct kan_float_vector_4_t ambient_modifier = {kan_color_transfer_rgb_to_srgb_approximate (0.05f),
-                                                          kan_color_transfer_rgb_to_srgb_approximate (0.05f),
-                                                          kan_color_transfer_rgb_to_srgb_approximate (0.05f), 1.0f};
+    const struct kan_float_vector_4_t ambient_modifier = {0.001373f, 0.001373f, 0.001373f, 1.0f};
     kan_render_pass_instance_push_constant (pass_instance, &ambient_modifier);
 
     kan_render_buffer_t attribute_buffers[] = {singleton->full_screen_quad_vertex_buffer};
@@ -825,9 +823,9 @@ static bool try_render_directional_lighting (struct deferred_render_state_t *sta
         .shadow_map_projection_view = singleton->directional_light_shadow_projection_view,
         .color =
             {
-                .x = kan_color_transfer_rgb_to_srgb_approximate (0.2f),
-                .y = kan_color_transfer_rgb_to_srgb_approximate (0.2f),
-                .z = kan_color_transfer_rgb_to_srgb_approximate (0.4f),
+                .x = 0.028991f,
+                .y = 0.028991f,
+                .z = 0.133209f,
                 .w = 0.0f,
             },
         .direction =
@@ -902,9 +900,7 @@ static bool try_render_point_lighting (struct deferred_render_state_t *state,
     {
         instanced_data_output->position_and_distance = kan_extend_float_vector_3_t (
             singleton->point_lights_with_shadows_positions[point_light_index], POINT_LIGHTS_WITH_SHADOWS_DISTANCE);
-        instanced_data_output->color = kan_make_float_vector_3_t (kan_color_transfer_rgb_to_srgb_approximate (1.0f),
-                                                                  kan_color_transfer_rgb_to_srgb_approximate (1.0f),
-                                                                  kan_color_transfer_rgb_to_srgb_approximate (1.0f));
+        instanced_data_output->color = kan_make_float_vector_3_t (1.0f, 1.0f, 1.0f);
         instanced_data_output->shadow_map_index = (int32_t) point_light_index;
         ++instanced_data_output;
     }
@@ -929,31 +925,22 @@ static bool try_render_point_lighting (struct deferred_render_state_t *state,
             switch (light_index % 6u)
             {
             case 0u:
-                instanced_data_output->color =
-                    kan_make_float_vector_3_t (kan_color_transfer_rgb_to_srgb_approximate (1.0f), 0.0f, 0.0f);
+                instanced_data_output->color = kan_make_float_vector_3_t (1.0f, 0.0f, 0.0f);
                 break;
             case 1u:
-                instanced_data_output->color =
-                    kan_make_float_vector_3_t (0.0f, kan_color_transfer_rgb_to_srgb_approximate (1.0f), 0.0f);
+                instanced_data_output->color = kan_make_float_vector_3_t (0.0f, 1.0f, 0.0f);
                 break;
             case 2u:
-                instanced_data_output->color =
-                    kan_make_float_vector_3_t (0.0f, 0.0f, kan_color_transfer_rgb_to_srgb_approximate (1.0f));
+                instanced_data_output->color = kan_make_float_vector_3_t (0.0f, 0.0f, 1.0f);
                 break;
             case 3u:
-                instanced_data_output->color =
-                    kan_make_float_vector_3_t (kan_color_transfer_rgb_to_srgb_approximate (1.0f),
-                                               kan_color_transfer_rgb_to_srgb_approximate (1.0f), 0.0f);
+                instanced_data_output->color = kan_make_float_vector_3_t (1.0f, 1.0f, 0.0f);
                 break;
             case 4u:
-                instanced_data_output->color =
-                    kan_make_float_vector_3_t (0.0f, kan_color_transfer_rgb_to_srgb_approximate (1.0f),
-                                               kan_color_transfer_rgb_to_srgb_approximate (1.0f));
+                instanced_data_output->color = kan_make_float_vector_3_t (0.0f, 1.0f, 1.0f);
                 break;
             case 5u:
-                instanced_data_output->color =
-                    kan_make_float_vector_3_t (kan_color_transfer_rgb_to_srgb_approximate (1.0f), 0.0f,
-                                               kan_color_transfer_rgb_to_srgb_approximate (1.0f));
+                instanced_data_output->color = kan_make_float_vector_3_t (1.0f, 0.0f, 1.0f);
                 break;
             }
 
@@ -1194,7 +1181,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
     struct kan_rpl_meta_buffer_t *g_buffer_scene_view_buffer_meta =
         &((struct kan_rpl_meta_buffer_t *) g_buffer_pass_variant->pass_parameter_set_bindings.buffers.data)[0u];
 
-    for (kan_loop_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
+    for (kan_instance_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
     {
         if (!KAN_HANDLE_IS_VALID (singleton->scene_view[index].g_buffer_parameter_set))
         {
@@ -1297,7 +1284,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
     struct kan_rpl_meta_image_t *lighting_diffuse_image_meta =
         &((struct kan_rpl_meta_image_t *) lighting_pass_variant->pass_parameter_set_bindings.images.data)[2u];
 
-    for (kan_loop_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
+    for (kan_instance_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
     {
         if (!KAN_HANDLE_IS_VALID (singleton->scene_view[index].lighting_parameter_set))
         {
@@ -1378,7 +1365,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
     };
 
     const struct kan_render_graph_resource_response_t *scene_responses[SPLIT_SCREEN_VIEWS];
-    for (kan_loop_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
+    for (kan_memory_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
     {
         // Frame buffer requests must be filled in the same scope as
         // request function if we want to utilize anonymous arrays.
@@ -1516,7 +1503,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
         return;
     }
 
-    for (kan_loop_size_t light_index = 0u; light_index < POINT_LIGHTS_WITH_SHADOWS; ++light_index)
+    for (kan_memory_size_t light_index = 0u; light_index < POINT_LIGHTS_WITH_SHADOWS; ++light_index)
     {
         shadow_request.frame_buffers_count = DEFERRED_RENDER_CUBE_SHADOW_FRAME_BUFFER_COUNT;
         image_requests[DEFERRED_RENDER_SHADOW_IMAGE_DEPTH] = (struct kan_render_graph_resource_image_request_t) {
@@ -1539,7 +1526,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
         struct kan_render_graph_resource_frame_buffer_request_attachment_t
             attachments[DEFERRED_RENDER_CUBE_SHADOW_FRAME_BUFFER_COUNT];
 
-        for (kan_loop_size_t frame_buffer_index = 0u;
+        for (kan_memory_size_t frame_buffer_index = 0u;
              frame_buffer_index < DEFERRED_RENDER_CUBE_SHADOW_FRAME_BUFFER_COUNT; ++frame_buffer_index)
         {
             attachments[frame_buffer_index] = (struct kan_render_graph_resource_frame_buffer_request_attachment_t) {
@@ -1568,7 +1555,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
     initialize_shadow_pass_data_if_needed (render_context, &singleton->directional_light_shadow_pass,
                                            shadow_pass_variant, shadow_pass_buffer_meta);
 
-    for (kan_loop_size_t light_index = 0u; light_index < POINT_LIGHTS_SHADOW_PASS_COUNT; ++light_index)
+    for (kan_memory_size_t light_index = 0u; light_index < POINT_LIGHTS_SHADOW_PASS_COUNT; ++light_index)
     {
         initialize_shadow_pass_data_if_needed (render_context, &singleton->point_light_shadow_passes[light_index],
                                                shadow_pass_variant, shadow_pass_buffer_meta);
@@ -1642,7 +1629,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
         }
 
         struct kan_render_parameter_update_description_t bindings[POINT_LIGHTS_WITH_SHADOWS];
-        for (kan_loop_size_t light_index = 0u; light_index < POINT_LIGHTS_WITH_SHADOWS; ++light_index)
+        for (kan_instance_size_t light_index = 0u; light_index < POINT_LIGHTS_WITH_SHADOWS; ++light_index)
         {
             bindings[light_index] = (struct kan_render_parameter_update_description_t) {
                 .binding = 0u,
@@ -1664,7 +1651,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
 
     // Scene view passes.
 
-    const kan_time_size_t current_time = kan_precise_time_get_elapsed_nanoseconds ();
+    const kan_stable_size_t current_time = kan_precise_time_get_elapsed_nanoseconds ();
     const float current_phase = test->test_mode_enabled && !singleton->frame_checked ?
                                     0.45f :
                                     0.1f * 1e-9f * (float) (current_time % 10000000000u);
@@ -1678,7 +1665,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
         kan_transform_3_to_float_matrix_4x4 (&scene_camera_base_transform);
     kan_render_pass_instance_t lighting_pass_instances_for_read_back[SPLIT_SCREEN_VIEWS];
 
-    for (kan_loop_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
+    for (kan_instance_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
     {
         // We use reversed depth everywhere in this example.
         struct kan_float_matrix_4x4_t projection =
@@ -1763,8 +1750,8 @@ static void try_render_frame (struct deferred_render_state_t *state,
         struct kan_render_viewport_bounds_t viewport_bounds = {
             .x = 0.0f,
             .y = 0.0f,
-            .width = (float) viewport_width,
-            .height = (float) viewport_height,
+            .width = (kan_floating_t) viewport_width,
+            .height = (kan_floating_t) viewport_height,
             .depth_min = 0.0f,
             .depth_max = 1.0f,
         };
@@ -1804,15 +1791,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
                                                           state->g_buffer_pass_name, config);
 
         struct kan_render_clear_value_t lighting_clear_values[] = {
-            {
-                .color =
-                    {
-                        kan_color_transfer_rgb_to_srgb_approximate (0.1f),
-                        kan_color_transfer_rgb_to_srgb_approximate (0.1f),
-                        kan_color_transfer_rgb_to_srgb_approximate (0.2f),
-                        1.0f,
-                    },
-            },
+            {.color = kan_make_color_linear_from_web (0x131330FF)},
             {
                 // Should not be cleared, actually.
                 .depth_stencil = {0.0f, 0u},
@@ -1866,8 +1845,8 @@ static void try_render_frame (struct deferred_render_state_t *state,
         struct kan_render_viewport_bounds_t viewport_bounds = {
             .x = 0.0f,
             .y = 0.0f,
-            .width = (float) DIRECTIONAL_SHADOW_MAP_WIDTH,
-            .height = (float) DIRECTIONAL_SHADOW_MAP_HEIGHT,
+            .width = (kan_floating_t) DIRECTIONAL_SHADOW_MAP_WIDTH,
+            .height = (kan_floating_t) DIRECTIONAL_SHADOW_MAP_HEIGHT,
             .depth_min = 0.0f,
             .depth_max = 1.0f,
         };
@@ -1903,12 +1882,12 @@ static void try_render_frame (struct deferred_render_state_t *state,
     }
 
     // Point light shadow passes.
-    for (kan_loop_size_t point_light_index = 0u; point_light_index < POINT_LIGHTS_WITH_SHADOWS; ++point_light_index)
+    for (kan_instance_size_t point_light_index = 0u; point_light_index < POINT_LIGHTS_WITH_SHADOWS; ++point_light_index)
     {
         const struct kan_render_graph_resource_response_t *light_response =
             point_light_shadow_responses[point_light_index];
 
-        for (kan_loop_size_t side = 0u; side < DEFERRED_RENDER_CUBE_SHADOW_FRAME_BUFFER_COUNT; ++side)
+        for (kan_instance_size_t side = 0u; side < DEFERRED_RENDER_CUBE_SHADOW_FRAME_BUFFER_COUNT; ++side)
         {
             const kan_instance_size_t pass_index =
                 point_light_index * DEFERRED_RENDER_CUBE_SHADOW_FRAME_BUFFER_COUNT + side;
@@ -1986,7 +1965,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
         if (test->test_mode_enabled && !singleton->frame_checked)
         {
             kan_dynamic_array_set_capacity (&test->expectation_read_back_statuses, SPLIT_SCREEN_VIEWS);
-            for (kan_loop_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
+            for (kan_instance_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
             {
                 *(kan_render_read_back_status_t *) kan_dynamic_array_add_last (&test->expectation_read_back_statuses) =
                     kan_render_request_read_back_from_image (
@@ -2077,7 +2056,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_DEFERRED_RENDER_API KAN_UM_MUTATOR_EXECUTE (defer
     KAN_UML_EVENT_FETCH (pass_updated, kan_render_foundation_pass_updated_event_t)
     {
         // Reset pass data in order to rebuild it in render function.
-        for (kan_loop_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
+        for (kan_memory_size_t index = 0u; index < SPLIT_SCREEN_VIEWS; ++index)
         {
             deferred_render_scene_view_data_shutdown (&singleton->scene_view[index]);
             deferred_render_scene_view_data_init (&singleton->scene_view[index]);
@@ -2086,7 +2065,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_DEFERRED_RENDER_API KAN_UM_MUTATOR_EXECUTE (defer
         deferred_render_shadow_pass_data_shutdown (&singleton->directional_light_shadow_pass);
         deferred_render_shadow_pass_data_init (&singleton->directional_light_shadow_pass);
 
-        for (kan_loop_size_t index = 0u; index < POINT_LIGHTS_SHADOW_PASS_COUNT; ++index)
+        for (kan_memory_size_t index = 0u; index < POINT_LIGHTS_SHADOW_PASS_COUNT; ++index)
         {
             deferred_render_shadow_pass_data_shutdown (&singleton->point_light_shadow_passes[index]);
             deferred_render_shadow_pass_data_init (&singleton->point_light_shadow_passes[index]);

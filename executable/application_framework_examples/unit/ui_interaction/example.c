@@ -7,8 +7,8 @@
 #include <kan/context/all_system_names.h>
 #include <kan/context/application_framework_system.h>
 #include <kan/context/application_system.h>
-#include <kan/inline_math/inline_math.h>
 #include <kan/log/logging.h>
+#include <kan/math/inline.h>
 #include <kan/precise_time/precise_time.h>
 #include <kan/resource_pipeline/meta.h>
 #include <kan/test_expectation/test_expectation.h>
@@ -60,11 +60,12 @@ struct example_ui_interaction_singleton_t
     enum example_ui_interaction_test_stage_t test_stage;
 
     kan_ui_node_id_t second_button_in_list_id;
+    kan_ui_node_id_t scroll_outer_id;
     kan_ui_node_id_t scroll_container_id;
     kan_ui_node_id_t line_edit_id;
 
-    float test_last_mouse_x;
-    float test_last_mouse_y;
+    kan_floating_t test_last_mouse_x;
+    kan_floating_t test_last_mouse_y;
 };
 
 APPLICATION_FRAMEWORK_EXAMPLES_UI_INTERACTION_API void example_ui_interaction_singleton_init (
@@ -76,6 +77,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_INTERACTION_API void example_ui_interaction_si
     instance->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_START;
 
     instance->second_button_in_list_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
+    instance->scroll_outer_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     instance->scroll_container_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     instance->line_edit_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
 
@@ -147,7 +149,7 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
     KAN_UIM_PREPARE_ROOT;
 
     const uint32_t default_text_mark = KAN_UI_DEFAULT_TEXT_MAKE_MARK (0u, KAN_UI_DEFAULT_TEXT_MARK_FLAG_OUTLINE);
-    const float outline_enlarge_factor = 1.0625f;
+    const kan_floating_t outline_enlarge_factor = 1.0625f;
 
     KAN_UIM_WIDGET_IMAGE (left_window, KAN_UI_IMAGE_COMMAND_DEFAULT (image_window));
     KAN_UIM_HIT_BOX_BLOCKING (left_window);
@@ -164,7 +166,7 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
 
     KAN_UIM_CHILDREN (left_window)
     {
-        for (kan_loop_size_t button = 0u; button < 6u; ++button)
+        for (kan_memory_size_t button = 0u; button < 6u; ++button)
         {
             KAN_NEW_TEXT_SHAPING_UNIT_FROM_LITERAL (button, "Hello, world!", default_text_mark);
             button_shaping_unit->request.alignment = KAN_TEXT_SHAPING_ALIGNMENT_CENTER;
@@ -188,13 +190,13 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
 
     KAN_UIM_WIDGET_IMAGE (center_window, KAN_UI_IMAGE_COMMAND_DEFAULT (image_window));
     KAN_UIM_HIT_BOX_BLOCKING (center_window);
+    center_window_node->order.local = 1;
 
     center_window_node->element.width = KAN_UI_VALUE_VW (0.5f);
     center_window_node->element.height = KAN_UI_VALUE_VH (0.5f);
 
     center_window_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_CENTER;
     center_window_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
-    center_window_node->local_element_order = 1;
 
     center_window_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;
     center_window_node->layout.padding = KAN_UI_RECT_PT (16.0f, 16.0f, 16.0f, 16.0f);
@@ -203,6 +205,8 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
     KAN_UIM_CHILDREN (center_window)
     {
         KAN_UIM_WIDGET_SCROLL_PANE (info);
+        singleton->scroll_outer_id = info_outer_node->id;
+
         info_outer_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;
         info_outer_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;
 
@@ -234,7 +238,8 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
             big_text_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_CENTER;
             big_text_node->element.margin = KAN_UI_RECT_PT (16.0f, 16.0f, 16.0f, 16.0f);
 
-            KAN_UIM_WIDGET_LINE_EDIT (input, KAN_UI_VALUE_PT (36.0f), KAN_STATIC_INTERNED_ID_GET (line_edit_regular),
+            KAN_UIM_WIDGET_LINE_EDIT (input, KAN_UI_VALUE_PT (36.0f), outline_enlarge_factor,
+                                      KAN_STATIC_INTERNED_ID_GET (line_edit_regular),
                                       KAN_STATIC_INTERNED_ID_GET (line_edit_selected));
 
             singleton->line_edit_id = input_node->id;
@@ -252,12 +257,6 @@ static void build_playground_ui (struct ui_example_interaction_update_state_t *s
             kan_ui_node_line_edit_behavior_set_content (
                 input_line_edit_behavior, "Hello, world!", NULL,
                 KAN_UI_DEFAULT_TEXT_MAKE_MARK (0u, KAN_UI_DEFAULT_TEXT_MARK_FLAG_OUTLINE));
-
-            input_inner_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;
-            input_inner_node->element.height_flags |= KAN_UI_SIZE_FLAG_GROW;
-
-            KAN_UIM_WIDGET_LINE_EDIT_CALCULATE_LEEWAY (input, outline_enlarge_factor);
-            KAN_UIM_WIDGET_LINE_EDIT_CALCULATE_HEIGHT (input, outline_enlarge_factor);
         }
     }
 
@@ -317,7 +316,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_INTERACTION_API KAN_UM_MUTATOR_EXECUTE (ui_exa
         locale->selected_locale = kan_string_intern ("en");
 
         KAN_UMI_SINGLETON_WRITE (ui_render_graph, kan_ui_render_graph_singleton_t)
-        ui_render_graph->clear_color = kan_color_linear_to_srgb (kan_make_color_linear (0.0f, 1.0f, 1.0f, 1.0f));
+        ui_render_graph->clear_color = kan_make_color_linear (0.0f, 1.0f, 1.0f, 1.0f);
     }
 
     if (test->test_mode_enabled && !KAN_HANDLE_IS_VALID (test->expectation_read_back_buffer))
@@ -569,7 +568,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_INTERACTION_API KAN_UM_MUTATOR_EXECUTE (ui_exa
     case EXAMPLE_UI_INTERACTION_TEST_STAGE_HOVER_CHECK_2:
     {
         singleton->test_stage = EXAMPLE_UI_INTERACTION_TEST_STAGE_CHECK_SCROLL;
-        TEST_CHECK_EXPECTATION (!KAN_TYPED_ID_32_IS_VALID (ui_input->current_hovered_id))
+        TEST_CHECK_EXPECTATION (KAN_TYPED_ID_32_IS_EQUAL (ui_input->current_hovered_id, singleton->scroll_outer_id))
 
         KAN_UMI_VALUE_READ_REQUIRED (scroll_container_node, kan_ui_node_t, id, &singleton->scroll_container_id)
         TEST_CHECK_EXPECTATION (scroll_container_node->render.scroll_y.type == KAN_UI_PT)

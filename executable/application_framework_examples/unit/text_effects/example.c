@@ -9,8 +9,8 @@
 #include <kan/file_system/path_container.h>
 #include <kan/file_system/stream.h>
 #include <kan/image/image.h>
-#include <kan/inline_math/inline_math.h>
 #include <kan/log/logging.h>
+#include <kan/math/inline.h>
 #include <kan/precise_time/precise_time.h>
 #include <kan/resource_pipeline/meta.h>
 #include <kan/test_expectation/test_expectation.h>
@@ -176,6 +176,16 @@ static void example_text_effects_singleton_initialize_object_buffers (struct exa
 APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API void example_text_effects_singleton_shutdown (
     struct example_text_effects_singleton_t *instance)
 {
+    if (KAN_HANDLE_IS_VALID (instance->glyph_vertex_buffer))
+    {
+        kan_render_buffer_destroy (instance->glyph_vertex_buffer);
+    }
+
+    if (KAN_HANDLE_IS_VALID (instance->glyph_index_buffer))
+    {
+        kan_render_buffer_destroy (instance->glyph_index_buffer);
+    }
+
     if (KAN_HANDLE_IS_VALID (instance->instanced_data_allocator))
     {
         kan_render_frame_lifetime_buffer_allocator_destroy (instance->instanced_data_allocator);
@@ -611,6 +621,10 @@ static void try_render_frame (struct text_effects_render_state_t *state,
                                 .address_mode_u = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
                                 .address_mode_v = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
                                 .address_mode_w = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                                .depth_compare_enabled = false,
+                                .anisotropy_enabled = false,
+                                .depth_compare = KAN_RENDER_COMPARE_OPERATION_NEVER,
+                                .anisotropy_max = 0.0f,
                             },
                     },
             }};
@@ -631,7 +645,7 @@ static void try_render_frame (struct text_effects_render_state_t *state,
 
     // Scene view passes.
 
-    const kan_time_size_t current_time = kan_precise_time_get_elapsed_nanoseconds ();
+    const kan_stable_size_t current_time = kan_precise_time_get_elapsed_nanoseconds ();
     // Circle time every 100s.
     const float time_for_shader =
         test->test_mode_enabled && !singleton->frame_checked ? 0.75f : 1e-9f * (float) (current_time % 100000000000lu);
@@ -647,8 +661,8 @@ static void try_render_frame (struct text_effects_render_state_t *state,
     struct kan_render_viewport_bounds_t viewport_bounds = {
         .x = 0.0f,
         .y = 0.0f,
-        .width = (float) FIXED_WIDTH,
-        .height = (float) FIXED_HEIGHT,
+        .width = (kan_floating_t) FIXED_WIDTH,
+        .height = (kan_floating_t) FIXED_HEIGHT,
         .depth_min = 0.0f,
         .depth_max = 1.0f,
     };
@@ -664,9 +678,9 @@ static void try_render_frame (struct text_effects_render_state_t *state,
         {
             .color =
                 {
-                    kan_color_transfer_rgb_to_srgb_approximate (20.0f / 255.0f),
-                    kan_color_transfer_rgb_to_srgb_approximate (140.0f / 255.0f),
-                    kan_color_transfer_rgb_to_srgb_approximate (190.0f / 255.0f),
+                    kan_color_transfer_srgb_to_rgb (12.0f / 255.0f),
+                    kan_color_transfer_srgb_to_rgb (141.0f / 255.0f),
+                    kan_color_transfer_srgb_to_rgb (191.0f / 255.0f),
                     1.0f,
                 },
         },
@@ -756,7 +770,7 @@ static void try_render_frame (struct text_effects_render_state_t *state,
         kan_render_pass_instance_indices (pass_instance, singleton->glyph_index_buffer);
         kan_render_pass_instance_attributes (pass_instance, 0u, 1u, &singleton->glyph_vertex_buffer, NULL);
 
-        for (kan_loop_size_t index = 0u; index < sizeof (requests) / sizeof (requests[0u]); ++index)
+        for (kan_memory_size_t index = 0u; index < sizeof (requests) / sizeof (requests[0u]); ++index)
         {
             KAN_UMI_VALUE_READ_OPTIONAL (unit, kan_text_shaping_unit_t, id, &requests[index].unit_id)
             if (!unit || !unit->shaped)

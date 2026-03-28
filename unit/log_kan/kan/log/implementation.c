@@ -89,7 +89,7 @@ kan_interned_string_t kan_log_category_get_name (kan_log_category_t category)
 struct callback_t
 {
     kan_log_callback_t callback;
-    kan_functor_user_data_t user_data;
+    kan_memory_size_t user_data;
 };
 
 struct event_node_t
@@ -179,7 +179,7 @@ void kan_submit_log (kan_log_category_t category,
     timespec_get (&time, TIME_UTC);
 
     struct callback_t *callbacks = (struct callback_t *) logging_context.callback_array.data;
-    for (kan_loop_size_t callback_index = 0u; callback_index < logging_context.callback_array.size; ++callback_index)
+    for (kan_memory_size_t callback_index = 0u; callback_index < logging_context.callback_array.size; ++callback_index)
     {
         callbacks[callback_index].callback (category, verbosity, time, buffer, callbacks[callback_index].user_data);
     }
@@ -204,7 +204,7 @@ void kan_log_ensure_initialized (void)
     ensure_logging_context_initialized ();
 }
 
-void kan_log_callback_add (kan_log_callback_t callback, kan_functor_user_data_t user_data)
+void kan_log_callback_add (kan_log_callback_t callback, kan_memory_size_t user_data)
 {
     KAN_ATOMIC_INT_SCOPED_LOCK (&logging_context_lock)
     ensure_logging_context_initialized ();
@@ -222,17 +222,17 @@ void kan_log_callback_add (kan_log_callback_t callback, kan_functor_user_data_t 
     callback_item->user_data = user_data;
 }
 
-void kan_log_callback_remove (kan_log_callback_t callback, kan_functor_user_data_t user_data)
+void kan_log_callback_remove (kan_log_callback_t callback, kan_memory_size_t user_data)
 {
     KAN_ATOMIC_INT_SCOPED_LOCK (&logging_context_lock)
     ensure_logging_context_initialized ();
 
     struct callback_t *callbacks = (struct callback_t *) logging_context.callback_array.data;
-    for (kan_loop_size_t callback_index = 0u; callback_index < logging_context.callback_array.size; ++callback_index)
+    for (kan_memory_size_t callback_index = 0u; callback_index < logging_context.callback_array.size; ++callback_index)
     {
         if (callbacks[callback_index].callback == callback && callbacks[callback_index].user_data == user_data)
         {
-            kan_dynamic_array_remove_swap_at (&logging_context.callback_array, callback_index);
+            kan_dynamic_array_remove_swap_at (&logging_context.callback_array, (kan_instance_size_t) callback_index);
             break;
         }
     }
@@ -242,7 +242,7 @@ void kan_log_default_callback (kan_log_category_t category,
                                enum kan_log_verbosity_t verbosity,
                                struct timespec time,
                                const char *message,
-                               kan_functor_user_data_t user_data)
+                               kan_memory_size_t user_data)
 {
     char date_time_string[18u];
     struct tm local_time;

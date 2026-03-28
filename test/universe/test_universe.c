@@ -31,7 +31,7 @@ TEST_UNIVERSE_API void counters_singleton_init (struct counters_singleton_t *dat
     data->double_update_scheduler_executions = 0u;
     data->double_update_second_mutator_executions = 0u;
 
-    for (kan_loop_size_t index = 0u; index < WORLD_CHILD_UPDATE_TEST_DEPTH; ++index)
+    for (kan_memory_size_t index = 0u; index < WORLD_CHILD_UPDATE_TEST_DEPTH; ++index)
     {
         data->world_update_counters[index] = 0u;
     }
@@ -269,7 +269,7 @@ struct insert_task_user_data_t
     kan_instance_size_t index;
 };
 
-static void insert_task_execute (kan_functor_user_data_t user_data)
+static void insert_task_execute (kan_memory_size_t user_data)
 {
     struct insert_task_user_data_t *data = (struct insert_task_user_data_t *) user_data;
     struct insert_from_multiple_threads_state_t *state = data->state;
@@ -292,7 +292,7 @@ TEST_UNIVERSE_API KAN_UM_MUTATOR_EXECUTE (insert_from_multiple_threads)
     kan_stack_group_allocator_reset (&state->task_data_allocator);
     struct kan_cpu_task_list_node_t *tasks_head = NULL;
 
-    for (kan_loop_size_t index = 0u; index < 16u; ++index)
+    for (kan_instance_size_t index = 0u; index < 16u; ++index)
     {
         KAN_CPU_TASK_LIST_USER_STRUCT (&tasks_head, &state->task_data_allocator, insert_task_execute,
                                        state->task_section, struct insert_task_user_data_t,
@@ -344,7 +344,7 @@ TEST_UNIVERSE_API KAN_UM_SCHEDULER_EXECUTE (update_with_children)
     kan_universe_scheduler_interface_update_all_children (interface);
 
     KAN_UMI_SINGLETON_READ (counters, counters_singleton_t)
-    for (kan_loop_size_t index = 1u; index < WORLD_CHILD_UPDATE_TEST_DEPTH; ++index)
+    for (kan_memory_size_t index = 1u; index < WORLD_CHILD_UPDATE_TEST_DEPTH; ++index)
     {
         KAN_TEST_CHECK (counters->world_update_counters[index - 1u] == counters->world_update_counters[index])
     }

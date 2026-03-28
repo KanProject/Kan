@@ -131,10 +131,10 @@ struct kan_virtual_file_system_entry_status_t
     enum kan_virtual_file_system_entry_type_t type;
 
     /// \warning Used for KAN_VIRTUAL_FILE_SYSTEM_ENTRY_TYPE_FILE.
-    kan_file_size_t size;
+    kan_stable_size_t size;
 
     /// \warning Used for KAN_VIRTUAL_FILE_SYSTEM_ENTRY_TYPE_FILE.
-    kan_time_size_t last_modification_time_ns;
+    kan_stable_size_t last_modification_time_ns;
 
     /// \warning Used for KAN_VIRTUAL_FILE_SYSTEM_ENTRY_TYPE_FILE.
     bool read_only;

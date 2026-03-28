@@ -19,7 +19,7 @@ static inline bool check_is_test_mode (kan_context_system_t application_framewor
             kan_application_framework_system_get_arguments_count (application_framework_system_handle);
         char **arguments = kan_application_framework_system_get_arguments (application_framework_system_handle);
 
-        for (kan_loop_size_t index = 1u; index < arguments_count; ++index)
+        for (kan_memory_size_t index = 1u; index < arguments_count; ++index)
         {
             if (strcmp (arguments[index], "--test") == 0)
             {
@@ -140,7 +140,7 @@ TEST_ROUTINE_API KAN_UM_MUTATOR_EXECUTE (test_routine)
     KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED (setup, test_setup_t, &private->setup_name)
     if (setup && !private->setup_read)
     {
-        for (kan_loop_size_t index = 0u; index < setup->expectations.size; ++index)
+        for (kan_memory_size_t index = 0u; index < setup->expectations.size; ++index)
         {
             KAN_UMO_INDEXED_INSERT (request, kan_resource_usage_t)
             {
@@ -157,7 +157,7 @@ TEST_ROUTINE_API KAN_UM_MUTATOR_EXECUTE (test_routine)
         if (setup->expectations.size == public->expectation_read_back_statuses.size)
         {
             bool ready_for_testing = true;
-            for (kan_loop_size_t index = 0u; index < setup->expectations.size; ++index)
+            for (kan_memory_size_t index = 0u; index < setup->expectations.size; ++index)
             {
                 if (kan_read_read_back_status_get (
                         ((kan_render_read_back_status_t *) public->expectation_read_back_statuses.data)[index]) !=
@@ -191,7 +191,7 @@ TEST_ROUTINE_API KAN_UM_MUTATOR_EXECUTE (test_routine)
                                       "%u expectations is too many for simple name generation.",
                                       (unsigned int) setup->expectations.size);
 
-                for (kan_loop_size_t index = 0u; index < setup->expectations.size;
+                for (kan_memory_size_t index = 0u; index < setup->expectations.size;
                      ++index, ++output_path_container.path[12u])
                 {
                     const kan_interned_string_t expectation_name =
@@ -235,12 +235,12 @@ TEST_ROUTINE_API KAN_UM_MUTATOR_EXECUTE (test_routine)
                     const uint32_t *frame_data = (const uint32_t *) frame_raw_data.data;
                     const uint32_t *expectation_data = (const uint32_t *) expectation->rgba_data.data;
 
-                    const kan_loop_size_t pixel_count = frame_raw_data.width * frame_raw_data.height;
-                    kan_loop_size_t error_count = 0u;
+                    const kan_memory_size_t pixel_count = frame_raw_data.width * frame_raw_data.height;
+                    kan_memory_size_t error_count = 0u;
                     // Not more than 1% of errors.
-                    kan_loop_size_t max_error_count = pixel_count / 100u;
+                    kan_memory_size_t max_error_count = pixel_count / 100u;
 
-                    for (kan_loop_size_t pixel_index = 0u; pixel_index < pixel_count; ++pixel_index)
+                    for (kan_memory_size_t pixel_index = 0u; pixel_index < pixel_count; ++pixel_index)
                     {
                         if (kan_are_colors_different (frame_data[pixel_index], expectation_data[pixel_index], 3u))
                         {
@@ -301,7 +301,7 @@ void test_routine_singleton_shutdown (struct test_routine_singleton_t *instance)
         kan_render_buffer_destroy (instance->expectation_read_back_buffer);
     }
 
-    for (kan_loop_size_t index = 0u; index < instance->expectation_read_back_statuses.size; ++index)
+    for (kan_memory_size_t index = 0u; index < instance->expectation_read_back_statuses.size; ++index)
     {
         kan_render_read_back_status_destroy (
             ((kan_render_read_back_status_t *) instance->expectation_read_back_statuses.data)[index]);

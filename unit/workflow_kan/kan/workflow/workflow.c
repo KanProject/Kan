@@ -33,7 +33,7 @@ struct building_graph_node_t
 
     kan_interned_string_t name;
     kan_workflow_function_t function;
-    kan_functor_user_data_t user_data;
+    kan_memory_size_t user_data;
 
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (kan_interned_string_t)
     struct kan_dynamic_array_t depends_on;
@@ -81,7 +81,7 @@ struct graph_builder_t
 struct workflow_graph_node_t
 {
     kan_workflow_function_t function;
-    kan_functor_user_data_t user_data;
+    kan_memory_size_t user_data;
     kan_cpu_section_t profiler_section;
 
     struct workflow_graph_header_t *header;
@@ -169,7 +169,7 @@ static bool traverse_and_verify (struct building_graph_node_t *node, struct buil
     {
     case TRAVERSE_STATUS_NOT_TRAVERSED:
         node->intermediate_traverse_status = TRAVERSE_STATUS_IN_PROGRESS;
-        for (kan_loop_size_t outcome_index = 0u; outcome_index < node->intermediate_outcomes.size; ++outcome_index)
+        for (kan_memory_size_t outcome_index = 0u; outcome_index < node->intermediate_outcomes.size; ++outcome_index)
         {
             const kan_instance_size_t outcome_id =
                 ((kan_instance_size_t *) node->intermediate_outcomes.data)[outcome_index];
@@ -206,12 +206,12 @@ static inline void print_colliding_resources (struct kan_fixed_length_bitset_t *
                                               struct resource_info_node_t **id_to_resource_node)
 {
     KAN_ASSERT (first->items == second->items)
-    for (kan_loop_size_t item_index = 0u; item_index < first->items; ++item_index)
+    for (kan_memory_size_t item_index = 0u; item_index < first->items; ++item_index)
     {
         const kan_bitset_item_t intersection = first->data[item_index] & second->data[item_index];
         if (intersection != 0u)
         {
-            for (kan_loop_size_t bit_index = 0u; bit_index < 64u; ++bit_index)
+            for (kan_memory_size_t bit_index = 0u; bit_index < 64u; ++bit_index)
             {
                 if ((intersection & (((kan_bitset_item_t) 1u) << bit_index)) > 0u)
                 {
@@ -238,20 +238,20 @@ static bool graph_builder_verify_intermediate (struct graph_builder_t *builder,
 
     while (node)
     {
-        for (kan_loop_size_t index = 0u; index < node->resource_access_population.size; ++index)
+        for (kan_memory_size_t index = 0u; index < node->resource_access_population.size; ++index)
         {
             register_resource (&resource_storage,
                                ((kan_interned_string_t *) node->resource_access_population.data)[index],
                                &resource_id_counter, &temporary_allocator);
         }
 
-        for (kan_loop_size_t index = 0u; index < node->resource_access_view.size; ++index)
+        for (kan_memory_size_t index = 0u; index < node->resource_access_view.size; ++index)
         {
             register_resource (&resource_storage, ((kan_interned_string_t *) node->resource_access_view.data)[index],
                                &resource_id_counter, &temporary_allocator);
         }
 
-        for (kan_loop_size_t index = 0u; index < node->resource_access_modification.size; ++index)
+        for (kan_memory_size_t index = 0u; index < node->resource_access_modification.size; ++index)
         {
             register_resource (&resource_storage,
                                ((kan_interned_string_t *) node->resource_access_modification.data)[index],
@@ -282,7 +282,7 @@ static bool graph_builder_verify_intermediate (struct graph_builder_t *builder,
             alignof (struct kan_fixed_length_bitset_t));
         kan_fixed_length_bitset_init (node->intermediate_access_population, resource_id_counter);
 
-        for (kan_loop_size_t index = 0u; index < node->resource_access_population.size; ++index)
+        for (kan_memory_size_t index = 0u; index < node->resource_access_population.size; ++index)
         {
             const kan_instance_size_t resource_id = query_resource (
                 &resource_storage, ((kan_interned_string_t *) node->resource_access_population.data)[index]);
@@ -295,7 +295,7 @@ static bool graph_builder_verify_intermediate (struct graph_builder_t *builder,
             alignof (struct kan_fixed_length_bitset_t));
         kan_fixed_length_bitset_init (node->intermediate_access_view, resource_id_counter);
 
-        for (kan_loop_size_t index = 0u; index < node->resource_access_view.size; ++index)
+        for (kan_memory_size_t index = 0u; index < node->resource_access_view.size; ++index)
         {
             const kan_instance_size_t resource_id =
                 query_resource (&resource_storage, ((kan_interned_string_t *) node->resource_access_view.data)[index]);
@@ -309,7 +309,7 @@ static bool graph_builder_verify_intermediate (struct graph_builder_t *builder,
                 alignof (struct kan_fixed_length_bitset_t));
         kan_fixed_length_bitset_init (node->intermediate_access_modification, resource_id_counter);
 
-        for (kan_loop_size_t index = 0u; index < node->resource_access_modification.size; ++index)
+        for (kan_memory_size_t index = 0u; index < node->resource_access_modification.size; ++index)
         {
             const kan_instance_size_t resource_id = query_resource (
                 &resource_storage, ((kan_interned_string_t *) node->resource_access_modification.data)[index]);
@@ -496,7 +496,7 @@ static inline void add_to_id_array (struct kan_dynamic_array_t *array, kan_insta
 
 static inline void remove_from_id_array (struct kan_dynamic_array_t *array, kan_instance_size_t id)
 {
-    for (kan_loop_size_t index = 0u; index < array->size; ++index)
+    for (kan_instance_size_t index = 0u; index < array->size; ++index)
     {
         if (((kan_instance_size_t *) array->data)[index] == id)
         {
@@ -659,7 +659,7 @@ kan_workflow_graph_t kan_workflow_graph_builder_finalize (kan_workflow_graph_bui
 
     while (node)
     {
-        for (kan_loop_size_t index = 0u; index < node->depends_on.size; ++index)
+        for (kan_memory_size_t index = 0u; index < node->depends_on.size; ++index)
         {
             kan_interned_string_t name = ((const kan_interned_string_t *) node->depends_on.data)[index];
             if (!graph_builder_find_node (builder_data, name))
@@ -670,7 +670,7 @@ kan_workflow_graph_t kan_workflow_graph_builder_finalize (kan_workflow_graph_bui
             }
         }
 
-        for (kan_loop_size_t index = 0u; index < node->dependency_of.size; ++index)
+        for (kan_memory_size_t index = 0u; index < node->dependency_of.size; ++index)
         {
             kan_interned_string_t name = ((const kan_interned_string_t *) node->dependency_of.data)[index];
             if (!graph_builder_find_node (builder_data, name))
@@ -712,7 +712,7 @@ kan_workflow_graph_t kan_workflow_graph_builder_finalize (kan_workflow_graph_bui
     while (node)
     {
         id_to_node[node->intermediate_node_id] = node;
-        for (kan_loop_size_t index = 0u; index < node->depends_on.size; ++index)
+        for (kan_memory_size_t index = 0u; index < node->depends_on.size; ++index)
         {
             kan_interned_string_t name = ((const kan_interned_string_t *) node->depends_on.data)[index];
             struct building_graph_node_t *found_node = graph_builder_find_node (builder_data, name);
@@ -724,7 +724,7 @@ kan_workflow_graph_t kan_workflow_graph_builder_finalize (kan_workflow_graph_bui
             add_to_id_array (&node->intermediate_incomes, found_node->intermediate_node_id);
         }
 
-        for (kan_loop_size_t index = 0u; index < node->dependency_of.size; ++index)
+        for (kan_memory_size_t index = 0u; index < node->dependency_of.size; ++index)
         {
             kan_interned_string_t name = ((const kan_interned_string_t *) node->dependency_of.data)[index];
             struct building_graph_node_t *found_node = graph_builder_find_node (builder_data, name);
@@ -753,7 +753,8 @@ kan_workflow_graph_t kan_workflow_graph_builder_finalize (kan_workflow_graph_bui
                          "Checkpoint \"%s\" is only referenced once. Misspelling or redundant checkpoint?", node->name)
             }
 
-            for (kan_loop_size_t outcome_index = 0u; outcome_index < node->intermediate_outcomes.size; ++outcome_index)
+            for (kan_memory_size_t outcome_index = 0u; outcome_index < node->intermediate_outcomes.size;
+                 ++outcome_index)
             {
                 const kan_instance_size_t outcome_id =
                     ((kan_instance_size_t *) node->intermediate_outcomes.data)[outcome_index];
@@ -761,14 +762,14 @@ kan_workflow_graph_t kan_workflow_graph_builder_finalize (kan_workflow_graph_bui
                 remove_from_id_array (&outcome->intermediate_incomes, node->intermediate_node_id);
             }
 
-            for (kan_loop_size_t income_index = 0u; income_index < node->intermediate_incomes.size; ++income_index)
+            for (kan_memory_size_t income_index = 0u; income_index < node->intermediate_incomes.size; ++income_index)
             {
                 const kan_instance_size_t income_id =
                     ((kan_instance_size_t *) node->intermediate_incomes.data)[income_index];
                 struct building_graph_node_t *income = id_to_node[income_id];
                 remove_from_id_array (&income->intermediate_outcomes, node->intermediate_node_id);
 
-                for (kan_loop_size_t outcome_index = 0u; outcome_index < node->intermediate_outcomes.size;
+                for (kan_memory_size_t outcome_index = 0u; outcome_index < node->intermediate_outcomes.size;
                      ++outcome_index)
                 {
                     const kan_instance_size_t outcome_id =
@@ -890,7 +891,7 @@ kan_workflow_graph_t kan_workflow_graph_builder_finalize (kan_workflow_graph_bui
             while (node)
             {
                 struct workflow_graph_node_t *built_node = (struct workflow_graph_node_t *) (nodes_base + node_offset);
-                for (kan_loop_size_t index = 0u; index < node->intermediate_outcomes.size; ++index)
+                for (kan_memory_size_t index = 0u; index < node->intermediate_outcomes.size; ++index)
                 {
                     built_node->outcomes[index] =
                         id_to_built_node[((kan_instance_size_t *) node->intermediate_outcomes.data)[index]];
@@ -936,7 +937,7 @@ kan_workflow_graph_node_t kan_workflow_graph_node_create (kan_workflow_graph_bui
 
 void kan_workflow_graph_node_set_function (kan_workflow_graph_node_t node,
                                            kan_workflow_function_t function,
-                                           kan_functor_user_data_t user_data)
+                                           kan_memory_size_t user_data)
 {
     struct building_graph_node_t *node_data = KAN_HANDLE_GET (node);
     node_data->function = function;
@@ -1003,11 +1004,11 @@ void kan_workflow_graph_node_destroy (kan_workflow_graph_node_t node)
     building_graph_node_destroy (KAN_HANDLE_GET (node), false);
 }
 
-static void workflow_task_finish_function (kan_functor_user_data_t user_data);
+static void workflow_task_finish_function (kan_memory_size_t user_data);
 
-static void workflow_task_execute_function (kan_functor_user_data_t user_data);
+static void workflow_task_execute_function (kan_memory_size_t user_data);
 
-static void workflow_task_start_function (kan_functor_user_data_t user_data)
+static void workflow_task_start_function (kan_memory_size_t user_data)
 {
     struct workflow_graph_node_t *node = (struct workflow_graph_node_t *) user_data;
     node->job = kan_cpu_job_create ();
@@ -1030,20 +1031,20 @@ static void workflow_task_start_function (kan_functor_user_data_t user_data)
     }
 }
 
-static void workflow_task_execute_function (kan_functor_user_data_t user_data)
+static void workflow_task_execute_function (kan_memory_size_t user_data)
 {
     struct workflow_graph_node_t *node = (struct workflow_graph_node_t *) user_data;
     node->function (node->job, node->user_data);
 }
 
-static void workflow_task_finish_function (kan_functor_user_data_t user_data)
+static void workflow_task_finish_function (kan_memory_size_t user_data)
 {
     struct workflow_graph_node_t *node = (struct workflow_graph_node_t *) user_data;
     kan_cpu_job_detach (node->job);
     node->incomes_left = kan_atomic_int_init ((int) node->incomes_count);
     struct kan_cpu_task_list_node_t *first_list_node = NULL;
 
-    for (kan_loop_size_t outcome_index = 0u; outcome_index < node->outcomes_count; ++outcome_index)
+    for (kan_memory_size_t outcome_index = 0u; outcome_index < node->outcomes_count; ++outcome_index)
     {
         struct workflow_graph_node_t *outcome = node->outcomes[outcome_index];
         if (kan_atomic_int_add (&outcome->incomes_left, -1) == 1)
@@ -1055,7 +1056,7 @@ static void workflow_task_finish_function (kan_functor_user_data_t user_data)
 
             list_node->task = (struct kan_cpu_task_t) {
                 .function = workflow_task_start_function,
-                .user_data = (kan_functor_user_data_t) outcome,
+                .user_data = (kan_memory_size_t) outcome,
                 .profiler_section = KAN_CPU_STATIC_SECTION_GET (workflow_task_start),
             };
 
@@ -1092,7 +1093,7 @@ void kan_workflow_graph_execute (kan_workflow_graph_t graph)
     KAN_ASSERT (graph_header->start_nodes_count > 0u)
     struct kan_cpu_task_list_node_t *first_list_node = NULL;
 
-    for (kan_loop_size_t start_index = 0u; start_index < graph_header->start_nodes_count; ++start_index)
+    for (kan_memory_size_t start_index = 0u; start_index < graph_header->start_nodes_count; ++start_index)
     {
         struct workflow_graph_node_t *start = graph_header->start_nodes[start_index];
         KAN_CPU_TASK_LIST_USER_VALUE (&first_list_node, &graph_header->temporary_allocator,

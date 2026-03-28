@@ -16,7 +16,7 @@ void kan_resource_font_style_init (struct kan_resource_font_style_t *instance)
 {
     instance->style = NULL;
     instance->font_data_file = NULL;
-    kan_dynamic_array_init (&instance->variable_font_axes, 0u, sizeof (float), alignof (float),
+    kan_dynamic_array_init (&instance->variable_font_axes, 0u, sizeof (kan_floating_t), alignof (kan_floating_t),
                             kan_allocation_group_stack_get ());
 }
 

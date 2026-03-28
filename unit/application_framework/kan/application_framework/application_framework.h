@@ -158,12 +158,20 @@ struct kan_application_framework_program_configuration_t
     ///          own file system watcher: it would do the same thing and build system might do it better.
     bool enable_auto_build;
 
-    /// \brief If ::enable_auto_build and not NULL, this command is executed every time any application window
-    ///        is focused in order to update and hot reload plugins if there are any changes.
-    char *auto_build_command;
+    /// \brief If ::enable_auto_build and not NULL, path to the cmake executable.
+    char *auto_build_cmake;
+
+    /// \brief If ::enable_auto_build and not NULL, path to the cmake build directory.
+    char *auto_build_directory;
+
+    /// \brief If ::enable_auto_build and not NULL, target to be built by CMake.
+    char *auto_build_target;
+
+    /// \brief If ::enable_auto_build and not NULL, path to the cmake build directory.
+    char *auto_build_config;
 
     /// \brief Delay between several auto build execution attempts.
-    kan_time_size_t auto_build_delay_ns;
+    kan_stable_size_t auto_build_delay_ns;
 };
 
 APPLICATION_FRAMEWORK_API void kan_application_framework_program_configuration_init (

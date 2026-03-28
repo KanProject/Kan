@@ -40,4 +40,5 @@ setting color_output_alpha_blend_operation block 0 = "add";
 constant ui_mark_default_palette_mask = 0xff;
 constant ui_mark_default_flag_hovered = 1u << 8u;
 constant ui_mark_default_flag_down = 1u << 9u;
-constant ui_mark_default_flag_blink = 1u << 10u;
+constant ui_mark_default_flag_disabled = 1u << 10u;
+constant ui_mark_default_flag_blink = 1u << 11u;

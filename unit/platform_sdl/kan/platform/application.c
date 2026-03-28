@@ -623,9 +623,9 @@ enum kan_platform_display_orientation_t kan_platform_application_get_display_ori
     return KAN_PLATFORM_DISPLAY_ORIENTATION_UNKNOWN;
 }
 
-float kan_platform_application_get_display_content_scale (kan_platform_display_id_t display_id)
+kan_floating_t kan_platform_application_get_display_content_scale (kan_platform_display_id_t display_id)
 {
-    const float content_scale = SDL_GetDisplayContentScale ((SDL_DisplayID) KAN_TYPED_ID_32_GET (display_id));
+    const kan_floating_t content_scale = SDL_GetDisplayContentScale ((SDL_DisplayID) KAN_TYPED_ID_32_GET (display_id));
     return content_scale == 0.0f ? 1.0f : content_scale;
 }
 
@@ -747,7 +747,7 @@ kan_platform_display_id_t kan_platform_application_window_get_display_id (kan_pl
     return KAN_TYPED_ID_32_SET (kan_platform_display_id_t, display_id);
 }
 
-float kan_platform_application_window_get_pixel_density (kan_platform_window_id_t window_id)
+kan_floating_t kan_platform_application_window_get_pixel_density (kan_platform_window_id_t window_id)
 {
     SDL_Window *window = SDL_GetWindowFromID ((SDL_WindowID) KAN_TYPED_ID_32_GET (window_id));
     if (!window)
@@ -757,11 +757,11 @@ float kan_platform_application_window_get_pixel_density (kan_platform_window_id_
         return 1.0f;
     }
 
-    const float density = SDL_GetWindowPixelDensity (window);
+    const kan_floating_t density = SDL_GetWindowPixelDensity (window);
     return density == 0.0f ? 1.0f : density;
 }
 
-float kan_platform_application_window_get_display_scale (kan_platform_window_id_t window_id)
+kan_floating_t kan_platform_application_window_get_display_scale (kan_platform_window_id_t window_id)
 {
     SDL_Window *window = SDL_GetWindowFromID ((SDL_WindowID) KAN_TYPED_ID_32_GET (window_id));
     if (!window)
@@ -771,7 +771,7 @@ float kan_platform_application_window_get_display_scale (kan_platform_window_id_
         return 1.0f;
     }
 
-    const float scale = SDL_GetWindowDisplayScale (window);
+    const kan_floating_t scale = SDL_GetWindowDisplayScale (window);
     return scale == 0.0f ? 1.0f : scale;
 }
 
@@ -1247,7 +1247,7 @@ bool kan_platform_application_window_set_keyboard_grab (kan_platform_window_id_t
     return SDL_SetWindowKeyboardGrab (window, grab_keyboard ? true : false);
 }
 
-bool kan_platform_application_window_set_opacity (kan_platform_window_id_t window_id, float opacity)
+bool kan_platform_application_window_set_opacity (kan_platform_window_id_t window_id, kan_floating_t opacity)
 {
     SDL_Window *window = SDL_GetWindowFromID ((SDL_WindowID) KAN_TYPED_ID_32_GET (window_id));
     if (!window)
@@ -1260,7 +1260,7 @@ bool kan_platform_application_window_set_opacity (kan_platform_window_id_t windo
     return SDL_SetWindowOpacity (window, opacity);
 }
 
-float kan_platform_application_window_get_opacity (kan_platform_window_id_t window_id)
+kan_floating_t kan_platform_application_window_get_opacity (kan_platform_window_id_t window_id)
 {
     SDL_Window *window = SDL_GetWindowFromID ((SDL_WindowID) KAN_TYPED_ID_32_GET (window_id));
     if (!window)
@@ -1366,19 +1366,21 @@ void kan_platform_application_window_destroy (kan_platform_window_id_t window_id
     SDL_DestroyWindow (window);
 }
 
-uint8_t kan_platform_application_get_mouse_state_local_to_focus (float *x, float *y)
+uint8_t kan_platform_application_get_mouse_state_local_to_focus (kan_floating_t *x, kan_floating_t *y)
 {
     const uint32_t sdl_state = SDL_GetMouseState (x, y);
     return convert_mouse_state (sdl_state);
 }
 
-uint8_t kan_platform_application_get_global_mouse_state (float *x, float *y)
+uint8_t kan_platform_application_get_global_mouse_state (kan_floating_t *x, kan_floating_t *y)
 {
     const uint32_t sdl_state = SDL_GetGlobalMouseState (x, y);
     return convert_mouse_state (sdl_state);
 }
 
-void kan_platform_application_warp_mouse_in_window (kan_platform_window_id_t window_id, float x, float y)
+void kan_platform_application_warp_mouse_in_window (kan_platform_window_id_t window_id,
+                                                    kan_floating_t x,
+                                                    kan_floating_t y)
 {
     SDL_Window *window = SDL_GetWindowFromID ((SDL_WindowID) KAN_TYPED_ID_32_GET (window_id));
     if (!window)
@@ -1391,7 +1393,7 @@ void kan_platform_application_warp_mouse_in_window (kan_platform_window_id_t win
     SDL_WarpMouseInWindow (window, x, y);
 }
 
-void kan_platform_application_warp_mouse_global (float x, float y) { SDL_WarpMouseGlobal (x, y); }
+void kan_platform_application_warp_mouse_global (kan_floating_t x, kan_floating_t y) { SDL_WarpMouseGlobal (x, y); }
 
 void kan_platform_application_set_cursor_visible (bool visible)
 {
@@ -1426,7 +1428,14 @@ char *kan_platform_application_extract_text_from_clipboard (void)
     return kan_text;
 }
 
-PLATFORM_API void kan_platform_application_put_text_into_clipboard (const char *text) { SDL_SetClipboardText (text); }
+void kan_platform_application_put_text_into_clipboard (const char *text) { SDL_SetClipboardText (text); }
+
+const char *kan_platform_get_scan_code_name (enum kan_platform_scan_code_t scan_code)
+{
+    const SDL_Scancode sdl_scan_code = to_sdl_scan_code (scan_code);
+    const SDL_Keycode sdl_key_code = SDL_GetKeyFromScancode (sdl_scan_code, SDL_KMOD_NONE, false);
+    return SDL_GetKeyName (sdl_key_code);
+}
 
 bool kan_platform_application_register_vulkan_library_usage (void)
 {
@@ -1460,7 +1469,7 @@ void kan_platform_application_request_vulkan_extensions (struct kan_dynamic_arra
     const char *const *extensions = SDL_Vulkan_GetInstanceExtensions (&count);
     kan_dynamic_array_init (output, (kan_instance_size_t) count, sizeof (char *), alignof (char *), allocation_group);
 
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) count; ++index)
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) count; ++index)
     {
         char **extension_output = kan_dynamic_array_add_last (output);
         kan_instance_size_t length = (kan_instance_size_t) strlen (extensions[index]);

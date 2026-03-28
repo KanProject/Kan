@@ -27,80 +27,97 @@ f2 calculate_atlas_entry_uv (in atlas_entry entry, in f2 element_uv, in f2 eleme
     f2 base_uv = element_uv;
     if ((entry.flags & atlas_entry_flag_nine_slice) != 0u)
     {
-        f2 entry_space = f2 {0.0};
-        f2 borders = f2 {
-            entry.nine_slice_left + entry.nine_slice_right, 
-            entry.nine_slice_top + entry.nine_slice_bottom};
-        f2 center_size = entry.pixel_size - borders;
+        atlas_entry_nine_slice_axis_context_t context_x = atlas_entry_nine_slice_axis_context_t {
+            entry.pixel_size.x,
+            entry.nine_slice_left,
+            entry.nine_slice_right,
+            element_size.x,
+            element_pixel.x,
+            entry.nine_slice_flags & atlas_entry_nine_slice_flag_tiled_x
+        };
         
-        if (element_size.x > borders.x)
-        {
-            if (element_pixel.x < entry.nine_slice_left)
-            {
-                entry_space.x = element_pixel.x;
-            }
-            else if (element_size.x - element_pixel.x < entry.nine_slice_right)
-            {
-                entry_space.x = entry.pixel_size.x - (element_size.x - element_pixel.x);
-            }
-            else if ((entry.nine_slice_flags & atlas_entry_nine_slice_flag_tiled_x) != 0u)
-            {
-                entry_space.x = entry.nine_slice_left + (element_pixel.x - entry.nine_slice_left) % center_size.x;
-            }
-            else
-            {
-                f1 stretch_element = (element_pixel.x - entry.nine_slice_left) / (element_size.x - borders.x);
-                entry_space.x = entry.nine_slice_left + stretch_element * (entry.pixel_size.x - borders.x);
-            }
-        }
-        else
-        {
-            f1 edge = element_size.x * entry.nine_slice_left / borders.x;
-            if (element_pixel.x < edge)
-            {
-                entry_space.x = element_pixel.x;
-            }
-            else
-            {
-                entry_space.x = entry.pixel_size.x - (element_size.x - element_pixel.x);
-            }
-        }
-            
-        if (element_size.y > borders.y)
-        {
-            if (element_pixel.y < entry.nine_slice_top)
-            {
-                entry_space.y = element_pixel.y;
-            }
-            else if (element_size.y - element_pixel.y < entry.nine_slice_bottom)
-            {
-                entry_space.y = entry.pixel_size.y - (element_size.y - element_pixel.y);
-            }
-            else if ((entry.nine_slice_flags & atlas_entry_nine_slice_flag_tiled_y) != 0u)
-            {
-                entry_space.y = entry.nine_slice_top + (element_pixel.y - entry.nine_slice_top) % center_size.y;
-            }
-            else
-            {
-                f1 stretch_element = (element_pixel.y - entry.nine_slice_top) / (element_size.y - borders.y);
-                entry_space.y = entry.nine_slice_top + stretch_element * (entry.pixel_size.y - borders.y);
-            }
-        }
-        else
-        {
-            f1 edge = element_size.y * entry.nine_slice_top / borders.y;
-            if (element_pixel.y < edge)
-            {
-                entry_space.y = element_pixel.y;
-            }
-            else
-            {
-                entry_space.y = entry.pixel_size.y - (element_size.y - element_pixel.y);
-            }
-        }
+        atlas_entry_nine_slice_axis_context_t context_y = atlas_entry_nine_slice_axis_context_t {
+            entry.pixel_size.y,
+            entry.nine_slice_top,
+            entry.nine_slice_bottom,
+            element_size.y,
+            element_pixel.y,
+            entry.nine_slice_flags & atlas_entry_nine_slice_flag_tiled_y
+        };
         
-        base_uv = entry_space / entry.pixel_size;
+        base_uv = f2 {
+            calculate_entry_space_for_nine_slice_axis (context_x, context_y),
+            calculate_entry_space_for_nine_slice_axis (context_y, context_x)
+        } / entry.pixel_size;
     }
     
     return entry.uv_min + base_uv * (entry.uv_max - entry.uv_min);
+}
+
+struct atlas_entry_nine_slice_axis_context_t
+{
+    f1 entry_size;
+    f1 left;
+    f1 right;
+    
+    f1 element_size;
+    f1 pixel;
+    
+    u1 tiled;
+};
+
+// Inner helper function for `calculate_atlas_entry_uv` for calculating coordinates for nine slices.
+f1 calculate_entry_space_for_nine_slice_axis (
+    in atlas_entry_nine_slice_axis_context_t context,
+    // Context of the other axis, needed for correct processing of tiled + non tiled axis combination.
+    in atlas_entry_nine_slice_axis_context_t other_context)
+{
+    f1 sum_borders = context.left + context.right; 
+    f1 center_size = context.entry_size - sum_borders;
+    
+    if (context.element_size > sum_borders)
+    {
+        if (context.pixel < context.left)
+        {
+            return context.pixel;
+        }
+        else if (context.element_size - context.pixel < context.right)
+       {
+            return context.entry_size - (context.element_size - context.pixel);
+        }
+        else if (context.tiled != 0u)
+        {
+            f1 factor = f1 {1.0};
+            if (other_context.tiled == 0u &&
+                other_context.element_size > other_context.left + other_context.right)
+            {
+                // Special case when tiling is enabled only on one axis.
+                // For that case, we apply uniform scale from scaled axis to tiled axis to avoid non-uniform scaling
+                // on visuals.
+                
+                f1 other_sum_borders = other_context.left + other_context.right;
+                f1 other_center_size = other_context.entry_size - other_sum_borders;
+                factor = other_center_size / (other_context.element_size - other_sum_borders);
+            }
+            
+            return context.left + (context.pixel - context.left) * factor % center_size;
+        }
+        else
+        {
+            f1 stretch_element = (context.pixel - context.left) / (context.element_size - sum_borders);
+            return context.left + stretch_element * center_size;
+        }
+    }
+    else
+    {
+        f1 edge = context.element_size * context.left / sum_borders;
+        if (context.pixel < edge)
+        {
+            return context.pixel;
+        }
+        else
+        {
+            return context.entry_size - (context.element_size - context.pixel);
+        }
+    }
 }

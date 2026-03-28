@@ -26,6 +26,9 @@ KAN_C_HEADER_BEGIN
 /// \brief Checks if two floating points are almost equal using `KAN_FLOATING_TOLERANCE`.
 #define KAN_FLOATING_IS_NEAR(A, B) (((A) - (B)) >= -KAN_FLOATING_TOLERANCE && ((A) - (B)) <= KAN_FLOATING_TOLERANCE)
 
+/// \brief Approximate value of sqrt(3), which is used a lot for hexagonal map calculations.
+#define KAN_SQRT_3 1.732050776481628f
+
 /// \brief 2 dimensional uint32 vector type.
 struct kan_uint32_vector_2_t
 {
@@ -231,6 +234,29 @@ struct kan_transform_3_t
     struct kan_float_vector_3_t scale;
 };
 
+/// \brief Convenience constructor function for kan_uint32_vector_2_t.
+static inline struct kan_uint32_vector_2_t kan_make_uint32_vector_2_t (uint32_t x, uint32_t y)
+{
+    return (struct kan_uint32_vector_2_t) {.x = x, .y = y};
+}
+
+/// \brief Convenience constructor function for kan_uint32_vector_3_t.
+static inline struct kan_uint32_vector_3_t kan_make_uint32_vector_3_t (uint32_t x, uint32_t y, uint32_t z)
+{
+    return (struct kan_uint32_vector_3_t) {.x = x, .y = y, .z = z};
+}
+
+/// \brief Convenience constructor function for kan_uint32_vector_4_t.
+static inline struct kan_uint32_vector_4_t kan_make_uint32_vector_4_t (uint32_t x, uint32_t y, uint32_t z, uint32_t w)
+{
+    struct kan_uint32_vector_4_t vector;
+    vector.x = x;
+    vector.y = y;
+    vector.z = z;
+    vector.w = w;
+    return vector;
+}
+
 /// \brief Convenience constructor function for kan_float_vector_2_t.
 static inline struct kan_float_vector_2_t kan_make_float_vector_2_t (float x, float y)
 {
@@ -417,6 +443,7 @@ static inline struct kan_float_matrix_3x3_t kan_float_matrix_3x3_inverse (const 
     struct kan_float_matrix_3x3_t result;
     KAN_MUTE_POINTER_CONVERSION_WARNINGS_BEGIN
     glm_mat3_inv (matrix, &result);
+    KAN_MUTE_POINTER_CONVERSION_WARNINGS_END
     return result;
 }
 
@@ -577,7 +604,7 @@ static inline struct kan_float_matrix_4x4_t kan_perspective_projection (float fi
     return matrix;
 }
 
-// TODO: Below we add used functions from cglm. We're planning to add them on-demand.
+// TODO: Here we add used functions from cglm. We're planning to add them on-demand.
 
 /// \brief Converts one channel value in [0, 1] interval from SRGB to RGB format by Vulkan specification.
 static inline float kan_color_transfer_srgb_to_rgb (float value)
@@ -590,12 +617,6 @@ static inline float kan_color_transfer_rgb_to_srgb (float value)
 {
     return value <= 0.0031308f ? value * 12.92f : 1.055f * powf (value, 1.0f / 2.4f) - 0.055f;
 }
-
-/// \brief Converts one channel value in [0, 1] interval from SRGB to RGB format with faster approximation.
-static inline float kan_color_transfer_srgb_to_rgb_approximate (float value) { return powf (value, 1.0f / 2.2f); }
-
-/// \brief Converts one channel value in [0, 1] interval from RGB to SRGB format with faster approximation.
-static inline float kan_color_transfer_rgb_to_srgb_approximate (float value) { return powf (value, 2.2f); }
 
 /// \brief Checks if sum of per-component differences of given 32-bit colors is greater than given tolerance.
 static inline bool kan_are_colors_different (uint32_t first, uint32_t second, uint32_t tolerance)
@@ -631,6 +652,12 @@ static inline struct kan_color_linear_t kan_make_color_linear (float r, float g,
     return color;
 }
 
+/// \brief Convenience cast from linear color to float 4 vector.
+static inline struct kan_float_vector_4_t kan_color_linear_as_vector (const struct kan_color_linear_t value)
+{
+    return (struct kan_float_vector_4_t) {.x = value.r, .y = value.g, .z = value.b, .w = value.a};
+}
+
 /// \brief Helper structure for unpacked SRGB color space colors.
 struct kan_color_srgb_t
 {
@@ -639,6 +666,12 @@ struct kan_color_srgb_t
     float b;
     float a;
 };
+
+/// \brief Convenience cast from SRGB color to float 4 vector.
+static inline struct kan_float_vector_4_t kan_color_srgb_as_vector (const struct kan_color_srgb_t value)
+{
+    return (struct kan_float_vector_4_t) {.x = value.r, .y = value.g, .z = value.b, .w = value.a};
+}
 
 /// \brief Helper to convert linear color to srgb color.
 static inline struct kan_color_srgb_t kan_color_linear_to_srgb (const struct kan_color_linear_t value)
@@ -660,6 +693,107 @@ static inline struct kan_color_linear_t kan_color_srgb_to_linear (const struct k
         .b = kan_color_transfer_srgb_to_rgb (value.b),
         .a = value.a,
     };
+}
+
+/// \brief Make srgb color from 4-byte hex value, which is popular output format from web color pickers.
+/// \details As web always uses srgb instead of linear, we can convert values directly.
+static inline struct kan_color_srgb_t kan_make_color_srgb_from_web (uint32_t hex)
+{
+    struct kan_color_srgb_t color;
+    color.r = (float) ((hex & 0xFF000000) >> 24u) / 255.0f;
+    color.g = (float) ((hex & 0x00FF0000) >> 16u) / 255.0f;
+    color.b = (float) ((hex & 0x0000FF00) >> 8u) / 255.0f;
+    color.a = (float) (hex & 0x000000FF) / 255.0f;
+    return color;
+}
+
+/// \brief Make linear color from 4-byte hex value, which is popular output format from web color pickers.
+/// \details As web always uses srgb instead of linear, we need to first convert it to srgb and then to linear.
+static inline struct kan_color_linear_t kan_make_color_linear_from_web (uint32_t hex)
+{
+    return kan_color_srgb_to_linear (kan_make_color_srgb_from_web (hex));
+}
+
+/// \brief State for xoshiro128** pseudo-random number generator.
+/// \details See https://prng.di.unimi.it/ and https://en.wikipedia.org/wiki/Xorshift#xoroshiro for reference.
+///          We avoid Mersenne Twister as it uses quite big state and can also enter "reload hiccup", which should not
+///          be that noticeable, but still a little bit inconvenient.
+struct kan_random_xoshiro_t
+{
+    uint32_t state[4u];
+};
+
+/// \brief Initializes xoshiro128** generator through 64-bit seed using splitmix generator as recommended for xoshiro.
+static inline struct kan_random_xoshiro_t kan_random_xoshiro_init_from_splitmix (uint64_t seed)
+{
+    struct kan_random_xoshiro_t result;
+    uint64_t splitmix_state = seed;
+    uint64_t splitmix_result;
+
+#define SPLITMIX                                                                                                       \
+    splitmix_state += 0x9E3779B97F4A7C15;                                                                              \
+    splitmix_result = splitmix_state;                                                                                  \
+    splitmix_result = (splitmix_result ^ (splitmix_result >> 30u)) * 0xBF58476D1CE4E5B9;                               \
+    splitmix_result = (splitmix_result ^ (splitmix_result >> 27u)) * 0x94D049BB133111EB;                               \
+    splitmix_result = splitmix_result ^ (splitmix_result >> 31u)
+
+    SPLITMIX;
+    result.state[0u] = (uint32_t) splitmix_result;
+    result.state[1u] = (uint32_t) (splitmix_result >> 32u);
+
+    SPLITMIX;
+    result.state[2u] = (uint32_t) splitmix_result;
+    result.state[3u] = (uint32_t) (splitmix_result >> 32u);
+
+#undef SPLITMIX
+    return result;
+}
+
+/// \brief Generate next random number in [0, UINT32_MAX] interval using xoshiro128**.
+/// \details Least significant bits are considered less stable, therefore checks like `random_value % 2` are not
+///          recommended as their results would not be statistically good.
+static inline uint32_t kan_random_xoshiro_next (struct kan_random_xoshiro_t *generator)
+{
+#define ROTL(X, K) (((X) << (K)) | ((X) >> (32u - (K))))
+    const uint32_t result = ROTL (generator->state[1u] * 5u, 7u) * 9u;
+    const uint32_t t = generator->state[1u] << 9u;
+
+    generator->state[2u] ^= generator->state[0u];
+    generator->state[3u] ^= generator->state[1u];
+    generator->state[1u] ^= generator->state[2u];
+    generator->state[0u] ^= generator->state[3u];
+
+    generator->state[2u] ^= t;
+    generator->state[3u] = ROTL (generator->state[3u], 11u);
+    return result;
+#undef ROTL
+}
+
+/// \broef Convenience adapter for properly generating [0.0, 1.0] floats from 32-bit random numbers.
+static inline kan_floating_t kan_random_xoshiro_next_floating (struct kan_random_xoshiro_t *generator)
+{
+    return (float) (kan_random_xoshiro_next (generator) >> 8u) * 0x1p-24f;
+}
+
+/// \brief Helper for fitting uint32_t received from random generator inside [0, MAX) range.
+/// \details Logically close to just using modulo, however least significant bits that are preferred by modulo are the
+///          least stable bits, therefore for relatively small MAX values (less that several thousands) division should
+///          return more random numbers.
+#define KAN_RANDOM_U32_FIT_IN_RANGE(VALUE, MAX) ((VALUE) / (1u + UINT32_MAX / (MAX)))
+
+/// \brief Syntax sugar wrapper for `kan_random_xoshiro_next` using `KAN_RANDOM_U32_FIT_IN_RANGE`.
+static inline kan_instance_size_t kan_random_xoshiro_next_in_range (struct kan_random_xoshiro_t *generator,
+                                                                    kan_instance_size_t min,
+                                                                    kan_instance_size_t max)
+{
+    if (min + 1u >= max)
+    {
+        // Malformed or empty range, just return min in that case.
+        return min;
+    }
+
+    const kan_instance_size_t range = max - min;
+    return min + KAN_RANDOM_U32_FIT_IN_RANGE (kan_random_xoshiro_next (generator), range);
 }
 
 KAN_C_HEADER_END

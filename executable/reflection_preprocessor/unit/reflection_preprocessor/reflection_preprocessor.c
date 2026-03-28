@@ -1964,9 +1964,8 @@ static enum parse_status_t parse_struct_declaration (const char *declaration_nam
                                                      "static void lifetime_functor_");
             kan_trivial_string_buffer_append_string (&global.generated_functions_section,
                                                      parser.current_meta_storage.explicit_init_functor);
-            kan_trivial_string_buffer_append_string (
-                &global.generated_functions_section,
-                " (kan_functor_user_data_t user_data, void *generic_instance)\n{\n    ");
+            kan_trivial_string_buffer_append_string (&global.generated_functions_section,
+                                                     " (kan_memory_size_t user_data, void *generic_instance)\n{\n    ");
 
             kan_trivial_string_buffer_append_string (&global.generated_functions_section,
                                                      parser.current_meta_storage.explicit_init_functor);
@@ -1989,9 +1988,8 @@ static enum parse_status_t parse_struct_declaration (const char *declaration_nam
                                                      "static void lifetime_functor_");
             kan_trivial_string_buffer_append_string (&global.generated_functions_section,
                                                      parser.current_meta_storage.explicit_shutdown_functor);
-            kan_trivial_string_buffer_append_string (
-                &global.generated_functions_section,
-                " (kan_functor_user_data_t user_data, void *generic_instance)\n{\n    ");
+            kan_trivial_string_buffer_append_string (&global.generated_functions_section,
+                                                     " (kan_memory_size_t user_data, void *generic_instance)\n{\n    ");
 
             kan_trivial_string_buffer_append_string (&global.generated_functions_section,
                                                      parser.current_meta_storage.explicit_shutdown_functor);
@@ -2313,7 +2311,7 @@ static inline void finish_function_generation (struct function_reflection_contex
     kan_trivial_string_buffer_append_string (&global.generated_functions_section, "static void call_functor_");
     kan_trivial_string_buffer_append_string (&global.generated_functions_section, context->name);
     kan_trivial_string_buffer_append_string (&global.generated_functions_section,
-                                             " (kan_functor_user_data_t user_data, void "
+                                             " (kan_memory_size_t user_data, void "
                                              "*return_address, void *arguments_address)\n{\n    ");
 
     if (return_type_info->name != KAN_STATIC_INTERNED_ID_GET (void) || return_type_info->pointer_level > 0u)
@@ -2327,7 +2325,7 @@ static inline void finish_function_generation (struct function_reflection_contex
     kan_trivial_string_buffer_append_string (&global.generated_functions_section, context->name);
     kan_trivial_string_buffer_append_string (&global.generated_functions_section, " (\n");
 
-    for (kan_loop_size_t argument_index = 0u; argument_index < context->reflected_arguments_count; ++argument_index)
+    for (kan_memory_size_t argument_index = 0u; argument_index < context->reflected_arguments_count; ++argument_index)
     {
         kan_trivial_string_buffer_append_string (&global.generated_functions_section, "        ((struct ");
         kan_trivial_string_buffer_append_string (&global.generated_functions_section, context->name);
@@ -2354,9 +2352,8 @@ static inline void finish_function_generation (struct function_reflection_contex
 
         kan_trivial_string_buffer_append_string (&global.generated_functions_section, "static void lifetime_functor_");
         kan_trivial_string_buffer_append_string (&global.generated_functions_section, context->name);
-        kan_trivial_string_buffer_append_string (
-            &global.generated_functions_section,
-            " (kan_functor_user_data_t user_data, void *generic_instance)\n{\n    ");
+        kan_trivial_string_buffer_append_string (&global.generated_functions_section,
+                                                 " (kan_memory_size_t user_data, void *generic_instance)\n{\n    ");
 
         kan_trivial_string_buffer_append_string (&global.generated_functions_section, context->name);
         kan_trivial_string_buffer_append_string (&global.generated_functions_section, " (generic_instance);\n}\n\n");

@@ -5,7 +5,7 @@
 #include <kan/api_common/c_header.h>
 #include <kan/api_common/core_types.h>
 #include <kan/context/application_system.h>
-#include <kan/inline_math/inline_math.h>
+#include <kan/math/inline.h>
 #include <kan/universe_ui/core.h>
 
 /// \file
@@ -37,6 +37,8 @@
 /// - `kan_ui_node_text_behavior_t` for managing synchronization between UI nodes and shaping units.
 /// - `kan_ui_node_scroll_behavior_t` for implementing scroll pane widgets.
 /// - `kan_ui_node_line_edit_behavior_t` for implementing text line edit widgets.
+/// - `kan_ui_node_map_behavior_t` for map-like pane widgets.
+/// - `kan_ui_node_popup_behavior_t` for popup widgets like tooltips or drop down selections.
 /// \endparblock
 
 KAN_C_HEADER_BEGIN
@@ -76,6 +78,7 @@ KAN_C_HEADER_BEGIN
 /// \brief Singleton that is used to configure input processing and also exposes public input state.
 /// \details Should not be accessed outside UI leaf worlds, otherwise processing input from several
 ///          windows would be impossible.
+/// \warning Press information in singleton is not affected by virtual presses from key bindings!
 struct kan_ui_input_singleton_t
 {
     /// \brief Event iterator used to get input events inside input processing mutator.
@@ -134,8 +137,13 @@ struct kan_ui_node_hit_box_t
     kan_immutable bool interactable;
 
     /// \brief If true, this hit box will ignored when processing mouse scroll event in order to pass this event to
-    ///        scroll pane hit box below if such hit box exists.
+    ///        hit boxes below, for example to scroll pane hit box.
     kan_immutable bool scroll_passthrough;
+
+    /// \brief If true, element visuals will be set to disabled state and
+    ///        other logic would work the same way as if `interactable` was false.
+    /// \details Does nothing if `interactable` is already false.
+    bool disabled;
 
     /// \brief Name of the `kan_resource_ui_hit_box_interaction_style_t` in bundle for hover and press visualization.
     /// \details Only used when `interactable`.
@@ -155,6 +163,15 @@ struct kan_ui_node_hit_box_t
 UNIVERSE_UI_API void kan_ui_node_hit_box_init (struct kan_ui_node_hit_box_t *instance);
 
 UNIVERSE_UI_API void kan_ui_node_hit_box_shutdown (struct kan_ui_node_hit_box_t *instance);
+
+/// \brief Binds key up/down logic to particular hit box press logic.
+/// \warning Presses from bindings do not affect data `kan_ui_input_singleton_t` and
+///          only trigger press begin and press end logic.
+struct kan_ui_node_key_binding_t
+{
+    kan_immutable kan_ui_node_id_t id;
+    enum kan_platform_scan_code_t scan_code;
+};
 
 /// \brief Event that is sent when multiple successive clicks were detected, for example double click.
 /// \details In case of multiple clicks, for example double click, press begin and end events for the first click will
@@ -185,6 +202,20 @@ struct kan_ui_press_begin_t
     kan_instance_offset_t at_y;
 };
 
+/// \brief Event that is sent when pointer motion was detected during valid press interaction.
+struct kan_ui_press_motion_t
+{
+    kan_ui_node_id_t node_id;
+    uint32_t mouse_button_down_flags;
+    uint32_t mouse_button_down_inclusive_flags;
+
+    kan_instance_offset_t at_x;
+    kan_instance_offset_t at_y;
+
+    kan_instance_offset_t delta_x;
+    kan_instance_offset_t delta_y;
+};
+
 /// \brief Event that is sent when valid press interaction was finished.
 struct kan_ui_press_end_t
 {
@@ -194,6 +225,17 @@ struct kan_ui_press_end_t
     /// \brief True only and if only press began and ended on the same element.
     bool continuous_press;
 
+    kan_instance_offset_t at_x;
+    kan_instance_offset_t at_y;
+};
+
+/// \brief Event that is sent when valid scroll, for example mouse scroll, interaction was detected.
+struct kan_ui_scroll_t
+{
+    kan_ui_node_id_t node_id;
+    kan_floating_t scroll_x;
+    kan_floating_t scroll_y;
+    kan_floating_t delta_time_s;
     kan_instance_offset_t at_x;
     kan_instance_offset_t at_y;
 };
@@ -242,6 +284,8 @@ struct kan_ui_node_scroll_behavior_t
     /// \invariant `horizontal` must be `true`.
     /// \invariant Must have interactable hit box in order to process user input.
     /// \invariant `horizontal_knob_id` must be a valid id.
+    /// \warning Is not hidden itself due to being interactable, but hides children instead,
+    ///          therefore background must be a separate child node with drawable.
     kan_immutable kan_ui_node_id_t horizontal_line_id;
 
     /// \brief If `horizontal_line_id` is valid id, then this node represents knob on that line.
@@ -251,6 +295,8 @@ struct kan_ui_node_scroll_behavior_t
     /// \invariant `vertical` must be `true`.
     /// \invariant Must have interactable hit box in order to process user input.
     /// \invariant `vertical_knob_id` must be a valid id.
+    /// \warning Is not hidden itself due to being interactable, but hides children instead,
+    ///          therefore background must be a separate child node with drawable.
     kan_immutable kan_ui_node_id_t vertical_line_id;
 
     /// \brief If `vertical_line_id` is valid id, then this node represents knob on that line.
@@ -282,10 +328,66 @@ struct kan_ui_node_scroll_behavior_t
     kan_immutable bool lines_always_visible;
 
     /// \brief Scroll line are visible for this amount of seconds after interaction.
-    kan_immutable float line_visibility_s;
+    kan_immutable kan_floating_t line_visibility_s;
 };
 
 UNIVERSE_UI_API void kan_ui_node_scroll_behavior_init (struct kan_ui_node_scroll_behavior_t *instance);
+
+/// \brief Enumerates supported content types for `kan_ui_node_line_edit_behavior_t`.
+enum kan_ui_node_line_edit_content_type_t
+{
+    /// \brief Any textual content, no restrictions and no post processing.
+    KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_ANY = 0u,
+
+    /// \brief Content will be parsed as unsigned integer.
+    /// \details Supports decimal numbers, 0x... hex numbers and 0b binary numbers.
+    ///          Whitespaces are ignored during parsing.
+    ///          If user deselects line edit and leaves content empty, content will become "0" automatically.
+    KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT,
+
+    /// \brief Content will be parsed as signed integer.
+    /// \details Supports decimal numbers. Whitespaces are ignored during parsing.
+    ///          If user deselects line edit and leaves content empty, content will become "0" automatically.
+    KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT,
+
+    /// \brief Content will be parsed as floating point number.
+    /// \details Supports decimal numbers. Whitespaces are ignored during parsing.
+    ///          If user deselects line edit and leaves content empty, content will become "0" automatically.
+    KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_FLOAT,
+};
+
+/// \brief Describes additional configuration for `kan_ui_node_line_edit_behavior_t` for unsigned integer content.
+struct kan_ui_node_line_edit_content_type_uint_t
+{
+    bool has_parsed_content;
+    bool has_limits;
+
+    kan_stable_size_t parsed_content;
+    kan_stable_size_t min;
+    kan_stable_size_t max;
+};
+
+/// \brief Describes additional configuration for `kan_ui_node_line_edit_behavior_t` for signed integer content.
+struct kan_ui_node_line_edit_content_type_sint_t
+{
+    bool has_parsed_content;
+    bool has_limits;
+
+    kan_stable_offset_t parsed_content;
+    kan_stable_offset_t min;
+    kan_stable_offset_t max;
+};
+
+/// \brief Describes additional configuration for `kan_ui_node_line_edit_behavior_t` for floating point content.
+struct kan_ui_node_line_edit_content_type_float_t
+{
+    bool has_parsed_content;
+    bool has_limits;
+
+    kan_floating_t parsed_content;
+    kan_floating_t min;
+    kan_floating_t max;
+};
 
 /// \brief Provides behavior that implements line edit widget interactions.
 /// \invariant Should be inserted in the same frame as connected ui node.
@@ -370,6 +472,30 @@ struct kan_ui_node_line_edit_behavior_t
     /// \details `KAN_INT_MAX (kan_instance_size_t)` if no selection right now.
     /// \invariant Should not be edited by user, expected to be only modified by inner logic.
     kan_instance_size_t selection_content_max;
+
+    /// \brief Content type can be used to additionally validate and post process content.
+    enum kan_ui_node_line_edit_content_type_t content_type;
+
+    /// \brief Will be used instead of `content_style` if content is deemed invalid by `content_type`.
+    kan_interned_string_t content_style_when_invalid;
+
+    /// \brief Will be used instead of `content_mark` if content is deemed invalid by `content_type`.
+    uint32_t content_mark_when_invalid;
+
+    union
+    {
+        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (content_type)
+        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT)
+        struct kan_ui_node_line_edit_content_type_uint_t content_uint;
+
+        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (content_type)
+        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT)
+        struct kan_ui_node_line_edit_content_type_sint_t content_sint;
+
+        KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (content_type)
+        KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_FLOAT)
+        struct kan_ui_node_line_edit_content_type_float_t content_float;
+    };
 };
 
 UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_init (struct kan_ui_node_line_edit_behavior_t *instance);
@@ -380,6 +506,176 @@ UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_set_content (struct kan_ui_n
                                                                  kan_interned_string_t content_style,
                                                                  uint32_t content_mark);
 
+/// \brief Helper for setting line edit content type from outside.
+UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_set_content_type (
+    struct kan_ui_node_line_edit_behavior_t *instance,
+    enum kan_ui_node_line_edit_content_type_t content_type,
+    kan_interned_string_t content_style_when_invalid,
+    uint32_t content_mark_when_invalid);
+
+/// \brief Helper for setting line edit unsigned int content limits.
+/// \invariant Line edit content type is KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_UINT.
+UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_set_content_uint_limits (
+    struct kan_ui_node_line_edit_behavior_t *instance, kan_instance_size_t min, kan_instance_size_t max);
+
+/// \brief Helper for setting line edit signed int content limits.
+/// \invariant Line edit content type is KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_SINT.
+UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_set_content_sint_limits (
+    struct kan_ui_node_line_edit_behavior_t *instance, kan_instance_offset_t min, kan_instance_offset_t max);
+
+/// \brief Helper for setting line edit floating point content limits.
+/// \invariant Line edit content type is KAN_UI_NODE_LINE_EDIT_CONTENT_TYPE_FLOAT.
+UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_set_content_float_limits (
+    struct kan_ui_node_line_edit_behavior_t *instance, kan_floating_t min, kan_floating_t max);
+
 UNIVERSE_UI_API void kan_ui_node_line_edit_behavior_shutdown (struct kan_ui_node_line_edit_behavior_t *instance);
+
+/// \brief Event that is sent whenever line edit finishes processing changes in its content.
+/// \warning Sent even for outside content changes from `kan_ui_node_line_edit_behavior_set_content` as it makes it
+///          easier to react to all changes in dependant UI widgets.
+struct kan_line_edit_content_changed_t
+{
+    kan_ui_node_id_t node_id;
+};
+
+/// \brief Behavior for map-like views that can be zoomed and scrolled by grabbing.
+/// \details Map-like controls can be encountered more often than it feels: it is not only a minimap or 2d game map,
+///          it could also be a skill tree, a crafting recipe tree and so on. All of these controls usually can be
+///          zoomed and scrolled in both directions, therefore it was decided to make this part of the UI unit.
+///
+///          Map operates in its own virtual coordinates like 2d camera. These coordinate are floating point numbers in
+///          bounds [0, map_width] for X and [0, map_height] for Y with top-down Y direction like UI element. Zoom is
+///          applied by modifying camera half height: just like it would work for game 2d orthographic camera.
+///          Movement is also applied to camera origin.
+///
+///          When user modifies map behavior from outside and sets dirty flag, camera origin and half height are
+///          sanitized to prevent camera-out-of-bounds issues and map-visuals-not-touching-any-element-border issues.
+///
+///          Map-placed elements should be attached to the map as children of frame layout with `kan_ui_node_map_pin_t`
+///          record that describes how to automatically reposition and resize the element.
+struct kan_ui_node_map_behavior_t
+{
+    kan_immutable kan_ui_node_id_t id;
+
+    /// \brief If true, user will be able to move around the map by pressing and moving pointer.
+    bool movement_enabled;
+
+    /// \brief If true, user will be able to zoom in and out using scroll input like mouse wheel.
+    bool zoom_enabled;
+
+    /// \brief Should be set to `true` by outside logic if outside logic has changed any of the fields below.
+    bool dirty;
+
+    /// \brief Origin location of the virtual orthographic camera on the map.
+    struct kan_float_vector_2_t camera_origin;
+
+    /// \brief Half height of the virtual orthographic camera on the map.
+    kan_floating_t camera_half_height;
+
+    /// \brief Camera half height will never become less than this value from user input.
+    /// \details Can still become less than this value on very small maps due to
+    ///          map-visuals-not-touching-any-element-border prevention.
+    kan_floating_t camera_min_half_height;
+
+    /// \brief Camera half height will never become greater than this value from user input.
+    /// \details If it should be possible for the user to view full map at once, this value can be left arbitrary high
+    ///          as map-visuals-not-touching-any-element-border prevention will limit maximum half height on full map
+    ///          view automatically.
+    kan_floating_t camera_max_half_height;
+
+    /// \brief Speed modifier for zooming in and out.
+    /// \details Zoom speed is dependant on half height: the greater half height is, the greater zoom speed it.
+    ///          Zoom input is applied by multiplying half height by zoom strength, when zoom strength is
+    ///          `1.0 - zoom_input * delta_time * scroll_zoom_speed`.
+    kan_floating_t scroll_zoom_speed;
+
+    /// \brief Width of the map in virtual map coordinates.
+    kan_floating_t width;
+
+    /// \brief Height of the map in virtual map coordinates.
+    kan_floating_t height;
+};
+
+UNIVERSE_UI_API void kan_ui_node_map_behavior_init (struct kan_ui_node_map_behavior_t *instance);
+
+/// \brief Used to attach UI node size or location to `kan_ui_node_map_behavior_t` logic.
+/// \details Useful for different markers and interactable elements that are placed on the map.
+struct kan_ui_node_map_pin_t
+{
+    kan_immutable kan_ui_node_id_t id;
+    kan_immutable kan_ui_node_id_t map_id;
+
+    /// \brief Location in map coordinate system, applied as frame offset if `sync_location`.
+    struct kan_float_vector_2_t location;
+
+    /// \brief Size in map coordinate system, applied if `sync_size`.
+    struct kan_float_vector_2_t size;
+
+    bool sync_location;
+    bool sync_size;
+};
+
+UNIVERSE_UI_API void kan_ui_node_map_pin_init (struct kan_ui_node_map_pin_t *instance);
+
+/// \brief Enumerates flags that enable different popup trigger interactions.
+KAN_REFLECTION_FLAGS
+enum kan_ui_node_popup_behavior_trigger_flags_t
+{
+    /// \brief Popup is triggered when trigger node hit box is hovered for specific amount of time.
+    KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_HOVER_TIMER = 1u << 0u,
+
+    /// \brief Popup is triggered on continuous press end on trigger node hit box.
+    KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_PRESS_END = 1u << 1u,
+};
+
+/// \brief Enumerates flags that enable different popup hiding interactions.
+KAN_REFLECTION_FLAGS
+enum kan_ui_node_popup_behavior_hide_flags_t
+{
+    /// \brief Popup is hidden after specified amount of time runs out.
+    /// \details Timer is refreshed to full value as long as popup is considered triggered or preserved.
+    KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_TIMER = 1u << 0u,
+
+    /// \brief Interactions with elements that are not children of this popup will hide popup immediately.
+    /// \details For example, if user clicks on other element or on empty area with no elements outside of popup,
+    ///          then popup will be hidden. Useful for interactive popups like drop down menus.
+    KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_OUTSIDE_INTERACTION = 1u << 1u,
+
+    /// \brief Popup is considered preserved and cannot be hidden as long as user pointer is on top of it.
+    /// \details Hit boxes of popup children are counted as pointer being on top. Hit box of popup node is counted as
+    ///          well even if it is blocking, not interactable.
+    KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_PRESERVE_WHILE_POINTED = 1u << 2u,
+};
+
+/// \brief Behavior for popup-like widgets that can only be visible when trigger conditions are met.
+/// \details Primary examples of such widgets are tooltips and drop down menus.
+struct kan_ui_node_popup_behavior_t
+{
+    kan_immutable kan_ui_node_id_t id;
+
+    /// \brief Node with hit box that is considered to be a trigger source for popup logic.
+    kan_immutable kan_ui_node_id_t trigger_id;
+
+    kan_immutable enum kan_ui_node_popup_behavior_trigger_flags_t trigger_flags;
+    kan_immutable enum kan_ui_node_popup_behavior_hide_flags_t hide_flags;
+
+    /// \brief Time in seconds for `KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_HOVER_TIMER` logic.
+    kan_floating_t hover_timer_s;
+
+    /// \brief Time in seconds for `KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_TIMER` logic.
+    kan_floating_t hide_timer_s;
+};
+
+UNIVERSE_UI_API void kan_ui_node_popup_behavior_init (struct kan_ui_node_popup_behavior_t *instance);
+
+/// \brief When this node receives continuous press end event, it will hide popup node with given id.
+/// \details Useful as a syntax sugar, for example can be added to all drop down menu options.
+struct kan_ui_node_hide_popup_on_press_t
+{
+    kan_immutable kan_ui_node_id_t id;
+    kan_immutable kan_ui_node_id_t popup_id;
+};
+
+UNIVERSE_UI_API void kan_ui_node_hide_popup_on_press_init (struct kan_ui_node_hide_popup_on_press_t *instance);
 
 KAN_C_HEADER_END

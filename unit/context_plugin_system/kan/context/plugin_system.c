@@ -1,8 +1,9 @@
 #include <stddef.h>
 #include <stdio.h>
-#include <string.h>
+#include <stdlib.h>
 
 #include <kan/container/interned_string.h>
+#include <kan/container/trivial_string_buffer.h>
 #include <kan/context/all_system_names.h>
 #include <kan/context/hot_reload_coordination_system.h>
 #include <kan/context/plugin_system.h>
@@ -16,6 +17,7 @@
 #include <kan/log/logging.h>
 #include <kan/memory/allocation.h>
 #include <kan/platform/dynamic_library.h>
+#include <kan/platform/process.h>
 #include <kan/precise_time/precise_time.h>
 
 KAN_LOG_DEFINE_CATEGORY (plugin_system);
@@ -68,7 +70,7 @@ kan_context_system_t plugin_system_create (kan_allocation_group_t group, void *u
         kan_dynamic_array_init (&system->plugins, config->plugins.size, sizeof (struct plugin_data_t),
                                 alignof (struct plugin_data_t), group);
 
-        for (kan_loop_size_t index = 0u; index < config->plugins.size; ++index)
+        for (kan_memory_size_t index = 0u; index < config->plugins.size; ++index)
         {
             kan_interned_string_t plugin_name = ((kan_interned_string_t *) config->plugins.data)[index];
             struct plugin_data_t *data = kan_dynamic_array_add_last (&system->plugins);
@@ -128,7 +130,7 @@ static inline bool find_source_plugin_path (const char *source_path,
 
 static inline void load_plugins (const char *path, struct kan_dynamic_array_t *array)
 {
-    for (kan_loop_size_t index = 0u; index < array->size; ++index)
+    for (kan_memory_size_t index = 0u; index < array->size; ++index)
     {
         struct plugin_data_t *data = &((struct plugin_data_t *) array->data)[index];
         KAN_ASSERT (!KAN_HANDLE_IS_VALID (data->dynamic_library))
@@ -163,7 +165,7 @@ static inline void load_plugins (const char *path, struct kan_dynamic_array_t *a
 
 static inline void unload_plugins (struct kan_dynamic_array_t *array)
 {
-    for (kan_loop_size_t index = 0u; index < array->size; ++index)
+    for (kan_memory_size_t index = 0u; index < array->size; ++index)
     {
         struct plugin_data_t *data = &((struct plugin_data_t *) array->data)[index];
         if (KAN_HANDLE_IS_VALID (data->dynamic_library))
@@ -176,7 +178,7 @@ static inline void unload_plugins (struct kan_dynamic_array_t *array)
 static void on_reflection_populate (kan_context_system_t other_system, kan_reflection_registry_t registry)
 {
     struct plugin_system_t *system = KAN_HANDLE_GET (other_system);
-    for (kan_loop_size_t index = 0u; index < system->plugins.size; ++index)
+    for (kan_memory_size_t index = 0u; index < system->plugins.size; ++index)
     {
         struct plugin_data_t *data = &((struct plugin_data_t *) system->plugins.data)[index];
         if (KAN_HANDLE_IS_VALID (data->dynamic_library))
@@ -228,7 +230,32 @@ static inline void update_hot_reload_id (struct plugin_system_t *system)
 
 static inline void init_hot_reload_directory (struct plugin_system_t *system)
 {
-    for (kan_loop_size_t index = 0u; index < system->plugins.size; ++index)
+#if defined(KAN_PLUGIN_SYSTEM_USE_PATCH_ELF_FIX)
+    // See CMakeLists.txt for explanation on patchelf fix.
+    kan_platform_argument_list_t patch_arguments = kan_platform_argument_list_create ();
+    CUSHION_DEFER { kan_platform_argument_list_destroy (patch_arguments); }
+    char format[512u];
+
+    for (kan_memory_size_t index = 0u; index < system->plugins.size; ++index)
+    {
+        struct plugin_data_t *data = &((struct plugin_data_t *) system->plugins.data)[index];
+        // We add replacement commands for needed libraries both with and without lib prefix just in case.
+
+        kan_platform_argument_list_append (patch_arguments, "--replace-needed");
+        snprintf (format, sizeof (format), "%s.so", data->name);
+        kan_platform_argument_list_append (patch_arguments, format);
+        snprintf (format, sizeof (format), "%s.so.%u", data->name, (unsigned int) system->hot_reload_directory_id);
+        kan_platform_argument_list_append (patch_arguments, format);
+
+        kan_platform_argument_list_append (patch_arguments, "--replace-needed");
+        snprintf (format, sizeof (format), "lib%s.so", data->name);
+        kan_platform_argument_list_append (patch_arguments, format);
+        snprintf (format, sizeof (format), "%s.so.%u", data->name, (unsigned int) system->hot_reload_directory_id);
+        kan_platform_argument_list_append (patch_arguments, format);
+    }
+#endif
+
+    for (kan_memory_size_t index = 0u; index < system->plugins.size; ++index)
     {
         struct plugin_data_t *data = &((struct plugin_data_t *) system->plugins.data)[index];
         char library_path_buffer[KAN_FILE_SYSTEM_MAX_PATH_LENGTH * 2u];
@@ -284,6 +311,26 @@ static inline void init_hot_reload_directory (struct plugin_system_t *system)
 
             input_stream->operations->close (input_stream);
             output_stream->operations->close (output_stream);
+
+#if defined(KAN_PLUGIN_SYSTEM_USE_PATCH_ELF_FIX)
+            kan_platform_argument_list_checkpoint_t arguments_checkpoint =
+                kan_platform_argument_list_save_checkpoint (patch_arguments);
+            CUSHION_DEFER { kan_platform_argument_list_restore_checkpoint (patch_arguments, arguments_checkpoint); }
+
+            kan_platform_argument_list_append (patch_arguments, "--set-soname");
+            snprintf (format, sizeof (format), "%s.so.%u", data->name, (unsigned int) system->hot_reload_directory_id);
+            kan_platform_argument_list_append (patch_arguments, format);
+            kan_platform_argument_list_append (patch_arguments, output_path_container.path);
+
+            if (kan_platform_execute_sub_process ("patchelf", patch_arguments,
+                                                  KAN_HANDLE_SET_INVALID (kan_platform_environment_t)) != 0)
+            {
+                KAN_LOG_WITH_BUFFER (
+                    KAN_FILE_SYSTEM_MAX_PATH_LENGTH * 2u, plugin_system, KAN_LOG_ERROR,
+                    "Failed to patch soname in dynamic library \"%s\" after copying, may result in incorrect linkage.",
+                    output_path_container.path)
+            }
+#endif
         }
         else
         {
@@ -336,11 +383,11 @@ void plugin_system_on_update (kan_context_system_t handle)
         kan_dynamic_array_init (&plugins_copy, system->plugins.size, sizeof (struct plugin_data_t),
                                 alignof (struct plugin_data_t), system->plugins.allocation_group);
 
-        for (kan_loop_size_t index = 0u; index < system->plugins.size; ++index)
+        for (kan_memory_size_t index = 0u; index < system->plugins.size; ++index)
         {
             struct plugin_data_t *source_data = &((struct plugin_data_t *) system->plugins.data)[index];
-            struct plugin_data_t *target_data = &((struct plugin_data_t *) plugins_copy.data)[index];
-            target_data->dynamic_library = source_data->dynamic_library;
+            struct plugin_data_t *target_data = kan_dynamic_array_add_last (&plugins_copy);
+            *target_data = *source_data;
             source_data->dynamic_library = KAN_HANDLE_SET_INVALID (kan_platform_dynamic_library_t);
         }
 

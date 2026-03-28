@@ -27,24 +27,25 @@
 ///
 /// For securing this, hot reload routine was introduced:
 ///
-/// - Hot reload rebuild implementation should work in a separate thread. It should call
-///   `kan_hot_reload_coordination_system_schedule` when it decides that new build process should be executed.
-///   Then it must wait until `kan_hot_reload_coordination_system_is_executing` is true, which would usually take
-///   several frames, so thread sleep is advised. It should also check `kan_hot_reload_coordination_system_is_scheduled`
-///   as this function will return false for this thread if scheduled hot reload was declined for some reason. After
-///   wait for `kan_hot_reload_coordination_system_is_executing` is done and it is true, hot reload build process
-///   should be executed and `kan_hot_reload_coordination_system_finish` should be called to report hot reload build
-///   finish, even if it was unsuccessful.
+/// - Hot reload rebuild implementation should work in main thread as update callback in some context system.
+///   It should call `kan_hot_reload_coordination_system_schedule` when it decides that new build process should be
+///   executed. Then it should return and wait several frames until `kan_hot_reload_coordination_system_is_scheduled`
+///   is false. Then, if `kan_hot_reload_coordination_system_is_executing` is true, it should create build process and
+///   use non-blocking waiting to wait for its execution. When build process execution is done,
+///   `kan_hot_reload_coordination_system_finish` should be called to inform hot reload coordination system that build
+///   cycle is complete and hot reload logic is allowed to start. If `kan_hot_reload_coordination_system_is_executing`
+///   returned false, then scheduled hot reload was cancelled and user implementation should try to schedule it again
+///   some time later.
 ///
 /// - User logic can check whether hot reload request was scheduled using
 ///   `kan_hot_reload_coordination_system_is_scheduled` and delay it if needed due to resource access by one frame using
 ///   `kan_hot_reload_coordination_system_delay`. The next frame would also be able to use
 ///   `kan_hot_reload_coordination_system_delay` up until the moment hot reload is allowed by the user logic.
 ///   `kan_hot_reload_coordination_system_is_scheduled` return value is guaranteed to change once per frame during
-///   hot reload coordination system update and not in any other place, so race condition is impossible here.
+///   hot reload coordination system update and not in any other place, so logical race condition is impossible here.
 ///
 /// - User logic may also call `kan_hot_reload_coordination_system_is_executing` to block things from happening
-///   while hot reload build is in progress. It has the same race condition prevention guarantee as
+///   while hot reload build is in progress. It has the same logical race condition prevention guarantee as
 ///   `kan_hot_reload_coordination_system_is_scheduled`.
 ///
 /// - User logic can check `kan_hot_reload_coordination_system_is_possible` for whether hot reload is possible at all
@@ -99,8 +100,8 @@ KAN_HANDLE_DEFINE (kan_hot_reload_virtual_file_event_provider_t);
 /// \brief Contains hot reload coordination system configuration data.
 struct kan_hot_reload_coordination_system_config_t
 {
-    kan_time_offset_t change_wait_time_ns;
-    kan_time_offset_t receive_window_time_ns;
+    kan_stable_size_t change_wait_time_ns;
+    kan_stable_size_t receive_window_time_ns;
     enum kan_platform_scan_code_t toggle_hot_key;
     enum kan_platform_modifier_mask_t toggle_hot_key_modifiers;
 };
@@ -126,19 +127,17 @@ CONTEXT_HOT_RELOAD_COORDINATION_SYSTEM_API bool kan_hot_reload_coordination_syst
     kan_context_system_t system);
 
 /// \brief Requests ability to execute hot reload build process.
-/// \details User implementation should be centralized in one place, this API is not designed for several request
-///          sources at once.
+/// \invariant Should be called from specialized context system that manages hot reload execution.
 CONTEXT_HOT_RELOAD_COORDINATION_SYSTEM_API void kan_hot_reload_coordination_system_schedule (
     kan_context_system_t system);
 
 /// \brief Allows other systems (and mutators in universe) to delay scheduled hot reload build by one frame.
 /// \invariant Should never be called outside context-derived execution routine, for example context update or
-///            universe update (which is a part of context update). Otherwise it would cause race condition.
+///            universe update (which is a part of context update). Otherwise it would cause race conditions.
 CONTEXT_HOT_RELOAD_COORDINATION_SYSTEM_API void kan_hot_reload_coordination_system_delay (kan_context_system_t system);
 
 /// \brief Informs that hot reload build process execution has finished.
-/// \details User implementation should be centralized in one place, this API is not designed for several execution
-///          sources at once.
+/// \invariant Should be called from specialized context system that manages hot reload execution.
 CONTEXT_HOT_RELOAD_COORDINATION_SYSTEM_API void kan_hot_reload_coordination_system_finish (kan_context_system_t system);
 
 /// \brief Creates new file event provider that watches real file system at given path.

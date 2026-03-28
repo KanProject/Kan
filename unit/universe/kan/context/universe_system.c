@@ -58,7 +58,7 @@ static void on_reflection_generated (kan_context_system_t other_system,
     if (!KAN_HANDLE_IS_VALID (system->universe))
     {
         system->universe = kan_universe_create (system->group, registry, system->context);
-        for (kan_loop_size_t index = 0u; index < system->environment_tags.size; ++index)
+        for (kan_memory_size_t index = 0u; index < system->environment_tags.size; ++index)
         {
             kan_universe_add_environment_tag (system->universe,
                                               ((kan_interned_string_t *) system->environment_tags.data)[index]);

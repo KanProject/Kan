@@ -1085,19 +1085,21 @@ function (application_generate)
         string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "${PREFIX}    }\\n\")\n")
         string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "${PREFIX}}\")\n")
 
-        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT 
+        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT
                 "string (APPEND AUTO_BUILD_SUFFIX \"enable_auto_build = 1\\n\")\n")
-        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "string (APPEND AUTO_BUILD_SUFFIX \"auto_build_command = \\\"")
 
-        if (WIN32)
-            # Hack for cmd.exe strange behavior around quotes.
-            string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "if 1==1 ")
-        endif ()
+        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "string (APPEND AUTO_BUILD_SUFFIX \"auto_build_cmake = \\\"")
+        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "${CMAKE_COMMAND}\\\"\\n\")\n")
 
-        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "\\\\\\\"${CMAKE_COMMAND}\\\\\\\" ")
-        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "--build \\\\\\\"${CMAKE_BINARY_DIR}\\\\\\\" ")
-        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "--target \\\\\\\"${PROGRAM}_hot_reload\\\\\\\" ")
-        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "--config $<CONFIG> -- --quiet\\\"\\n\")\n")
+        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "string (APPEND AUTO_BUILD_SUFFIX \"auto_build_directory = ")
+        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "\\\"${CMAKE_BINARY_DIR}\\\"\\n\")\n")
+
+        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "string (APPEND AUTO_BUILD_SUFFIX \"auto_build_target = ")
+        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "\\\"${PROGRAM}_hot_reload\\\"\\n\")\n")
+
+        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "string (APPEND AUTO_BUILD_SUFFIX \"auto_build_config = ")
+        string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "\\\"$<CONFIG>\\\"\\n\")\n")
+
         string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "string (APPEND AUTO_BUILD_SUFFIX \"auto_build_delay_ns = ")
         string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "${KAN_APPLICATION_AUTO_BUILD_DELAY_NS}\\n\")\n")
 

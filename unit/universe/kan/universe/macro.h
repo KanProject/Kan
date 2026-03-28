@@ -321,7 +321,7 @@ KAN_C_HEADER_BEGIN
         /* Highlight-autocomplete replacement. */                                                                      \
         const struct TYPE *NAME = NULL;                                                                                \
         struct kan_repository_indexed_sequence_read_access_t NAME##_access = {0};                                      \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_SEQUENCE_READ(NAME, TYPE) KAN_UM_INTERNAL_SEQUENCE (NAME, TYPE, read, const)
 #endif
@@ -331,7 +331,7 @@ KAN_C_HEADER_BEGIN
         /* Highlight-autocomplete replacement. */                                                                      \
         struct TYPE *NAME = NULL;                                                                                      \
         struct kan_repository_indexed_sequence_update_access_t NAME##_access = {0};                                    \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_SEQUENCE_UPDATE(NAME, TYPE) KAN_UM_INTERNAL_SEQUENCE (NAME, TYPE, update, )
 #endif
@@ -344,7 +344,7 @@ KAN_C_HEADER_BEGIN
         bool delete_allowed_for_highlight_##NAME = false;                                                              \
         /* Do this manipulation so it always looks used for the IDE. */                                                \
         delete_allowed_for_highlight_##NAME = delete_allowed_for_highlight_##NAME + 1u;                                \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_SEQUENCE_DELETE(NAME, TYPE) KAN_UM_INTERNAL_SEQUENCE (NAME, TYPE, delete, const)
 #endif
@@ -357,7 +357,7 @@ KAN_C_HEADER_BEGIN
         bool delete_allowed_for_highlight_##NAME = false;                                                              \
         /* Do this manipulation so it always looks used for the IDE. */                                                \
         delete_allowed_for_highlight_##NAME = delete_allowed_for_highlight_##NAME + 1u;                                \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_SEQUENCE_WRITE(NAME, TYPE) KAN_UM_INTERNAL_SEQUENCE (NAME, TYPE, write, )
 #endif
@@ -405,7 +405,7 @@ KAN_C_HEADER_BEGIN
         struct kan_repository_indexed_value_read_access_t NAME##_access = {0};                                         \
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_pointer_for_highlight_##NAME = ARGUMENT_POINTER;                                          \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_VALUE_READ(NAME, TYPE, FIELD, ARGUMENT_POINTER)                                                    \
         KAN_UM_INTERNAL_VALUE (NAME, TYPE, FIELD, ARGUMENT_POINTER, read, read, const)
@@ -419,7 +419,7 @@ KAN_C_HEADER_BEGIN
         struct kan_repository_indexed_value_update_access_t NAME##_access = {0};                                       \
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_pointer_for_highlight_##NAME = ARGUMENT_POINTER;                                          \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_VALUE_UPDATE(NAME, TYPE, FIELD, ARGUMENT_POINTER)                                                  \
         KAN_UM_INTERNAL_VALUE (NAME, TYPE, FIELD, ARGUMENT_POINTER, update, update, )
@@ -436,7 +436,7 @@ KAN_C_HEADER_BEGIN
         delete_allowed_for_highlight_##NAME = delete_allowed_for_highlight_##NAME + 1u;                                \
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_pointer_for_highlight_##NAME = ARGUMENT_POINTER;                                          \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_VALUE_DELETE(NAME, TYPE, FIELD, ARGUMENT_POINTER)                                                  \
         KAN_UM_INTERNAL_VALUE (NAME, TYPE, FIELD, ARGUMENT_POINTER, delete, delete, const)
@@ -453,7 +453,7 @@ KAN_C_HEADER_BEGIN
         delete_allowed_for_highlight_##NAME = delete_allowed_for_highlight_##NAME + 1u;                                \
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_pointer_for_highlight_##NAME = ARGUMENT_POINTER;                                          \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_VALUE_DETACH(NAME, TYPE, FIELD, ARGUMENT_POINTER)                                                  \
         KAN_UM_INTERNAL_VALUE (NAME, TYPE, FIELD, ARGUMENT_POINTER, delete, detach, const)
@@ -470,7 +470,7 @@ KAN_C_HEADER_BEGIN
         delete_allowed_for_highlight_##NAME = delete_allowed_for_highlight_##NAME + 1u;                                \
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_pointer_for_highlight_##NAME = ARGUMENT_POINTER;                                          \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_VALUE_WRITE(NAME, TYPE, FIELD, ARGUMENT_POINTER)                                                   \
         KAN_UM_INTERNAL_VALUE (NAME, TYPE, FIELD, ARGUMENT_POINTER, write, write, )
@@ -731,7 +731,7 @@ KAN_C_HEADER_BEGIN
         const struct TYPE *NAME = NULL;                                                                                \
         KAN_HIGHLIGHT_STRUCT_FIELD (TYPE, FIELD)                                                                       \
         struct kan_repository_indexed_signal_read_access_t NAME##_access = {0};                                        \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_SIGNAL_READ(NAME, TYPE, FIELD, LITERAL_SIGNAL)                                                     \
         KAN_UM_INTERNAL_SIGNAL (NAME, TYPE, FIELD, LITERAL_SIGNAL, read, const)
@@ -743,7 +743,7 @@ KAN_C_HEADER_BEGIN
         struct TYPE *NAME = NULL;                                                                                      \
         KAN_HIGHLIGHT_STRUCT_FIELD (TYPE, FIELD)                                                                       \
         struct kan_repository_indexed_signal_update_access_t NAME##_access = {0};                                      \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_SIGNAL_UPDATE(NAME, TYPE, FIELD, LITERAL_SIGNAL)                                                   \
         KAN_UM_INTERNAL_SIGNAL (NAME, TYPE, FIELD, LITERAL_SIGNAL, update, )
@@ -758,7 +758,7 @@ KAN_C_HEADER_BEGIN
         bool delete_allowed_for_highlight_##NAME = false;                                                              \
         /* Do this manipulation so it always looks used for the IDE. */                                                \
         delete_allowed_for_highlight_##NAME = delete_allowed_for_highlight_##NAME + 1u;                                \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_SIGNAL_DELETE(NAME, TYPE, FIELD, LITERAL_SIGNAL)                                                   \
         KAN_UM_INTERNAL_SIGNAL (NAME, TYPE, FIELD, LITERAL_SIGNAL, delete, const)
@@ -773,7 +773,7 @@ KAN_C_HEADER_BEGIN
         bool delete_allowed_for_highlight_##NAME = false;                                                              \
         /* Do this manipulation so it always looks used for the IDE. */                                                \
         delete_allowed_for_highlight_##NAME = delete_allowed_for_highlight_##NAME + 1u;                                \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_SIGNAL_WRITE(NAME, TYPE, FIELD, LITERAL_SIGNAL)                                                    \
         KAN_UM_INTERNAL_SIGNAL (NAME, TYPE, FIELD, LITERAL_SIGNAL, write, )
@@ -823,7 +823,7 @@ KAN_C_HEADER_BEGIN
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_min_pointer_for_highlight_##NAME = ARGUMENT_MIN_POINTER;                                  \
         const void *argument_max_pointer_for_highlight_##NAME = ARGUMENT_MAX_POINTER;                                  \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_INTERVAL_ASCENDING_READ(NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER)             \
         KAN_UM_INTERNAL_INTERVAL (NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER, read, ascending, const)
@@ -838,7 +838,7 @@ KAN_C_HEADER_BEGIN
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_min_pointer_for_highlight_##NAME = ARGUMENT_MIN_POINTER;                                  \
         const void *argument_max_pointer_for_highlight_##NAME = ARGUMENT_MAX_POINTER;                                  \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_INTERVAL_ASCENDING_UPDATE(NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER)           \
         KAN_UM_INTERNAL_INTERVAL (NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER, update, ascending, )
@@ -856,7 +856,7 @@ KAN_C_HEADER_BEGIN
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_min_pointer_for_highlight_##NAME = ARGUMENT_MIN_POINTER;                                  \
         const void *argument_max_pointer_for_highlight_##NAME = ARGUMENT_MAX_POINTER;                                  \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_INTERVAL_ASCENDING_DELETE(NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER)           \
         KAN_UM_INTERNAL_INTERVAL (NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER, delete, ascending,    \
@@ -875,7 +875,7 @@ KAN_C_HEADER_BEGIN
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_min_pointer_for_highlight_##NAME = ARGUMENT_MIN_POINTER;                                  \
         const void *argument_max_pointer_for_highlight_##NAME = ARGUMENT_MAX_POINTER;                                  \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_INTERVAL_ASCENDING_WRITE(NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER)            \
         KAN_UM_INTERNAL_INTERVAL (NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER, write, ascending, )
@@ -890,7 +890,7 @@ KAN_C_HEADER_BEGIN
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_min_pointer_for_highlight_##NAME = ARGUMENT_MIN_POINTER;                                  \
         const void *argument_max_pointer_for_highlight_##NAME = ARGUMENT_MAX_POINTER;                                  \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_INTERVAL_DESCENDING_READ(NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER)            \
         KAN_UM_INTERNAL_INTERVAL (NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER, read, descending,     \
@@ -906,7 +906,7 @@ KAN_C_HEADER_BEGIN
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_min_pointer_for_highlight_##NAME = ARGUMENT_MIN_POINTER;                                  \
         const void *argument_max_pointer_for_highlight_##NAME = ARGUMENT_MAX_POINTER;                                  \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_INTERVAL_DESCENDING_UPDATE(NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER)          \
         KAN_UM_INTERNAL_INTERVAL (NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER, update, descending, )
@@ -924,7 +924,7 @@ KAN_C_HEADER_BEGIN
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_min_pointer_for_highlight_##NAME = ARGUMENT_MIN_POINTER;                                  \
         const void *argument_max_pointer_for_highlight_##NAME = ARGUMENT_MAX_POINTER;                                  \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_INTERVAL_DESCENDING_DELETE(NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER)          \
         KAN_UM_INTERNAL_INTERVAL (NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER, delete, descending,   \
@@ -943,7 +943,7 @@ KAN_C_HEADER_BEGIN
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_min_pointer_for_highlight_##NAME = ARGUMENT_MIN_POINTER;                                  \
         const void *argument_max_pointer_for_highlight_##NAME = ARGUMENT_MAX_POINTER;                                  \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_INTERVAL_DESCENDING_WRITE(NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER)           \
         KAN_UM_INTERNAL_INTERVAL (NAME, TYPE, FIELD, ARGUMENT_MIN_POINTER, ARGUMENT_MAX_POINTER, write, descending, )
@@ -1025,7 +1025,7 @@ KAN_C_HEADER_BEGIN
 #    define KAN_UML_EVENT_FETCH(NAME, TYPE)                                                                            \
         /* Highlight-autocomplete replacement. */                                                                      \
         const struct TYPE *NAME = NULL;                                                                                \
-        for (kan_loop_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_UML_EVENT_FETCH(NAME, TYPE) KAN_UM_INTERNAL_EVENT_FETCH (NAME, TYPE, TYPE)
 #endif

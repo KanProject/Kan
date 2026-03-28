@@ -234,7 +234,7 @@ void kan_rpl_compiler_ensure_statics_initialized (void)
         STATICS.sample_dref_2d_array_additional_arguments[2u] = SAMPLER_ARGUMENT (f1, reference, NULL);
 
 #define ANY_STAGE KAN_INT_MAX (int32_t)
-#define SPIRV_INTERNAL ((spirv_size_t) SPIRV_FIXED_ID_INVALID)
+#define SPIRV_INTERNAL ((uint32_t) SPIRV_FIXED_ID_INVALID)
 
 #define BUILTIN_COMMON(NAME, RETURN_TYPE, REQUIRED_STAGE, SPIRV_EXTERNAL_LIBRARY, SPIRV_EXTERNAL_INSTRUCTION,          \
                        ARGUMENTS)                                                                                      \
@@ -248,8 +248,8 @@ void kan_rpl_compiler_ensure_statics_initialized (void)
         .required_stage = REQUIRED_STAGE,                                                                              \
         .first_buffer_access = NULL,                                                                                   \
         .first_sampler_access = NULL,                                                                                  \
-        .spirv_external_library_id = (spirv_size_t) SPIRV_EXTERNAL_LIBRARY,                                            \
-        .spirv_external_instruction_id = (spirv_size_t) SPIRV_EXTERNAL_INSTRUCTION,                                    \
+        .spirv_external_library_id = (uint32_t) SPIRV_EXTERNAL_LIBRARY,                                                \
+        .spirv_external_instruction_id = (uint32_t) SPIRV_EXTERNAL_INSTRUCTION,                                        \
         .module_name = module_standard,                                                                                \
         .source_name = source_functions,                                                                               \
         .source_line = 0u,                                                                                             \

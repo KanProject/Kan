@@ -55,7 +55,7 @@ kan_context_system_t virtual_file_system_create (kan_allocation_group_t group, v
     if (user_config)
     {
         struct kan_virtual_file_system_config_t *config = user_config;
-        for (kan_loop_size_t index = 0u; index < config->mount_real.size; ++index)
+        for (kan_memory_size_t index = 0u; index < config->mount_real.size; ++index)
         {
             struct kan_virtual_file_system_config_mount_real_t *mount_point_real =
                 &((struct kan_virtual_file_system_config_mount_real_t *) config->mount_real.data)[index];
@@ -76,7 +76,7 @@ kan_context_system_t virtual_file_system_create (kan_allocation_group_t group, v
             }
         }
 
-        for (kan_loop_size_t index = 0u; index < config->mount_read_only_pack.size; ++index)
+        for (kan_memory_size_t index = 0u; index < config->mount_read_only_pack.size; ++index)
         {
             struct kan_virtual_file_system_config_mount_read_only_pack_t *mount_point_read_only_pack =
                 &((struct kan_virtual_file_system_config_mount_read_only_pack_t *)

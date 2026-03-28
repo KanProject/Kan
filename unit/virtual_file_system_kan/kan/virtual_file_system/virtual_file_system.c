@@ -37,8 +37,8 @@ struct read_only_pack_file_node_t
     struct kan_hash_storage_node_t node;
     kan_interned_string_t name;
     kan_interned_string_t extension;
-    kan_file_size_t offset;
-    kan_file_size_t size;
+    kan_stable_size_t offset;
+    kan_stable_size_t size;
 };
 
 struct read_only_pack_directory_t
@@ -94,8 +94,8 @@ enum follow_path_result_t
 struct read_only_pack_registry_item_t
 {
     char *path;
-    kan_file_size_t offset;
-    kan_file_size_t size;
+    kan_stable_size_t offset;
+    kan_stable_size_t size;
 };
 
 struct read_only_pack_registry_t
@@ -171,20 +171,20 @@ struct read_only_pack_file_read_stream_t
 {
     struct kan_stream_t stream;
     struct kan_stream_t *base_stream;
-    kan_file_size_t offset;
-    kan_file_size_t size;
-    kan_file_size_t position;
+    kan_stable_size_t offset;
+    kan_stable_size_t size;
+    kan_stable_size_t position;
 };
 
 struct read_only_pack_builder_t
 {
     struct kan_stream_t *output_stream;
-    kan_file_size_t beginning_offset_in_stream;
+    kan_stable_size_t beginning_offset_in_stream;
     struct read_only_pack_registry_t registry;
 
     struct kan_stream_t streamed_add_proxy_stream;
     struct read_only_pack_registry_item_t *streamed_add_item;
-    kan_file_size_t streamed_add_start_position;
+    kan_stable_size_t streamed_add_start_position;
 };
 
 struct file_system_watcher_event_node_t
@@ -446,7 +446,7 @@ static void read_only_pack_registry_init (struct read_only_pack_registry_t *regi
 
 static void read_only_pack_registry_reset (struct read_only_pack_registry_t *registry)
 {
-    for (kan_loop_size_t index = 0u; index < registry->items.size; ++index)
+    for (kan_memory_size_t index = 0u; index < registry->items.size; ++index)
     {
         struct read_only_pack_registry_item_t *item =
             &((struct read_only_pack_registry_item_t *) registry->items.data)[index];
@@ -607,37 +607,37 @@ static inline bool file_system_watcher_is_observing_virtual_directory (
     return false;
 }
 
-static kan_file_size_t read_only_pack_file_read (struct kan_stream_t *stream,
-                                                 kan_file_size_t amount,
-                                                 void *output_buffer)
+static kan_stable_size_t read_only_pack_file_read (struct kan_stream_t *stream,
+                                                   kan_stable_size_t amount,
+                                                   void *output_buffer)
 {
     struct read_only_pack_file_read_stream_t *stream_data = (struct read_only_pack_file_read_stream_t *) stream;
-    const kan_file_size_t can_read = stream_data->size - stream_data->position;
+    const kan_stable_size_t can_read = stream_data->size - stream_data->position;
 
     if (can_read == 0u)
     {
         return 0u;
     }
 
-    const kan_file_size_t will_read = KAN_MIN (can_read, amount);
-    const kan_file_size_t read =
+    const kan_stable_size_t will_read = KAN_MIN (can_read, amount);
+    const kan_stable_size_t read =
         stream_data->base_stream->operations->read (stream_data->base_stream, will_read, output_buffer);
 
     stream_data->position += read;
     return read;
 }
 
-static kan_file_size_t read_only_pack_file_tell (struct kan_stream_t *stream)
+static kan_stable_size_t read_only_pack_file_tell (struct kan_stream_t *stream)
 {
     return ((struct read_only_pack_file_read_stream_t *) stream)->position;
 }
 
 static bool read_only_pack_file_seek (struct kan_stream_t *stream,
                                       enum kan_stream_seek_pivot pivot,
-                                      kan_file_offset_t offset)
+                                      kan_stable_offset_t offset)
 {
     struct read_only_pack_file_read_stream_t *stream_data = (struct read_only_pack_file_read_stream_t *) stream;
-    kan_file_offset_t new_position = 0;
+    kan_stable_offset_t new_position = 0;
 
     switch (pivot)
     {
@@ -646,20 +646,20 @@ static bool read_only_pack_file_seek (struct kan_stream_t *stream,
         break;
 
     case KAN_STREAM_SEEK_CURRENT:
-        new_position = ((kan_file_offset_t) stream_data->position) + offset;
+        new_position = ((kan_stable_offset_t) stream_data->position) + offset;
         break;
 
     case KAN_STREAM_SEEK_END:
-        new_position = ((kan_file_offset_t) stream_data->size) + offset;
+        new_position = ((kan_stable_offset_t) stream_data->size) + offset;
         break;
     }
 
-    if (new_position < 0 || new_position > (kan_file_offset_t) stream_data->size)
+    if (new_position < 0 || new_position > (kan_stable_offset_t) stream_data->size)
     {
         return false;
     }
 
-    stream_data->position = (kan_file_size_t) new_position;
+    stream_data->position = (kan_stable_size_t) new_position;
     return stream_data->base_stream->operations->seek (stream_data->base_stream, KAN_STREAM_SEEK_START,
                                                        stream_data->offset + stream_data->position);
 }
@@ -1049,7 +1049,7 @@ static void inform_mount_point_real_removed (struct volume_t *volume,
             inform_real_directory_removed (file_system_watcher, &recursive_virtual_path, &recursive_real_path);
         }
 
-        for (kan_loop_size_t index = 0u; index < file_system_watcher->real_file_system_attachments.size;)
+        for (kan_instance_size_t index = 0u; index < file_system_watcher->real_file_system_attachments.size;)
         {
             struct real_file_system_watcher_attachment_t *attachment =
                 &((struct real_file_system_watcher_attachment_t *)
@@ -1562,8 +1562,8 @@ static bool mount_read_only_pack (struct volume_t *volume,
         return false;
     }
 
-    kan_file_size_t registry_offset;
-    if (stream->operations->read (stream, sizeof (kan_file_size_t), &registry_offset) != sizeof (kan_file_size_t))
+    kan_stable_size_t registry_offset;
+    if (stream->operations->read (stream, sizeof (kan_stable_size_t), &registry_offset) != sizeof (kan_stable_size_t))
     {
         KAN_LOG (virtual_file_system, KAN_LOG_ERROR, "Failed to read registry offset of read only pack at \"%s\".",
                  pack_real_path)
@@ -1572,7 +1572,7 @@ static bool mount_read_only_pack (struct volume_t *volume,
 
     if (!stream->operations->seek (
             stream, KAN_STREAM_SEEK_CURRENT,
-            ((kan_file_offset_t) registry_offset) - (kan_file_offset_t) sizeof (kan_file_size_t)))
+            ((kan_stable_offset_t) registry_offset) - (kan_stable_offset_t) sizeof (kan_stable_size_t)))
     {
         KAN_LOG (virtual_file_system, KAN_LOG_ERROR, "Failed to seek to registry of read only pack at \"%s\".",
                  pack_real_path)
@@ -1623,7 +1623,7 @@ static bool mount_read_only_pack (struct volume_t *volume,
     mount_point->root_directory.name = pack_name;
     bool result = true;
 
-    for (kan_loop_size_t index = 0u; index < registry.items.size; ++index)
+    for (kan_memory_size_t index = 0u; index < registry.items.size; ++index)
     {
         struct read_only_pack_registry_item_t *item =
             &((struct read_only_pack_registry_item_t *) registry.items.data)[index];
@@ -2779,9 +2779,9 @@ struct kan_stream_t *kan_virtual_file_stream_open_for_write (kan_virtual_file_sy
         (struct read_only_pack_builder_t *) (((uintptr_t) stream) -                                                    \
                                              offsetof (struct read_only_pack_builder_t, streamed_add_proxy_stream))
 
-static kan_file_size_t streamed_add_proxy_write (struct kan_stream_t *stream,
-                                                 kan_file_size_t amount,
-                                                 const void *input_buffer)
+static kan_stable_size_t streamed_add_proxy_write (struct kan_stream_t *stream,
+                                                   kan_stable_size_t amount,
+                                                   const void *input_buffer)
 {
     STREAMED_ADD_PROXY_UNWRAP_STREAM;
     if (!builder->streamed_add_item)
@@ -2809,7 +2809,7 @@ static bool streamed_add_proxy_flush (struct kan_stream_t *stream)
     return builder->output_stream->operations->flush (builder->output_stream);
 }
 
-static kan_file_size_t streamed_add_proxy_tell (struct kan_stream_t *stream)
+static kan_stable_size_t streamed_add_proxy_tell (struct kan_stream_t *stream)
 {
     STREAMED_ADD_PROXY_UNWRAP_STREAM;
     return builder->output_stream->operations->tell (builder->output_stream) - builder->streamed_add_start_position;
@@ -2817,7 +2817,7 @@ static kan_file_size_t streamed_add_proxy_tell (struct kan_stream_t *stream)
 
 static bool streamed_add_proxy_seek (struct kan_stream_t *stream,
                                      enum kan_stream_seek_pivot pivot,
-                                     kan_file_offset_t offset)
+                                     kan_stable_offset_t offset)
 {
     STREAMED_ADD_PROXY_UNWRAP_STREAM;
     switch (pivot)
@@ -2826,16 +2826,16 @@ static bool streamed_add_proxy_seek (struct kan_stream_t *stream,
         KAN_ASSERT (offset >= 0)
         return builder->output_stream->operations->seek (
             builder->output_stream, KAN_STREAM_SEEK_START,
-            (kan_file_offset_t) builder->streamed_add_start_position + offset);
+            (kan_stable_offset_t) builder->streamed_add_start_position + offset);
 
     case KAN_STREAM_SEEK_CURRENT:
     {
-        const kan_file_size_t current = builder->output_stream->operations->tell (builder->output_stream);
-        kan_file_offset_t new_position = (kan_file_offset_t) current + offset;
+        const kan_stable_size_t current = builder->output_stream->operations->tell (builder->output_stream);
+        kan_stable_offset_t new_position = (kan_stable_offset_t) current + offset;
 
-        if (new_position < (kan_file_offset_t) builder->streamed_add_start_position)
+        if (new_position < (kan_stable_offset_t) builder->streamed_add_start_position)
         {
-            new_position = (kan_file_offset_t) builder->streamed_add_start_position;
+            new_position = (kan_stable_offset_t) builder->streamed_add_start_position;
         }
 
         return builder->output_stream->operations->seek (builder->output_stream, KAN_STREAM_SEEK_START, new_position);
@@ -2848,11 +2848,12 @@ static bool streamed_add_proxy_seek (struct kan_stream_t *stream,
             return false;
         }
 
-        const kan_file_size_t current = builder->output_stream->operations->tell (builder->output_stream);
+        const kan_stable_size_t current = builder->output_stream->operations->tell (builder->output_stream);
         if (current < builder->streamed_add_start_position)
         {
-            return builder->output_stream->operations->seek (builder->output_stream, KAN_STREAM_SEEK_START,
-                                                             (kan_file_offset_t) builder->streamed_add_start_position);
+            return builder->output_stream->operations->seek (
+                builder->output_stream, KAN_STREAM_SEEK_START,
+                (kan_stable_offset_t) builder->streamed_add_start_position);
         }
 
         return true;
@@ -2907,10 +2908,10 @@ bool kan_virtual_file_system_read_only_pack_builder_begin (kan_virtual_file_syst
 
     builder_data->output_stream = output_stream;
     builder_data->beginning_offset_in_stream = output_stream->operations->tell (output_stream);
-    kan_file_size_t placeholder = 0u;
+    kan_stable_size_t placeholder = 0u;
 
-    if (output_stream->operations->write (output_stream, sizeof (kan_file_size_t), &placeholder) !=
-        sizeof (kan_file_size_t))
+    if (output_stream->operations->write (output_stream, sizeof (kan_stable_size_t), &placeholder) !=
+        sizeof (kan_stable_size_t))
     {
         builder_data->output_stream = NULL;
         KAN_LOG (virtual_file_system, KAN_LOG_ERROR,
@@ -2958,7 +2959,7 @@ bool kan_virtual_file_system_read_only_pack_builder_add (kan_virtual_file_system
 
     while (true)
     {
-        kan_file_size_t read =
+        kan_stable_size_t read =
             input_stream->operations->read (input_stream, KAN_VIRTUAL_FILE_SYSTEM_ROPACK_BUILDER_CHUNK_SIZE, buffer);
 
         if (read > 0u)
@@ -3008,12 +3009,12 @@ bool kan_virtual_file_system_read_only_pack_builder_finalize (kan_virtual_file_s
     struct read_only_pack_builder_t *builder_data = KAN_HANDLE_GET (builder);
     KAN_ASSERT (builder_data->output_stream)
 
-    const kan_file_size_t registry_position =
+    const kan_stable_size_t registry_position =
         builder_data->output_stream->operations->tell (builder_data->output_stream);
     KAN_ASSERT (registry_position > builder_data->beginning_offset_in_stream)
 
     if (!builder_data->output_stream->operations->seek (builder_data->output_stream, KAN_STREAM_SEEK_START,
-                                                        (kan_file_offset_t) builder_data->beginning_offset_in_stream))
+                                                        (kan_stable_offset_t) builder_data->beginning_offset_in_stream))
     {
         builder_data->output_stream = NULL;
         read_only_pack_registry_reset (&builder_data->registry);
@@ -3022,9 +3023,9 @@ bool kan_virtual_file_system_read_only_pack_builder_finalize (kan_virtual_file_s
         return false;
     }
 
-    const kan_file_size_t registry_offset = registry_position - builder_data->beginning_offset_in_stream;
-    if (builder_data->output_stream->operations->write (builder_data->output_stream, sizeof (kan_file_size_t),
-                                                        &registry_offset) != sizeof (kan_file_size_t))
+    const kan_stable_size_t registry_offset = registry_position - builder_data->beginning_offset_in_stream;
+    if (builder_data->output_stream->operations->write (builder_data->output_stream, sizeof (kan_stable_size_t),
+                                                        &registry_offset) != sizeof (kan_stable_size_t))
     {
         builder_data->output_stream = NULL;
         read_only_pack_registry_reset (&builder_data->registry);
@@ -3033,7 +3034,7 @@ bool kan_virtual_file_system_read_only_pack_builder_finalize (kan_virtual_file_s
     }
 
     if (!builder_data->output_stream->operations->seek (builder_data->output_stream, KAN_STREAM_SEEK_START,
-                                                        (kan_file_offset_t) registry_position))
+                                                        (kan_stable_offset_t) registry_position))
     {
         builder_data->output_stream = NULL;
         read_only_pack_registry_reset (&builder_data->registry);
@@ -3144,7 +3145,7 @@ kan_virtual_file_system_watcher_t kan_virtual_file_system_watcher_create (kan_vi
 void kan_virtual_file_system_watcher_mark_for_update (kan_virtual_file_system_watcher_t watcher)
 {
     struct file_system_watcher_t *watcher_data = KAN_HANDLE_GET (watcher);
-    for (kan_loop_size_t index = 0u; index < watcher_data->real_file_system_attachments.size; ++index)
+    for (kan_memory_size_t index = 0u; index < watcher_data->real_file_system_attachments.size; ++index)
     {
         struct real_file_system_watcher_attachment_t *attachment =
             &((struct real_file_system_watcher_attachment_t *) watcher_data->real_file_system_attachments.data)[index];
@@ -3155,7 +3156,7 @@ void kan_virtual_file_system_watcher_mark_for_update (kan_virtual_file_system_wa
 bool kan_virtual_file_system_watcher_is_up_to_date (kan_virtual_file_system_watcher_t watcher)
 {
     struct file_system_watcher_t *watcher_data = KAN_HANDLE_GET (watcher);
-    for (kan_loop_size_t index = 0u; index < watcher_data->real_file_system_attachments.size; ++index)
+    for (kan_memory_size_t index = 0u; index < watcher_data->real_file_system_attachments.size; ++index)
     {
         struct real_file_system_watcher_attachment_t *attachment =
             &((struct real_file_system_watcher_attachment_t *) watcher_data->real_file_system_attachments.data)[index];
@@ -3196,7 +3197,7 @@ const struct kan_virtual_file_system_watcher_event_t *kan_virtual_file_system_wa
 
     if (!node)
     {
-        for (kan_loop_size_t index = 0u; index < watcher_data->real_file_system_attachments.size; ++index)
+        for (kan_memory_size_t index = 0u; index < watcher_data->real_file_system_attachments.size; ++index)
         {
             struct real_file_system_watcher_attachment_t *attachment =
                 &((struct real_file_system_watcher_attachment_t *)

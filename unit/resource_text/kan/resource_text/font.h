@@ -48,7 +48,7 @@ struct kan_resource_font_style_t
     kan_interned_string_t font_data_file;
 
     /// \brief If using variable font, stores values for variable axes.
-    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (float)
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (kan_floating_t)
     struct kan_dynamic_array_t variable_font_axes;
 };
 

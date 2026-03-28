@@ -23,10 +23,12 @@ KAN_USE_STATIC_CPU_SECTIONS
 
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_time)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_layout)
-KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_bundle_management)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_render_graph)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_render)
 UNIVERSE_UI_API KAN_UM_MUTATOR_GROUP_META (ui_core, KAN_UI_CORE_MUTATOR_GROUP);
+
+KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_bundle_management)
+UNIVERSE_UI_API KAN_UM_MUTATOR_GROUP_META (ui_bundle_management, KAN_UI_BUNDLE_MANAGEMENT_MUTATOR_GROUP);
 
 struct kan_ui_singleton_viewport_on_change_event_t
 {
@@ -110,7 +112,7 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_on_change_event_t kan_ui_no
     .observed_fields_count = 1u,
     .observed_fields =
         (struct kan_repository_field_path_t[]) {
-            {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"local_element_order"}},
+            {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"order"}},
         },
     .unchanged_copy_outs_count = 0u,
     .unchanged_copy_outs = NULL,
@@ -224,10 +226,10 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_time)
 UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_time)
 {
     KAN_UMI_SINGLETON_WRITE (public, kan_ui_singleton_t)
-    if (public->last_time_ns != KAN_INT_MAX (kan_time_size_t))
+    if (public->last_time_ns != KAN_INT_MAX (kan_stable_size_t))
     {
-        const kan_time_size_t delta_ns = kan_precise_time_get_elapsed_nanoseconds () - public->last_time_ns;
-        const float delta_s = 1e-9f * (float) delta_ns;
+        const kan_stable_size_t delta_ns = kan_precise_time_get_elapsed_nanoseconds () - public->last_time_ns;
+        const kan_floating_t delta_s = 1e-9f * (kan_floating_t) delta_ns;
 
         public->animation_global_time_s =
             fmodf (public->animation_global_time_s + delta_s, public->animation_global_time_loop_s);
@@ -320,22 +322,31 @@ static kan_ui_node_id_t determine_dirty_root_recursive (struct ui_layout_state_t
         return node->id;
     }
 
+    const bool stable_size = (node->element.width_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN) == 0u &&
+                             (node->element.height_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN) == 0u;
+
     // Check if we don't need to ascend as only layout data is changed and this layout is stable and does not propagate
     // dirty flag to its parent.
-    if (only_layout_data_changed)
+    if (only_layout_data_changed && stable_size)
     {
-        const bool frame = node->layout.layout == KAN_UI_LAYOUT_FRAME;
-        const bool stable_size = (node->element.width_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN) == 0u &&
-                                 (node->element.height_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN) == 0u;
-
-        if (frame || stable_size)
-        {
-            // Considered to be stable, no need to propagate update to parent.
-            return node->id;
-        }
+        // Considered to be stable, no need to propagate update to parent.
+        return node->id;
     }
 
     KAN_UMI_VALUE_READ_REQUIRED (parent, kan_ui_node_t, id, &node->parent_id)
+    if (only_layout_data_changed && node->order.layer != KAN_UI_RENDER_LAYER_INHERIT &&
+        node->order.layer != parent->order.layer)
+    {
+        // Very likely layer transition, check if that is the case.
+        KAN_UMI_VALUE_READ_OPTIONAL (parent_drawable, kan_ui_node_drawable_t, id, &node->parent_id)
+        if (parent_drawable && parent_drawable->draw_layer != node->order.layer)
+        {
+            // Known layer transition, considered to be stable.
+            // However, if our size is not stable, we'll need to start from parent due to possibly alignment changes.
+            return stable_size ? node->id : node->parent_id;
+        }
+    }
+
     // For parent, it is always "only layout data changed".
     return determine_dirty_root_recursive (state, parent, true);
 }
@@ -484,6 +495,9 @@ struct layout_temporary_data_t
     kan_instance_offset_t width_px;
     kan_instance_offset_t height_px;
 
+    kan_instance_offset_t max_width_px;
+    kan_instance_offset_t max_height_px;
+
     kan_instance_offset_t children_width_usage_px;
     kan_instance_offset_t children_height_usage_px;
 
@@ -541,7 +555,7 @@ static inline void read_and_sort_children_into (struct ui_layout_state_t *state,
     struct layout_child_access_t temporary;
 #define LESS(FIRST_INDEX, SECOND_INDEX)                                                                                \
     __CUSHION_PRESERVE__ (*output)                                                                                     \
-    [FIRST_INDEX].child->local_element_order < (*output)[SECOND_INDEX].child->local_element_order
+    [FIRST_INDEX].child->order.local < (*output)[SECOND_INDEX].child->order.local
 #define SWAP(FIRST_INDEX, SECOND_INDEX)                                                                                \
     __CUSHION_PRESERVE__                                                                                               \
     temporary = (*output)[FIRST_INDEX], (*output)[FIRST_INDEX] = (*output)[SECOND_INDEX],                              \
@@ -565,6 +579,8 @@ static struct layout_temporary_data_t *layout_temporary_data_create (struct ui_l
 
     data->width_px = 0;
     data->height_px = 0;
+    data->max_width_px = 0;
+    data->max_height_px = 0;
 
     data->children_width_usage_px = 0;
     data->children_height_usage_px = 0;
@@ -598,7 +614,7 @@ static bool layout_base_pass (struct ui_layout_state_t *state,
     if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
     {
         bool short_circuit = true;
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             short_circuit &= layout_base_pass (state, access->child, access->drawable);
@@ -607,8 +623,27 @@ static bool layout_base_pass (struct ui_layout_state_t *state,
         return short_circuit;
     }
 
-    data->width_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.width);
-    data->height_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.height);
+    if ((node->element.width_flags & KAN_UI_SIZE_FLAG_TREAT_AS_MAX) == 0u)
+    {
+        data->width_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.width);
+        data->max_width_px = KAN_INT_MAX (kan_instance_offset_t);
+    }
+    else
+    {
+        data->width_px = 0;
+        data->max_width_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.width);
+    }
+
+    if ((node->element.height_flags & KAN_UI_SIZE_FLAG_TREAT_AS_MAX) == 0u)
+    {
+        data->height_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.height);
+        data->max_height_px = KAN_INT_MAX (kan_instance_offset_t);
+    }
+    else
+    {
+        data->height_px = 0;
+        data->max_height_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.height);
+    }
 
     data->cached_margin_left_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.margin.left);
     data->cached_margin_right_px = kan_ui_calculate_coordinate (state->transient.ui, node->element.margin.right);
@@ -620,9 +655,13 @@ static bool layout_base_pass (struct ui_layout_state_t *state,
     data->cached_padding_top_px = kan_ui_calculate_coordinate (state->transient.ui, node->layout.padding.top);
     data->cached_padding_bottom_px = kan_ui_calculate_coordinate (state->transient.ui, node->layout.padding.bottom);
 
-    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    drawable->draw_layer =
+        node->order.layer == KAN_UI_RENDER_LAYER_INHERIT ? drawable->cached.parent_layer : node->order.layer;
+
+    for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
+        access->drawable->cached.parent_layer = drawable->draw_layer;
 #if defined(KAN_WITH_ASSERT)
         const bool short_circuit =
 #endif
@@ -642,7 +681,7 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
     // Short-circuit for non-full updates -- just go to the children.
     if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
     {
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             layout_whitespace_pass (state, access->child, access->drawable);
@@ -674,11 +713,17 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
         // For example, frame layout can be used to position internal scrollable vertical container and it its scroll
         // lines: despite the fact that container is inside frame, we'd like its internal elements to know about outer
         // margins and avoid introducing unnecessary whitespace inside that container.
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct kan_ui_node_drawable_t *child = access->drawable;
             struct layout_temporary_data_t *child_data = child->temporary_data;
+
+            if (child->draw_layer != drawable->draw_layer)
+            {
+                // Children with different layer are excluded from normal layout calculations.
+                continue;
+            }
 
             UI_COLLAPSE_MARGIN (child_data->cached_margin_left_px, baseline_left);
             UI_COLLAPSE_MARGIN (child_data->cached_margin_right_px, baseline_right);
@@ -700,11 +745,17 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
     case KAN_UI_LAYOUT_VERTICAL_CONTAINER:
     {
         kan_instance_offset_t previous_margin = baseline_top;
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct kan_ui_node_drawable_t *child = access->drawable;
             struct layout_temporary_data_t *child_data = child->temporary_data;
+
+            if (child->draw_layer != drawable->draw_layer)
+            {
+                // Children with different layer are excluded from normal layout calculations.
+                continue;
+            }
 
             UI_COLLAPSE_MARGIN (child_data->cached_margin_left_px, baseline_left);
             UI_COLLAPSE_MARGIN (child_data->cached_margin_right_px, baseline_right);
@@ -737,11 +788,17 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
     case KAN_UI_LAYOUT_HORIZONTAL_CONTAINER:
     {
         kan_instance_offset_t previous_margin = baseline_left;
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct kan_ui_node_drawable_t *child = access->drawable;
             struct layout_temporary_data_t *child_data = child->temporary_data;
+
+            if (child->draw_layer != drawable->draw_layer)
+            {
+                // Children with different layer are excluded from normal layout calculations.
+                continue;
+            }
 
             UI_COLLAPSE_MARGIN (child_data->cached_margin_left_px, previous_margin);
             UI_COLLAPSE_MARGIN (child_data->cached_margin_top_px, baseline_top);
@@ -771,7 +828,7 @@ static void layout_whitespace_pass (struct ui_layout_state_t *state,
     }
     }
 
-    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
         layout_whitespace_pass (state, access->child, access->drawable);
@@ -787,7 +844,7 @@ static void layout_size_pass (struct ui_layout_state_t *state,
     // Short-circuit for non-full updates -- just go to the children.
     if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
     {
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             layout_size_pass (state, access->child, access->drawable);
@@ -796,11 +853,17 @@ static void layout_size_pass (struct ui_layout_state_t *state,
         return;
     }
 
-    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
         layout_size_pass (state, access->child, access->drawable);
         struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
+
+        if (access->drawable->draw_layer != drawable->draw_layer)
+        {
+            // Children with different layer are excluded from normal layout calculations.
+            continue;
+        }
 
         const kan_instance_offset_t occupied_width =
             child_data->width_px + child_data->cached_margin_left_px + child_data->cached_margin_right_px;
@@ -832,17 +895,14 @@ static void layout_size_pass (struct ui_layout_state_t *state,
     data->children_height_usage_px += data->cached_padding_top_px;
     data->children_height_usage_px += data->cached_padding_bottom_px;
 
-    if (data->cached_layout != KAN_UI_LAYOUT_FRAME)
+    if (node->element.width_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN)
     {
-        if (node->element.width_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN)
-        {
-            data->width_px = KAN_MAX (data->width_px, data->children_width_usage_px);
-        }
+        data->width_px = KAN_CLAMP (data->children_width_usage_px, data->width_px, data->max_width_px);
+    }
 
-        if (node->element.height_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN)
-        {
-            data->height_px = KAN_MAX (data->height_px, data->children_height_usage_px);
-        }
+    if (node->element.height_flags & KAN_UI_SIZE_FLAG_FIT_CHILDREN)
+    {
+        data->height_px = KAN_CLAMP (data->children_height_usage_px, data->height_px, data->max_height_px);
     }
 }
 
@@ -863,7 +923,7 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
     // Short-circuit for non-full updates -- just go to the children.
     if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
     {
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             layout_grow_pass (state, access->child, access->drawable, root);
@@ -872,17 +932,40 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
         return;
     }
 
-    if (root)
+    if (!KAN_TYPED_ID_32_IS_VALID (node->parent_id))
     {
-        // When root, need to grow itself from cached growth.
+        // When child of layout root, there is no parent to give growth to this node.
+        // Therefore, we need custom logic for this case.
+
         if (node->element.width_flags & KAN_UI_SIZE_FLAG_GROW)
         {
-            data->width_px += drawable->cached.grow_width;
+            const kan_instance_offset_t offset_x =
+                kan_ui_calculate_coordinate (state->transient.ui, node->element.frame_offset_x);
+
+            data->width_px =
+                KAN_CLAMP (state->transient.ui->viewport_width - offset_x, data->width_px, data->max_width_px);
         }
 
         if (node->element.height_flags & KAN_UI_SIZE_FLAG_GROW)
         {
-            data->height_px += drawable->cached.grow_height;
+            const kan_instance_offset_t offset_y =
+                kan_ui_calculate_coordinate (state->transient.ui, node->element.frame_offset_y);
+
+            data->height_px =
+                KAN_CLAMP (state->transient.ui->viewport_height - offset_y, data->height_px, data->max_height_px);
+        }
+    }
+    else if (root)
+    {
+        // When root, need to grow itself from cached growth.
+        if (node->element.width_flags & KAN_UI_SIZE_FLAG_GROW)
+        {
+            data->width_px = KAN_MIN (data->max_width_px, data->width_px + drawable->cached.grow_width);
+        }
+
+        if (node->element.height_flags & KAN_UI_SIZE_FLAG_GROW)
+        {
+            data->height_px = KAN_MIN (data->max_height_px, data->height_px + drawable->cached.grow_height);
         }
     }
 
@@ -890,14 +973,21 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
     struct layout_grow_node_t *first_grow_width_node = NULL;
     struct layout_grow_node_t *first_grow_height_node = NULL;
 
-    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
         struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
         access->drawable->cached.grow_width = 0;
         access->drawable->cached.grow_height = 0;
 
-        if (access->child->element.width_flags & KAN_UI_SIZE_FLAG_GROW)
+        if (access->drawable->draw_layer != drawable->draw_layer)
+        {
+            // Children with different layer are excluded from normal layout calculations.
+            continue;
+        }
+
+        if ((access->child->element.width_flags & KAN_UI_SIZE_FLAG_GROW) &&
+            child_data->width_px < child_data->max_width_px)
         {
             if (data->cached_layout == KAN_UI_LAYOUT_HORIZONTAL_CONTAINER)
             {
@@ -950,19 +1040,27 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
             else
             {
                 // Not a horizontal container, therefore width is not shared and we can use all space available.
-                const kan_instance_offset_t width_available =
+                kan_instance_offset_t width_available =
                     data->width_px - data->cached_padding_left_px - data->cached_padding_right_px -
                     child_data->cached_margin_left_px - child_data->cached_margin_right_px;
 
-                if (child_data->width_px < width_available)
+                if (data->cached_layout == KAN_UI_LAYOUT_FRAME)
                 {
-                    access->drawable->cached.grow_width = width_available - child_data->width_px;
-                    child_data->width_px = width_available;
+                    width_available -=
+                        kan_ui_calculate_coordinate (state->transient.ui, access->child->element.frame_offset_x);
+                }
+
+                if (child_data->width_px < width_available && child_data->width_px < child_data->max_width_px)
+                {
+                    const kan_instance_offset_t new_width = KAN_MIN (data->max_width_px, width_available);
+                    access->drawable->cached.grow_width = new_width - child_data->width_px;
+                    child_data->width_px = new_width;
                 }
             }
         }
 
-        if (access->child->element.height_flags & KAN_UI_SIZE_FLAG_GROW)
+        if ((access->child->element.height_flags & KAN_UI_SIZE_FLAG_GROW) &&
+            child_data->height_px < child_data->max_height_px)
         {
             if (data->cached_layout == KAN_UI_LAYOUT_VERTICAL_CONTAINER)
             {
@@ -976,14 +1074,21 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
             else
             {
                 // Not a vertical container, therefore height is not shared and we can use all space available.
-                const kan_instance_offset_t height_available =
+                kan_instance_offset_t height_available =
                     data->height_px - data->cached_padding_top_px - data->cached_padding_bottom_px -
                     child_data->cached_margin_top_px - child_data->cached_margin_bottom_px;
 
-                if (child_data->height_px < height_available)
+                if (data->cached_layout == KAN_UI_LAYOUT_FRAME)
                 {
-                    access->drawable->cached.grow_height = height_available - child_data->height_px;
-                    child_data->height_px = height_available;
+                    height_available -=
+                        kan_ui_calculate_coordinate (state->transient.ui, access->child->element.frame_offset_y);
+                }
+
+                if (child_data->height_px < height_available && child_data->height_px < child_data->max_height_px)
+                {
+                    const kan_instance_offset_t new_height = KAN_MIN (data->max_height_px, height_available);
+                    access->drawable->cached.grow_height = new_height - child_data->height_px;
+                    child_data->height_px = new_height;
                 }
             }
         }
@@ -999,6 +1104,7 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
             struct layout_temporary_data_t *first_data =                                                               \
                 first_grow_##AXIS_NAME##_node->access->drawable->temporary_data;                                       \
             struct layout_grow_node_t *barrier = first_grow_##AXIS_NAME##_node->next;                                  \
+            kan_instance_offset_t max_to_give = KAN_INT_MAX (kan_instance_offset_t);                                   \
                                                                                                                        \
             while (barrier)                                                                                            \
             {                                                                                                          \
@@ -1007,6 +1113,10 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
                 {                                                                                                      \
                     break;                                                                                             \
                 }                                                                                                      \
+                                                                                                                       \
+                /* If assert has failed, then internal logic is broken. */                                             \
+                KAN_ASSERT (second_data->AXIS_NAME##_px < second_data->max_##AXIS_NAME##_px)                           \
+                max_to_give = KAN_MIN (max_to_give, second_data->max_##AXIS_NAME##_px - second_data->AXIS_NAME##_px);  \
                                                                                                                        \
                 ++candidate_count;                                                                                     \
                 barrier = barrier->next;                                                                               \
@@ -1018,18 +1128,18 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
                 break;                                                                                                 \
             }                                                                                                          \
                                                                                                                        \
-            kan_instance_offset_t max_to_give;                                                                         \
             if (barrier)                                                                                               \
             {                                                                                                          \
                 struct layout_temporary_data_t *barrier_data = barrier->access->drawable->temporary_data;              \
-                max_to_give = barrier_data->AXIS_NAME##_px - first_data->AXIS_NAME##_px;                               \
+                max_to_give = KAN_MIN (max_to_give, barrier_data->AXIS_NAME##_px - first_data->AXIS_NAME##_px);        \
             }                                                                                                          \
             else                                                                                                       \
             {                                                                                                          \
-                max_to_give = left_to_give;                                                                            \
+                max_to_give = KAN_MIN (max_to_give, left_to_give);                                                     \
             }                                                                                                          \
                                                                                                                        \
             kan_instance_offset_t give_every = KAN_MIN (left_to_give / candidate_count, max_to_give);                  \
+            struct layout_grow_node_t *previous = NULL;                                                                \
             struct layout_grow_node_t *receiver = first_grow_##AXIS_NAME##_node;                                       \
                                                                                                                        \
             while (receiver != barrier)                                                                                \
@@ -1037,6 +1147,24 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
                 struct layout_temporary_data_t *receiver_data = receiver->access->drawable->temporary_data;            \
                 receiver_data->AXIS_NAME##_px += give_every;                                                           \
                 receiver->access->drawable->cached.grow_##AXIS_NAME += give_every;                                     \
+                                                                                                                       \
+                if (receiver_data->AXIS_NAME##_px < receiver_data->max_##AXIS_NAME##_px)                               \
+                {                                                                                                      \
+                    previous = receiver;                                                                               \
+                }                                                                                                      \
+                else                                                                                                   \
+                {                                                                                                      \
+                    /* Remove node that cannot be grown anymore. */                                                    \
+                    if (previous)                                                                                      \
+                    {                                                                                                  \
+                        previous->next = receiver->next;                                                               \
+                    }                                                                                                  \
+                    else                                                                                               \
+                    {                                                                                                  \
+                        first_grow_##AXIS_NAME##_node = receiver->next;                                                \
+                    }                                                                                                  \
+                }                                                                                                      \
+                                                                                                                       \
                 receiver = receiver->next;                                                                             \
             }                                                                                                          \
                                                                                                                        \
@@ -1047,7 +1175,7 @@ static void layout_grow_pass (struct ui_layout_state_t *state,
     DO_GROW_ON_AXIS (width)
     DO_GROW_ON_AXIS (height)
 
-    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
         layout_grow_pass (state, access->child, access->drawable, false);
@@ -1063,7 +1191,7 @@ static void layout_position_pass (struct ui_layout_state_t *state,
     // Short-circuit for non-full updates -- just go to the children.
     if (drawable->layout_dirt_level < KAN_UI_LAYOUT_DIRT_LEVEL_FULL)
     {
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             layout_position_pass (state, access->child, access->drawable);
@@ -1093,6 +1221,14 @@ static void layout_position_pass (struct ui_layout_state_t *state,
         case KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT:
             drawable->local_x += state->transient.ui->viewport_width - data->width_px;
             break;
+
+        case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_LEFT:
+            drawable->local_x += -data->width_px;
+            break;
+
+        case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_RIGHT:
+            drawable->local_x += state->transient.ui->viewport_width;
+            break;
         }
 
         switch (node->element.vertical_alignment)
@@ -1107,26 +1243,42 @@ static void layout_position_pass (struct ui_layout_state_t *state,
         case KAN_UI_VERTICAL_ALIGNMENT_BOTTOM:
             drawable->local_y += state->transient.ui->viewport_height - data->height_px;
             break;
+
+        case KAN_UI_VERTICAL_ALIGNMENT_ABOVE:
+            drawable->local_y += -data->height_px;
+            break;
+
+        case KAN_UI_VERTICAL_ALIGNMENT_BELOW:
+            drawable->local_y += state->transient.ui->viewport_height;
+            break;
         }
 
         drawable->global_x = drawable->local_x;
         drawable->global_y = drawable->local_y;
     }
 
-    const kan_instance_size_t pad_left = data->cached_padding_left_px;
-    const kan_instance_size_t pad_right = data->cached_padding_right_px;
-    const kan_instance_size_t pad_top = data->cached_padding_top_px;
-    const kan_instance_size_t pad_bottom = data->cached_padding_bottom_px;
+    const kan_instance_offset_t pad_left = data->cached_padding_left_px;
+    const kan_instance_offset_t pad_right = data->cached_padding_right_px;
+    const kan_instance_offset_t pad_top = data->cached_padding_top_px;
+    const kan_instance_offset_t pad_bottom = data->cached_padding_bottom_px;
     const kan_instance_offset_t available_width = data->width_px - pad_left - pad_right;
     const kan_instance_offset_t available_height = data->height_px - pad_top - pad_bottom;
+    bool has_different_layer_children = false;
 
     switch (data->cached_layout)
     {
     case KAN_UI_LAYOUT_FRAME:
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
+
+            if (access->drawable->draw_layer != drawable->draw_layer)
+            {
+                // Children with different layer are excluded from normal layout calculations.
+                has_different_layer_children = true;
+                continue;
+            }
 
             access->drawable->local_x =
                 pad_left + kan_ui_calculate_coordinate (state->transient.ui, access->child->element.frame_offset_x);
@@ -1142,6 +1294,14 @@ static void layout_position_pass (struct ui_layout_state_t *state,
 
             case KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT:
                 access->drawable->local_x += available_width - child_data->width_px;
+                break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_LEFT:
+                access->drawable->local_x += -child_data->width_px - pad_left;
+                break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_RIGHT:
+                access->drawable->local_x += data->width_px - pad_left;
                 break;
             }
 
@@ -1160,6 +1320,14 @@ static void layout_position_pass (struct ui_layout_state_t *state,
             case KAN_UI_VERTICAL_ALIGNMENT_BOTTOM:
                 access->drawable->local_y += available_height - child_data->height_px;
                 break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_ABOVE:
+                access->drawable->local_y += -child_data->height_px - pad_top;
+                break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_BELOW:
+                access->drawable->local_y += data->height_px - pad_top;
+                break;
             }
         }
 
@@ -1168,12 +1336,19 @@ static void layout_position_pass (struct ui_layout_state_t *state,
     case KAN_UI_LAYOUT_VERTICAL_CONTAINER:
     {
         kan_instance_offset_t cursor = pad_top;
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
-            cursor += child_data->cached_margin_top_px;
 
+            if (access->drawable->draw_layer != drawable->draw_layer)
+            {
+                // Children with different layer are excluded from normal layout calculations.
+                has_different_layer_children = true;
+                continue;
+            }
+
+            cursor += child_data->cached_margin_top_px;
             access->drawable->local_x = pad_left + child_data->cached_margin_left_px;
             access->drawable->local_y = cursor;
             cursor += child_data->height_px + child_data->cached_margin_bottom_px;
@@ -1193,6 +1368,14 @@ static void layout_position_pass (struct ui_layout_state_t *state,
                 access->drawable->local_x += available_width - child_data->cached_margin_left_px -
                                              child_data->cached_margin_right_px - child_data->width_px;
                 break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_LEFT:
+                access->drawable->local_x = -child_data->width_px;
+                break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_RIGHT:
+                access->drawable->local_x = data->width_px;
+                break;
             }
         }
 
@@ -1202,12 +1385,19 @@ static void layout_position_pass (struct ui_layout_state_t *state,
     case KAN_UI_LAYOUT_HORIZONTAL_CONTAINER:
     {
         kan_instance_offset_t cursor = pad_top;
-        for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
         {
             const struct layout_child_access_t *access = &data->sorted_children[index];
             struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
-            cursor += child_data->cached_margin_left_px;
 
+            if (access->drawable->draw_layer != drawable->draw_layer)
+            {
+                // Children with different layer are excluded from normal layout calculations.
+                has_different_layer_children = true;
+                continue;
+            }
+
+            cursor += child_data->cached_margin_left_px;
             access->drawable->local_x = cursor;
             access->drawable->local_y = pad_top + child_data->cached_margin_top_px;
             cursor += child_data->width_px + child_data->cached_margin_right_px;
@@ -1227,6 +1417,14 @@ static void layout_position_pass (struct ui_layout_state_t *state,
                 access->drawable->local_y += available_height - child_data->cached_margin_top_px -
                                              child_data->cached_margin_bottom_px - child_data->height_px;
                 break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_ABOVE:
+                access->drawable->local_y = -child_data->height_px;
+                break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_BELOW:
+                access->drawable->local_y = data->height_px;
+                break;
             }
         }
 
@@ -1234,7 +1432,72 @@ static void layout_position_pass (struct ui_layout_state_t *state,
     }
     }
 
-    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    if (has_different_layer_children)
+    {
+        // Special loop for children with different layer value.
+        for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
+        {
+            const struct layout_child_access_t *access = &data->sorted_children[index];
+            struct layout_temporary_data_t *child_data = access->drawable->temporary_data;
+
+            if (access->drawable->draw_layer == drawable->draw_layer)
+            {
+                continue;
+            }
+
+            access->drawable->local_x =
+                kan_ui_calculate_coordinate (state->transient.ui, access->child->element.frame_offset_x);
+
+            switch (access->child->element.horizontal_alignment)
+            {
+            case KAN_UI_HORIZONTAL_ALIGNMENT_LEFT:
+                break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_CENTER:
+                access->drawable->local_x += data->width_px / 2 - child_data->width_px / 2;
+                break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT:
+                access->drawable->local_x += data->width_px - child_data->width_px;
+                break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_LEFT:
+                access->drawable->local_x += -child_data->width_px;
+                break;
+
+            case KAN_UI_HORIZONTAL_ALIGNMENT_TO_THE_RIGHT:
+                access->drawable->local_x += data->width_px;
+                break;
+            }
+
+            access->drawable->local_y =
+                kan_ui_calculate_coordinate (state->transient.ui, access->child->element.frame_offset_y);
+
+            switch (access->child->element.vertical_alignment)
+            {
+            case KAN_UI_VERTICAL_ALIGNMENT_TOP:
+                break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_CENTER:
+                access->drawable->local_y += data->height_px / 2 - child_data->height_px / 2;
+                break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_BOTTOM:
+                access->drawable->local_y += data->height_px - child_data->height_px;
+                break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_ABOVE:
+                access->drawable->local_y += -child_data->height_px;
+                break;
+
+            case KAN_UI_VERTICAL_ALIGNMENT_BELOW:
+                access->drawable->local_y += data->height_px;
+                break;
+            }
+        }
+    }
+
+    for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         const struct layout_child_access_t *access = &data->sorted_children[index];
         layout_position_pass (state, access->child, access->drawable);
@@ -1246,8 +1509,59 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
                                          struct kan_ui_node_drawable_t *drawable)
 {
     struct layout_temporary_data_t *data = drawable->temporary_data;
+    if (!KAN_TYPED_ID_32_IS_VALID (node->parent_id))
+    {
+        // When child of root, parent clip rect is always full viewport rect.
+        drawable->cached.parent_clip_rect.x = 0;
+        drawable->cached.parent_clip_rect.y = 0;
+        drawable->cached.parent_clip_rect.width = state->transient.ui->viewport_width;
+        drawable->cached.parent_clip_rect.height = state->transient.ui->viewport_height;
+        drawable->cached.hidden_by_parent = false;
+        drawable->cached.parent_layer = KAN_UI_RENDER_LAYER_INHERIT;
+        drawable->global_x = drawable->local_x;
+        drawable->global_y = drawable->local_y;
+    }
+
+    // Restore clip rect to initially received from parent. It is important for partial passes as if we do not restore
+    // parent clip rect, toggling this node clip flag on and off will result in broken clip rect logic.
+    drawable->clip_rect = drawable->cached.parent_clip_rect;
+
+    if (drawable->draw_layer != drawable->cached.parent_layer)
+    {
+        // If we're on separate layer, we need to reset clip rect to full viewport rect as elements on different layers
+        // should not try to clip each other.
+        drawable->clip_rect.x = 0;
+        drawable->clip_rect.y = 0;
+        drawable->clip_rect.width = state->transient.ui->viewport_width;
+        drawable->clip_rect.height = state->transient.ui->viewport_height;
+    }
+
+    if (node->render.viewport_bound)
+    {
+        if (drawable->global_x + drawable->width > state->transient.ui->viewport_width)
+        {
+            drawable->global_x = state->transient.ui->viewport_width - drawable->width;
+        }
+
+        if (drawable->global_x < 0)
+        {
+            drawable->global_x = 0;
+        }
+
+        if (drawable->global_y + drawable->height > state->transient.ui->viewport_height)
+        {
+            drawable->global_y = state->transient.ui->viewport_height - drawable->height;
+        }
+
+        if (drawable->global_y < 0)
+        {
+            drawable->global_y = 0;
+        }
+    }
+
     if (node->render.clip)
     {
+        struct kan_ui_clip_rect_t base_rect = drawable->clip_rect;
         struct kan_ui_clip_rect_t my_rect = {
             .x = drawable->global_x,
             .y = drawable->global_y,
@@ -1255,22 +1569,29 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
             .height = drawable->height,
         };
 
-        struct kan_ui_clip_rect_t new_clip_rect = drawable->clip_rect;
-        new_clip_rect.x = KAN_MAX (drawable->clip_rect.x, my_rect.x);
-        new_clip_rect.y = KAN_MAX (drawable->clip_rect.y, my_rect.y);
+        drawable->clip_rect.x = KAN_MAX (base_rect.x, my_rect.x);
+        drawable->clip_rect.y = KAN_MAX (base_rect.y, my_rect.y);
 
-        new_clip_rect.width =
-            KAN_MIN (drawable->clip_rect.x + drawable->clip_rect.width, my_rect.x + my_rect.width) - new_clip_rect.x;
+        drawable->clip_rect.width =
+            KAN_MIN (base_rect.x + base_rect.width, my_rect.x + my_rect.width) - drawable->clip_rect.x;
 
-        new_clip_rect.height =
-            KAN_MIN (drawable->clip_rect.y + drawable->clip_rect.height, my_rect.y + my_rect.height) - new_clip_rect.y;
-        drawable->clip_rect = new_clip_rect;
+        drawable->clip_rect.height =
+            KAN_MIN (base_rect.y + base_rect.height, my_rect.y + my_rect.height) - drawable->clip_rect.y;
     }
 
-    for (kan_loop_size_t index = 0u; index < data->sorted_children_count; ++index)
+    const bool hidden_by_hierarchy = node->render.hidden || drawable->cached.hidden_by_parent;
+    const bool clipped_out = drawable->global_x + drawable->width < drawable->clip_rect.x ||
+                             drawable->global_x >= drawable->clip_rect.x + drawable->clip_rect.width ||
+                             drawable->global_y + drawable->height < drawable->clip_rect.y ||
+                             drawable->global_y >= drawable->clip_rect.y + drawable->clip_rect.height;
+    drawable->hidden_permanently = hidden_by_hierarchy || clipped_out;
+
+    for (kan_memory_size_t index = 0u; index < data->sorted_children_count; ++index)
     {
         struct layout_child_access_t *access = &data->sorted_children[index];
-        access->drawable->clip_rect = drawable->clip_rect;
+        access->drawable->cached.parent_clip_rect = drawable->clip_rect;
+        // We do not include `clipped_out` to `hidden_by_parent` as child may technically have other borders.
+        access->drawable->cached.hidden_by_parent = hidden_by_hierarchy || node->render.hide_children;
 
         access->drawable->global_x = drawable->global_x -
                                      kan_ui_calculate_coordinate (state->transient.ui, node->render.scroll_x) +
@@ -1279,12 +1600,6 @@ static void layout_render_finalize_pass (struct ui_layout_state_t *state,
         access->drawable->global_y = drawable->global_y -
                                      kan_ui_calculate_coordinate (state->transient.ui, node->render.scroll_y) +
                                      access->drawable->local_y;
-
-        access->drawable->fully_clipped_out =
-            access->drawable->global_x + access->drawable->width < drawable->clip_rect.x ||
-            access->drawable->global_x >= drawable->clip_rect.x + drawable->clip_rect.width ||
-            access->drawable->global_y + access->drawable->height < drawable->clip_rect.y ||
-            access->drawable->global_y >= drawable->clip_rect.y + drawable->clip_rect.height;
 
         layout_render_finalize_pass (state, access->child, access->drawable);
 
@@ -1337,10 +1652,13 @@ static void execute_draw_index_reorder (struct ui_layout_state_t *state, const s
     struct layout_child_access_t *sorted_children;
     read_and_sort_children_into (state, parent_id, &sorted_children_count, &sorted_children);
 
-    for (kan_loop_size_t index = 0u; index < sorted_children_count; ++index)
+    for (kan_memory_size_t index = 0u; index < sorted_children_count; ++index)
     {
         struct layout_child_access_t *access = &sorted_children[index];
-        access->drawable->draw_index = state->transient.reorder_index;
+        const kan_instance_size_t shift = (sizeof (kan_instance_size_t) - 1u) * 8u;
+        KAN_ASSERT (state->transient.reorder_index < (1u << shift))
+        const kan_instance_size_t layer_mark = ((kan_instance_size_t) access->drawable->draw_layer) << shift;
+        access->drawable->draw_index = layer_mark | state->transient.reorder_index;
         ++state->transient.reorder_index;
         execute_draw_index_reorder (state, access->child);
 
@@ -1425,9 +1743,10 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_layout)
 
     {
         KAN_CPU_SCOPED_STATIC_SECTION (ui_layout_node_change_main_events)
-        KAN_UML_EVENT_FETCH (node_on_element, kan_ui_node_on_change_event_t)
+        KAN_UML_EVENT_FETCH (node_on_order, kan_ui_node_order_on_change_event_t)
         {
-            KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &node_on_element->id)
+            state->transient.reorder_required = true;
+            KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &node_on_order->id)
             if (node)
             {
                 const kan_ui_node_id_t dirty_root = determine_dirty_root_recursive (state, node, false);
@@ -1435,10 +1754,9 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_layout)
             }
         }
 
-        KAN_UML_EVENT_FETCH (node_on_order, kan_ui_node_order_on_change_event_t)
+        KAN_UML_EVENT_FETCH (node_on_element, kan_ui_node_on_change_event_t)
         {
-            state->transient.reorder_required = true;
-            KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &node_on_order->id)
+            KAN_UMI_VALUE_READ_OPTIONAL (node, kan_ui_node_t, id, &node_on_element->id)
             if (node)
             {
                 const kan_ui_node_id_t dirty_root = determine_dirty_root_recursive (state, node, false);
@@ -1498,421 +1816,6 @@ enum ui_bundle_loading_state_t
     UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES,
     UI_BUNDLE_LOADING_STATE_READY,
 };
-
-struct ui_bundle_private_singleton_t
-{
-    enum ui_bundle_loading_state_t state;
-    kan_instance_size_t state_frame_id;
-
-    kan_resource_usage_id_t main_usage_id;
-    kan_render_material_instance_usage_id_t loading_image_material_instance_usage_id;
-    kan_render_atlas_usage_id_t loading_image_atlas_usage_id;
-    kan_render_material_instance_usage_id_t loading_text_sdf_usage_id;
-    kan_render_material_instance_usage_id_t loading_text_icon_usage_id;
-
-    kan_render_material_instance_usage_id_t available_image_material_instance_usage_id;
-    kan_render_atlas_usage_id_t available_image_atlas_usage_id;
-    kan_render_material_instance_usage_id_t available_text_sdf_usage_id;
-    kan_render_material_instance_usage_id_t available_text_icon_usage_id;
-};
-
-UNIVERSE_UI_API void ui_bundle_private_singleton_init (struct ui_bundle_private_singleton_t *instance)
-{
-    instance->state = UI_BUNDLE_LOADING_STATE_INITIAL;
-    instance->state_frame_id = 0u;
-
-    instance->main_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-    instance->loading_image_material_instance_usage_id =
-        KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
-    instance->loading_image_atlas_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_atlas_usage_id_t);
-    instance->loading_text_sdf_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
-    instance->loading_text_icon_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
-
-    instance->available_image_material_instance_usage_id =
-        KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
-    instance->available_image_atlas_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_atlas_usage_id_t);
-    instance->available_text_sdf_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
-    instance->available_text_icon_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
-}
-
-struct ui_bundle_management_state_t
-{
-    KAN_UM_GENERATE_STATE_QUERIES (ui_bundle_management)
-    KAN_UM_BIND_STATE (ui_bundle_management, state)
-
-    kan_interned_string_t default_bundle;
-};
-
-UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_bundle_management)
-{
-    kan_static_interned_ids_ensure_initialized ();
-    kan_cpu_static_sections_ensure_initialized ();
-
-    state->default_bundle = NULL;
-    const struct kan_ui_configuration_t *configuration =
-        kan_universe_world_query_configuration (world, kan_string_intern (KAN_UI_CONFIGURATION));
-
-    if (configuration)
-    {
-        state->default_bundle = configuration->default_bundle_name;
-    }
-
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_RESOURCE_PROVIDER_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_ATLAS_MANAGEMENT_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_FRAME_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_PROGRAM_MANAGEMENT_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_BEGIN_CHECKPOINT);
-    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT);
-}
-
-static void advance_bundle_from_initial_state (struct ui_bundle_management_state_t *state,
-                                               const struct kan_resource_provider_singleton_t *provider,
-                                               struct kan_ui_bundle_singleton_t *public,
-                                               struct ui_bundle_private_singleton_t *private);
-
-static void advance_bundle_from_waiting_main_state (struct ui_bundle_management_state_t *state,
-                                                    const struct kan_resource_provider_singleton_t *provider,
-                                                    struct kan_ui_bundle_singleton_t *public,
-                                                    struct ui_bundle_private_singleton_t *private);
-
-static void advance_bundle_from_waiting_resources_state (struct ui_bundle_management_state_t *state,
-                                                         const struct kan_resource_provider_singleton_t *provider,
-                                                         struct kan_ui_bundle_singleton_t *public,
-                                                         struct ui_bundle_private_singleton_t *private);
-
-static void on_bundle_resource_updated (struct ui_bundle_management_state_t *state,
-                                        const struct kan_resource_provider_singleton_t *provider,
-                                        struct kan_ui_bundle_singleton_t *public,
-                                        struct ui_bundle_private_singleton_t *private)
-{
-    private->state = UI_BUNDLE_LOADING_STATE_INITIAL;
-    private->state_frame_id = provider->logic_deduplication_frame_id;
-
-    // Start advancing, having some data loaded is very likely here.
-    advance_bundle_from_initial_state (state, provider, public, private);
-}
-
-static void clear_bundle_loading_resource_usages (struct ui_bundle_private_singleton_t *private) {}
-
-static void advance_bundle_from_initial_state (struct ui_bundle_management_state_t *state,
-                                               const struct kan_resource_provider_singleton_t *provider,
-                                               struct kan_ui_bundle_singleton_t *public,
-                                               struct ui_bundle_private_singleton_t *private)
-{
-    KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG,
-             "Attempting to advance bundle \"%s\" state from initial to waiting main.", public->bundle_name)
-
-    private->state_frame_id = provider->logic_deduplication_frame_id;
-    private->state = UI_BUNDLE_LOADING_STATE_WAITING_MAIN; // We will always advance from initial state.
-
-    // Clear resource usages that are used for loading.
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->main_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_resource_usage_t, usage_id, &private->main_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->loading_image_material_instance_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
-                                       &private->loading_image_material_instance_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->loading_image_atlas_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_atlas_usage_t, usage_id,
-                                       &private->loading_image_atlas_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->loading_text_sdf_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
-                                       &private->loading_text_sdf_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->loading_text_icon_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
-                                       &private->loading_text_icon_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
-    private->main_usage_id = kan_next_resource_usage_id (provider);
-    KAN_UMO_INDEXED_INSERT (usage, kan_resource_usage_t)
-    {
-        usage->usage_id = private->main_usage_id;
-        usage->type = KAN_STATIC_INTERNED_ID_GET (kan_resource_ui_bundle_t);
-        usage->name = public->bundle_name;
-        usage->priority = KAN_UNIVERSE_UI_BUNDLE_PRIORITY;
-    }
-
-    advance_bundle_from_waiting_main_state (state, provider, public, private);
-}
-
-static void advance_bundle_from_waiting_main_state (struct ui_bundle_management_state_t *state,
-                                                    const struct kan_resource_provider_singleton_t *provider,
-                                                    struct kan_ui_bundle_singleton_t *public,
-                                                    struct ui_bundle_private_singleton_t *private)
-{
-    KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG,
-             "Attempting to advance bundle \"%s\" state from waiting main to waiting resources.", public->bundle_name)
-
-    private->state_frame_id = provider->logic_deduplication_frame_id;
-    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_ui_bundle_t, &public->bundle_name)
-
-    if (!resource)
-    {
-        // Still waiting.
-        return;
-    }
-
-    KAN_UMI_SINGLETON_READ (atlas_singleton, kan_render_atlas_singleton_t)
-    KAN_UMI_SINGLETON_READ (program_singleton, kan_render_program_singleton_t)
-
-    private->state = UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES;
-    private->loading_image_material_instance_usage_id = kan_next_material_instance_usage_id (program_singleton);
-    private->loading_image_atlas_usage_id = kan_next_atlas_usage_id (atlas_singleton);
-    private->loading_text_sdf_usage_id = kan_next_material_instance_usage_id (program_singleton);
-    private->loading_text_icon_usage_id = kan_next_material_instance_usage_id (program_singleton);
-
-    KAN_UMO_INDEXED_INSERT (image_material_instance_usage, kan_render_material_instance_usage_t)
-    {
-        image_material_instance_usage->usage_id = private->loading_image_material_instance_usage_id;
-        image_material_instance_usage->name = resource->image_material_instance;
-    }
-
-    KAN_UMO_INDEXED_INSERT (atlas_usage, kan_render_atlas_usage_t)
-    {
-        atlas_usage->usage_id = private->loading_image_atlas_usage_id;
-        atlas_usage->name = resource->image_atlas;
-    }
-
-    KAN_UMO_INDEXED_INSERT (text_sdf_usage, kan_render_material_instance_usage_t)
-    {
-        text_sdf_usage->usage_id = private->loading_text_sdf_usage_id;
-        text_sdf_usage->name = resource->text_sdf_material_instance;
-    }
-
-    KAN_UMO_INDEXED_INSERT (text_icon_usage, kan_render_material_instance_usage_t)
-    {
-        text_icon_usage->usage_id = private->loading_text_icon_usage_id;
-        text_icon_usage->name = resource->text_icon_material_instance;
-    }
-
-    advance_bundle_from_waiting_resources_state (state, provider, public, private);
-}
-
-static void advance_bundle_from_waiting_resources_state (struct ui_bundle_management_state_t *state,
-                                                         const struct kan_resource_provider_singleton_t *provider,
-                                                         struct kan_ui_bundle_singleton_t *public,
-                                                         struct ui_bundle_private_singleton_t *private)
-{
-    KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG,
-             "Attempting to advance bundle \"%s\" state from waiting resources to ready.", public->bundle_name)
-
-    private->state_frame_id = provider->logic_deduplication_frame_id;
-    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_ui_bundle_t, &public->bundle_name)
-    KAN_ASSERT (resource)
-
-    KAN_UMI_VALUE_READ_OPTIONAL (image_material_instance, kan_render_material_instance_loaded_t, name,
-                                 &resource->image_material_instance)
-
-    if (!image_material_instance)
-    {
-        return;
-    }
-
-    KAN_UMI_VALUE_READ_OPTIONAL (pass, kan_render_foundation_pass_loaded_t, name, &resource->pass)
-    if (!pass)
-    {
-        return;
-    }
-
-    KAN_UMI_VALUE_READ_OPTIONAL (image_atlas, kan_render_atlas_loaded_t, name, &resource->image_atlas)
-    if (!image_atlas)
-    {
-        return;
-    }
-
-    KAN_UMI_VALUE_READ_OPTIONAL (text_sdf_material_instance, kan_render_material_instance_loaded_t, name,
-                                 &resource->text_sdf_material_instance)
-
-    if (!text_sdf_material_instance)
-    {
-        return;
-    }
-
-    KAN_UMI_VALUE_READ_OPTIONAL (text_icon_material_instance, kan_render_material_instance_loaded_t, name,
-                                 &resource->text_icon_material_instance)
-
-    if (!text_icon_material_instance)
-    {
-        return;
-    }
-
-    // Everything is loaded, so we can finalize the loading now.
-
-    private->state = UI_BUNDLE_LOADING_STATE_READY;
-    public->available = true;
-    public->available_bundle.pass = resource->pass;
-    public->available_bundle.image_material_instance = resource->image_material_instance;
-    public->available_bundle.image_atlas = resource->image_atlas;
-    public->available_bundle.text_sdf_material_instance = resource->text_sdf_material_instance;
-    public->available_bundle.text_icon_material_instance = resource->text_icon_material_instance;
-
-    public->available_bundle.hit_box_interaction_styles.size = 0u;
-    kan_dynamic_array_set_capacity (&public->available_bundle.hit_box_interaction_styles,
-                                    resource->hit_box_interaction_styles.size);
-    public->available_bundle.hit_box_interaction_styles.size = resource->hit_box_interaction_styles.size;
-
-    memcpy (public->available_bundle.hit_box_interaction_styles.data, resource->hit_box_interaction_styles.data,
-            sizeof (struct kan_resource_ui_hit_box_interaction_style_t) * resource->hit_box_interaction_styles.size);
-
-    // Remove usages of old available data.
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->available_image_material_instance_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
-                                       &private->available_image_material_instance_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->available_image_atlas_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_atlas_usage_t, usage_id,
-                                       &private->available_image_atlas_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->available_text_sdf_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
-                                       &private->available_text_sdf_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->available_text_icon_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
-                                       &private->available_text_icon_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
-    // Move loading usages to available.
-
-    private->available_image_material_instance_usage_id = private->loading_image_material_instance_usage_id;
-    private->available_image_atlas_usage_id = private->loading_image_atlas_usage_id;
-    private->available_text_sdf_usage_id = private->loading_text_sdf_usage_id;
-    private->available_text_icon_usage_id = private->loading_text_icon_usage_id;
-
-    private->loading_image_material_instance_usage_id =
-        KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
-    private->loading_image_atlas_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_atlas_usage_id_t);
-    private->loading_text_sdf_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
-    private->loading_text_icon_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
-
-    // Remove usage to resource that is no longer needed.
-    KAN_UMI_VALUE_DETACH_REQUIRED (main_usage, kan_resource_usage_t, usage_id, &private->main_usage_id)
-    KAN_UM_ACCESS_DELETE (main_usage);
-    private->main_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-
-    KAN_UMO_EVENT_INSERT_INIT (kan_ui_bundle_updated_t) {.stub = 0u};
-    KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG, "Advanced bundle \"%s\" state to ready.", public->bundle_name)
-}
-
-UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_bundle_management)
-{
-    KAN_UMI_SINGLETON_READ (resource_provider, kan_resource_provider_singleton_t)
-    if (!resource_provider->scan_done)
-    {
-        return;
-    }
-
-    KAN_UMI_SINGLETON_WRITE (public, kan_ui_bundle_singleton_t)
-    KAN_UMI_SINGLETON_WRITE (private, ui_bundle_private_singleton_t)
-    bool should_reinitialize = public->selection_dirty;
-
-    if (!public->bundle_name && state->default_bundle)
-    {
-        public->bundle_name = state->default_bundle;
-        should_reinitialize = true;
-    }
-
-    if (should_reinitialize)
-    {
-        // The same as resource update.
-        on_bundle_resource_updated (state, resource_provider, public, private);
-        public->selection_dirty = false;
-    }
-
-    KAN_UML_RESOURCE_UPDATED_EVENT_FETCH (updated_event, kan_resource_ui_bundle_t)
-    {
-        if (!should_reinitialize && updated_event->name == public->bundle_name)
-        {
-            on_bundle_resource_updated (state, resource_provider, public, private);
-        }
-    }
-
-    KAN_UML_RESOURCE_LOADED_EVENT_FETCH (bundle_loaded_event, kan_resource_ui_bundle_t)
-    {
-        if (bundle_loaded_event->name == public->bundle_name &&
-            private->state_frame_id != resource_provider->logic_deduplication_frame_id)
-        {
-            switch (private->state)
-            {
-            case UI_BUNDLE_LOADING_STATE_INITIAL:
-            case UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES:
-            case UI_BUNDLE_LOADING_STATE_READY:
-                KAN_ASSERT_FORMATTED (false,
-                                      "Bundle \"%s\" in state %u received main resource loaded event, which is totally "
-                                      "unexpected in this state.",
-                                      public->bundle_name, (unsigned int) private->state)
-                break;
-
-            case UI_BUNDLE_LOADING_STATE_WAITING_MAIN:
-                advance_bundle_from_waiting_main_state (state, resource_provider, public, private);
-                break;
-            }
-        }
-    }
-
-    KAN_UML_EVENT_FETCH (pass_updated_event, kan_render_foundation_pass_updated_event_t)
-    {
-        if (private->state_frame_id != resource_provider->logic_deduplication_frame_id &&
-            // Bundle coherence is not broken by separate pass reloading,
-            // therefore we just check if we need to advance just in case.
-            private->state == UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES)
-        {
-            advance_bundle_from_waiting_resources_state (state, resource_provider, public, private);
-        }
-    }
-
-    KAN_UML_EVENT_FETCH (material_instance_updated_event, kan_render_material_instance_updated_event_t)
-    {
-        if (private->state_frame_id != resource_provider->logic_deduplication_frame_id &&
-            // Bundle coherence is not broken by separate material instance reloading,
-            // therefore we just check if we need to advance just in case.
-            private->state == UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES)
-        {
-            advance_bundle_from_waiting_resources_state (state, resource_provider, public, private);
-        }
-    }
-
-    KAN_UML_EVENT_FETCH (atlas_updated_event, kan_render_atlas_updated_event_t)
-    {
-        if (private->state_frame_id != resource_provider->logic_deduplication_frame_id &&
-            // Bundle coherence is not broken by separate atlas reloading,
-            // therefore we just check if we need to advance just in case.
-            private->state == UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES)
-        {
-            advance_bundle_from_waiting_resources_state (state, resource_provider, public, private);
-        }
-    }
-}
 
 struct ui_render_graph_state_t
 {
@@ -2026,8 +1929,8 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
     struct kan_render_viewport_bounds_t viewport_bounds = {
         .x = 0.0f,
         .y = 0.0f,
-        .width = (float) ui_singleton->viewport_width,
-        .height = (float) ui_singleton->viewport_height,
+        .width = (kan_floating_t) ui_singleton->viewport_width,
+        .height = (kan_floating_t) ui_singleton->viewport_height,
         .depth_min = 0.0f,
         .depth_max = 1.0f,
     };
@@ -2039,20 +1942,17 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
         .height = (kan_instance_size_t) ui_singleton->viewport_height,
     };
 
-    struct kan_render_clear_value_t clear_values[] = {
-        {
-            .color =
-                {
-                    public->clear_color.r,
-                    public->clear_color.g,
-                    public->clear_color.b,
-                    public->clear_color.a,
-                },
-        },
-    };
+    struct kan_render_clear_value_t clear_values[] = {{
+        .color = public->clear_color,
+    }};
 
     public->final_pass_instance = kan_render_pass_instantiate (pass->pass, public->allocation->frame_buffers[0u],
                                                                &viewport_bounds, &scissor, clear_values);
+
+    kan_render_pass_instance_add_checkpoint_dependency (public->final_pass_instance,
+                                                        public->allocation->usage_begin_checkpoint);
+    kan_render_pass_instance_checkpoint_add_instance_dependency (public->allocation->usage_end_checkpoint,
+                                                                 public->final_pass_instance);
 }
 
 KAN_REFLECTION_IGNORE
@@ -2071,8 +1971,6 @@ struct ui_render_private_singleton_t
 
     kan_render_buffer_t ui_rect_vertices;
     kan_render_buffer_t ui_rect_indices;
-
-    kan_interned_string_t used_pass_name;
     kan_render_image_t bound_glyph_sdf_atlas;
 
     kan_instance_size_t binding_pass_view_data;
@@ -2094,8 +1992,6 @@ UNIVERSE_UI_API void ui_render_private_singleton_init (struct ui_render_private_
 
     instance->ui_rect_vertices = KAN_HANDLE_SET_INVALID (kan_render_buffer_t);
     instance->ui_rect_indices = KAN_HANDLE_SET_INVALID (kan_render_buffer_t);
-
-    instance->used_pass_name = NULL;
     instance->bound_glyph_sdf_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
 
     instance->binding_pass_view_data = 0u;
@@ -2160,6 +2056,7 @@ struct ui_render_transient_state_t
     const struct kan_ui_singleton_t *ui;
     struct ui_render_private_singleton_t *private;
     const struct kan_ui_render_graph_singleton_t *ui_render_graph;
+    const struct kan_ui_bundle_singleton_t *bundle;
 
     enum ui_bound_pipeline_t bound_pipeline;
     struct kan_ui_clip_rect_t clip_rect;
@@ -2240,219 +2137,226 @@ static bool ensure_pass_parameter_set_ready (struct ui_render_state_t *state,
                                              const struct kan_text_shaping_singleton_t *text_shaping,
                                              const struct kan_render_context_singleton_t *render_context)
 {
+    if (KAN_HANDLE_IS_VALID (private->pass_parameter_set))
+    {
+        return true;
+    }
+
+    KAN_UMI_VALUE_READ_REQUIRED (pass_loaded, kan_render_foundation_pass_loaded_t, name, &bundle->available_bundle.pass)
+    KAN_UMI_VALUE_READ_REQUIRED (atlas_loaded, kan_render_atlas_loaded_t, name, &bundle->available_bundle.image_atlas)
+
+    private->binding_pass_view_data = KAN_INT_MAX (kan_instance_size_t);
+    private->binding_image_sampler = KAN_INT_MAX (kan_instance_size_t);
+    private->binding_image_atlas = KAN_INT_MAX (kan_instance_size_t);
+    private->binding_image_entries = KAN_INT_MAX (kan_instance_size_t);
+    private->binding_glyph_sampler = KAN_INT_MAX (kan_instance_size_t);
+    private->binding_glyph_sdf_atlas = KAN_INT_MAX (kan_instance_size_t);
+    private->binding_color_table = KAN_INT_MAX (kan_instance_size_t);
+
+    if (pass_loaded->variants.size > 1u)
+    {
+        KAN_LOG (ui_render, KAN_LOG_ERROR, "Expected only 1 variant in pass \"%s\", but got %u.", pass_loaded->name,
+                 (unsigned int) pass_loaded->variants.size)
+        return false;
+    }
+
+    const struct kan_render_foundation_pass_variant_t *variant =
+        &((struct kan_render_foundation_pass_variant_t *) pass_loaded->variants.data)[0u];
+
+    for (kan_memory_size_t index = 0; index < variant->pass_parameter_set_bindings.buffers.size; ++index)
+    {
+        const struct kan_rpl_meta_buffer_t *buffer =
+            &((struct kan_rpl_meta_buffer_t *) variant->pass_parameter_set_bindings.buffers.data)[index];
+
+        if (buffer->name == KAN_STATIC_INTERNED_ID_GET (pass_view_data))
+        {
+            private->binding_pass_view_data = buffer->binding;
+            if (!KAN_HANDLE_IS_VALID (private->pass_view_data_buffer) ||
+                kan_render_buffer_get_full_size (private->pass_view_data_buffer) != buffer->main_size)
+            {
+                if (KAN_HANDLE_IS_VALID (private->pass_view_data_buffer))
+                {
+                    kan_render_buffer_destroy (private->pass_view_data_buffer);
+                }
+
+                private->pass_view_data_buffer =
+                    kan_render_buffer_create (render_context->render_context, KAN_RENDER_BUFFER_TYPE_UNIFORM,
+                                              buffer->main_size, NULL, KAN_STATIC_INTERNED_ID_GET (ui_pass_view_data));
+            }
+        }
+        else if (buffer->name == KAN_STATIC_INTERNED_ID_GET (image_entries))
+        {
+            private->binding_image_entries = buffer->binding;
+        }
+        else if (buffer->name == KAN_STATIC_INTERNED_ID_GET (color_table))
+        {
+            private->binding_color_table = buffer->binding;
+        }
+    }
+
+    for (kan_memory_size_t index = 0; index < variant->pass_parameter_set_bindings.samplers.size; ++index)
+    {
+        const struct kan_rpl_meta_sampler_t *sampler =
+            &((struct kan_rpl_meta_sampler_t *) variant->pass_parameter_set_bindings.samplers.data)[index];
+
+        if (sampler->name == KAN_STATIC_INTERNED_ID_GET (image_sampler))
+        {
+            private->binding_image_sampler = sampler->binding;
+        }
+        else if (sampler->name == KAN_STATIC_INTERNED_ID_GET (glyph_sampler))
+        {
+            private->binding_glyph_sampler = sampler->binding;
+        }
+    }
+
+    for (kan_memory_size_t index = 0; index < variant->pass_parameter_set_bindings.images.size; ++index)
+    {
+        const struct kan_rpl_meta_image_t *image =
+            &((struct kan_rpl_meta_image_t *) variant->pass_parameter_set_bindings.images.data)[index];
+
+        if (image->name == KAN_STATIC_INTERNED_ID_GET (image_atlas))
+        {
+            private->binding_image_atlas = image->binding;
+        }
+        else if (image->name == KAN_STATIC_INTERNED_ID_GET (glyph_sdf_atlas))
+        {
+            private->binding_glyph_sdf_atlas = image->binding;
+        }
+    }
+
+    if (private->binding_pass_view_data == KAN_INT_MAX (kan_instance_size_t) ||
+        private->binding_image_sampler == KAN_INT_MAX (kan_instance_size_t) ||
+        private->binding_image_atlas == KAN_INT_MAX (kan_instance_size_t) ||
+        private->binding_image_entries == KAN_INT_MAX (kan_instance_size_t) ||
+        private->binding_glyph_sampler == KAN_INT_MAX (kan_instance_size_t) ||
+        private->binding_glyph_sdf_atlas == KAN_INT_MAX (kan_instance_size_t) ||
+        private->binding_color_table == KAN_INT_MAX (kan_instance_size_t))
+    {
+        KAN_LOG (ui_render, KAN_LOG_ERROR, "Failed to find expected bindings in pass \"%s\".", pass_loaded->name)
+        return false;
+    }
+
+    kan_instance_size_t image_atlas_layers;
+    kan_render_image_get_sizes (atlas_loaded->image, NULL, NULL, NULL, &image_atlas_layers);
+
+    private->bound_glyph_sdf_atlas = text_shaping->font_library_sdf_atlas;
+    kan_instance_size_t glyph_atlas_layers = 0u;
+
+    if (KAN_HANDLE_IS_VALID (private->bound_glyph_sdf_atlas))
+    {
+        kan_render_image_get_sizes (private->bound_glyph_sdf_atlas, NULL, NULL, NULL, &glyph_atlas_layers);
+    }
+
+    struct kan_render_parameter_update_description_t updates[] = {
+        {
+            .binding = private->binding_pass_view_data,
+            .buffer_binding =
+                {
+                    .buffer = private->pass_view_data_buffer,
+                    .offset = 0u,
+                    .range = kan_render_buffer_get_full_size (private->pass_view_data_buffer),
+                },
+        },
+        {
+            .binding = private->binding_image_sampler,
+            .sampler_binding =
+                {
+                    .sampler =
+                        {
+                            .mag_filter = KAN_RENDER_FILTER_MODE_LINEAR,
+                            .min_filter = KAN_RENDER_FILTER_MODE_LINEAR,
+                            .mip_map_mode = KAN_RENDER_MIP_MAP_MODE_NEAREST,
+                            .address_mode_u = KAN_RENDER_ADDRESS_MODE_REPEAT,
+                            .address_mode_v = KAN_RENDER_ADDRESS_MODE_REPEAT,
+                            .address_mode_w = KAN_RENDER_ADDRESS_MODE_REPEAT,
+                            .depth_compare_enabled = false,
+                            .anisotropy_enabled = false,
+                            .depth_compare = KAN_RENDER_COMPARE_OPERATION_NEVER,
+                            .anisotropy_max = 0.0f,
+                        },
+                },
+        },
+        {
+            .binding = private->binding_image_atlas,
+            .image_binding =
+                {
+                    .image = atlas_loaded->image,
+                    .array_index = 0u,
+                    .layer_offset = 0u,
+                    .layer_count = image_atlas_layers,
+                },
+        },
+        {
+            .binding = private->binding_image_entries,
+            .buffer_binding =
+                {
+                    .buffer = atlas_loaded->entry_buffer,
+                    .offset = 0u,
+                    .range = kan_render_buffer_get_full_size (atlas_loaded->entry_buffer),
+                },
+        },
+        {
+            .binding = private->binding_glyph_sampler,
+            .sampler_binding =
+                {
+                    .sampler =
+                        {
+                            .mag_filter = KAN_RENDER_FILTER_MODE_LINEAR,
+                            .min_filter = KAN_RENDER_FILTER_MODE_LINEAR,
+                            .mip_map_mode = KAN_RENDER_MIP_MAP_MODE_NEAREST,
+                            .address_mode_u = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                            .address_mode_v = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                            .address_mode_w = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                            .depth_compare_enabled = false,
+                            .anisotropy_enabled = false,
+                            .depth_compare = KAN_RENDER_COMPARE_OPERATION_NEVER,
+                            .anisotropy_max = 0.0f,
+                        },
+                },
+        },
+        {
+            .binding = private->binding_color_table,
+            .buffer_binding =
+                {
+                    .buffer = render_context->color_table_buffer,
+                    .offset = 0u,
+                    .range = kan_render_buffer_get_full_size (render_context->color_table_buffer),
+                },
+        },
+        {
+            .binding = private->binding_glyph_sdf_atlas,
+            .image_binding =
+                {
+                    .image = private->bound_glyph_sdf_atlas,
+                    .array_index = 0u,
+                    .layer_offset = 0u,
+                    .layer_count = glyph_atlas_layers,
+                },
+        },
+    };
+
+    kan_instance_size_t updates_count = sizeof (updates) / sizeof (updates[0u]);
+    if (!KAN_HANDLE_IS_VALID (private->bound_glyph_sdf_atlas))
+    {
+        // Skip last binding as it would be invalid.
+        --updates_count;
+    }
+
+    struct kan_render_pipeline_parameter_set_description_t set_description = {
+        .layout = variant->pass_parameter_set_layout,
+        .stable_binding = true,
+        .tracking_name = KAN_STATIC_INTERNED_ID_GET (ui_pass_set),
+        .initial_bindings_count = updates_count,
+        .initial_bindings = updates,
+    };
+
+    private->pass_parameter_set =
+        kan_render_pipeline_parameter_set_create (render_context->render_context, &set_description);
+
     if (!KAN_HANDLE_IS_VALID (private->pass_parameter_set))
     {
-        KAN_UMI_VALUE_READ_REQUIRED (pass_loaded, kan_render_foundation_pass_loaded_t, name,
-                                     &bundle->available_bundle.pass)
-        KAN_UMI_VALUE_READ_REQUIRED (atlas_loaded, kan_render_atlas_loaded_t, name,
-                                     &bundle->available_bundle.image_atlas)
-
-        private->binding_pass_view_data = KAN_INT_MAX (kan_instance_size_t);
-        private->binding_image_sampler = KAN_INT_MAX (kan_instance_size_t);
-        private->binding_image_atlas = KAN_INT_MAX (kan_instance_size_t);
-        private->binding_image_entries = KAN_INT_MAX (kan_instance_size_t);
-        private->binding_glyph_sampler = KAN_INT_MAX (kan_instance_size_t);
-        private->binding_glyph_sdf_atlas = KAN_INT_MAX (kan_instance_size_t);
-        private->binding_color_table = KAN_INT_MAX (kan_instance_size_t);
-
-        if (pass_loaded->variants.size > 1u)
-        {
-            KAN_LOG (ui_render, KAN_LOG_ERROR, "Expected only 1 variant in pass \"%s\", but got %u.", pass_loaded->name,
-                     (unsigned int) pass_loaded->variants.size)
-            return false;
-        }
-
-        const struct kan_render_foundation_pass_variant_t *variant =
-            &((struct kan_render_foundation_pass_variant_t *) pass_loaded->variants.data)[0u];
-
-        for (kan_loop_size_t index = 0; index < variant->pass_parameter_set_bindings.buffers.size; ++index)
-        {
-            const struct kan_rpl_meta_buffer_t *buffer =
-                &((struct kan_rpl_meta_buffer_t *) variant->pass_parameter_set_bindings.buffers.data)[index];
-
-            if (buffer->name == KAN_STATIC_INTERNED_ID_GET (pass_view_data))
-            {
-                private->binding_pass_view_data = buffer->binding;
-                if (!KAN_HANDLE_IS_VALID (private->pass_view_data_buffer) ||
-                    kan_render_buffer_get_full_size (private->pass_view_data_buffer) != buffer->main_size)
-                {
-                    if (KAN_HANDLE_IS_VALID (private->pass_view_data_buffer))
-                    {
-                        kan_render_buffer_destroy (private->pass_view_data_buffer);
-                    }
-
-                    private->pass_view_data_buffer = kan_render_buffer_create (
-                        render_context->render_context, KAN_RENDER_BUFFER_TYPE_UNIFORM, buffer->main_size, NULL,
-                        KAN_STATIC_INTERNED_ID_GET (ui_pass_view_data));
-                }
-            }
-            else if (buffer->name == KAN_STATIC_INTERNED_ID_GET (image_entries))
-            {
-                private->binding_image_entries = buffer->binding;
-            }
-            else if (buffer->name == KAN_STATIC_INTERNED_ID_GET (color_table))
-            {
-                private->binding_color_table = buffer->binding;
-            }
-        }
-
-        for (kan_loop_size_t index = 0; index < variant->pass_parameter_set_bindings.samplers.size; ++index)
-        {
-            const struct kan_rpl_meta_sampler_t *sampler =
-                &((struct kan_rpl_meta_sampler_t *) variant->pass_parameter_set_bindings.samplers.data)[index];
-
-            if (sampler->name == KAN_STATIC_INTERNED_ID_GET (image_sampler))
-            {
-                private->binding_image_sampler = sampler->binding;
-            }
-            else if (sampler->name == KAN_STATIC_INTERNED_ID_GET (glyph_sampler))
-            {
-                private->binding_glyph_sampler = sampler->binding;
-            }
-        }
-
-        for (kan_loop_size_t index = 0; index < variant->pass_parameter_set_bindings.images.size; ++index)
-        {
-            const struct kan_rpl_meta_image_t *image =
-                &((struct kan_rpl_meta_image_t *) variant->pass_parameter_set_bindings.images.data)[index];
-
-            if (image->name == KAN_STATIC_INTERNED_ID_GET (image_atlas))
-            {
-                private->binding_image_atlas = image->binding;
-            }
-            else if (image->name == KAN_STATIC_INTERNED_ID_GET (glyph_sdf_atlas))
-            {
-                private->binding_glyph_sdf_atlas = image->binding;
-            }
-        }
-
-        if (private->binding_pass_view_data == KAN_INT_MAX (kan_instance_size_t) ||
-            private->binding_image_sampler == KAN_INT_MAX (kan_instance_size_t) ||
-            private->binding_image_atlas == KAN_INT_MAX (kan_instance_size_t) ||
-            private->binding_image_entries == KAN_INT_MAX (kan_instance_size_t) ||
-            private->binding_glyph_sampler == KAN_INT_MAX (kan_instance_size_t) ||
-            private->binding_glyph_sdf_atlas == KAN_INT_MAX (kan_instance_size_t) ||
-            private->binding_color_table == KAN_INT_MAX (kan_instance_size_t))
-        {
-            KAN_LOG (ui_render, KAN_LOG_ERROR, "Failed to find expected bindings in pass \"%s\".", pass_loaded->name)
-            return false;
-        }
-
-        kan_instance_size_t image_atlas_layers;
-        kan_render_image_get_sizes (atlas_loaded->image, NULL, NULL, NULL, &image_atlas_layers);
-
-        private->bound_glyph_sdf_atlas = text_shaping->font_library_sdf_atlas;
-        kan_instance_size_t glyph_atlas_layers = 0u;
-
-        if (KAN_HANDLE_IS_VALID (private->bound_glyph_sdf_atlas))
-        {
-            kan_render_image_get_sizes (private->bound_glyph_sdf_atlas, NULL, NULL, NULL, &glyph_atlas_layers);
-        }
-
-        struct kan_render_parameter_update_description_t updates[] = {
-            {
-                .binding = private->binding_pass_view_data,
-                .buffer_binding =
-                    {
-                        .buffer = private->pass_view_data_buffer,
-                        .offset = 0u,
-                        .range = kan_render_buffer_get_full_size (private->pass_view_data_buffer),
-                    },
-            },
-            {
-                .binding = private->binding_image_sampler,
-                .sampler_binding =
-                    {
-                        .sampler =
-                            {
-                                .mag_filter = KAN_RENDER_FILTER_MODE_LINEAR,
-                                .min_filter = KAN_RENDER_FILTER_MODE_LINEAR,
-                                .mip_map_mode = KAN_RENDER_MIP_MAP_MODE_NEAREST,
-                                .address_mode_u = KAN_RENDER_ADDRESS_MODE_REPEAT,
-                                .address_mode_v = KAN_RENDER_ADDRESS_MODE_REPEAT,
-                                .address_mode_w = KAN_RENDER_ADDRESS_MODE_REPEAT,
-                            },
-                    },
-            },
-            {
-                .binding = private->binding_image_atlas,
-                .image_binding =
-                    {
-                        .image = atlas_loaded->image,
-                        .array_index = 0u,
-                        .layer_offset = 0u,
-                        .layer_count = image_atlas_layers,
-                    },
-            },
-            {
-                .binding = private->binding_image_entries,
-                .buffer_binding =
-                    {
-                        .buffer = atlas_loaded->entry_buffer,
-                        .offset = 0u,
-                        .range = kan_render_buffer_get_full_size (atlas_loaded->entry_buffer),
-                    },
-            },
-            {
-                .binding = private->binding_glyph_sampler,
-                .sampler_binding =
-                    {
-                        .sampler =
-                            {
-                                .mag_filter = KAN_RENDER_FILTER_MODE_LINEAR,
-                                .min_filter = KAN_RENDER_FILTER_MODE_LINEAR,
-                                .mip_map_mode = KAN_RENDER_MIP_MAP_MODE_NEAREST,
-                                .address_mode_u = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
-                                .address_mode_v = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
-                                .address_mode_w = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
-                            },
-                    },
-            },
-            {
-                .binding = private->binding_color_table,
-                .buffer_binding =
-                    {
-                        .buffer = render_context->color_table_buffer,
-                        .offset = 0u,
-                        .range = kan_render_buffer_get_full_size (render_context->color_table_buffer),
-                    },
-            },
-            {
-                .binding = private->binding_glyph_sdf_atlas,
-                .image_binding =
-                    {
-                        .image = private->bound_glyph_sdf_atlas,
-                        .array_index = 0u,
-                        .layer_offset = 0u,
-                        .layer_count = glyph_atlas_layers,
-                    },
-            },
-        };
-
-        kan_instance_size_t updates_count = sizeof (updates) / sizeof (updates[0u]);
-        if (!KAN_HANDLE_IS_VALID (private->bound_glyph_sdf_atlas))
-        {
-            // Skip last binding as it would be invalid.
-            --updates_count;
-        }
-
-        struct kan_render_pipeline_parameter_set_description_t set_description = {
-            .layout = variant->pass_parameter_set_layout,
-            .stable_binding = true,
-            .tracking_name = KAN_STATIC_INTERNED_ID_GET (ui_pass_set),
-            .initial_bindings_count = updates_count,
-            .initial_bindings = updates,
-        };
-
-        private->pass_parameter_set =
-            kan_render_pipeline_parameter_set_create (render_context->render_context, &set_description);
-
-        if (!KAN_HANDLE_IS_VALID (private->pass_parameter_set))
-        {
-            KAN_LOG (ui_render, KAN_LOG_ERROR, "Failed to allocate pass parameter set for pass \"%s\".",
-                     pass_loaded->name)
-            return false;
-        }
+        KAN_LOG (ui_render, KAN_LOG_ERROR, "Failed to allocate pass parameter set for pass \"%s\".", pass_loaded->name)
+        return false;
     }
 
     return true;
@@ -2473,7 +2377,7 @@ static bool cache_material_instance_data (struct ui_render_state_t *state,
     *output_parameters = material_instance->parameter_set;
     KAN_UMI_VALUE_READ_REQUIRED (material, kan_render_material_loaded_t, name, &material_instance->material_name)
 
-    for (kan_loop_size_t index = 0u; index < material->pipelines.size; ++index)
+    for (kan_memory_size_t index = 0u; index < material->pipelines.size; ++index)
     {
         const struct kan_render_material_pipeline_t *pipeline =
             &((struct kan_render_material_pipeline_t *) material->pipelines.data)[index];
@@ -2872,14 +2776,14 @@ static void execute_draw_custom_command (struct ui_render_state_t *state,
 
     KAN_UMI_VALUE_READ_REQUIRED (material, kan_render_material_loaded_t, name, &material_instance->material_name)
     kan_render_graphics_pipeline_t selected_pipeline = KAN_HANDLE_SET_INVALID (kan_render_graphics_pipeline_t);
+    const kan_interned_string_t pass_name = state->transient.bundle->available_bundle.pass;
 
-    for (kan_loop_size_t index = 0u; index < material->pipelines.size; ++index)
+    for (kan_memory_size_t index = 0u; index < material->pipelines.size; ++index)
     {
         const struct kan_render_material_pipeline_t *pipeline =
             &((struct kan_render_material_pipeline_t *) material->pipelines.data)[index];
 
-        if (pipeline->pass_name == state->transient.private->used_pass_name &&
-            pipeline->variant_name == KAN_STATIC_INTERNED_ID_GET (default))
+        if (pipeline->pass_name == pass_name && pipeline->variant_name == KAN_STATIC_INTERNED_ID_GET (default))
         {
             selected_pipeline = pipeline->pipeline;
             if (material->vertex_attribute_sources.size != 1u)
@@ -2920,8 +2824,9 @@ static void execute_draw_custom_command (struct ui_render_state_t *state,
     if (!KAN_HANDLE_IS_VALID (selected_pipeline))
     {
         KAN_LOG (ui_render, KAN_LOG_ERROR,
-                 "Failed to find pipeline for pass \"%s\" and variant \"default\" in material \"%s\".",
-                 state->transient.private->used_pass_name, material->name)
+                 "Failed to find pipeline for pass \"%s\" and variant \"default\" in material \"%s\".", pass_name,
+                 material->name)
+        return;
     }
 
     kan_render_pass_instance_t pass_instance = state->transient.ui_render_graph->final_pass_instance;
@@ -2942,10 +2847,10 @@ static void execute_draw_custom_command (struct ui_render_state_t *state,
                                              &state->transient.private->ui_rect_vertices, NULL);
 
         struct kan_ui_draw_command_custom_push_layout_t push;
-        push.size.x = (float) (drawable->global_x + drawable->draw_offset_x);
-        push.size.y = (float) (drawable->global_y + drawable->draw_offset_y);
-        push.offset.x = (float) drawable->width;
-        push.offset.y = (float) drawable->height;
+        push.offset.x = (float) (drawable->global_x + drawable->draw_offset_x);
+        push.offset.y = (float) (drawable->global_y + drawable->draw_offset_y);
+        push.size.x = (float) drawable->width;
+        push.size.y = (float) drawable->height;
         push.ui_mark = command->ui_mark;
         push.local_time = state->transient.ui->animation_global_time_s - command->animation_start_time_s;
         kan_render_pass_instance_push_constant (pass_instance, &push);
@@ -3050,13 +2955,12 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
             private->pass_parameter_set = KAN_HANDLE_SET_INVALID (kan_render_pipeline_parameter_set_t);
         }
 
-        private->used_pass_name = NULL;
         private->bound_glyph_sdf_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
     }
 
     KAN_UML_EVENT_FETCH (pass_updated_event, kan_render_foundation_pass_updated_event_t)
     {
-        if (pass_updated_event->name == private->used_pass_name)
+        if (bundle->available && pass_updated_event->name == bundle->available_bundle.pass)
         {
             if (KAN_HANDLE_IS_VALID (private->pass_parameter_set))
             {
@@ -3064,7 +2968,6 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
                 private->pass_parameter_set = KAN_HANDLE_SET_INVALID (kan_render_pipeline_parameter_set_t);
             }
 
-            private->used_pass_name = NULL;
             private->bound_glyph_sdf_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
         }
     }
@@ -3196,6 +3099,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
     state->transient.ui = ui;
     state->transient.private = private;
     state->transient.ui_render_graph = ui_render_graph;
+    state->transient.bundle = bundle;
 
     state->transient.bound_pipeline = UI_BOUND_PIPELINE_NONE;
     state->transient.clip_rect.x = 0;
@@ -3211,13 +3115,13 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
 
     KAN_UML_INTERVAL_ASCENDING_READ (node, kan_ui_node_drawable_t, draw_index, NULL, NULL)
     {
-        if (node->fully_clipped_out || node->hidden)
+        if (node->hidden_permanently || node->hidden_temporary)
         {
             continue;
         }
 
         apply_clip_rect (state, &node->clip_rect);
-        for (kan_loop_size_t index = 0; index < node->additional_draw_commands.size; ++index)
+        for (kan_memory_size_t index = 0; index < node->additional_draw_commands.size; ++index)
         {
             const struct kan_ui_draw_command_data_t *command =
                 &((struct kan_ui_draw_command_data_t *) node->additional_draw_commands.data)[index];
@@ -3229,7 +3133,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
         }
 
         process_draw_command (state, node, &node->main_draw_command);
-        for (kan_loop_size_t index = 0; index < node->additional_draw_commands.size; ++index)
+        for (kan_memory_size_t index = 0; index < node->additional_draw_commands.size; ++index)
         {
             const struct kan_ui_draw_command_data_t *command =
                 &((struct kan_ui_draw_command_data_t *) node->additional_draw_commands.data)[index];
@@ -3245,6 +3149,419 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
     private->previous_frame_instanced_images = state->transient.this_frame_instanced_images;
 }
 
+struct ui_bundle_private_singleton_t
+{
+    enum ui_bundle_loading_state_t state;
+    kan_instance_size_t state_frame_id;
+
+    kan_resource_usage_id_t main_usage_id;
+    kan_render_material_instance_usage_id_t loading_image_material_instance_usage_id;
+    kan_render_atlas_usage_id_t loading_image_atlas_usage_id;
+    kan_render_material_instance_usage_id_t loading_text_sdf_usage_id;
+    kan_render_material_instance_usage_id_t loading_text_icon_usage_id;
+
+    kan_render_material_instance_usage_id_t available_image_material_instance_usage_id;
+    kan_render_atlas_usage_id_t available_image_atlas_usage_id;
+    kan_render_material_instance_usage_id_t available_text_sdf_usage_id;
+    kan_render_material_instance_usage_id_t available_text_icon_usage_id;
+};
+
+UNIVERSE_UI_API void ui_bundle_private_singleton_init (struct ui_bundle_private_singleton_t *instance)
+{
+    instance->state = UI_BUNDLE_LOADING_STATE_INITIAL;
+    instance->state_frame_id = 0u;
+
+    instance->main_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
+    instance->loading_image_material_instance_usage_id =
+        KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
+    instance->loading_image_atlas_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_atlas_usage_id_t);
+    instance->loading_text_sdf_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
+    instance->loading_text_icon_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
+
+    instance->available_image_material_instance_usage_id =
+        KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
+    instance->available_image_atlas_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_atlas_usage_id_t);
+    instance->available_text_sdf_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
+    instance->available_text_icon_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
+}
+
+struct ui_bundle_management_state_t
+{
+    KAN_UM_GENERATE_STATE_QUERIES (ui_bundle_management)
+    KAN_UM_BIND_STATE (ui_bundle_management, state)
+
+    kan_interned_string_t default_bundle;
+};
+
+UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_bundle_management)
+{
+    kan_static_interned_ids_ensure_initialized ();
+    kan_cpu_static_sections_ensure_initialized ();
+
+    state->default_bundle = NULL;
+    const struct kan_ui_configuration_t *configuration =
+        kan_universe_world_query_configuration (world, kan_string_intern (KAN_UI_CONFIGURATION));
+
+    if (configuration)
+    {
+        state->default_bundle = configuration->default_bundle_name;
+    }
+
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_RESOURCE_PROVIDER_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_ATLAS_MANAGEMENT_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_FRAME_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_PROGRAM_MANAGEMENT_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_BEGIN_CHECKPOINT);
+    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT);
+}
+
+static void advance_bundle_from_initial_state (struct ui_bundle_management_state_t *state,
+                                               const struct kan_resource_provider_singleton_t *provider,
+                                               struct kan_ui_bundle_singleton_t *public,
+                                               struct ui_bundle_private_singleton_t *private);
+
+static void advance_bundle_from_waiting_main_state (struct ui_bundle_management_state_t *state,
+                                                    const struct kan_resource_provider_singleton_t *provider,
+                                                    struct kan_ui_bundle_singleton_t *public,
+                                                    struct ui_bundle_private_singleton_t *private);
+
+static void advance_bundle_from_waiting_resources_state (struct ui_bundle_management_state_t *state,
+                                                         const struct kan_resource_provider_singleton_t *provider,
+                                                         struct kan_ui_bundle_singleton_t *public,
+                                                         struct ui_bundle_private_singleton_t *private);
+
+static void on_bundle_resource_updated (struct ui_bundle_management_state_t *state,
+                                        const struct kan_resource_provider_singleton_t *provider,
+                                        struct kan_ui_bundle_singleton_t *public,
+                                        struct ui_bundle_private_singleton_t *private)
+{
+    private->state = UI_BUNDLE_LOADING_STATE_INITIAL;
+    private->state_frame_id = provider->logic_deduplication_frame_id;
+
+    // Start advancing, having some data loaded is very likely here.
+    advance_bundle_from_initial_state (state, provider, public, private);
+}
+
+static void advance_bundle_from_initial_state (struct ui_bundle_management_state_t *state,
+                                               const struct kan_resource_provider_singleton_t *provider,
+                                               struct kan_ui_bundle_singleton_t *public,
+                                               struct ui_bundle_private_singleton_t *private)
+{
+    KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG,
+             "Attempting to advance bundle \"%s\" state from initial to waiting main.", public->bundle_name)
+
+    private->state_frame_id = provider->logic_deduplication_frame_id;
+    private->state = UI_BUNDLE_LOADING_STATE_WAITING_MAIN; // We will always advance from initial state.
+
+    // Clear resource usages that are used for loading.
+
+    if (KAN_TYPED_ID_32_IS_VALID (private->main_usage_id))
+    {
+        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_resource_usage_t, usage_id, &private->main_usage_id)
+        KAN_UM_ACCESS_DELETE (usage);
+    }
+
+    if (KAN_TYPED_ID_32_IS_VALID (private->loading_image_material_instance_usage_id))
+    {
+        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
+                                       &private->loading_image_material_instance_usage_id)
+        KAN_UM_ACCESS_DELETE (usage);
+    }
+
+    if (KAN_TYPED_ID_32_IS_VALID (private->loading_image_atlas_usage_id))
+    {
+        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_atlas_usage_t, usage_id,
+                                       &private->loading_image_atlas_usage_id)
+        KAN_UM_ACCESS_DELETE (usage);
+    }
+
+    if (KAN_TYPED_ID_32_IS_VALID (private->loading_text_sdf_usage_id))
+    {
+        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
+                                       &private->loading_text_sdf_usage_id)
+        KAN_UM_ACCESS_DELETE (usage);
+    }
+
+    if (KAN_TYPED_ID_32_IS_VALID (private->loading_text_icon_usage_id))
+    {
+        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
+                                       &private->loading_text_icon_usage_id)
+        KAN_UM_ACCESS_DELETE (usage);
+    }
+
+    private->main_usage_id = kan_next_resource_usage_id (provider);
+    KAN_UMO_INDEXED_INSERT (usage, kan_resource_usage_t)
+    {
+        usage->usage_id = private->main_usage_id;
+        usage->type = KAN_STATIC_INTERNED_ID_GET (kan_resource_ui_bundle_t);
+        usage->name = public->bundle_name;
+        usage->priority = KAN_UNIVERSE_UI_BUNDLE_PRIORITY;
+    }
+
+    advance_bundle_from_waiting_main_state (state, provider, public, private);
+}
+
+static void advance_bundle_from_waiting_main_state (struct ui_bundle_management_state_t *state,
+                                                    const struct kan_resource_provider_singleton_t *provider,
+                                                    struct kan_ui_bundle_singleton_t *public,
+                                                    struct ui_bundle_private_singleton_t *private)
+{
+    KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG,
+             "Attempting to advance bundle \"%s\" state from waiting main to waiting resources.", public->bundle_name)
+
+    private->state_frame_id = provider->logic_deduplication_frame_id;
+    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_ui_bundle_t, &public->bundle_name)
+
+    if (!resource)
+    {
+        // Still waiting.
+        return;
+    }
+
+    KAN_UMI_SINGLETON_READ (atlas_singleton, kan_render_atlas_singleton_t)
+    KAN_UMI_SINGLETON_READ (program_singleton, kan_render_program_singleton_t)
+
+    private->state = UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES;
+    private->loading_image_material_instance_usage_id = kan_next_material_instance_usage_id (program_singleton);
+    private->loading_image_atlas_usage_id = kan_next_atlas_usage_id (atlas_singleton);
+    private->loading_text_sdf_usage_id = kan_next_material_instance_usage_id (program_singleton);
+    private->loading_text_icon_usage_id = kan_next_material_instance_usage_id (program_singleton);
+
+    KAN_UMO_INDEXED_INSERT (image_material_instance_usage, kan_render_material_instance_usage_t)
+    {
+        image_material_instance_usage->usage_id = private->loading_image_material_instance_usage_id;
+        image_material_instance_usage->name = resource->image_material_instance;
+    }
+
+    KAN_UMO_INDEXED_INSERT (atlas_usage, kan_render_atlas_usage_t)
+    {
+        atlas_usage->usage_id = private->loading_image_atlas_usage_id;
+        atlas_usage->name = resource->image_atlas;
+    }
+
+    KAN_UMO_INDEXED_INSERT (text_sdf_usage, kan_render_material_instance_usage_t)
+    {
+        text_sdf_usage->usage_id = private->loading_text_sdf_usage_id;
+        text_sdf_usage->name = resource->text_sdf_material_instance;
+    }
+
+    KAN_UMO_INDEXED_INSERT (text_icon_usage, kan_render_material_instance_usage_t)
+    {
+        text_icon_usage->usage_id = private->loading_text_icon_usage_id;
+        text_icon_usage->name = resource->text_icon_material_instance;
+    }
+
+    advance_bundle_from_waiting_resources_state (state, provider, public, private);
+}
+
+static void advance_bundle_from_waiting_resources_state (struct ui_bundle_management_state_t *state,
+                                                         const struct kan_resource_provider_singleton_t *provider,
+                                                         struct kan_ui_bundle_singleton_t *public,
+                                                         struct ui_bundle_private_singleton_t *private)
+{
+    KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG,
+             "Attempting to advance bundle \"%s\" state from waiting resources to ready.", public->bundle_name)
+
+    private->state_frame_id = provider->logic_deduplication_frame_id;
+    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_ui_bundle_t, &public->bundle_name)
+    KAN_ASSERT (resource)
+
+    KAN_UMI_VALUE_READ_OPTIONAL (image_material_instance, kan_render_material_instance_loaded_t, name,
+                                 &resource->image_material_instance)
+
+    if (!image_material_instance)
+    {
+        return;
+    }
+
+    KAN_UMI_VALUE_READ_OPTIONAL (pass, kan_render_foundation_pass_loaded_t, name, &resource->pass)
+    if (!pass)
+    {
+        return;
+    }
+
+    KAN_UMI_VALUE_READ_OPTIONAL (image_atlas, kan_render_atlas_loaded_t, name, &resource->image_atlas)
+    if (!image_atlas)
+    {
+        return;
+    }
+
+    KAN_UMI_VALUE_READ_OPTIONAL (text_sdf_material_instance, kan_render_material_instance_loaded_t, name,
+                                 &resource->text_sdf_material_instance)
+
+    if (!text_sdf_material_instance)
+    {
+        return;
+    }
+
+    KAN_UMI_VALUE_READ_OPTIONAL (text_icon_material_instance, kan_render_material_instance_loaded_t, name,
+                                 &resource->text_icon_material_instance)
+
+    if (!text_icon_material_instance)
+    {
+        return;
+    }
+
+    // Everything is loaded, so we can finalize the loading now.
+
+    private->state = UI_BUNDLE_LOADING_STATE_READY;
+    public->available = true;
+    public->available_bundle.pass = resource->pass;
+    public->available_bundle.image_material_instance = resource->image_material_instance;
+    public->available_bundle.image_atlas = resource->image_atlas;
+    public->available_bundle.text_sdf_material_instance = resource->text_sdf_material_instance;
+    public->available_bundle.text_icon_material_instance = resource->text_icon_material_instance;
+
+    public->available_bundle.hit_box_interaction_styles.size = 0u;
+    kan_dynamic_array_set_capacity (&public->available_bundle.hit_box_interaction_styles,
+                                    resource->hit_box_interaction_styles.size);
+    public->available_bundle.hit_box_interaction_styles.size = resource->hit_box_interaction_styles.size;
+
+    memcpy (public->available_bundle.hit_box_interaction_styles.data, resource->hit_box_interaction_styles.data,
+            sizeof (struct kan_resource_ui_hit_box_interaction_style_t) * resource->hit_box_interaction_styles.size);
+
+    // Remove usages of old available data.
+
+    if (KAN_TYPED_ID_32_IS_VALID (private->available_image_material_instance_usage_id))
+    {
+        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
+                                       &private->available_image_material_instance_usage_id)
+        KAN_UM_ACCESS_DELETE (usage);
+    }
+
+    if (KAN_TYPED_ID_32_IS_VALID (private->available_image_atlas_usage_id))
+    {
+        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_atlas_usage_t, usage_id,
+                                       &private->available_image_atlas_usage_id)
+        KAN_UM_ACCESS_DELETE (usage);
+    }
+
+    if (KAN_TYPED_ID_32_IS_VALID (private->available_text_sdf_usage_id))
+    {
+        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
+                                       &private->available_text_sdf_usage_id)
+        KAN_UM_ACCESS_DELETE (usage);
+    }
+
+    if (KAN_TYPED_ID_32_IS_VALID (private->available_text_icon_usage_id))
+    {
+        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
+                                       &private->available_text_icon_usage_id)
+        KAN_UM_ACCESS_DELETE (usage);
+    }
+
+    // Move loading usages to available.
+
+    private->available_image_material_instance_usage_id = private->loading_image_material_instance_usage_id;
+    private->available_image_atlas_usage_id = private->loading_image_atlas_usage_id;
+    private->available_text_sdf_usage_id = private->loading_text_sdf_usage_id;
+    private->available_text_icon_usage_id = private->loading_text_icon_usage_id;
+
+    private->loading_image_material_instance_usage_id =
+        KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
+    private->loading_image_atlas_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_atlas_usage_id_t);
+    private->loading_text_sdf_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
+    private->loading_text_icon_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
+
+    // Remove usage to resource that is no longer needed.
+    KAN_UMI_VALUE_DETACH_REQUIRED (main_usage, kan_resource_usage_t, usage_id, &private->main_usage_id)
+    KAN_UM_ACCESS_DELETE (main_usage);
+    private->main_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
+
+    KAN_UMO_EVENT_INSERT_INIT (kan_ui_bundle_updated_t) {.stub = 0u};
+    KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG, "Advanced bundle \"%s\" state to ready.", public->bundle_name)
+}
+
+UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_bundle_management)
+{
+    KAN_UMI_SINGLETON_READ (resource_provider, kan_resource_provider_singleton_t)
+    if (!resource_provider->scan_done)
+    {
+        return;
+    }
+
+    KAN_UMI_SINGLETON_WRITE (public, kan_ui_bundle_singleton_t)
+    KAN_UMI_SINGLETON_WRITE (private, ui_bundle_private_singleton_t)
+    bool should_reinitialize = public->selection_dirty;
+
+    if (!public->bundle_name && state->default_bundle)
+    {
+        public->bundle_name = state->default_bundle;
+        should_reinitialize = true;
+    }
+
+    if (should_reinitialize)
+    {
+        // The same as resource update.
+        on_bundle_resource_updated (state, resource_provider, public, private);
+        public->selection_dirty = false;
+    }
+
+    KAN_UML_RESOURCE_UPDATED_EVENT_FETCH (updated_event, kan_resource_ui_bundle_t)
+    {
+        if (!should_reinitialize && updated_event->name == public->bundle_name)
+        {
+            on_bundle_resource_updated (state, resource_provider, public, private);
+        }
+    }
+
+    KAN_UML_RESOURCE_LOADED_EVENT_FETCH (bundle_loaded_event, kan_resource_ui_bundle_t)
+    {
+        if (bundle_loaded_event->name == public->bundle_name &&
+            private->state_frame_id != resource_provider->logic_deduplication_frame_id)
+        {
+            switch (private->state)
+            {
+            case UI_BUNDLE_LOADING_STATE_INITIAL:
+            case UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES:
+            case UI_BUNDLE_LOADING_STATE_READY:
+                KAN_ASSERT_FORMATTED (false,
+                                      "Bundle \"%s\" in state %u received main resource loaded event, which is totally "
+                                      "unexpected in this state.",
+                                      public->bundle_name, (unsigned int) private->state)
+                break;
+
+            case UI_BUNDLE_LOADING_STATE_WAITING_MAIN:
+                advance_bundle_from_waiting_main_state (state, resource_provider, public, private);
+                break;
+            }
+        }
+    }
+
+    KAN_UML_EVENT_FETCH (pass_updated_event, kan_render_foundation_pass_updated_event_t)
+    {
+        if (private->state_frame_id != resource_provider->logic_deduplication_frame_id &&
+            // Bundle coherence is not broken by separate pass reloading,
+            // therefore we just check if we need to advance just in case.
+            private->state == UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES)
+        {
+            advance_bundle_from_waiting_resources_state (state, resource_provider, public, private);
+        }
+    }
+
+    KAN_UML_EVENT_FETCH (material_instance_updated_event, kan_render_material_instance_updated_event_t)
+    {
+        if (private->state_frame_id != resource_provider->logic_deduplication_frame_id &&
+            // Bundle coherence is not broken by separate material instance reloading,
+            // therefore we just check if we need to advance just in case.
+            private->state == UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES)
+        {
+            advance_bundle_from_waiting_resources_state (state, resource_provider, public, private);
+        }
+    }
+
+    KAN_UML_EVENT_FETCH (atlas_updated_event, kan_render_atlas_updated_event_t)
+    {
+        if (private->state_frame_id != resource_provider->logic_deduplication_frame_id &&
+            // Bundle coherence is not broken by separate atlas reloading,
+            // therefore we just check if we need to advance just in case.
+            private->state == UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES)
+        {
+            advance_bundle_from_waiting_resources_state (state, resource_provider, public, private);
+        }
+    }
+}
+
 void kan_ui_singleton_init (struct kan_ui_singleton_t *instance)
 {
     instance->node_id_counter = kan_atomic_int_init (1);
@@ -3254,7 +3571,7 @@ void kan_ui_singleton_init (struct kan_ui_singleton_t *instance)
     instance->animation_global_time_s = 0.0f;
     instance->animation_delta_time_s = 0.0f;
     instance->animation_global_time_loop_s = 24.0f * 60.0f * 60.0f;
-    instance->last_time_ns = KAN_INT_MAX (kan_time_size_t);
+    instance->last_time_ns = KAN_INT_MAX (kan_stable_size_t);
 }
 
 void kan_ui_bundle_singleton_init (struct kan_ui_bundle_singleton_t *instance)
@@ -3276,6 +3593,9 @@ void kan_ui_node_init (struct kan_ui_node_t *instance)
     instance->parent_id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     instance->event_on_laid_out = false;
 
+    instance->order.layer = KAN_UI_RENDER_LAYER_INHERIT;
+    instance->order.local = 0;
+
     instance->element.width_flags = KAN_UI_SIZE_FLAG_NONE;
     instance->element.height_flags = KAN_UI_SIZE_FLAG_NONE;
 
@@ -3289,14 +3609,15 @@ void kan_ui_node_init (struct kan_ui_node_t *instance)
     instance->element.frame_offset_x = KAN_UI_VALUE_PT (0.0f);
     instance->element.frame_offset_y = KAN_UI_VALUE_PT (0.0f);
 
-    instance->local_element_order = 0;
-
     instance->layout.layout = KAN_UI_LAYOUT_FRAME;
     instance->layout.padding = KAN_UI_RECT_PT (0.0f, 0.0f, 0.0f, 0.0f);
 
-    instance->render.clip = false;
     instance->render.scroll_x = KAN_UI_VALUE_PX (0.0f);
     instance->render.scroll_y = KAN_UI_VALUE_PX (0.0f);
+    instance->render.clip = false;
+    instance->render.hidden = false;
+    instance->render.hide_children = false;
+    instance->render.viewport_bound = false;
 }
 
 void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
@@ -3304,8 +3625,9 @@ void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
     instance->id = KAN_TYPED_ID_32_SET_INVALID (kan_ui_node_id_t);
     instance->draw_index = 0u;
 
-    instance->fully_clipped_out = false;
-    instance->hidden = false;
+    instance->hidden_permanently = false;
+    instance->hidden_temporary = false;
+    instance->draw_layer = KAN_UI_RENDER_LAYER_INHERIT;
 
     instance->clip_rect.x = 0;
     instance->clip_rect.y = 0;
@@ -3335,6 +3657,12 @@ void kan_ui_node_drawable_init (struct kan_ui_node_drawable_t *instance)
     instance->cached.compound_margin_right = 0;
     instance->cached.compound_margin_top = 0;
     instance->cached.compound_margin_bottom = 0;
+    instance->cached.parent_clip_rect.x = 0;
+    instance->cached.parent_clip_rect.y = 0;
+    instance->cached.parent_clip_rect.width = 0;
+    instance->cached.parent_clip_rect.height = 0;
+    instance->cached.hidden_by_parent = false;
+    instance->cached.parent_layer = KAN_UI_RENDER_LAYER_INHERIT;
 
     instance->temporary_data = NULL;
     instance->layout_dirt_level = KAN_UI_LAYOUT_DIRT_LEVEL_NONE;

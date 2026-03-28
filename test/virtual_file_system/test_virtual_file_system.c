@@ -31,7 +31,7 @@ static bool read_text_file (kan_virtual_file_system_volume_t volume, const char 
     }
 
     KAN_TEST_ASSERT (stream->operations->seek (stream, KAN_STREAM_SEEK_END, 0))
-    const kan_file_size_t file_length = stream->operations->tell (stream);
+    const kan_stable_size_t file_length = stream->operations->tell (stream);
     KAN_TEST_ASSERT (file_length > 0u)
     KAN_TEST_ASSERT (stream->operations->seek (stream, KAN_STREAM_SEEK_START, 0))
 
@@ -171,7 +171,7 @@ KAN_TEST_CASE (query_status)
     KAN_TEST_CHECK (status.type == KAN_VIRTUAL_FILE_SYSTEM_ENTRY_TYPE_FILE)
     KAN_TEST_CHECK (status.size == 13u)
     KAN_TEST_CHECK (!status.read_only)
-    kan_time_size_t test1_last_modification_time_ns = status.last_modification_time_ns;
+    kan_stable_size_t test1_last_modification_time_ns = status.last_modification_time_ns;
 
     KAN_TEST_CHECK (kan_virtual_file_system_query_entry (volume, "test/mounted/file2.txt", &status))
     KAN_TEST_CHECK (status.type == KAN_VIRTUAL_FILE_SYSTEM_ENTRY_TYPE_FILE)

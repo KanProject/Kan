@@ -176,36 +176,12 @@
       }
     },
     {
-      "name": "gcc_x32",
-      "description": "Mixin that enforces x32 compilation on linux using gcc.",
-      "hidden": true,
-      "cacheVariables": {
-        "KAN_CORE_TYPES_PRESET": "x32",
-        "CMAKE_C_FLAGS": "-m32",
-        "CMAKE_CXX_FLAGS": "-m32"
-      }
-    },
-    {
       "name": "debug_linux_gcc",
       "inherits": [
         "debug",
         "ninja_gcc"
       ],
       "description": "Full configuration for debug build on linux using gcc.",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      }
-    },
-    {
-      "name": "debug_linux_gcc_x32",
-      "description": "Full configuration for debug build on linux using gcc in x32 mode.",
-      "inherits": [
-        "debug",
-        "ninja_gcc",
-        "gcc_x32"
-      ],
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -299,20 +275,6 @@
       "inherits": [
         "release",
         "ninja_gcc"
-      ],
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      }
-    },
-    {
-      "name": "release_linux_gcc_x32",
-      "description": "Full configuration for release build on linux using gcc in x32 mode.",
-      "inherits": [
-        "release",
-        "ninja_gcc",
-        "gcc_x32"
       ],
       "condition": {
         "type": "equals",

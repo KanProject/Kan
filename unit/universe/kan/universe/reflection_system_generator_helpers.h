@@ -148,7 +148,7 @@ KAN_C_HEADER_BEGIN
     CUSHION_DEFER { kan_free_general (ALLOCATION_GROUP, ARRAY_NAME, sizeof (void *) * COUNT); }                        \
                                                                                                                        \
     NODE_TYPE *node = FIRST_NODE;                                                                                      \
-    kan_loop_size_t output_index = 0u;                                                                                 \
+    kan_memory_size_t output_index = 0u;                                                                               \
                                                                                                                        \
     while (node)                                                                                                       \
     {                                                                                                                  \
@@ -159,7 +159,7 @@ KAN_C_HEADER_BEGIN
 
 /// \brief Helper for reflection generators that reorders nodes using given array.
 #define KAN_UNIVERSE_REFLECTION_GENERATOR_NODE_REORDER_FROM_ARRAY(ARRAY_NAME, COUNT)                                   \
-    for (kan_loop_size_t node_index = 0u; node_index < COUNT; ++node_index)                                            \
+    for (kan_memory_size_t node_index = 0u; node_index < COUNT; ++node_index)                                          \
     {                                                                                                                  \
         if (node_index + 1u < COUNT)                                                                                   \
         {                                                                                                              \
@@ -179,7 +179,7 @@ KAN_C_HEADER_BEGIN
     (OUTPUT).alignment = alignof (struct BASE_TYPE_NAME);                                                              \
     (OUTPUT).size = sizeof (struct BASE_TYPE_NAME) + sizeof (struct GENERATED_NODE_TYPE_NAME) * GENERATED_NODE_COUNT;  \
                                                                                                                        \
-    (OUTPUT).functor_user_data = (kan_functor_user_data_t) USER_DATA;                                                  \
+    (OUTPUT).functor_user_data = (kan_memory_size_t) USER_DATA;                                                        \
     (OUTPUT).init = INIT;                                                                                              \
     (OUTPUT).shutdown = SHUTDOWN;                                                                                      \
                                                                                                                        \
@@ -293,13 +293,13 @@ KAN_C_HEADER_BEGIN
 /// \param STATE_FIELD Field inside trailing sub-state using for comparison.
 /// \param SEARCH_VARIABLE Variable with value for search.
 #define KAN_UNIVERSE_REFLECTION_GENERATOR_FIND_GENERATED_STATE(STATE_TYPE, STATE_FIELD, SEARCH_VARIABLE)               \
-    kan_loop_size_t left = 0u;                                                                                         \
-    kan_loop_size_t right = state->trailing_data_count;                                                                \
+    kan_memory_size_t left = 0u;                                                                                       \
+    kan_memory_size_t right = state->trailing_data_count;                                                              \
     STATE_TYPE *types = (STATE_TYPE *) state->trailing_data;                                                           \
                                                                                                                        \
     while (left < right)                                                                                               \
     {                                                                                                                  \
-        kan_loop_size_t middle = (left + right) / 2u;                                                                  \
+        kan_memory_size_t middle = (left + right) / 2u;                                                                \
         if (SEARCH_VARIABLE < types[middle].STATE_FIELD)                                                               \
         {                                                                                                              \
             right = middle;                                                                                            \

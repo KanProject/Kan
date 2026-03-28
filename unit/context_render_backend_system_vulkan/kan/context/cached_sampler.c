@@ -79,13 +79,13 @@ VkSampler render_backend_resolve_cached_sampler (struct render_backend_system_t 
     static_assert (KAN_RENDER_MIP_MAP_MODE_COUNT <= 2u, "Mip map mode takes one bit of hash.");
     static_assert (KAN_RENDER_ADDRESS_MODE_COUNT <= 8u, "Address mode takes 3 bits of hash.");
     static_assert (KAN_RENDER_COMPARE_OPERATION_COUNT <= 8u, "Depth compare operation takes 3 bits of hash.");
-    static_assert (sizeof (kan_loop_size_t) * 8u >= 32u, "Loop size can contain 32 or more bits.");
+    static_assert (sizeof (kan_memory_size_t) * 8u >= 32u, "Memory size can contain 32 or more bits.");
 
-    const kan_loop_size_t packed_description = sampler->mag_filter | (sampler->min_filter << 1u) |
-                                               (sampler->mip_map_mode << 2u) | (sampler->address_mode_u << 3u) |
-                                               (sampler->address_mode_v << 6u) | (sampler->address_mode_w << 9u) |
-                                               (sampler->depth_compare_enabled << 12u) |
-                                               (sampler->anisotropy_enabled << 13u) | (sampler->depth_compare << 14u);
+    const kan_memory_size_t packed_description = sampler->mag_filter | (sampler->min_filter << 1u) |
+                                                 (sampler->mip_map_mode << 2u) | (sampler->address_mode_u << 3u) |
+                                                 (sampler->address_mode_v << 6u) | (sampler->address_mode_w << 9u) |
+                                                 (sampler->depth_compare_enabled << 12u) |
+                                                 (sampler->anisotropy_enabled << 13u) | (sampler->depth_compare << 14u);
     // We do not pack max anisotropy here.
 
     while (cached)

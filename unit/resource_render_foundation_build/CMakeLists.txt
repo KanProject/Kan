@@ -6,7 +6,7 @@ concrete_require (SCOPE PUBLIC CONCRETE_INTERFACE resource_render_foundation)
 concrete_require (
         SCOPE PRIVATE 
         ABSTRACT error file_system image log 
-        CONCRETE_INTERFACE inline_math resource_pipeline
+        CONCRETE_INTERFACE math resource_pipeline
         THIRD_PARTY qsort)
 setup_reflected_preprocessing ()
 

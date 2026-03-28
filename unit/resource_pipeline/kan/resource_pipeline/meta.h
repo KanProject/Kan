@@ -7,6 +7,7 @@
 #include <kan/container/interned_string.h>
 #include <kan/hash/hash.h>
 #include <kan/reflection/markup.h>
+#include <kan/reflection/registry.h>
 #include <kan/stream/stream.h>
 
 /// \file
@@ -23,7 +24,14 @@
 /// has the same name as primary input resource. Resource references from primary input will be considered secondary
 /// inputs and loaded if their types are listed in `kan_resource_build_rule_t::secondary_types`. Third party resource
 /// references are always considered secondary inputs. Build rule can also produce secondary outputs of any resource
-/// type through `kan_resource_build_rule_context_t::produce_secondary_output` function.
+/// type through `kan_resource_build_rule_context_t::produce_native_secondary_output` function. Third party byproducts,
+/// for example png's exported from drawing applications, can also be registered as third party secondary resources
+/// through `kan_resource_build_rule_context_t::produce_third_party_secondary_output.
+///
+/// There can be several build rules to build one resource type or resource type that can be used as raw resource can
+/// also be built by built rules -- having build rules does not mean that resource cannot be stored in raw format.
+/// That is useful for cases like image import -- atlases could be constructed from plain pngs and described directly or
+/// could be built from editor-specific files through special adapter resource.
 ///
 /// Special kind of rules -- import-rules -- are used exclusively for parsing third party files as they treat third
 /// party resource file as their primary input. It is used as a neat trick to avoid parsing one third party resource
@@ -49,7 +57,7 @@ enum kan_resource_type_flags_t
 ///
 ///          For resources where it is crucial to avoid excessive rebuilds due to time constraints,
 ///          conservative method with version-enum is advised.
-typedef kan_time_size_t kan_resource_version_t;
+typedef kan_stable_size_t kan_resource_version_t;
 
 /// \brief Declares signature for move function. Used for secondary production.
 /// \details When NULL, `kan_reflection_move_struct` will be used instead.
@@ -136,11 +144,17 @@ struct kan_resource_build_rule_secondary_node_t
 
 KAN_HANDLE_DEFINE (kan_resource_build_rule_interface_t);
 
-/// \brief Declares signature for secondary output production and registration. Returns registered name.
+/// \brief Declares signature for native secondary output production and registration.
 /// \details Returns given whether production was successfully registered. `data` is allowed to point to stack as move
 ///          and reset functors from `kan_resource_type_meta_t` are used according to that meta docs.
-typedef bool (*kan_resource_build_rule_produce_secondary_output_functor_t) (
+typedef bool (*kan_resource_build_rule_produce_native_secondary_output_functor_t) (
     kan_resource_build_rule_interface_t interface, kan_interned_string_t type, kan_interned_string_t name, void *data);
+
+/// \brief Declares signature for third party secondary output production and registration.
+/// \details Returns given whether production was successfully registered.
+///          Returns name of the resource through output variable.
+typedef bool (*kan_resource_build_rule_produce_third_party_secondary_output_functor_t) (
+    kan_resource_build_rule_interface_t interface, const char *path, kan_interned_string_t *name_output);
 
 /// \brief Context that is provided to build rule execution functor.
 struct kan_resource_build_rule_context_t
@@ -168,14 +182,24 @@ struct kan_resource_build_rule_context_t
     const void *platform_configuration;
 
     /// \brief Path to a temporary directory that could be used for temporary outputs from third party tools.
-    /// \details Deleted after build execution.
+    /// \details Deleted after build execution. To preserve outputs as third party resources, produce them as secondary
+    ///          resources using `produce_third_party_secondary_output`.
     const char *temporary_workspace;
 
     /// \brief Opaque interface data that is used to pass information to additional capability functors.
     kan_resource_build_rule_interface_t interface;
 
-    /// \brief Functor that is used to produce secondary outputs.
-    kan_resource_build_rule_produce_secondary_output_functor_t produce_secondary_output;
+    /// \brief Functor that is used to produce native secondary outputs.
+    kan_resource_build_rule_produce_native_secondary_output_functor_t produce_native_secondary_output;
+
+    /// \brief Functor that is used to produce third party secondary outputs.
+    kan_resource_build_rule_produce_third_party_secondary_output_functor_t produce_third_party_secondary_output;
+
+    /// \brief Reflection registry that is being used by build tool.
+    /// \details In some cases, import build rules need to run third party tool with separate import scripts, that will
+    ///          produce some kind of an output readable data file that describes imported data. Then this file needs to
+    ///          be loaded and post processed by build rule logic, and registry is needed for loading.
+    kan_reflection_registry_t reflection_registry;
 };
 
 /// \brief Functor for build rule implementation logic.

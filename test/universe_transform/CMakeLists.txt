@@ -15,8 +15,8 @@ shared_library_include (
         cpu_dispatch=kan cpu_profiler=default error=sdl hash=djb2 log=kan memory=kan memory_profiler=default
         platform=sdl precise_time=sdl reflection=kan repository=kan threading=sdl workflow=kan
         CONCRETE
-        container context context_reflection_system context_update_system inline_math testing test_universe_transform
-        universe universe_object universe_trivial_scheduler universe_transform)
+        container context context_reflection_system context_update_system math testing test_universe_transform universe
+        universe_object universe_trivial_scheduler universe_transform)
 
 generate_artefact_context_data ()
 generate_artefact_reflection_data ()

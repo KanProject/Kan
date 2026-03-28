@@ -24,12 +24,12 @@ bool kan_resource_render_code_platform_configuration_is_pass_supported (
     const struct kan_resource_render_code_platform_configuration_t *instance,
     const struct kan_resource_render_pass_header_t *pass)
 {
-    for (kan_loop_size_t required_index = 0u; required_index < pass->required_tags.size; ++required_index)
+    for (kan_memory_size_t required_index = 0u; required_index < pass->required_tags.size; ++required_index)
     {
         bool is_supported = false;
         kan_interned_string_t required = ((kan_interned_string_t *) pass->required_tags.data)[required_index];
 
-        for (kan_loop_size_t supported_index = 0u; supported_index < instance->supported_pass_tags.size;
+        for (kan_memory_size_t supported_index = 0u; supported_index < instance->supported_pass_tags.size;
              ++supported_index)
         {
             kan_interned_string_t supported =
@@ -133,13 +133,13 @@ void kan_resource_rpl_options_append (struct kan_resource_rpl_options_t *instanc
     kan_dynamic_array_set_capacity (&instance->enums, instance->enums.size + override->enums.size);
 
 #define APPEND_OPTIONS_OF_TYPE(TYPE)                                                                                   \
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) override->TYPE##s.size; ++index)                        \
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) override->TYPE##s.size; ++index)                    \
     {                                                                                                                  \
         const struct kan_resource_rpl_##TYPE##_option_t *input =                                                       \
             &((struct kan_resource_rpl_##TYPE##_option_t *) override->TYPE##s.data)[index];                            \
         struct kan_resource_rpl_##TYPE##_option_t *output = NULL;                                                      \
                                                                                                                        \
-        for (kan_loop_size_t target_index = 0u; target_index < (kan_loop_size_t) instance->TYPE##s.size;               \
+        for (kan_memory_size_t target_index = 0u; target_index < (kan_memory_size_t) instance->TYPE##s.size;           \
              ++target_index)                                                                                           \
         {                                                                                                              \
             struct kan_resource_rpl_##TYPE##_option_t *other =                                                         \
@@ -177,7 +177,7 @@ bool kan_resource_rpl_options_apply (const struct kan_resource_rpl_options_t *op
                                      kan_rpl_compiler_context_t compiler_context,
                                      enum kan_rpl_option_target_scope_t target_scope)
 {
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) options->flags.size; ++index)
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) options->flags.size; ++index)
     {
         struct kan_resource_rpl_flag_option_t *option =
             &((struct kan_resource_rpl_flag_option_t *) options->flags.data)[index];
@@ -188,7 +188,7 @@ bool kan_resource_rpl_options_apply (const struct kan_resource_rpl_options_t *op
         }
     }
 
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) options->uints.size; ++index)
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) options->uints.size; ++index)
     {
         struct kan_resource_rpl_uint_option_t *option =
             &((struct kan_resource_rpl_uint_option_t *) options->uints.data)[index];
@@ -199,7 +199,7 @@ bool kan_resource_rpl_options_apply (const struct kan_resource_rpl_options_t *op
         }
     }
 
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) options->sints.size; ++index)
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) options->sints.size; ++index)
     {
         struct kan_resource_rpl_sint_option_t *option =
             &((struct kan_resource_rpl_sint_option_t *) options->sints.data)[index];
@@ -210,7 +210,7 @@ bool kan_resource_rpl_options_apply (const struct kan_resource_rpl_options_t *op
         }
     }
 
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) options->floats.size; ++index)
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) options->floats.size; ++index)
     {
         struct kan_resource_rpl_float_option_t *option =
             &((struct kan_resource_rpl_float_option_t *) options->floats.data)[index];
@@ -221,7 +221,7 @@ bool kan_resource_rpl_options_apply (const struct kan_resource_rpl_options_t *op
         }
     }
 
-    for (kan_loop_size_t index = 0u; index < (kan_loop_size_t) options->enums.size; ++index)
+    for (kan_memory_size_t index = 0u; index < (kan_memory_size_t) options->enums.size; ++index)
     {
         struct kan_resource_rpl_enum_option_t *option =
             &((struct kan_resource_rpl_enum_option_t *) options->enums.data)[index];
@@ -332,7 +332,7 @@ static enum kan_resource_build_rule_result_t rpl_source_build (struct kan_resour
 
     // Currently, RPL parser expects full strings, not streams, therefore we read file as a whole first.
 
-    kan_file_size_t file_size = 0u;
+    kan_stable_size_t file_size = 0u;
     const bool read_file_size = input_stream->operations->seek (input_stream, KAN_STREAM_SEEK_END, 0) &&
                                 (file_size = input_stream->operations->tell (input_stream),
                                  input_stream->operations->seek (input_stream, KAN_STREAM_SEEK_START, 0));

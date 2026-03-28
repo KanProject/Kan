@@ -192,7 +192,7 @@ static void fill_test_map (struct map_t *map, kan_reflection_registry_t registry
     map->name = kan_string_intern ("HelloWorldMap");
     kan_dynamic_array_set_capacity (&map->objects, TEST_MAP_OBJECTS);
 
-    for (kan_loop_size_t index = 0u; index < TEST_MAP_OBJECTS; ++index)
+    for (kan_memory_size_t index = 0u; index < TEST_MAP_OBJECTS; ++index)
     {
         struct map_object_t *object = kan_dynamic_array_add_last (&map->objects);
         KAN_TEST_ASSERT (object)
@@ -388,7 +388,7 @@ static void check_map_equality (struct map_t *source_map, struct map_t *deserial
     KAN_TEST_CHECK (source_map->objects.size == deserialized_map->objects.size)
     const kan_instance_size_t objects_to_check = KAN_MIN (source_map->objects.size, deserialized_map->objects.size);
 
-    for (kan_loop_size_t index = 0u; index < objects_to_check; ++index)
+    for (kan_memory_size_t index = 0u; index < objects_to_check; ++index)
     {
         struct map_object_t *source_object = ((struct map_object_t *) source_map->objects.data) + index;
         struct map_object_t *deserialized_object = ((struct map_object_t *) deserialized_map->objects.data) + index;
@@ -412,7 +412,7 @@ static void check_map_equality (struct map_t *source_map, struct map_t *deserial
         const kan_instance_size_t components_to_check =
             KAN_MIN (source_object->components.size, deserialized_object->components.size);
 
-        for (kan_loop_size_t component_index = 0u; component_index < components_to_check; ++component_index)
+        for (kan_memory_size_t component_index = 0u; component_index < components_to_check; ++component_index)
         {
             kan_reflection_patch_t source_component =
                 ((kan_reflection_patch_t *) source_object->components.data)[component_index];
@@ -469,7 +469,7 @@ static void check_map_equality (struct map_t *source_map, struct map_t *deserial
                 KAN_TEST_CHECK (source_component_data.id == deserialized_component_data.id)
                 KAN_TEST_CHECK (source_component_data.passes.size == deserialized_component_data.passes.size)
 
-                for (kan_loop_size_t pass_index = 0u;
+                for (kan_memory_size_t pass_index = 0u;
                      pass_index < KAN_MIN (source_component_data.passes.size, deserialized_component_data.passes.size);
                      ++pass_index)
                 {
@@ -482,7 +482,7 @@ static void check_map_equality (struct map_t *source_map, struct map_t *deserial
                     KAN_TEST_CHECK (source_pass->tags.size == deserialized_pass->tags.size)
                     KAN_TEST_CHECK (source_pass->inner_data.size == deserialized_pass->inner_data.size)
 
-                    for (kan_loop_size_t tag_index = 0u;
+                    for (kan_memory_size_t tag_index = 0u;
                          tag_index < KAN_MIN (source_pass->tags.size, deserialized_pass->tags.size); ++tag_index)
                     {
                         kan_interned_string_t source_tag =
@@ -492,7 +492,7 @@ static void check_map_equality (struct map_t *source_map, struct map_t *deserial
                         KAN_TEST_CHECK (source_tag == deserialized_tag)
                     }
 
-                    for (kan_loop_size_t inner_data_index = 0u;
+                    for (kan_memory_size_t inner_data_index = 0u;
                          inner_data_index < KAN_MIN (source_pass->inner_data.size, deserialized_pass->inner_data.size);
                          ++inner_data_index)
                     {

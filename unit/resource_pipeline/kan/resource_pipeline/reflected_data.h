@@ -28,6 +28,25 @@ KAN_C_HEADER_BEGIN
 /// \brief Returns allocation group that is used for allocating everything connected to resource reflection data.
 RESOURCE_PIPELINE_API kan_allocation_group_t kan_resource_reflected_data_get_allocation_group (void);
 
+/// \brief Contains information about particular build rule that can be used to produce some resource type.
+struct kan_resource_reflected_data_build_rule_t
+{
+    kan_interned_string_t primary_input_type;
+    kan_interned_string_t platform_configuration_type;
+
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (kan_interned_string_t)
+    struct kan_dynamic_array_t secondary_types;
+
+    kan_resource_build_rule_functor_t functor;
+    kan_resource_version_t version;
+};
+
+RESOURCE_PIPELINE_API void kan_resource_reflected_data_build_rule_init (
+    struct kan_resource_reflected_data_build_rule_t *instance);
+
+RESOURCE_PIPELINE_API void kan_resource_reflected_data_build_rule_shutdown (
+    struct kan_resource_reflected_data_build_rule_t *instance);
+
 /// \brief Hash storage node that contains reflection information about particular resource type.
 struct kan_resource_reflected_data_resource_type_t
 {
@@ -40,15 +59,8 @@ struct kan_resource_reflected_data_resource_type_t
     /// \brief Resource type meta is preserved as pointer because there is nothing to intern or cache here.
     const struct kan_resource_type_meta_t *resource_type_meta;
 
-    bool produced_from_build_rule;
-    kan_interned_string_t build_rule_primary_input_type;
-    kan_interned_string_t build_rule_platform_configuration_type;
-
-    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (kan_interned_string_t)
-    struct kan_dynamic_array_t build_rule_secondary_types;
-
-    kan_resource_build_rule_functor_t build_rule_functor;
-    kan_resource_version_t build_rule_version;
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_reflected_data_build_rule_t)
+    struct kan_dynamic_array_t produced_from;
 };
 
 RESOURCE_PIPELINE_API void kan_resource_reflected_data_resource_type_init (

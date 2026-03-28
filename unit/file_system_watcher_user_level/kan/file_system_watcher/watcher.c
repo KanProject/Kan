@@ -24,8 +24,8 @@ struct file_node_t
     struct file_node_t *next;
     kan_interned_string_t name;
     kan_interned_string_t extension;
-    kan_time_size_t last_modification_time_ns;
-    kan_file_size_t size;
+    kan_stable_size_t last_modification_time_ns;
+    kan_stable_size_t size;
     bool mark_found;
 };
 

@@ -19,6 +19,7 @@ struct text_palette_entry
     f4 cos_anim_color;
     f4 color_hovered;
     f4 color_down;
+    f4 color_disabled;
     u1 color_table_multiplier_index;
 };
 
@@ -49,6 +50,11 @@ f4 calculate_text_color (in u1 mark, in u1 read_index, in u1 ui_mark)
     if ((ui_mark & ui_mark_default_flag_down) != 0u)
     {
         color = text_palette.color_down;
+    }
+    
+    if ((ui_mark & ui_mark_default_flag_disabled) != 0u)
+    {
+        color = text_palette.color_disabled;
     }
     
     if ((mark & text_cos_anim_flag) != 0u)

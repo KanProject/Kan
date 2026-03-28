@@ -412,7 +412,7 @@ struct check_manual_event_from_task_user_data_t
     struct manual_event_t data;
 };
 
-static void check_manual_event_from_task_executor (kan_functor_user_data_t user_data_int)
+static void check_manual_event_from_task_executor (kan_memory_size_t user_data_int)
 {
     struct check_manual_event_from_task_user_data_t *user_data =
         (struct check_manual_event_from_task_user_data_t *) user_data_int;
@@ -1169,7 +1169,7 @@ KAN_TEST_CASE (indexed_sequence_operations)
     {
         struct kan_repository_indexed_sequence_update_cursor_t cursor =
             kan_repository_indexed_sequence_update_query_execute (&update_child);
-        kan_loop_size_t objects_found = 0u;
+        kan_memory_size_t objects_found = 0u;
 
         while (true)
         {
@@ -1210,7 +1210,7 @@ KAN_TEST_CASE (indexed_sequence_operations)
     {
         struct kan_repository_indexed_sequence_delete_cursor_t cursor =
             kan_repository_indexed_sequence_delete_query_execute (&delete_child);
-        kan_loop_size_t objects_found = 0u;
+        kan_memory_size_t objects_found = 0u;
 
         while (true)
         {
@@ -1250,7 +1250,7 @@ KAN_TEST_CASE (indexed_sequence_operations)
     {
         struct kan_repository_indexed_sequence_write_cursor_t cursor =
             kan_repository_indexed_sequence_write_query_execute (&write_root);
-        kan_loop_size_t objects_found = 0u;
+        kan_memory_size_t objects_found = 0u;
 
         while (true)
         {
@@ -1474,7 +1474,7 @@ KAN_TEST_CASE (indexed_value_operations)
             kan_repository_indexed_value_write_query_execute (&write_multi_component, &first_record_value.object_id);
 
         struct kan_repository_indexed_value_write_access_t accesses[3u];
-        for (kan_loop_size_t index = 0u; index < 3u; ++index)
+        for (kan_memory_size_t index = 0u; index < 3u; ++index)
         {
             accesses[index] = kan_repository_indexed_value_write_cursor_next (&cursor);
         }
@@ -1488,7 +1488,7 @@ KAN_TEST_CASE (indexed_value_operations)
         uint8_t found_12u = 0u;
         uint8_t found_13u = 0u;
 
-        for (kan_loop_size_t index = 0u; index < 3u; ++index)
+        for (kan_memory_size_t index = 0u; index < 3u; ++index)
         {
             struct multi_component_record_t *record =
                 (struct multi_component_record_t *) kan_repository_indexed_value_write_access_resolve (
@@ -1529,7 +1529,7 @@ KAN_TEST_CASE (indexed_value_operations)
             kan_repository_indexed_value_write_query_execute (&write_multi_component, &first_record_value.object_id);
 
         struct kan_repository_indexed_value_write_access_t accesses[2u];
-        for (kan_loop_size_t index = 0u; index < 2u; ++index)
+        for (kan_memory_size_t index = 0u; index < 2u; ++index)
         {
             accesses[index] = kan_repository_indexed_value_write_cursor_next (&cursor);
         }
@@ -1542,7 +1542,7 @@ KAN_TEST_CASE (indexed_value_operations)
         uint8_t found_42u = 0u;
         uint8_t found_13u = 0u;
 
-        for (kan_loop_size_t index = 0u; index < 2u; ++index)
+        for (kan_memory_size_t index = 0u; index < 2u; ++index)
         {
             struct multi_component_record_t *record =
                 (struct multi_component_record_t *) kan_repository_indexed_value_write_access_resolve (
@@ -1988,7 +1988,7 @@ KAN_TEST_CASE (indexed_signal_operations)
         struct status_record_t *record =
             (struct status_record_t *) kan_repository_indexed_signal_read_access_resolve (&access);
 
-        kan_loop_size_t records_found = 0u;
+        kan_memory_size_t records_found = 0u;
         bool one_found = false;
         bool two_found = false;
 
@@ -2054,7 +2054,7 @@ KAN_TEST_CASE (indexed_signal_operations)
         struct status_record_t *record =
             (struct status_record_t *) kan_repository_indexed_signal_delete_access_resolve (&access);
 
-        kan_loop_size_t records_found = 0u;
+        kan_memory_size_t records_found = 0u;
         bool two_found = false;
         bool three_found = false;
 
@@ -2097,7 +2097,7 @@ KAN_TEST_CASE (indexed_signal_operations)
         struct status_record_t *record =
             (struct status_record_t *) kan_repository_indexed_signal_write_access_resolve (&access);
 
-        kan_loop_size_t records_found = 0u;
+        kan_memory_size_t records_found = 0u;
         bool one_found = false;
         bool four_found = false;
 
@@ -2202,7 +2202,7 @@ KAN_TEST_CASE (interval_operations)
 
     kan_repository_enter_serving_mode (root_repository);
 
-    for (kan_loop_size_t index = 0u; index < 100u; ++index)
+    for (kan_instance_size_t index = 0u; index < 100u; ++index)
     {
         insert_object_record (
             &insert_child,
@@ -2215,7 +2215,7 @@ KAN_TEST_CASE (interval_operations)
         struct kan_repository_indexed_interval_ascending_read_cursor_t read_all_cursor =
             kan_repository_indexed_interval_read_query_execute_ascending (&read_x_root, NULL, NULL);
 
-        for (kan_loop_size_t index = 0u; index < 100u; ++index)
+        for (kan_instance_size_t index = 0u; index < 100u; ++index)
         {
             struct kan_repository_indexed_interval_read_access_t access =
                 kan_repository_indexed_interval_ascending_read_cursor_next (&read_all_cursor);
@@ -2238,7 +2238,7 @@ KAN_TEST_CASE (interval_operations)
         struct kan_repository_indexed_interval_descending_read_cursor_t read_all_cursor =
             kan_repository_indexed_interval_read_query_execute_descending (&read_x_root, NULL, NULL);
 
-        for (kan_loop_size_t index = 0u; index < 100u; ++index)
+        for (kan_memory_size_t index = 0u; index < 100u; ++index)
         {
             struct kan_repository_indexed_interval_read_access_t access =
                 kan_repository_indexed_interval_descending_read_cursor_next (&read_all_cursor);
@@ -2265,7 +2265,7 @@ KAN_TEST_CASE (interval_operations)
             kan_repository_indexed_interval_read_query_execute_ascending (&read_x_root, &including_start,
                                                                           &including_end);
 
-        for (kan_loop_size_t index = including_start; index <= including_end; ++index)
+        for (kan_memory_size_t index = including_start; index <= including_end; ++index)
         {
             struct kan_repository_indexed_interval_read_access_t access =
                 kan_repository_indexed_interval_ascending_read_cursor_next (&read_cursor);
@@ -2289,7 +2289,7 @@ KAN_TEST_CASE (interval_operations)
         struct kan_repository_indexed_interval_descending_update_cursor_t update_cursor =
             kan_repository_indexed_interval_update_query_execute_descending (&update_x_child, &including_start, NULL);
 
-        for (kan_loop_size_t index = including_start; index < 100u; ++index)
+        for (kan_memory_size_t index = including_start; index < 100u; ++index)
         {
             struct kan_repository_indexed_interval_update_access_t access =
                 kan_repository_indexed_interval_descending_update_cursor_next (&update_cursor);
@@ -2316,7 +2316,7 @@ KAN_TEST_CASE (interval_operations)
             kan_repository_indexed_interval_read_query_execute_ascending (&read_x_root, &including_start,
                                                                           &including_end);
 
-        for (kan_loop_size_t index = including_start; index <= including_end; ++index)
+        for (kan_memory_size_t index = including_start; index <= including_end; ++index)
         {
             struct kan_repository_indexed_interval_read_access_t access =
                 kan_repository_indexed_interval_ascending_read_cursor_next (&read_cursor);

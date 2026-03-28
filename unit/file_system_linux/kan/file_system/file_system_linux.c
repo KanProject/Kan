@@ -66,7 +66,7 @@ bool kan_file_system_query_entry (const char *path, struct kan_file_system_entry
 
     status->size = unix_status.st_size;
     status->last_modification_time_ns =
-        ((kan_time_size_t) unix_status.st_mtim.tv_sec) * 1000000000u + unix_status.st_mtim.tv_nsec;
+        ((kan_stable_size_t) unix_status.st_mtim.tv_sec) * 1000000000u + unix_status.st_mtim.tv_nsec;
 
     status->read_only = unix_status.st_mode & S_IRUSR ? false : true;
     return true;

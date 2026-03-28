@@ -5,7 +5,7 @@
 #include <kan/api_common/core_types.h>
 #include <kan/container/interned_string.h>
 #include <kan/context/render_backend_system.h>
-#include <kan/inline_math/inline_math.h>
+#include <kan/math/inline.h>
 #include <kan/reflection/markup.h>
 
 /// \file
@@ -139,10 +139,10 @@ struct kan_text_item_icon_t
     uint32_t icon_index;
 
     /// \brief Icon item width is primary default `(ascender - descender) * x_scale`.
-    float x_scale;
+    kan_floating_t x_scale;
 
     /// \brief Icon item height is primary default `(ascender - descender) * y_scale`.
-    float y_scale;
+    kan_floating_t y_scale;
 };
 
 /// \brief Contains data for the text style item.
@@ -338,7 +338,7 @@ struct kan_font_library_category_t
     kan_interned_string_t style;
 
     kan_instance_size_t variable_axis_count;
-    float *variable_axis;
+    kan_floating_t *variable_axis;
 
     kan_memory_size_t data_size;
     const void *data;

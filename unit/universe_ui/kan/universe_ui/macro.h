@@ -97,12 +97,12 @@ struct kan_uim_parent_stack_info_t
 #define KAN_UIM_NEW_NODE_WITHOUT_ORDER(NAME)                                                                           \
     KAN_UMI_INDEXED_INSERT (NAME##_node, kan_ui_node_t)                                                                \
     NAME##_node->id = kan_next_ui_node_id (ui);                                                                        \
-    NAME##_node->parent_id = kan_uim_parent_stack_info.parent_node_id;
+    NAME##_node->parent_id = kan_uim_parent_stack_info.parent_node_id
 
 /// \brief Uses inplace insert to create new UI node, attach it to proper parent and assign next local element order.
 #define KAN_UIM_NEW_NODE(NAME)                                                                                         \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME);                                                                             \
-    NAME##_node->local_element_order = kan_uim_parent_stack_info.monotone_ascending_order;                             \
+    NAME##_node->order.local = kan_uim_parent_stack_info.monotone_ascending_order;                                     \
     ++kan_uim_parent_stack_info.monotone_ascending_order
 
 /// \brief Creates new drawable record attached to a node with given name.
@@ -153,6 +153,65 @@ struct kan_uim_parent_stack_info_t
     *(kan_ui_node_id_t *) kan_dynamic_array_add_last (&HIT_BOX_NAME##_hit_box->propagate_interaction_visuals) =        \
         TARGET_NAME##_node->id
 
+/// \brief Contains common creation logic for vertical content popup windows like drop downs or tooltips.
+#define KAN_UIM_POPUP_VERTICAL_WINDOW(NAME, BACKGROUND_IMAGE, WIDTH, LAYER)                                            \
+    KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME);                                                                             \
+    KAN_UIM_DRAWABLE_IMAGE (NAME, BACKGROUND_IMAGE);                                                                   \
+    KAN_UIM_HIT_BOX_BLOCKING (NAME);                                                                                   \
+                                                                                                                       \
+    NAME##_node->order.layer = (LAYER);                                                                                \
+    NAME##_node->element.width = (WIDTH);                                                                              \
+    NAME##_node->element.height_flags |= KAN_UI_SIZE_FLAG_FIT_CHILDREN;                                                \
+    NAME##_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_BELOW;                                         \
+    NAME##_node->layout.layout = KAN_UI_LAYOUT_VERTICAL_CONTAINER;                                                     \
+    NAME##_node->render.hidden = true;                                                                                 \
+    NAME##_node->render.clip = true;                                                                                   \
+    NAME##_node->render.viewport_bound = true
+
+/// \brief Builds simple text tooltip for the element with given name.
+/// \invariant Expects shaping unit with name `NAME##_tooltip_shaping_unit` to be created prior to this call,
+///            which will contain tooltip text.
+#define KAN_UIM_TEXT_TOOLTIP(NAME, BACKGROUND_IMAGE, WIDTH, FONT_SIZE, LAYER)                                          \
+    KAN_UIM_POPUP_VERTICAL_WINDOW (NAME##_tooltip, (BACKGROUND_IMAGE), (WIDTH), (LAYER));                              \
+    NAME##_tooltip_node->parent_id = NAME##_node->id;                                                                  \
+                                                                                                                       \
+    KAN_UMI_INDEXED_INSERT (NAME##_tooltip_behavior, kan_ui_node_popup_behavior_t)                                     \
+    NAME##_tooltip_behavior->id = NAME##_tooltip_node->id;                                                             \
+    NAME##_tooltip_behavior->trigger_id = NAME##_node->id;                                                             \
+    NAME##_tooltip_behavior->trigger_flags = KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_HOVER_TIMER;                      \
+    NAME##_tooltip_behavior->hide_flags = KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_TIMER |                                 \
+                                          KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_OUTSIDE_INTERACTION |                   \
+                                          KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_PRESERVE_WHILE_POINTED;                 \
+                                                                                                                       \
+    KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_tooltip_text);                                                              \
+    KAN_UIM_DRAWABLE (NAME##_tooltip_text);                                                                            \
+                                                                                                                       \
+    NAME##_tooltip_text_node->parent_id = NAME##_tooltip_node->id;                                                     \
+    NAME##_tooltip_text_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                             \
+                                                                                                                       \
+    NAME##_tooltip_text_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;                                   \
+    NAME##_tooltip_text_drawable->main_draw_command.text.shaping_unit = NAME##_tooltip_shaping_unit->id;               \
+    NAME##_tooltip_text_drawable->main_draw_command.text.handle_alignment_on_overflow = true;                          \
+                                                                                                                       \
+    KAN_UMI_INDEXED_INSERT (NAME##_tooltip_text_behavior, kan_ui_node_text_behavior_t)                                 \
+    NAME##_tooltip_text_behavior->id = NAME##_tooltip_text_node->id;                                                   \
+    NAME##_tooltip_text_behavior->shaping_unit_id = NAME##_tooltip_shaping_unit->id;                                   \
+    NAME##_tooltip_text_behavior->font_size = (FONT_SIZE);                                                             \
+    NAME##_tooltip_text_behavior->sync_text_limit_from_ui = true;                                                      \
+    NAME##_tooltip_text_behavior->sync_ui_size_from_text_secondary = true
+
+/// \brief Builds window that can be filled with user content and
+///        is logically attached to element with given name as drop down menu.
+#define KAN_UIM_DROP_DOWN(NAME, BACKGROUND_IMAGE, WIDTH, LAYER)                                                        \
+    KAN_UIM_POPUP_VERTICAL_WINDOW (NAME##_drop_down, (BACKGROUND_IMAGE), (WIDTH), (LAYER));                            \
+    NAME##_drop_down_node->parent_id = NAME##_node->id;                                                                \
+                                                                                                                       \
+    KAN_UMI_INDEXED_INSERT (NAME##_drop_down_behavior, kan_ui_node_popup_behavior_t)                                   \
+    NAME##_drop_down_behavior->id = NAME##_drop_down_node->id;                                                         \
+    NAME##_drop_down_behavior->trigger_id = NAME##_node->id;                                                           \
+    NAME##_drop_down_behavior->trigger_flags = KAN_UI_NODE_POPUP_BEHAVIOR_TRIGGER_FLAG_PRESS_END;                      \
+    NAME##_drop_down_behavior->hide_flags = KAN_UI_NODE_POPUP_BEHAVIOR_HIDE_FLAG_OUTSIDE_INTERACTION
+
 /// \brief Image widget is simply a shortcut for a node with image drawable.
 /// \warning Has no hit box by default!
 #define KAN_UIM_WIDGET_IMAGE(NAME, ...)                                                                                \
@@ -161,10 +220,13 @@ struct kan_uim_parent_stack_info_t
 
 /// \brief Label widget is used for creating one-line texts that already have known secondary size from layout.
 /// \warning Has no hit box by default!
-#define KAN_UIM_WIDGET_LABEL(NAME, FONT_SIZE)                                                                          \
+#define KAN_UIM_WIDGET_LABEL(NAME, FONT_SIZE, FONT_ENLARGE_FACTOR)                                                     \
     KAN_UIM_NEW_NODE (NAME);                                                                                           \
     KAN_UIM_DRAWABLE_TEXT (NAME);                                                                                      \
     KAN_UIM_TEXT_BEHAVIOR (NAME);                                                                                      \
+                                                                                                                       \
+    NAME##_node->element.height = (FONT_SIZE);                                                                         \
+    NAME##_node->element.height.value *= (FONT_ENLARGE_FACTOR) / 0.75f;                                                \
     NAME##_text_behavior->font_size = (FONT_SIZE);                                                                     \
     NAME##_text_behavior->sync_text_limit_from_ui = true
 
@@ -191,6 +253,9 @@ struct kan_uim_parent_stack_info_t
 /// \invariant Expects shaping unit with name `NAME##_shaping_unit` to be created prior to this call.
 #define KAN_UIM_WIDGET_TEXT_BUTTON(NAME, STYLE, FONT_SIZE, FONT_ENLARGE_FACTOR)                                        \
     KAN_UIM_WIDGET_BUTTON (NAME, STYLE);                                                                               \
+    NAME##_node->element.height_flags = KAN_UI_SIZE_FLAG_FIT_CHILDREN;                                                 \
+    NAME##_node->layout.layout = KAN_UI_LAYOUT_FRAME;                                                                  \
+                                                                                                                       \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_container);                                                                 \
     KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME, NAME##_container);                                                        \
                                                                                                                        \
@@ -212,6 +277,22 @@ struct kan_uim_parent_stack_info_t
     NAME##_container_text_behavior->font_size = (FONT_SIZE);                                                           \
     NAME##_container_text_behavior->sync_text_limit_from_ui = true
 
+/// \brief Button widget with icon image added as a child.
+#define KAN_UIM_WIDGET_ICON_BUTTON(NAME, STYLE, ICON, ICON_WIDTH, ICON_HEIGHT, ICON_MARK)                              \
+    KAN_UIM_WIDGET_BUTTON (NAME, STYLE);                                                                               \
+    NAME##_node->element.width_flags = KAN_UI_SIZE_FLAG_FIT_CHILDREN;                                                  \
+    NAME##_node->element.height_flags = KAN_UI_SIZE_FLAG_FIT_CHILDREN;                                                 \
+    NAME##_node->layout.layout = KAN_UI_LAYOUT_FRAME;                                                                  \
+                                                                                                                       \
+    KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_container);                                                                 \
+    KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME, NAME##_container);                                                        \
+    KAN_UIM_DRAWABLE_IMAGE (NAME##_container, KAN_UI_IMAGE_COMMAND_DEFAULT (ICON));                                    \
+                                                                                                                       \
+    NAME##_container_node->parent_id = NAME##_node->id;                                                                \
+    NAME##_container_node->element.width = (ICON_WIDTH);                                                               \
+    NAME##_container_node->element.height = (ICON_HEIGHT);                                                             \
+    NAME##_container_drawable->main_draw_command.ui_mark = (ICON_MARK)
+
 /// \brief Scroll pane widget consists of outer node that is placed in parent layout and container node that is child
 ///        of the outer node and which contains content to be scrolled.
 /// \details This macro setups foundation for scroll pane, see macros below for proper configuration.
@@ -219,13 +300,14 @@ struct kan_uim_parent_stack_info_t
     KAN_UIM_NEW_NODE (NAME##_outer);                                                                                   \
     NAME##_outer_node->layout.layout = KAN_UI_LAYOUT_FRAME;                                                            \
     NAME##_outer_node->render.clip = true;                                                                             \
-    KAN_UIM_HIT_BOX_BLOCKING (NAME##_outer);                                                                           \
+    /* Hit box should be interactable in order to receive and process scroll input events. */                          \
+    KAN_UIM_HIT_BOX_INTERACTABLE (NAME##_outer, NULL);                                                                 \
                                                                                                                        \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_container);                                                                 \
     NAME##_container_node->parent_id = NAME##_outer_node->id;                                                          \
+    NAME##_container_node->order.local = 0;                                                                            \
     NAME##_container_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                                \
     NAME##_container_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                               \
-    NAME##_container_node->local_element_order = 0;                                                                    \
                                                                                                                        \
     KAN_UMI_INDEXED_INSERT (NAME##_scroll_behavior, kan_ui_node_scroll_behavior_t);                                    \
     NAME##_scroll_behavior->id = NAME##_outer_node->id;                                                                \
@@ -248,23 +330,32 @@ struct kan_uim_parent_stack_info_t
 /// \param LINE_HEIGHT Fixed height for scrolling line and its knob.
 #define KAN_UIM_WIDGET_SCROLL_PANE_HORIZONTAL_LINE(NAME, STYLE, LINE_IMAGE, LINE_HEIGHT)                               \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_horizontal_line);                                                           \
-    KAN_UIM_DRAWABLE_IMAGE (NAME##_horizontal_line, (LINE_IMAGE));                                                     \
     KAN_UIM_HIT_BOX_INTERACTABLE (NAME##_horizontal_line, (STYLE));                                                    \
     NAME##_horizontal_line_hit_box->scroll_passthrough = true;                                                         \
     NAME##_horizontal_line_node->parent_id = NAME##_outer_node->id;                                                    \
+    NAME##_horizontal_line_node->order.local = 1;                                                                      \
                                                                                                                        \
     NAME##_horizontal_line_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                          \
     NAME##_horizontal_line_node->element.height = (LINE_HEIGHT);                                                       \
     NAME##_horizontal_line_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_LEFT;                      \
     NAME##_horizontal_line_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_BOTTOM;                        \
-    NAME##_horizontal_line_node->local_element_order = 1;                                                              \
     NAME##_horizontal_line_node->layout.layout = KAN_UI_LAYOUT_FRAME;                                                  \
                                                                                                                        \
+    KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_horizontal_background);                                                     \
+    KAN_UIM_DRAWABLE_IMAGE (NAME##_horizontal_background, (LINE_IMAGE));                                               \
+    KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME##_horizontal_line, NAME##_horizontal_background);                          \
+    NAME##_horizontal_background_node->parent_id = NAME##_horizontal_line_node->id;                                    \
+    NAME##_horizontal_line_node->order.local = 0;                                                                      \
+                                                                                                                       \
+    NAME##_horizontal_background_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                    \
+    NAME##_horizontal_background_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                   \
+                                                                                                                       \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_horizontal_knob);                                                           \
-    NAME##_horizontal_knob_node->parent_id = NAME##_horizontal_line_node->id;                                          \
-    NAME##_horizontal_knob_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                         \
     KAN_UIM_DRAWABLE_IMAGE (NAME##_horizontal_knob, KAN_UI_IMAGE_COMMAND_NONE);                                        \
     KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME##_horizontal_line, NAME##_horizontal_knob);                                \
+    NAME##_horizontal_knob_node->parent_id = NAME##_horizontal_line_node->id;                                          \
+    NAME##_horizontal_knob_node->order.local = 1;                                                                      \
+    NAME##_horizontal_knob_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                         \
                                                                                                                        \
     NAME##_scroll_behavior->horizontal_line_id = NAME##_horizontal_line_node->id;                                      \
     NAME##_scroll_behavior->horizontal_knob_id = NAME##_horizontal_knob_node->id
@@ -276,34 +367,44 @@ struct kan_uim_parent_stack_info_t
 /// \param LINE_WIDTH Fixed width for scrolling line and its knob.
 #define KAN_UIM_WIDGET_SCROLL_PANE_VERTICAL_LINE(NAME, STYLE, LINE_IMAGE, LINE_WIDTH)                                  \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_vertical_line);                                                             \
-    KAN_UIM_DRAWABLE_IMAGE (NAME##_vertical_line, (LINE_IMAGE));                                                       \
     KAN_UIM_HIT_BOX_INTERACTABLE (NAME##_vertical_line, (STYLE));                                                      \
     NAME##_vertical_line_hit_box->scroll_passthrough = true;                                                           \
     NAME##_vertical_line_node->parent_id = NAME##_outer_node->id;                                                      \
+    NAME##_vertical_line_node->order.local = 2;                                                                        \
                                                                                                                        \
     NAME##_vertical_line_node->element.width = (LINE_WIDTH);                                                           \
     NAME##_vertical_line_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                           \
     NAME##_vertical_line_node->element.horizontal_alignment = KAN_UI_HORIZONTAL_ALIGNMENT_RIGHT;                       \
     NAME##_vertical_line_node->element.vertical_alignment = KAN_UI_VERTICAL_ALIGNMENT_TOP;                             \
-    NAME##_vertical_line_node->local_element_order = 2;                                                                \
     NAME##_vertical_line_node->layout.layout = KAN_UI_LAYOUT_FRAME;                                                    \
                                                                                                                        \
+    KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_vertical_background);                                                       \
+    KAN_UIM_DRAWABLE_IMAGE (NAME##_vertical_background, (LINE_IMAGE));                                                 \
+    KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME##_vertical_line, NAME##_vertical_background);                              \
+    NAME##_vertical_background_node->parent_id = NAME##_vertical_line_node->id;                                        \
+    NAME##_vertical_line_node->order.local = 0;                                                                        \
+                                                                                                                       \
+    NAME##_vertical_background_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                      \
+    NAME##_vertical_background_node->element.height_flags = KAN_UI_SIZE_FLAG_GROW;                                     \
+                                                                                                                       \
     KAN_UIM_NEW_NODE_WITHOUT_ORDER (NAME##_vertical_knob);                                                             \
-    NAME##_vertical_knob_node->parent_id = NAME##_vertical_line_node->id;                                              \
-    NAME##_vertical_knob_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                            \
     KAN_UIM_DRAWABLE_IMAGE (NAME##_vertical_knob, KAN_UI_IMAGE_COMMAND_NONE);                                          \
     KAN_UIM_PROPAGATE_HIT_BOX_VISUALS (NAME##_vertical_line, NAME##_vertical_knob);                                    \
+    NAME##_vertical_knob_node->parent_id = NAME##_vertical_line_node->id;                                              \
+    NAME##_vertical_knob_node->order.local = 1;                                                                        \
+    NAME##_vertical_knob_node->element.width_flags = KAN_UI_SIZE_FLAG_GROW;                                            \
                                                                                                                        \
     NAME##_scroll_behavior->vertical_line_id = NAME##_vertical_line_node->id;                                          \
     NAME##_scroll_behavior->vertical_knob_id = NAME##_vertical_knob_node->id
 
 /// \brief Line edit widget provides ability for inputting and editing single line text data.
 /// \details Consists of two nodes: primary node and inner text node.
-#define KAN_UIM_WIDGET_LINE_EDIT(NAME, FONT_SIZE, STYLE_REGULAR, STYLE_SELECTED)                                       \
+#define KAN_UIM_WIDGET_LINE_EDIT(NAME, FONT_SIZE, FONT_ENLARGE_FACTOR, STYLE_REGULAR, STYLE_SELECTED)                  \
     KAN_UIM_NEW_NODE (NAME);                                                                                           \
     KAN_UIM_DRAWABLE_IMAGE (NAME, KAN_UI_IMAGE_COMMAND_NONE);                                                          \
     KAN_UIM_HIT_BOX_INTERACTABLE (NAME, NULL);                                                                         \
                                                                                                                        \
+    NAME##_node->element.height_flags = KAN_UI_SIZE_FLAG_FIT_CHILDREN;                                                 \
     NAME##_node->layout.layout = KAN_UI_LAYOUT_FRAME;                                                                  \
     NAME##_hit_box->scroll_passthrough = true;                                                                         \
                                                                                                                        \
@@ -314,6 +415,9 @@ struct kan_uim_parent_stack_info_t
                                                                                                                        \
     NAME##_inner_node->parent_id = NAME##_node->id;                                                                    \
     NAME##_inner_node->render.clip = true;                                                                             \
+    NAME##_inner_node->element.width_flags |= KAN_UI_SIZE_FLAG_GROW;                                                   \
+    NAME##_inner_node->element.height = (FONT_SIZE);                                                                   \
+    NAME##_inner_node->element.height.value *= (FONT_ENLARGE_FACTOR) / 0.75f;                                          \
                                                                                                                        \
     NAME##_inner_drawable->main_draw_command.type = KAN_UI_DRAW_COMMAND_TEXT;                                          \
     NAME##_inner_drawable->main_draw_command.text.shaping_unit = NAME##_shaping_unit->id;                              \
@@ -331,25 +435,10 @@ struct kan_uim_parent_stack_info_t
     NAME##_line_edit_behavior->shaping_unit_id = NAME##_shaping_unit->id;                                              \
     NAME##_line_edit_behavior->interactable_style_regular = (STYLE_REGULAR);                                           \
     NAME##_line_edit_behavior->interactable_style_selected = (STYLE_SELECTED);                                         \
+    NAME##_line_edit_behavior->selection_leeway = NAME##_text_behavior->font_size;                                     \
+    NAME##_line_edit_behavior->selection_leeway.value *= (FONT_ENLARGE_FACTOR) - 1.0f;                                 \
                                                                                                                        \
     /* Usually these variable values are connected. */                                                                 \
-    NAME##_line_edit_behavior->cursor_safe_space = (FONT_SIZE);
-
-/// \brief Helper for calculating line edit selection leeway when enlarging effect like outline is used.
-#define KAN_UIM_WIDGET_LINE_EDIT_CALCULATE_LEEWAY(NAME, ENLARGE_FACTOR)                                                \
-    NAME##_line_edit_behavior->selection_leeway = NAME##_text_behavior->font_size;                                     \
-    NAME##_line_edit_behavior->selection_leeway.value *= (ENLARGE_FACTOR) - 1.0f;
-
-/// \brief Helper for calculating line edit height so text would fit inside properly.
-#define KAN_UIM_WIDGET_LINE_EDIT_CALCULATE_HEIGHT(NAME, ENLARGE_FACTOR)                                                \
-    KAN_ASSERT ((NAME##_node->layout.padding.top.type == NAME##_text_behavior->font_size.type &&                       \
-                 NAME##_node->layout.padding.bottom.type == NAME##_text_behavior->font_size.type) ||                   \
-                (KAN_FLOATING_IS_NEAR (0.0f, NAME##_node->layout.padding.top.value) &&                                 \
-                 KAN_FLOATING_IS_NEAR (0.0f, NAME##_node->layout.padding.bottom.value)))                               \
-                                                                                                                       \
-    NAME##_node->element.height = NAME##_text_behavior->font_size;                                                     \
-    NAME##_node->element.height.value *= (ENLARGE_FACTOR) / 0.75f;                                                     \
-    NAME##_node->element.height.value +=                                                                               \
-        NAME##_node->layout.padding.top.value + NAME##_node->layout.padding.bottom.value;
+    NAME##_line_edit_behavior->cursor_safe_space = (FONT_SIZE)
 
 KAN_C_HEADER_END

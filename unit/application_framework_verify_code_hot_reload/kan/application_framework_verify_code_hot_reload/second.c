@@ -149,7 +149,7 @@ APPLICATION_FRAMEWORK_VERIFY_CODE_HOT_RELOAD_API KAN_UM_MUTATOR_EXECUTE (verify_
 
     if (singleton->test_frame == 20u)
     {
-        kan_loop_size_t count = 0u;
+        kan_memory_size_t count = 0u;
         KAN_UML_SEQUENCE_READ (shared_struct, some_shared_struct_t)
         {
             if (shared_struct->x != 11u || shared_struct->y != 15u || shared_struct->z != 42u)

@@ -14,13 +14,13 @@ static kan_instance_size_t callback_calls = 0u;
 static kan_log_category_t callback_category;
 static enum kan_log_verbosity_t callback_verbosity;
 static char callback_message[BUFFER_SIZE];
-static kan_functor_user_data_t callback_user_data;
+static kan_memory_size_t callback_user_data;
 
 static void test_callback (kan_log_category_t category,
                            enum kan_log_verbosity_t verbosity,
                            struct timespec time,
                            const char *message,
-                           kan_functor_user_data_t user_data)
+                           kan_memory_size_t user_data)
 {
     ++callback_calls;
     callback_category = category;

@@ -14,10 +14,10 @@ struct test_task_user_data_t
     struct kan_atomic_int_t work_done;
 };
 
-static void test_task_function (kan_functor_user_data_t user_data)
+static void test_task_function (kan_memory_size_t user_data)
 {
     // Simulate some work.
-    const kan_time_size_t start = kan_precise_time_get_elapsed_nanoseconds ();
+    const kan_stable_size_t start = kan_precise_time_get_elapsed_nanoseconds ();
 
     // Realistically, most game-related tasks will have length close to 0.1ms, so using it as a barrier seems fair.
     while (kan_precise_time_get_elapsed_nanoseconds () - start < 100000u)
@@ -27,7 +27,7 @@ static void test_task_function (kan_functor_user_data_t user_data)
         stub[1u] = 1u;
 
         // Getting into more than 70 overflows even on x64 architecture.
-        for (kan_loop_size_t index = 2u; index < 70u; ++index)
+        for (kan_memory_size_t index = 2u; index < 70u; ++index)
         {
             stub[index] = stub[index - 1u] + stub[index - 2u];
         }
@@ -42,12 +42,12 @@ static void dispatch_separately (kan_cpu_job_t job,
                                  kan_instance_size_t count)
 {
     const kan_cpu_section_t test_task_section = kan_cpu_section_get ("test_task");
-    for (kan_loop_size_t index = 0u; index < count; ++index)
+    for (kan_memory_size_t index = 0u; index < count; ++index)
     {
         user_data_output[index].work_done = kan_atomic_int_init (0);
         struct kan_cpu_task_t task = {
             .function = test_task_function,
-            .user_data = (kan_functor_user_data_t) &user_data_output[index],
+            .user_data = (kan_memory_size_t) &user_data_output[index],
             .profiler_section = test_task_section,
         };
 
@@ -72,14 +72,14 @@ static void dispatch_as_list (kan_cpu_job_t job,
         kan_allocate_general (KAN_ALLOCATION_GROUP_IGNORE, sizeof (struct kan_cpu_task_list_node_t) * count,
                               alignof (struct kan_cpu_task_list_node_t));
 
-    for (kan_loop_size_t index = 0u; index < count; ++index)
+    for (kan_memory_size_t index = 0u; index < count; ++index)
     {
         user_data_output[index].work_done = kan_atomic_int_init (0);
         nodes[index].next = index + 1u == count ? NULL : &nodes[index + 1u];
 
         nodes[index].task = (struct kan_cpu_task_t) {
             .function = test_task_function,
-            .user_data = (kan_functor_user_data_t) &user_data_output[index],
+            .user_data = (kan_memory_size_t) &user_data_output[index],
             .profiler_section = test_task_section,
         };
     }
@@ -93,7 +93,7 @@ static void dispatch_as_list (kan_cpu_job_t job,
         kan_cpu_job_dispatch_task_list (job, nodes);
     }
 
-    for (kan_loop_size_t index = 0u; index < count; ++index)
+    for (kan_memory_size_t index = 0u; index < count; ++index)
     {
         handles_output[index] = nodes[index].dispatch_handle;
     }
@@ -106,7 +106,7 @@ static void wait_until_all_finished (kan_cpu_task_t *handles, kan_instance_size_
     while (true)
     {
         bool all_finished = true;
-        for (kan_loop_size_t index = 0u; index < count; ++index)
+        for (kan_memory_size_t index = 0u; index < count; ++index)
         {
             if (!kan_cpu_task_is_finished (handles[index]))
             {
@@ -128,7 +128,7 @@ KAN_TEST_CASE (execute_1000_tasks_separate_dispatch)
     dispatch_separately (KAN_HANDLE_SET_INVALID (kan_cpu_job_t), handles, user_data, 1000u);
     wait_until_all_finished (handles, 1000u);
 
-    for (kan_loop_size_t index = 0u; index < 1000u; ++index)
+    for (kan_memory_size_t index = 0u; index < 1000u; ++index)
     {
         kan_cpu_task_detach (handles[index]);
     }
@@ -141,7 +141,7 @@ KAN_TEST_CASE (execute_1000_tasks_list_dispatch)
     dispatch_as_list (KAN_HANDLE_SET_INVALID (kan_cpu_job_t), handles, user_data, 1000u);
     wait_until_all_finished (handles, 1000u);
 
-    for (kan_loop_size_t index = 0u; index < 1000u; ++index)
+    for (kan_memory_size_t index = 0u; index < 1000u; ++index)
     {
         kan_cpu_task_detach (handles[index]);
     }
@@ -155,7 +155,7 @@ KAN_TEST_CASE (execute_1000_tasks_sd_dra)
     struct test_task_user_data_t user_data[1000u];
     dispatch_separately (KAN_HANDLE_SET_INVALID (kan_cpu_job_t), handles, user_data, 1000u);
 
-    for (kan_loop_size_t index = 0u; index < 1000u; ++index)
+    for (kan_memory_size_t index = 0u; index < 1000u; ++index)
     {
         kan_cpu_task_detach (handles[index]);
     }
@@ -163,7 +163,7 @@ KAN_TEST_CASE (execute_1000_tasks_sd_dra)
     while (true)
     {
         bool all_finished = true;
-        for (kan_loop_size_t index = 0u; index < 1000u; ++index)
+        for (kan_memory_size_t index = 0u; index < 1000u; ++index)
         {
             if (!kan_atomic_int_get (&user_data[index].work_done))
             {
@@ -185,7 +185,7 @@ KAN_TEST_CASE (job_1000_tasks_separate_dispatch)
     const kan_cpu_job_t job = kan_cpu_job_create ();
 
     dispatch_separately (job, handles, user_data, 1000u);
-    for (kan_loop_size_t index = 0u; index < 1000u; ++index)
+    for (kan_memory_size_t index = 0u; index < 1000u; ++index)
     {
         kan_cpu_task_detach (handles[index]);
     }
@@ -201,7 +201,7 @@ KAN_TEST_CASE (job_1000_tasks_list_dispatch)
     const kan_cpu_job_t job = kan_cpu_job_create ();
 
     dispatch_as_list (job, handles, user_data, 1000u);
-    for (kan_loop_size_t index = 0u; index < 1000u; ++index)
+    for (kan_memory_size_t index = 0u; index < 1000u; ++index)
     {
         kan_cpu_task_detach (handles[index]);
     }
@@ -217,7 +217,7 @@ KAN_TEST_CASE (job_1000_tasks_detach)
     const kan_cpu_job_t job = kan_cpu_job_create ();
     dispatch_as_list (job, handles, user_data, 1000u);
 
-    for (kan_loop_size_t index = 0u; index < 1000u; ++index)
+    for (kan_memory_size_t index = 0u; index < 1000u; ++index)
     {
         kan_cpu_task_detach (handles[index]);
     }
@@ -228,7 +228,7 @@ KAN_TEST_CASE (job_1000_tasks_detach)
     while (true)
     {
         bool all_finished = true;
-        for (kan_loop_size_t index = 0u; index < 1000u; ++index)
+        for (kan_memory_size_t index = 0u; index < 1000u; ++index)
         {
             if (!kan_atomic_int_get (&user_data[index].work_done))
             {
@@ -253,12 +253,12 @@ KAN_TEST_CASE (job_1000_completion_task)
 
     kan_cpu_job_set_completion_task (job, (struct kan_cpu_task_t) {
                                               .function = test_task_function,
-                                              .user_data = (kan_functor_user_data_t) &completion_task_user_data,
+                                              .user_data = (kan_memory_size_t) &completion_task_user_data,
                                               .profiler_section = kan_cpu_section_get ("completion_task"),
                                           });
 
     dispatch_as_list (job, handles, user_data, 1000u);
-    for (kan_loop_size_t index = 0u; index < 1000u; ++index)
+    for (kan_memory_size_t index = 0u; index < 1000u; ++index)
     {
         kan_cpu_task_detach (handles[index]);
     }

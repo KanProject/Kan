@@ -254,16 +254,16 @@ static void update_font_blob_usage (struct text_management_state_t *state,
 
         // We have to honor order in locale to make sure that font library categories order matches order of languages
         // in locale resource to avoid unexpected behaviors.
-        for (kan_loop_size_t locale_language_index = 0u; locale_language_index < locale->resource.font_languages.size;
-             ++locale_language_index)
+        for (kan_instance_size_t locale_language_index = 0u;
+             locale_language_index < locale->resource.font_languages.size; ++locale_language_index)
         {
-            for (kan_loop_size_t category_index = 0u; category_index < resource->categories.size; ++category_index)
+            for (kan_instance_size_t category_index = 0u; category_index < resource->categories.size; ++category_index)
             {
                 const struct kan_resource_font_category_t *category =
                     &((struct kan_resource_font_category_t *) resource->categories.data)[category_index];
                 bool filtered_in = false;
 
-                for (kan_loop_size_t category_language_index = 0u;
+                for (kan_instance_size_t category_language_index = 0u;
                      category_language_index < category->used_for_languages.size; ++category_language_index)
                 {
                     if (((kan_interned_string_t *) category->used_for_languages.data)[category_language_index] ==
@@ -288,7 +288,7 @@ static void update_font_blob_usage (struct text_management_state_t *state,
                 }
 
                 *spot = category_index;
-                for (kan_loop_size_t style_index = 0u; style_index < category->styles.size; ++style_index)
+                for (kan_memory_size_t style_index = 0u; style_index < category->styles.size; ++style_index)
                 {
                     const struct kan_resource_font_style_t *style =
                         &((struct kan_resource_font_style_t *) category->styles.data)[style_index];
@@ -424,7 +424,7 @@ static void advance_font_libraries_from_waiting_blobs (struct text_management_st
         library->usage_class = resource->usage_class;
         kan_instance_size_t selected_categories_count = 0u;
 
-        for (kan_loop_size_t selection_index = 0u; selection_index < library->selected_categories.size;
+        for (kan_memory_size_t selection_index = 0u; selection_index < library->selected_categories.size;
              ++selection_index)
         {
             kan_instance_size_t selected_index =
@@ -454,7 +454,7 @@ static void advance_font_libraries_from_waiting_blobs (struct text_management_st
                 categories = new_categories;
             }
 
-            for (kan_loop_size_t style_index = 0u; style_index < category->styles.size; ++style_index)
+            for (kan_memory_size_t style_index = 0u; style_index < category->styles.size; ++style_index)
             {
                 const struct kan_resource_font_style_t *style =
                     &((struct kan_resource_font_style_t *) category->styles.data)[style_index];
@@ -466,7 +466,7 @@ static void advance_font_libraries_from_waiting_blobs (struct text_management_st
                 setup->script = category->script;
                 setup->style = style->style;
                 setup->variable_axis_count = style->variable_font_axes.size;
-                setup->variable_axis = (float *) style->variable_font_axes.data;
+                setup->variable_axis = (kan_floating_t *) style->variable_font_axes.data;
 
                 KAN_UMI_VALUE_READ_REQUIRED (font_blob, font_blob_t, name, &style->font_data_file)
                 KAN_ASSERT (font_blob->used_for_loading)
@@ -494,7 +494,7 @@ static void advance_font_libraries_from_waiting_blobs (struct text_management_st
 
         {
             KAN_CPU_SCOPED_STATIC_SECTION (font_library_precache)
-            for (kan_loop_size_t selection_index = 0u; selection_index < library->selected_categories.size;
+            for (kan_memory_size_t selection_index = 0u; selection_index < library->selected_categories.size;
                  ++selection_index)
             {
                 kan_instance_size_t selected_index =
@@ -502,7 +502,7 @@ static void advance_font_libraries_from_waiting_blobs (struct text_management_st
                 const struct kan_resource_font_category_t *category =
                     &((struct kan_resource_font_category_t *) resource->categories.data)[selected_index];
 
-                for (kan_loop_size_t style_index = 0u; style_index < category->styles.size; ++style_index)
+                for (kan_memory_size_t style_index = 0u; style_index < category->styles.size; ++style_index)
                 {
                     const struct kan_resource_font_style_t *style =
                         &((struct kan_resource_font_style_t *) category->styles.data)[style_index];
@@ -827,7 +827,7 @@ static inline void shaping_unit_clean_shaped_data (struct kan_text_shaping_unit_
         }
     }
 
-    for (kan_loop_size_t index = 0u; index < unit->shaped_edition_sequences.size; ++index)
+    for (kan_memory_size_t index = 0u; index < unit->shaped_edition_sequences.size; ++index)
     {
         struct kan_text_shaped_edition_sequence_data_t *data =
             &((struct kan_text_shaped_edition_sequence_data_t *) unit->shaped_edition_sequences.data)[index];
@@ -852,7 +852,7 @@ static void shape_unit (struct text_shaping_state_t *state,
                         kan_render_context_t render_context)
 {
     unit->dirty = false;
-    if (unit->request.primary_axis_limit == 0u)
+    if (unit->request.primary_axis_limit == 0u || !KAN_HANDLE_IS_VALID (unit->request.text))
     {
         // Silent failure that is actually an expected skip by the docs.
         shaping_unit_on_failed (unit);

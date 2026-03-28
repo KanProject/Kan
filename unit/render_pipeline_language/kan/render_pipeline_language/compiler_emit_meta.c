@@ -601,7 +601,7 @@ static bool emit_meta_gather_parameters_process_field (struct rpl_compiler_insta
         }
 
         parameter->total_item_count = 1u;
-        for (kan_loop_size_t index = 0u; index < field->variable.type.array_dimensions_count; ++index)
+        for (kan_memory_size_t index = 0u; index < field->variable.type.array_dimensions_count; ++index)
         {
             parameter->total_item_count *= field->variable.type.array_dimensions[index];
         }
@@ -658,8 +658,8 @@ bool kan_rpl_compiler_instance_emit_meta (kan_rpl_compiler_instance_t compiler_i
     kan_trivial_string_buffer_init (&name_generation_buffer, STATICS.rpl_meta_allocation_group,
                                     KAN_RPL_COMPILER_INSTANCE_MAX_FLAT_NAME_LENGTH);
 
-    kan_loop_size_t attribute_sources_count = 0u;
-    kan_loop_size_t color_outputs = 0u;
+    kan_instance_size_t attribute_sources_count = 0u;
+    kan_instance_size_t color_outputs = 0u;
     struct compiler_instance_container_node_t *container = instance->first_container;
 
     while (container)
@@ -698,13 +698,13 @@ bool kan_rpl_compiler_instance_emit_meta (kan_rpl_compiler_instance_t compiler_i
     }
 
     kan_dynamic_array_set_capacity (&meta->color_outputs, color_outputs);
-    for (kan_loop_size_t output_index = 0u; output_index < color_outputs; ++output_index)
+    for (kan_memory_size_t output_index = 0u; output_index < color_outputs; ++output_index)
     {
         *(struct kan_rpl_meta_color_output_t *) kan_dynamic_array_add_last (&meta->color_outputs) =
             kan_rpl_meta_color_output_default ();
     }
 
-    kan_loop_size_t color_output_index = 0u;
+    kan_memory_size_t color_output_index = 0u;
     container = instance->first_container;
 
     while (container)
@@ -850,10 +850,10 @@ bool kan_rpl_compiler_instance_emit_meta (kan_rpl_compiler_instance_t compiler_i
         container = container->next;
     }
 
-    kan_loop_size_t pass_buffer_count = 0u;
-    kan_loop_size_t material_buffer_count = 0u;
-    kan_loop_size_t object_buffer_count = 0u;
-    kan_loop_size_t shared_buffer_count = 0u;
+    kan_instance_size_t pass_buffer_count = 0u;
+    kan_instance_size_t material_buffer_count = 0u;
+    kan_instance_size_t object_buffer_count = 0u;
+    kan_instance_size_t shared_buffer_count = 0u;
     struct compiler_instance_buffer_node_t *buffer = instance->first_buffer;
 
     while (buffer)
@@ -970,10 +970,10 @@ bool kan_rpl_compiler_instance_emit_meta (kan_rpl_compiler_instance_t compiler_i
 
     if ((flags & KAN_RPL_META_EMISSION_SKIP_SETS) == 0u)
     {
-        kan_loop_size_t pass_sampler_count = 0u;
-        kan_loop_size_t material_sampler_count = 0u;
-        kan_loop_size_t object_sampler_count = 0u;
-        kan_loop_size_t shared_sampler_count = 0u;
+        kan_instance_size_t pass_sampler_count = 0u;
+        kan_instance_size_t material_sampler_count = 0u;
+        kan_instance_size_t object_sampler_count = 0u;
+        kan_instance_size_t shared_sampler_count = 0u;
         struct compiler_instance_sampler_node_t *sampler = instance->first_sampler;
 
         while (sampler)
@@ -1039,10 +1039,10 @@ bool kan_rpl_compiler_instance_emit_meta (kan_rpl_compiler_instance_t compiler_i
 
     if ((flags & KAN_RPL_META_EMISSION_SKIP_SETS) == 0u)
     {
-        kan_loop_size_t pass_image_count = 0u;
-        kan_loop_size_t material_image_count = 0u;
-        kan_loop_size_t object_image_count = 0u;
-        kan_loop_size_t shared_image_count = 0u;
+        kan_instance_size_t pass_image_count = 0u;
+        kan_instance_size_t material_image_count = 0u;
+        kan_instance_size_t object_image_count = 0u;
+        kan_instance_size_t shared_image_count = 0u;
         struct compiler_instance_image_node_t *image = instance->first_image;
 
         while (image)

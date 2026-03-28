@@ -322,10 +322,10 @@ static void load_atlas (struct render_foundation_atlas_management_state_t *state
         return;
     }
 
-    const kan_loop_size_t page_size = resource->page_width * resource->page_height * 4u;
-    for (kan_loop_size_t page_index = 0u; page_index < resource->page_count; ++page_index)
+    const kan_instance_size_t page_size = resource->page_width * resource->page_height * 4u;
+    for (kan_instance_size_t page_index = 0u; page_index < resource->page_count; ++page_index)
     {
-        kan_render_image_upload_data (loaded->image, (kan_instance_size_t) page_index, 0u, page_size,
+        kan_render_image_upload_data (loaded->image, page_index, 0u, page_size,
                                       resource->data.data + page_size * page_index);
     }
 
@@ -335,15 +335,15 @@ static void load_atlas (struct render_foundation_atlas_management_state_t *state
     loaded->locale_requirements.size = 0u;
     kan_dynamic_array_set_capacity (&loaded->locale_requirements, resource->total_entries);
 
-    kan_loop_size_t data_index = 0u;
+    kan_instance_size_t data_index = 0u;
     struct atlas_entry_gpu_data_t *entry_data = kan_render_buffer_patch (
         loaded->entry_buffer, 0u, sizeof (struct atlas_entry_gpu_data_t) * resource->total_entries);
 
-    for (kan_loop_size_t entry_index = 0u; entry_index < resource->entries.size; ++entry_index, ++data_index)
+    for (kan_instance_size_t entry_index = 0u; entry_index < resource->entries.size; ++entry_index, ++data_index)
     {
         const struct kan_resource_atlas_entry_t *entry =
             &((struct kan_resource_atlas_entry_t *) resource->entries.data)[entry_index];
-        const kan_loop_size_t data_index_start = data_index;
+        const kan_instance_size_t data_index_start = data_index;
 
 #define FILL_ENTRY_GPU_DATA                                                                                            \
     {                                                                                                                  \
@@ -404,7 +404,7 @@ static void load_atlas (struct render_foundation_atlas_management_state_t *state
         output->color_table_multiplier_index = (uint32_t) input->color_table_multiplier_index;                         \
     }
 
-        for (kan_loop_size_t replacement_index = 0u; replacement_index < entry->replacements.size;
+        for (kan_memory_size_t replacement_index = 0u; replacement_index < entry->replacements.size;
              ++replacement_index, ++data_index)
         {
             const struct kan_resource_atlas_entry_replacement_t *replacement =
@@ -566,14 +566,15 @@ kan_instance_size_t kan_render_atlas_loaded_query (const struct kan_render_atlas
                                                    kan_interned_string_t entry_name,
                                                    kan_interned_string_t locale_name)
 {
-    kan_loop_size_t left = 0u;
-    kan_loop_size_t right = instance->mapping.size;
-    const struct kan_render_atlas_loaded_entry_mapping_t *mappings = instance->mapping.data;
-    const kan_interned_string_t *locale_requirements = instance->locale_requirements.data;
+    kan_memory_size_t left = 0u;
+    kan_memory_size_t right = instance->mapping.size;
+    const struct kan_render_atlas_loaded_entry_mapping_t *mappings =
+        (struct kan_render_atlas_loaded_entry_mapping_t *) instance->mapping.data;
+    const kan_interned_string_t *locale_requirements = (kan_interned_string_t *) instance->locale_requirements.data;
 
     while (left < right)
     {
-        kan_loop_size_t middle = (left + right) / 2u;
+        kan_memory_size_t middle = (left + right) / 2u;
         if (entry_name < mappings[middle].entry_name)
         {
             right = middle;
@@ -585,7 +586,7 @@ kan_instance_size_t kan_render_atlas_loaded_query (const struct kan_render_atlas
         else
         {
             // Found the proper mapping. Now need to match locales.
-            kan_loop_size_t match = mappings[middle].match_start;
+            kan_instance_size_t match = mappings[middle].match_start;
 
             while (locale_requirements[match])
             {

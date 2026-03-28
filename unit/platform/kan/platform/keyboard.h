@@ -274,6 +274,9 @@ enum kan_platform_scan_code_t
 
     KAN_PLATFORM_SCAN_CODE_CALL,
     KAN_PLATFORM_SCAN_CODE_END_CALL,
+
+    /// \brief Convenience value to count scan code values in enumeration.
+    KAN_PLATFORM_SCAN_CODE_COUNT,
 };
 
 /// \brief Type for storing key code value in Unicode format.

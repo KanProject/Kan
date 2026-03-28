@@ -387,13 +387,13 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
     KAN_TEST_ASSERT (input_stream_regular)
 
     KAN_TEST_ASSERT (input_stream_regular->operations->seek (input_stream_regular, KAN_STREAM_SEEK_END, 0))
-    const kan_file_size_t font_file_size_regular = input_stream_regular->operations->tell (input_stream_regular);
+    const kan_stable_size_t font_file_size_regular = input_stream_regular->operations->tell (input_stream_regular);
     KAN_TEST_ASSERT (input_stream_regular->operations->seek (input_stream_regular, KAN_STREAM_SEEK_START, 0))
 
     void *font_memory_regular = kan_allocate_general (KAN_ALLOCATION_GROUP_IGNORE, font_file_size_regular, 1u);
     CUSHION_DEFER { kan_free_general (KAN_ALLOCATION_GROUP_IGNORE, font_memory_regular, font_file_size_regular); }
 
-    const kan_file_size_t font_read_regular =
+    const kan_stable_size_t font_read_regular =
         input_stream_regular->operations->read (input_stream_regular, font_file_size_regular, font_memory_regular);
     KAN_TEST_ASSERT (font_read_regular == font_file_size_regular)
     input_stream_regular->operations->close (input_stream_regular);
@@ -403,13 +403,13 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
     KAN_TEST_ASSERT (input_stream_italic)
 
     KAN_TEST_ASSERT (input_stream_italic->operations->seek (input_stream_italic, KAN_STREAM_SEEK_END, 0))
-    const kan_file_size_t font_file_size_italic = input_stream_italic->operations->tell (input_stream_italic);
+    const kan_stable_size_t font_file_size_italic = input_stream_italic->operations->tell (input_stream_italic);
     KAN_TEST_ASSERT (input_stream_italic->operations->seek (input_stream_italic, KAN_STREAM_SEEK_START, 0))
 
     void *font_memory_italic = kan_allocate_general (KAN_ALLOCATION_GROUP_IGNORE, font_file_size_italic, 1u);
     CUSHION_DEFER { kan_free_general (KAN_ALLOCATION_GROUP_IGNORE, font_memory_italic, font_file_size_italic); }
 
-    const kan_file_size_t font_read_italic =
+    const kan_stable_size_t font_read_italic =
         input_stream_italic->operations->read (input_stream_italic, font_file_size_italic, font_memory_italic);
     KAN_TEST_ASSERT (font_read_italic == font_file_size_italic)
     input_stream_italic->operations->close (input_stream_italic);
@@ -419,13 +419,13 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
     KAN_TEST_ASSERT (input_stream_arabic)
 
     KAN_TEST_ASSERT (input_stream_arabic->operations->seek (input_stream_arabic, KAN_STREAM_SEEK_END, 0))
-    const kan_file_size_t font_file_size_arabic = input_stream_arabic->operations->tell (input_stream_arabic);
+    const kan_stable_size_t font_file_size_arabic = input_stream_arabic->operations->tell (input_stream_arabic);
     KAN_TEST_ASSERT (input_stream_arabic->operations->seek (input_stream_arabic, KAN_STREAM_SEEK_START, 0))
 
     void *font_memory_arabic = kan_allocate_general (KAN_ALLOCATION_GROUP_IGNORE, font_file_size_arabic, 1u);
     CUSHION_DEFER { kan_free_general (KAN_ALLOCATION_GROUP_IGNORE, font_memory_arabic, font_file_size_arabic); }
 
-    const kan_file_size_t font_read_arabic =
+    const kan_stable_size_t font_read_arabic =
         input_stream_arabic->operations->read (input_stream_arabic, font_file_size_arabic, font_memory_arabic);
     KAN_TEST_ASSERT (font_read_arabic == font_file_size_arabic)
     input_stream_arabic->operations->close (input_stream_arabic);
@@ -460,7 +460,7 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
     kan_render_device_t picked_device = KAN_HANDLE_INITIALIZE_INVALID;
     kan_instance_size_t picked_device_index = KAN_INT_MAX (kan_instance_size_t);
 
-    for (kan_loop_size_t index = 0u; index < devices->supported_device_count; ++index)
+    for (kan_instance_size_t index = 0u; index < devices->supported_device_count; ++index)
     {
         printf ("  - name: %s\n    device_type: %lu\n    memory_type: %lu\n", devices->devices[index].name,
                 (unsigned long) devices->devices[index].device_type,
@@ -475,22 +475,22 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
     }
 
     kan_render_backend_system_select_device (render_backend_system, picked_device);
-    float open_sans_regular_variable_axis[] = {
+    kan_floating_t open_sans_regular_variable_axis[] = {
         400.0f,
         100.0f,
     };
 
-    float open_sans_bold_variable_axis[] = {
+    kan_floating_t open_sans_bold_variable_axis[] = {
         700.0f,
         100.0f,
     };
 
-    float cairo_regular_variable_axis[] = {
+    kan_floating_t cairo_regular_variable_axis[] = {
         400.0f,
         5.0f,
     };
 
-    float cairo_bold_variable_axis[] = {
+    kan_floating_t cairo_bold_variable_axis[] = {
         700.0f,
         5.0f,
     };
@@ -653,6 +653,10 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
                             .address_mode_u = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
                             .address_mode_v = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
                             .address_mode_w = KAN_RENDER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                            .depth_compare_enabled = false,
+                            .anisotropy_enabled = false,
+                            .depth_compare = KAN_RENDER_COMPARE_OPERATION_NEVER,
+                            .anisotropy_max = 0.0f,
                         },
                 },
         },
@@ -697,8 +701,8 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
         struct kan_render_viewport_bounds_t text_viewport_bounds = {
             .x = 0.0f,
             .y = 0.0f,
-            .width = (float) TEST_WIDTH,
-            .height = (float) TEST_HEIGHT,
+            .width = (kan_floating_t) TEST_WIDTH,
+            .height = (kan_floating_t) TEST_HEIGHT,
             .depth_min = 0.0f,
             .depth_max = 1.0f,
         };
@@ -749,8 +753,8 @@ static void run_test (const char *expectation_file, struct kan_text_shaping_requ
                                              &slice.buffer, &slice.slice_offset);
 
         struct text_push_data_t push_data;
-        push_data.projection_view =
-            kan_orthographic_projection (0.0f, (float) TEST_WIDTH, (float) TEST_HEIGHT, 0.0f, 0.01f, 5000.0f);
+        push_data.projection_view = kan_orthographic_projection (0.0f, (kan_floating_t) TEST_WIDTH,
+                                                                 (kan_floating_t) TEST_HEIGHT, 0.0f, 0.01f, 5000.0f);
 
         push_data.element_offset.x = 100.0f;
         push_data.element_offset.y = 100.0f;

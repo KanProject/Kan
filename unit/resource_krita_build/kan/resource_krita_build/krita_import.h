@@ -32,6 +32,41 @@
 
 KAN_C_HEADER_BEGIN
 
+/// \brief Specifies import size scale factor for Krita files with particular name suffix.
+/// \details During content creation, it is usually much more convenient to use big image sizes as it interacts
+///          better with how pen-based tools work during drawing. As a result, these images should be scaled down,
+///          usually with 0.5 or 0.25 factor. And this is mostly fine from content creation point of view as hand-drawn
+///          images are almost never pixel perfect and are expected to be scaled down a little bit.
+struct kan_resource_krita_scale_rule_t
+{
+    /// \brief This scale rule will be applied if third party resource name ends with this string.
+    /// \warning Should include ".kra" as Krita files will always end with ".kra" extension and
+    ///          this extension will be a part of imported third party resource name.
+    kan_interned_string_t suffix;
+    
+    /// \brief Imported images will be scaled by this factor.
+    float scale_factor;
+};
+
+RESOURCE_KRITA_BUILD_API void kan_resource_krita_scale_rule_init (struct kan_resource_krita_scale_rule_t *instance);
+
+/// \brief Contains target platform configuration for importing resource from Krita.
+struct kan_resource_krita_platform_configuration_t
+{
+    /// \brief Default scale factor that is used when nothing in `scale_rules` was matched by suffix.
+    float default_scale_factor;
+
+    /// \brief Rules for scaling images during import.
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_krita_scale_rule_t)
+    struct kan_dynamic_array_t scale_rules;
+};
+
+RESOURCE_KRITA_BUILD_API void kan_resource_krita_platform_configuration_init (
+    struct kan_resource_krita_platform_configuration_t *instance);
+
+RESOURCE_KRITA_BUILD_API void kan_resource_krita_platform_configuration_shutdown (
+    struct kan_resource_krita_platform_configuration_t *instance);
+
 /// \brief Describes one imported image.
 struct kan_resource_krita_header_entry_t
 {
@@ -53,6 +88,9 @@ RESOURCE_KRITA_BUILD_API void kan_resource_krita_header_entry_init (struct kan_r
 /// \brief Describes all the images imported from particular Krita file.
 struct kan_resource_krita_header_t
 {
+    /// \brief Scale factor value that was used during importing images from source Krita file.
+    float scale_factor;
+    
     /// \brief List of PNG images imported from Krita file.
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_krita_header_entry_t)
     struct kan_dynamic_array_t entries;

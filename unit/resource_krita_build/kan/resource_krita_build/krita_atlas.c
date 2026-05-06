@@ -76,7 +76,9 @@ enum krita_atlas_build_pass_t
 };
 
 static struct kan_resource_atlas_image_header_t krita_entry_to_atlas_image (
-    const struct kan_resource_krita_atlas_source_t *source, const struct kan_resource_krita_header_entry_t *entry)
+    const struct kan_resource_krita_atlas_source_t *source,
+    const struct kan_resource_krita_header_entry_t *entry,
+    float scale_factor)
 {
     struct kan_resource_atlas_image_header_t result;
     result.source = entry->file;
@@ -89,7 +91,12 @@ static struct kan_resource_atlas_image_header_t krita_entry_to_atlas_image (
         break;
 
     case KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_SLICE:
-        result.nine_slice = source->nine_slice;
+        result.nine_slice.tiled_x = source->nine_slice.tiled_x;
+        result.nine_slice.tiled_y = source->nine_slice.tiled_y;
+        result.nine_slice.left = (kan_instance_size_t) roundf (scale_factor * (float) source->nine_slice.left);
+        result.nine_slice.right = (kan_instance_size_t) roundf (scale_factor * (float) source->nine_slice.right);
+        result.nine_slice.top = (kan_instance_size_t) roundf (scale_factor * (float) source->nine_slice.top);
+        result.nine_slice.bottom = (kan_instance_size_t) roundf (scale_factor * (float) source->nine_slice.bottom);
         break;
     }
 
@@ -158,7 +165,7 @@ static bool krita_atlas_build_pass (struct kan_resource_build_rule_context_t *co
                     kan_allocation_group_stack_pop ();
 
                     entry->name = image->name;
-                    entry->image = krita_entry_to_atlas_image (source, image);
+                    entry->image = krita_entry_to_atlas_image (source, image, header->scale_factor);
                     break;
                 }
 
@@ -192,7 +199,7 @@ static bool krita_atlas_build_pass (struct kan_resource_build_rule_context_t *co
                         }
 
                         replacement->for_locale = image->locale;
-                        replacement->image = krita_entry_to_atlas_image (source, image);
+                        replacement->image = krita_entry_to_atlas_image (source, image, header->scale_factor);
                     }
 
                     if (!found)

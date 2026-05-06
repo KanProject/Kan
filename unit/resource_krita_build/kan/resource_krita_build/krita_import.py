@@ -3,11 +3,11 @@ from pathlib import Path
 
 SRGB_PROFILE = "sRGB-elle-V2-srgbtrc.icc"
 
-
 def __main__(args):
     app = Krita.instance()
     document_path = args[0]
     export_directory = args[1]
+    scale_factor = float(args[2])
     prefix = Path(document_path).stem
     document = app.openDocument(document_path)
     bounds = document.bounds()
@@ -16,6 +16,7 @@ def __main__(args):
     y = bounds.y()
     w = bounds.width()
     h = bounds.height()
+    scaled_w = round(float(w) * scale_factor)
 
     with open(export_directory + "/" + "header.rd", 'w') as header:
         header.write("//! kan_resource_krita_header_t\n\n")
@@ -55,7 +56,9 @@ def __main__(args):
                 temp_node.setColorSpace("RGBA", "U8", SRGB_PROFILE)
                 pixel_data = temp_node.projectionPixelData(x, y, w, h).data()
 
-            image = QImage(pixel_data, w, h, QImage.Format_ARGB32)
+            image = QImage(pixel_data, w, h, QImage.Format.Format_ARGB32)
+            if scaled_w != w:
+                image = image.scaledToWidth(scaled_w, Qt.TransformationMode.SmoothTransformation)
             image.save(export_directory + "/" + file_name)
 
     document.close()

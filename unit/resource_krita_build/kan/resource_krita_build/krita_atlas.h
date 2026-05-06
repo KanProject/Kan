@@ -33,6 +33,8 @@ struct kan_resource_krita_atlas_source_t
     union
     {
         /// \brief Common nine slice configuration for all images from that source.
+        /// \warning All sizes should be given in source image coordinates!
+        ///          Imported image scale factor is applied automatically on top of given coordinates.
         KAN_REFLECTION_VISIBILITY_CONDITION_FIELD (type)
         KAN_REFLECTION_VISIBILITY_CONDITION_VALUE (KAN_RESOURCE_ATLAS_IMAGE_TYPE_NINE_SLICE)
         struct kan_resource_atlas_image_nine_slice_t nine_slice;

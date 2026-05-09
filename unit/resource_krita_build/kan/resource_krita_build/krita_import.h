@@ -43,7 +43,7 @@ struct kan_resource_krita_scale_rule_t
     /// \warning Should include ".kra" as Krita files will always end with ".kra" extension and
     ///          this extension will be a part of imported third party resource name.
     kan_interned_string_t suffix;
-    
+
     /// \brief Imported images will be scaled by this factor.
     float scale_factor;
 };
@@ -90,7 +90,7 @@ struct kan_resource_krita_header_t
 {
     /// \brief Scale factor value that was used during importing images from source Krita file.
     float scale_factor;
-    
+
     /// \brief List of PNG images imported from Krita file.
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_krita_header_entry_t)
     struct kan_dynamic_array_t entries;

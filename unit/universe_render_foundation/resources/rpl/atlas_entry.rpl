@@ -1,5 +1,6 @@
 constant atlas_entry_flag_nine_slice = 1u << 0u;
 constant atlas_entry_flag_color_multiplier = 1u << 1u;
+constant atlas_entry_flag_autocrop = 1u << 2u;
 
 constant atlas_entry_nine_slice_flag_tiled_x = 1u << 0u;
 constant atlas_entry_nine_slice_flag_tiled_y = 1u << 1u;
@@ -8,6 +9,8 @@ struct atlas_entry
 {
     u1 flags;
     u1 page;
+    f2 content_offset;
+    f2 content_size;
     f2 uv_min;
     f2 uv_max;
     f2 pixel_size;
@@ -19,12 +22,20 @@ struct atlas_entry
     u1 color_table_multiplier_index;
 };
 
-// We're passing full struct which technically causes struct interning in shader code (this is standard behavior not
-// only for our compiler, but for glslang too). However, benchmarks do not show significant difference in performance
-// as vendor software is usually good at optimizing SPIRV.
-f2 calculate_atlas_entry_uv (in atlas_entry entry, in f2 element_uv, in f2 element_size, in f2 element_pixel)
+// We're passing full entry struct which technically causes struct interning in shader code (this is standard behavior
+// not only for our compiler, but for glslang too). However, benchmarks do not show significant difference in
+// performance as vendor software is usually good at optimizing SPIRV.
+
+// Full atlas sampling function that requires additional arguments to process nine slice images.
+f4 sample_atlas (
+    in sampler atlas_image_sampler,
+    in image_color_2d_array atlas_image_array,
+    in atlas_entry entry,
+    in f2 element_uv,
+    in f2 element_size,
+    in f2 element_pixel)
 {
-    f2 base_uv = element_uv;
+    f2 processed_uv = element_uv;
     if ((entry.flags & atlas_entry_flag_nine_slice) != 0u)
     {
         atlas_entry_nine_slice_axis_context_t context_x = atlas_entry_nine_slice_axis_context_t {
@@ -45,13 +56,35 @@ f2 calculate_atlas_entry_uv (in atlas_entry entry, in f2 element_uv, in f2 eleme
             entry.nine_slice_flags & atlas_entry_nine_slice_flag_tiled_y
         };
         
-        base_uv = f2 {
+        processed_uv = f2 {
             calculate_entry_space_for_nine_slice_axis (context_x, context_y),
             calculate_entry_space_for_nine_slice_axis (context_y, context_x)
         } / entry.pixel_size;
     }
     
-    return entry.uv_min + base_uv * (entry.uv_max - entry.uv_min);
+    return sample_atlas_simplified (atlas_image_sampler, atlas_image_array, entry, processed_uv);
+}
+
+// Simplified atlas sampling function that ignores nine slice images and
+// therefore does not require additional arguments for calculations.
+f4 sample_atlas_simplified (
+    in sampler atlas_image_sampler,
+    in image_color_2d_array atlas_image_array,
+    in atlas_entry entry,
+    in f2 element_uv)
+{
+    f2 content_uv = element_uv;
+    if ((entry.flags & atlas_entry_flag_autocrop) != 0u)
+    {
+        content_uv = (content_uv - entry.content_offset) / entry.content_size;
+        if (content_uv.x < 0.0 || content_uv.x > 1.0 || content_uv.y < 0.0 || content_uv.y > 1.0)
+        {
+            return f4 {0.0};
+        }
+    }
+    
+    f2 projected_uv = entry.uv_min + content_uv * (entry.uv_max - entry.uv_min);
+    return sample (atlas_image_sampler, atlas_image_array, entry.page, projected_uv);
 }
 
 struct atlas_entry_nine_slice_axis_context_t

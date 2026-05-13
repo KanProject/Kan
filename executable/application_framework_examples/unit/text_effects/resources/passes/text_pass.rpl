@@ -3,7 +3,7 @@ setting color_output_use_blend block 0 = true;
 setting color_output_source_color_blend_factor block 0 = "source_alpha";
 setting color_output_destination_color_blend_factor block 0 = "one_minus_source_alpha";
 setting color_output_color_blend_operation block 0 = "add";
-setting color_output_source_alpha_blend_factor block 0 = "source_alpha";
+setting color_output_source_alpha_blend_factor block 0 = "one";
 setting color_output_destination_alpha_blend_factor block 0 = "one_minus_source_alpha";
 setting color_output_alpha_blend_operation block 0 = "add";
 

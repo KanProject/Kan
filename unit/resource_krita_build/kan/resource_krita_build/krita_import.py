@@ -1,22 +1,31 @@
 from krita import *
 from pathlib import Path
 
-SRGB_PROFILE = "sRGB-elle-V2-srgbtrc.icc"
-
 def __main__(args):
     app = Krita.instance()
+    app.setBatchmode(True)
+
     document_path = args[0]
     export_directory = args[1]
     scale_factor = float(args[2])
     prefix = Path(document_path).stem
     document = app.openDocument(document_path)
-    bounds = document.bounds()
 
-    x = bounds.x()
-    y = bounds.y()
-    w = bounds.width()
-    h = bounds.height()
-    scaled_w = round(float(w) * scale_factor)
+    if (round(document.width() * scale_factor) != document.width()):
+        document.scaleImage(round(document.width() * scale_factor),
+                            round(document.height() * scale_factor),
+                            round(document.xRes()),
+                            round(document.yRes()),
+                            "Bilinear")
+
+    pngOptions = InfoObject()
+    pngOptions.setProperty('alpha', True)
+    pngOptions.setProperty('compression', 1)
+    pngOptions.setProperty('forceSRGB', True)
+    pngOptions.setProperty('indexed', False)
+    pngOptions.setProperty('interlaced', False)
+    pngOptions.setProperty('saveSRGBProfile', True)
+    pngOptions.setProperty('transparencyFillcolor', QColor(0, 0, 0, 0))
 
     with open(export_directory + "/" + "header.rd", 'w') as header:
         header.write("//! kan_resource_krita_header_t\n\n")
@@ -46,20 +55,11 @@ def __main__(args):
             if filter: header.write("    filter = \"%s\"\n" % filter)
             header.write("}\n\n")
 
-            if (layer.colorModel() == "RGBA" and
-                    layer.colorDepth() == "U8" and
-                    layer.colorProfile().lower() == SRGB_PROFILE.lower()):
-
-                pixel_data = layer.projectionPixelData(x, y, w, h).data()
-            else:
-                temp_node = layer.duplicate()
-                temp_node.setColorSpace("RGBA", "U8", SRGB_PROFILE)
-                pixel_data = temp_node.projectionPixelData(x, y, w, h).data()
-
-            image = QImage(pixel_data, w, h, QImage.Format.Format_ARGB32)
-            if scaled_w != w:
-                image = image.scaledToWidth(scaled_w, Qt.TransformationMode.SmoothTransformation)
-            image.save(export_directory + "/" + file_name)
+            layer.save(export_directory + "/" + file_name,
+                       document.xRes(),
+                       document.yRes(),
+                       pngOptions,
+                       document.bounds())
 
     document.close()
     # Kritarunner always exits with 0, making it impossible to report errors normally.

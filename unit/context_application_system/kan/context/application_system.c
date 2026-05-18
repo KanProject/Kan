@@ -849,6 +849,7 @@ static inline void sync_info_and_clipboard (struct application_system_t *system,
         if (current_holder->next)
         {
             application_system_clean_display_info_since (system, current_holder->next);
+            current_holder->next = NULL;
         }
     }
     else

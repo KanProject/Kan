@@ -4,6 +4,7 @@
 
 #include <qsort.h>
 
+#include <kan/context/render_backend_draw_batch.h>
 #include <kan/log/logging.h>
 #include <kan/precise_time/precise_time.h>
 #include <kan/universe/macro.h>
@@ -1809,14 +1810,6 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_layout)
     kan_stack_group_allocator_reset (&state->temporary_allocator);
 }
 
-enum ui_bundle_loading_state_t
-{
-    UI_BUNDLE_LOADING_STATE_INITIAL = 0u,
-    UI_BUNDLE_LOADING_STATE_WAITING_MAIN,
-    UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES,
-    UI_BUNDLE_LOADING_STATE_READY,
-};
-
 struct ui_render_graph_state_t
 {
     KAN_UM_GENERATE_STATE_QUERIES (ui_render_graph)
@@ -2060,14 +2053,7 @@ struct ui_render_transient_state_t
 
     enum ui_bound_pipeline_t bound_pipeline;
     struct kan_ui_clip_rect_t clip_rect;
-
-    struct image_instanced_data_t *image_bulk_run_begin;
-    struct image_instanced_data_t *image_bulk_next;
-    struct image_instanced_data_t *image_bulk_end;
-
-    struct kan_render_allocated_slice_t image_bulk_allocation;
-    struct image_instanced_data_t *image_bulk_slice_begin;
-
+    struct kan_render_backend_draw_batch_t image_batch;
     kan_instance_size_t this_frame_instanced_images;
 
     kan_render_graphics_pipeline_t image_pipeline;
@@ -2436,15 +2422,12 @@ static bool cache_material_instance_data (struct ui_render_state_t *state,
     return false;
 }
 
-static void flush_instanced_ui_images (struct ui_render_state_t *state)
+static void instanced_images_batch_submit (kan_memory_size_t user_data,
+                                           kan_render_buffer_t buffer,
+                                           kan_instance_size_t buffer_offset,
+                                           kan_instance_size_t count)
 {
-    if (!state->transient.image_bulk_run_begin)
-    {
-        return;
-    }
-
-    const kan_instance_size_t instance_count =
-        (kan_instance_size_t) (state->transient.image_bulk_next - state->transient.image_bulk_run_begin);
+    struct ui_render_state_t *state = (struct ui_render_state_t *) user_data;
     kan_render_pass_instance_t pass_instance = state->transient.ui_render_graph->final_pass_instance;
 
     if (state->transient.bound_pipeline != UI_BOUND_PIPELINE_IMAGE &&
@@ -2468,21 +2451,12 @@ static void flush_instanced_ui_images (struct ui_render_state_t *state)
     // Check again as bind might have failed.
     if (state->transient.bound_pipeline == UI_BOUND_PIPELINE_IMAGE)
     {
-        const kan_instance_size_t begin_index =
-            (kan_instance_size_t) (state->transient.image_bulk_run_begin - state->transient.image_bulk_slice_begin);
-
-        const kan_instance_size_t full_offset =
-            state->transient.image_bulk_allocation.slice_offset + begin_index * sizeof (struct image_instanced_data_t);
-
-        kan_render_pass_instance_attributes (pass_instance, UI_INSTANCED_BINDING, 1u,
-                                             &state->transient.image_bulk_allocation.buffer, &full_offset);
-
+        kan_render_pass_instance_attributes (pass_instance, UI_INSTANCED_BINDING, 1u, &buffer, &buffer_offset);
         kan_render_pass_instance_draw (pass_instance, 0u, sizeof (ui_rect_indices) / sizeof (ui_rect_indices[0u]), 0u,
-                                       0u, instance_count);
+                                       0u, count);
     }
 
-    state->transient.image_bulk_run_begin = NULL;
-    state->transient.this_frame_instanced_images += instance_count;
+    state->transient.this_frame_instanced_images += count;
 }
 
 static inline void apply_clip_rect (struct ui_render_state_t *state, const struct kan_ui_clip_rect_t *clip_rect)
@@ -2490,7 +2464,7 @@ static inline void apply_clip_rect (struct ui_render_state_t *state, const struc
     if (clip_rect->x != state->transient.clip_rect.x || clip_rect->y != state->transient.clip_rect.y ||
         clip_rect->width != state->transient.clip_rect.width || clip_rect->height != state->transient.clip_rect.height)
     {
-        flush_instanced_ui_images (state);
+        kan_render_backend_draw_batch_submit (&state->transient.image_batch);
         state->transient.clip_rect = *clip_rect;
 
         struct kan_render_integer_region_2d_t scissor = {
@@ -2502,43 +2476,6 @@ static inline void apply_clip_rect (struct ui_render_state_t *state, const struc
 
         kan_render_pass_instance_override_scissor (state->transient.ui_render_graph->final_pass_instance, &scissor);
     }
-}
-
-static void allocate_new_image_bulk_region (struct ui_render_state_t *state)
-{
-    kan_instance_size_t allocation_size = 0u;
-    if (state->transient.private->previous_frame_instanced_images == 0u)
-    {
-        // Unknown amount of images, allocate 25% of a page.
-        allocation_size = (kan_instance_size_t) kan_apply_alignment (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE / 4u,
-                                                                     alignof (struct image_instanced_data_t));
-    }
-    else
-    {
-        static_assert (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE % alignof (struct image_instanced_data_t) == 0u,
-                       "Page size is aligned to image data.");
-
-        allocation_size =
-            state->transient.private->previous_frame_instanced_images * sizeof (struct image_instanced_data_t);
-        allocation_size = KAN_MIN (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE, allocation_size);
-    }
-
-    state->transient.image_bulk_allocation = kan_render_frame_lifetime_buffer_allocator_allocate (
-        state->transient.private->frame_lifetime_allocator, allocation_size, alignof (struct image_instanced_data_t));
-
-    if (!KAN_HANDLE_IS_VALID (state->transient.image_bulk_allocation.buffer))
-    {
-        kan_error_critical ("Failed to allocate bulk image instanced data, critical error.", __FILE__, __LINE__);
-    }
-
-    state->transient.image_bulk_slice_begin =
-        kan_render_buffer_patch (state->transient.image_bulk_allocation.buffer,
-                                 state->transient.image_bulk_allocation.slice_offset, allocation_size);
-
-    state->transient.image_bulk_run_begin = NULL;
-    state->transient.image_bulk_next = state->transient.image_bulk_slice_begin;
-    state->transient.image_bulk_end =
-        state->transient.image_bulk_slice_begin + allocation_size / sizeof (struct image_instanced_data_t);
 }
 
 KAN_REFLECTION_IGNORE
@@ -2878,25 +2815,7 @@ static void process_draw_command (struct ui_render_state_t *state,
             break;
         }
 
-        if (!state->transient.image_bulk_slice_begin)
-        {
-            allocate_new_image_bulk_region (state);
-        }
-
-        if (state->transient.image_bulk_next >= state->transient.image_bulk_end)
-        {
-            flush_instanced_ui_images (state);
-            allocate_new_image_bulk_region (state);
-        }
-
-        if (!state->transient.image_bulk_run_begin)
-        {
-            state->transient.image_bulk_run_begin = state->transient.image_bulk_next;
-        }
-
-        struct image_instanced_data_t *data = state->transient.image_bulk_next;
-        ++state->transient.image_bulk_next;
-
+        struct image_instanced_data_t *data = kan_render_backend_draw_batch_next (&state->transient.image_batch);
         kan_instance_offset_t x = drawable->global_x + drawable->draw_offset_x;
         kan_instance_offset_t y = drawable->global_y + drawable->draw_offset_y;
 
@@ -2919,14 +2838,14 @@ static void process_draw_command (struct ui_render_state_t *state,
 
     case KAN_UI_DRAW_COMMAND_TEXT:
     {
-        flush_instanced_ui_images (state);
+        kan_render_backend_draw_batch_submit (&state->transient.image_batch);
         execute_draw_text_command (state, drawable, command);
         break;
     }
 
     case KAN_UI_DRAW_COMMAND_CUSTOM:
     {
-        flush_instanced_ui_images (state);
+        kan_render_backend_draw_batch_submit (&state->transient.image_batch);
         execute_draw_custom_command (state, drawable, command);
         break;
     }
@@ -3107,10 +3026,16 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
     state->transient.clip_rect.width = ui->viewport_width;
     state->transient.clip_rect.height = ui->viewport_height;
 
-    state->transient.image_bulk_run_begin = NULL;
-    state->transient.image_bulk_next = NULL;
-    state->transient.image_bulk_end = NULL;
-    state->transient.image_bulk_slice_begin = NULL;
+    static_assert (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE % alignof (struct image_instanced_data_t) == 0u,
+                   "Page size is aligned to image data.");
+
+    state->transient.image_batch = kan_render_backend_draw_batch_begin (
+        private->frame_lifetime_allocator, sizeof (struct image_instanced_data_t),
+        alignof (struct image_instanced_data_t),
+        state->transient.private->previous_frame_instanced_images != 0u ?
+            state->transient.private->previous_frame_instanced_images :
+            (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE / 4u / sizeof (struct image_instanced_data_t)),
+        instanced_images_batch_submit, (kan_memory_size_t) state);
     state->transient.this_frame_instanced_images = 0u;
 
     KAN_UML_INTERVAL_ASCENDING_READ (node, kan_ui_node_drawable_t, draw_index, NULL, NULL)
@@ -3145,9 +3070,17 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
         }
     }
 
-    flush_instanced_ui_images (state);
+    kan_render_backend_draw_batch_end (&state->transient.image_batch);
     private->previous_frame_instanced_images = state->transient.this_frame_instanced_images;
 }
+
+enum ui_bundle_loading_state_t
+{
+    UI_BUNDLE_LOADING_STATE_INITIAL = 0u,
+    UI_BUNDLE_LOADING_STATE_WAITING_MAIN,
+    UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES,
+    UI_BUNDLE_LOADING_STATE_READY,
+};
 
 struct ui_bundle_private_singleton_t
 {

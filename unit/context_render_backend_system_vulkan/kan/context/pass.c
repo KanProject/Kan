@@ -524,6 +524,12 @@ bool kan_render_pass_instance_graphics_pipeline (kan_render_pass_instance_t pass
     struct render_backend_pass_instance_t *instance = KAN_HANDLE_GET (pass_instance);
     struct render_backend_graphics_pipeline_t *pipeline = KAN_HANDLE_GET (graphics_pipeline);
 
+    if (instance->current_pipeline == pipeline)
+    {
+        // Already bound.
+        return true;
+    }
+
     while (pipeline->pipeline == VK_NULL_HANDLE)
     {
         if (pipeline->compilation_priority != KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_CRITICAL ||

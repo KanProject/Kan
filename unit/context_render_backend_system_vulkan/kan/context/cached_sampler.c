@@ -114,8 +114,7 @@ VkSampler render_backend_resolve_cached_sampler (struct render_backend_system_t 
             .addressModeV = to_vulkan_sampler_address_mode (sampler->address_mode_v),
             .addressModeW = to_vulkan_sampler_address_mode (sampler->address_mode_w),
             .mipLodBias = 0.0f,
-            .anisotropyEnable =
-                system->selected_device_info->anisotropy_supported ? sampler->anisotropy_enabled : false,
+            .anisotropyEnable = system->selected_device_info->anisotropy_supported && sampler->anisotropy_enabled,
             .maxAnisotropy = KAN_CLAMP (sampler->anisotropy_max, 1.0f, system->selected_device_info->anisotropy_max),
             .compareEnable = sampler->depth_compare_enabled,
             .compareOp = to_vulkan_compare_operation (sampler->depth_compare),

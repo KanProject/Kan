@@ -1030,4 +1030,18 @@ KAN_C_HEADER_BEGIN
 #    define KAN_UML_EVENT_FETCH(NAME, TYPE) KAN_UM_INTERNAL_EVENT_FETCH (NAME, TYPE, TYPE)
 #endif
 
+/// \brief Syntax sugar that iterates over an array of ids and detaches records to which this ids point.
+/// \invariant Array has static known size and contains typed 32-bit ids.
+/// \invariant IDs map to the records in 1-1 relationship, meaning valid id always pointing to exactly one valid record.
+#define KAN_UM_VALUE_DETACH_REQUIRED_STATIC_ID_ARRAY(ARRAY, TYPE, FIELD)                                               \
+    for (kan_instance_size_t array_index = 0u; array_index < (sizeof (ARRAY) / sizeof ((ARRAY)[0u])); ++array_index)   \
+    {                                                                                                                  \
+        if (KAN_TYPED_ID_32_IS_VALID ((ARRAY)[array_index]))                                                           \
+        {                                                                                                              \
+            KAN_UMI_VALUE_DETACH_REQUIRED (array_record, TYPE, FIELD, &(ARRAY)[array_index])                           \
+            KAN_UM_ACCESS_DELETE (array_record);                                                                       \
+            (ARRAY)[array_index] = KAN_TYPED_ID_32_SET_INVALID (typeof ((ARRAY)[array_index]));                        \
+        }                                                                                                              \
+    }
+
 KAN_C_HEADER_END

@@ -35,23 +35,37 @@ struct kan_resource_ui_hit_box_interaction_style_t
 RESOURCE_UI_API void kan_resource_ui_hit_box_interaction_style_init (
     struct kan_resource_ui_hit_box_interaction_style_t *instance);
 
+/// \brief UI bundle material instance names packed into one struct for easier array-like processing.
+struct kan_resource_ui_bundle_material_instances_t
+{
+    /// \brief Material instance used for rendering UI images.
+    kan_interned_string_t image;
+
+    /// \brief Material instance used for rendering text glyphs in SDF format.
+    kan_interned_string_t text_sdf;
+
+    /// \brief Material instance used for rendering text icons.
+    kan_interned_string_t text_icon;
+};
+
+/// \brief Count of material instances in `kan_resource_ui_bundle_material_instances_t`.
+#define KAN_RESOURCE_UI_BUNDLE_MATERIAL_INSTANCE_COUNT                                                                 \
+    ((sizeof (struct kan_resource_ui_bundle_material_instances_t) / sizeof (kan_interned_string_t)))
+
 /// \brief Describes ui bundle resource.
 struct kan_resource_ui_bundle_t
 {
     /// \brief Pass name for UI render.
     kan_interned_string_t pass;
 
-    /// \brief Material instance used for rendering UI images.
-    kan_interned_string_t image_material_instance;
-
     /// \brief Atlas that contains UI images.
     kan_interned_string_t image_atlas;
 
-    /// \brief Material instance used for rendering text glyphs in SDF format.
-    kan_interned_string_t text_sdf_material_instance;
-
-    /// \brief Material instance used for rendering text icons.
-    kan_interned_string_t text_icon_material_instance;
+    union
+    {
+        struct kan_resource_ui_bundle_material_instances_t material_instances;
+        kan_interned_string_t material_instances_array[KAN_RESOURCE_UI_BUNDLE_MATERIAL_INSTANCE_COUNT];
+    };
 
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_ui_hit_box_interaction_style_t)
     struct kan_dynamic_array_t hit_box_interaction_styles;

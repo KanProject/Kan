@@ -1400,6 +1400,7 @@ static inline enum resource_provider_serve_operation_status_t execute_shared_ser
         operation->native.binary_reader = kan_serialization_binary_reader_create (
             operation->native.stream, contained_data, operation->native.type, state->shared_script_storage,
             typed->bound_to_string_registry, container_view->my_allocation_group);
+        operation->native.used_registry = state->reflection_registry;
     }
 
     enum kan_serialization_state_t serialization_state;

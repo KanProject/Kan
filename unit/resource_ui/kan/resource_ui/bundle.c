@@ -16,10 +16,9 @@ RESOURCE_UI_API struct kan_resource_reference_meta_t kan_resource_ui_bundle_refe
 };
 
 KAN_REFLECTION_STRUCT_FIELD_META (kan_resource_ui_bundle_t, image_atlas)
-RESOURCE_UI_API struct kan_resource_reference_meta_t kan_resource_ui_bundle_reference_image_atlas =
-    {
-        .type_name = "kan_resource_atlas_t",
-        .flags = 0u,
+RESOURCE_UI_API struct kan_resource_reference_meta_t kan_resource_ui_bundle_reference_image_atlas = {
+    .type_name = "kan_resource_atlas_t",
+    .flags = 0u,
 };
 
 KAN_REFLECTION_STRUCT_FIELD_META (kan_resource_ui_bundle_t, material_instances_array)

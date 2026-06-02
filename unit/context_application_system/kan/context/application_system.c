@@ -763,6 +763,7 @@ static inline void clean_and_pull_events (struct application_system_t *system,
     }
 
     *needs_clipboard_update = !system->initial_clipboard_update_done;
+    *needs_scan_code_table_update = false;
     system->initial_clipboard_update_done = true;
     struct kan_platform_application_event_t event;
 

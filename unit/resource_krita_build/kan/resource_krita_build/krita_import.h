@@ -18,8 +18,10 @@
 /// `<local_name> :: <meta>*`, where `<local_name>` is any sequence of characters prior to `::`,
 /// that is stripped to remove unnecessary spaces in the name.
 ///
-/// Produced image has name `<file_name_without_extension>_<local_name>` if `<local_name>` is not empty or just
-/// `<file_name_without_extension>` if `<local_name>` is empty.
+/// Produced image has name `<file_name_without_extension>(_<parent_prefix>)*(_<local_name>)?` where part with 
+/// `<local_name>` is absent if this name is empty and parent prefixes are taken from parent layers that have `@` as
+/// their first character and stripped string after `@` is treated as one parent prefix. Usage of parent prefixes makes
+/// it easy to group lots of images for export without duplicating common name prefixes in every layer name.
 ///
 /// Meta strings are character sequences without whitespaces as whitespace is used to separate different meta.
 /// Supported meta strings are:

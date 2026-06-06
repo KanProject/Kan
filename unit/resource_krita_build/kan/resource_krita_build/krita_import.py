@@ -8,7 +8,7 @@ def __main__(args):
     document_path = args[0]
     export_directory = args[1]
     scale_factor = float(args[2])
-    prefix = Path(document_path).stem
+    file_prefix = Path(document_path).stem
     document = app.openDocument(document_path)
 
     if (round(document.width() * scale_factor) != document.width()):
@@ -37,7 +37,18 @@ def __main__(args):
             whole_name = layer.name()
             meta_separator = whole_name.find("::")
             item_name = whole_name[:meta_separator].strip()
-            item_name = (prefix + "_" + item_name) if item_name else prefix
+            
+            # Inherit prefixes from parent layers.
+            parent_layer = layer.parentNode()
+            
+            while parent_layer:
+                if len(parent_layer.name()) > 0 and parent_layer.name()[0] == '@':
+                    parent_prefix = parent_layer.name()[1:].strip()
+                    item_name = (parent_prefix + "_" + item_name) if item_name else parent_prefix
+                parent_layer = parent_layer.parentNode()
+                
+            # Inherit file prefix.
+            item_name = (file_prefix + "_" + item_name) if item_name else file_prefix
 
             filter = ""
             locale = ""

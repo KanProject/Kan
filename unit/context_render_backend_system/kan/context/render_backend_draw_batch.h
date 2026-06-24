@@ -11,7 +11,7 @@
 ///
 /// \par Description
 /// \parblock
-/// Batching lots of instanced data and submitting on allocation overflow is a common task for 
+/// Batching lots of instanced data and submitting on allocation overflow is a common task for
 /// rendering lots of 2d and UI primitives and for some 3d primitives as well. This file provides
 /// inline implementation of common batch management and population logic.
 /// \endparblock

@@ -19,7 +19,7 @@
 // threads version would stop at ~235 megabytes and do not eat any significant amount on top of that.
 //
 // That is one more reason for using custom malloc implementation in the future.
- 
+
 void *kan_allocate_general_no_profiling (kan_memory_size_t amount, kan_memory_size_t alignment)
 {
 #if defined(_MSC_VER)

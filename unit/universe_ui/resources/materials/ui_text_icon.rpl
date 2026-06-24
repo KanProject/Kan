@@ -32,10 +32,7 @@ void ui_vertex_main (void)
 void ui_fragment_main (void)
 {
     alias (entry, image_entries.data[state.icon_index])
-    // We do the simplified uv calculation here and ignore nine-patches as they're generally too complex and unnecessary
-    // for the icons that are used inside texts. And not using them reduces amount of data to pass between stages.
-    f2 atlas_uv = entry.uv_min + state.uv * (entry.uv_max - entry.uv_min);
-    f4 icon_color = sample (image_sampler, image_atlas, entry.page, atlas_uv);
+    f4 icon_color = sample_atlas_simplified (image_sampler, image_atlas, entry, state.uv);
     f4 text_color = calculate_text_color (state.mark, state.read_index, state.ui_mark);
     f4 modifier = calculate_ui_mark_color_modifier (state.ui_mark, state.local_time);
     color_output.color = icon_color * text_color * modifier;

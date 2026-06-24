@@ -39,8 +39,7 @@ void ui_vertex_main (void)
 void ui_fragment_main (void)
 {
     alias (entry, image_entries.data[state.index])
-    f2 atlas_uv = calculate_atlas_entry_uv (entry, state.uv, state.size, state.pixel);
-    f4 color = sample (image_sampler, image_atlas, entry.page, atlas_uv);
+    f4 color = sample_atlas (image_sampler, image_atlas, entry, state.uv, state.size, state.pixel);
     
     if ((entry.flags & atlas_entry_flag_color_multiplier) != 0u)
     {

@@ -1,3 +1,7 @@
+#define _CRT_SECURE_NO_WARNINGS __CUSHION_PRESERVE__
+
+#include <string.h>
+
 #include <kan/file_system/entry.h>
 #include <kan/file_system/path_container.h>
 #include <kan/file_system/stream.h>
@@ -9,6 +13,24 @@
 #include <kan/stream/random_access_stream_buffer.h>
 
 KAN_LOG_DEFINE_CATEGORY (resource_krita_import);
+
+void kan_resource_krita_scale_rule_init (struct kan_resource_krita_scale_rule_t *instance)
+{
+    instance->suffix = NULL;
+    instance->scale_factor = 1.0f;
+}
+
+void kan_resource_krita_platform_configuration_init (struct kan_resource_krita_platform_configuration_t *instance)
+{
+    instance->default_scale_factor = 1.0f;
+    kan_dynamic_array_init (&instance->scale_rules, 0u, sizeof (struct kan_resource_krita_scale_rule_t),
+                            alignof (struct kan_resource_krita_scale_rule_t), kan_allocation_group_stack_get ());
+}
+
+void kan_resource_krita_platform_configuration_shutdown (struct kan_resource_krita_platform_configuration_t *instance)
+{
+    kan_dynamic_array_shutdown (&instance->scale_rules);
+}
 
 KAN_REFLECTION_STRUCT_FIELD_META (kan_resource_krita_header_entry_t, file)
 RESOURCE_KRITA_BUILD_API struct kan_resource_reference_meta_t kan_resource_krita_header_entry_reference_file = {
@@ -40,6 +62,7 @@ void kan_resource_krita_header_entry_init (struct kan_resource_krita_header_entr
 
 void kan_resource_krita_header_init (struct kan_resource_krita_header_t *instance)
 {
+    instance->scale_factor = 1.0f;
     kan_dynamic_array_init (&instance->entries, 0u, sizeof (struct kan_resource_krita_header_entry_t),
                             alignof (struct kan_resource_krita_header_entry_t), kan_allocation_group_stack_get ());
 }
@@ -54,7 +77,7 @@ static enum kan_resource_build_rule_result_t krita_import_build (struct kan_reso
 KAN_REFLECTION_STRUCT_META (kan_resource_krita_header_t)
 RESOURCE_KRITA_BUILD_API struct kan_resource_build_rule_t kan_resource_krita_header_build_rule = {
     .primary_input_type = NULL,
-    .platform_configuration_type = NULL,
+    .platform_configuration_type = "kan_resource_krita_platform_configuration_t",
     .secondary_types_count = 0u,
     .secondary_types = NULL,
     .functor = krita_import_build,
@@ -65,6 +88,7 @@ enum kan_resource_build_rule_result_t krita_import_build (struct kan_resource_bu
 {
     const char *input_path = context->primary_third_party_path;
     struct kan_resource_krita_header_t *output = context->primary_output;
+    const struct kan_resource_krita_platform_configuration_t *configuration = context->platform_configuration;
 
     struct kan_file_system_path_container_t path_container;
     kan_file_system_path_container_copy_string (&path_container, __FILE__);
@@ -90,6 +114,29 @@ enum kan_resource_build_rule_result_t krita_import_build (struct kan_resource_bu
     kan_platform_argument_list_append (arguments, "krita_import");
     kan_platform_argument_list_append (arguments, input_path);
     kan_platform_argument_list_append (arguments, context->temporary_workspace);
+
+    output->scale_factor = configuration->default_scale_factor;
+    const kan_instance_size_t name_length = (kan_instance_size_t) strlen (context->primary_name);
+
+    for (kan_instance_size_t index = 0u; index < configuration->scale_rules.size; ++index)
+    {
+        struct kan_resource_krita_scale_rule_t *entry =
+            &((struct kan_resource_krita_scale_rule_t *) configuration->scale_rules.data)[index];
+
+        KAN_ASSERT (entry->suffix)
+        const kan_instance_size_t suffix_length = (kan_instance_size_t) strlen (entry->suffix);
+
+        if (suffix_length < name_length &&
+            memcmp (context->primary_name + (name_length - suffix_length), entry->suffix, suffix_length) == 0)
+        {
+            output->scale_factor = entry->scale_factor;
+            break;
+        }
+    }
+
+    char format_buffer[64u];
+    snprintf (format_buffer, sizeof (format_buffer), "%f", output->scale_factor);
+    kan_platform_argument_list_append (arguments, format_buffer);
 
     if (kan_platform_execute_sub_process ("kritarunner", arguments, environment) != 0)
     {

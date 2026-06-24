@@ -6,6 +6,20 @@
 #include <kan/memory/allocation.h>
 #include <kan/threading/atomic.h>
 
+// Note on glibc and flooded resident set memory allocations.
+//
+// On Linux, large overuse of resident set memory was detected with glibc and lots of worker threads where different
+// thread makes allocation each time. This could happen pretty easily due to task dispatch as tasks are never pinned to
+// the threads and are taken in quite random order. Even large allocations, like 16 megabytes ones, can end up cached
+// in one thread after being freed and then when another thread requests such allocation, it will not reuse that cached
+// 16 megabytes and will instead allocate new chunk on its own.
+//
+// This was proven by comparing memory usage in exactly same scenarios with 32 cpu dispatch threads and with 4 cpu
+// dispatch threads on the same machine in the same hour. 32 threads version can eat up to ~700 megabytes, while 4
+// threads version would stop at ~235 megabytes and do not eat any significant amount on top of that.
+//
+// That is one more reason for using custom malloc implementation in the future.
+
 void *kan_allocate_general_no_profiling (kan_memory_size_t amount, kan_memory_size_t alignment)
 {
 #if defined(_MSC_VER)

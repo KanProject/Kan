@@ -1,21 +1,31 @@
 from krita import *
 from pathlib import Path
 
-SRGB_PROFILE = "sRGB-elle-V2-srgbtrc.icc"
-
-
 def __main__(args):
     app = Krita.instance()
+    app.setBatchmode(True)
+
     document_path = args[0]
     export_directory = args[1]
-    prefix = Path(document_path).stem
+    scale_factor = float(args[2])
+    file_prefix = Path(document_path).stem
     document = app.openDocument(document_path)
-    bounds = document.bounds()
 
-    x = bounds.x()
-    y = bounds.y()
-    w = bounds.width()
-    h = bounds.height()
+    if (round(document.width() * scale_factor) != document.width()):
+        document.scaleImage(round(document.width() * scale_factor),
+                            round(document.height() * scale_factor),
+                            round(document.xRes()),
+                            round(document.yRes()),
+                            "Bilinear")
+
+    pngOptions = InfoObject()
+    pngOptions.setProperty('alpha', True)
+    pngOptions.setProperty('compression', 1)
+    pngOptions.setProperty('forceSRGB', True)
+    pngOptions.setProperty('indexed', False)
+    pngOptions.setProperty('interlaced', False)
+    pngOptions.setProperty('saveSRGBProfile', True)
+    pngOptions.setProperty('transparencyFillcolor', QColor(0, 0, 0, 0))
 
     with open(export_directory + "/" + "header.rd", 'w') as header:
         header.write("//! kan_resource_krita_header_t\n\n")
@@ -27,7 +37,18 @@ def __main__(args):
             whole_name = layer.name()
             meta_separator = whole_name.find("::")
             item_name = whole_name[:meta_separator].strip()
-            item_name = (prefix + "_" + item_name) if item_name else prefix
+            
+            # Inherit prefixes from parent layers.
+            parent_layer = layer.parentNode()
+            
+            while parent_layer:
+                if len(parent_layer.name()) > 0 and parent_layer.name()[0] == '@':
+                    parent_prefix = parent_layer.name()[1:].strip()
+                    item_name = (parent_prefix + "_" + item_name) if item_name else parent_prefix
+                parent_layer = parent_layer.parentNode()
+                
+            # Inherit file prefix.
+            item_name = (file_prefix + "_" + item_name) if item_name else file_prefix
 
             filter = ""
             locale = ""
@@ -45,18 +66,11 @@ def __main__(args):
             if filter: header.write("    filter = \"%s\"\n" % filter)
             header.write("}\n\n")
 
-            if (layer.colorModel() == "RGBA" and
-                    layer.colorDepth() == "U8" and
-                    layer.colorProfile().lower() == SRGB_PROFILE.lower()):
-
-                pixel_data = layer.projectionPixelData(x, y, w, h).data()
-            else:
-                temp_node = layer.duplicate()
-                temp_node.setColorSpace("RGBA", "U8", SRGB_PROFILE)
-                pixel_data = temp_node.projectionPixelData(x, y, w, h).data()
-
-            image = QImage(pixel_data, w, h, QImage.Format_ARGB32)
-            image.save(export_directory + "/" + file_name)
+            layer.save(export_directory + "/" + file_name,
+                       document.xRes(),
+                       document.yRes(),
+                       pngOptions,
+                       document.bounds())
 
     document.close()
     # Kritarunner always exits with 0, making it impossible to report errors normally.

@@ -4,6 +4,7 @@
 
 #include <qsort.h>
 
+#include <kan/context/render_backend_draw_batch.h>
 #include <kan/log/logging.h>
 #include <kan/precise_time/precise_time.h>
 #include <kan/universe/macro.h>
@@ -1809,14 +1810,6 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_layout)
     kan_stack_group_allocator_reset (&state->temporary_allocator);
 }
 
-enum ui_bundle_loading_state_t
-{
-    UI_BUNDLE_LOADING_STATE_INITIAL = 0u,
-    UI_BUNDLE_LOADING_STATE_WAITING_MAIN,
-    UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES,
-    UI_BUNDLE_LOADING_STATE_READY,
-};
-
 struct ui_render_graph_state_t
 {
     KAN_UM_GENERATE_STATE_QUERIES (ui_render_graph)
@@ -2051,6 +2044,13 @@ struct image_instanced_data_t
 };
 
 KAN_REFLECTION_IGNORE
+struct ui_render_transient_material_instance_data_t
+{
+    kan_render_graphics_pipeline_t pipeline;
+    kan_render_pipeline_parameter_set_t set_material;
+};
+
+KAN_REFLECTION_IGNORE
 struct ui_render_transient_state_t
 {
     const struct kan_ui_singleton_t *ui;
@@ -2060,24 +2060,12 @@ struct ui_render_transient_state_t
 
     enum ui_bound_pipeline_t bound_pipeline;
     struct kan_ui_clip_rect_t clip_rect;
-
-    struct image_instanced_data_t *image_bulk_run_begin;
-    struct image_instanced_data_t *image_bulk_next;
-    struct image_instanced_data_t *image_bulk_end;
-
-    struct kan_render_allocated_slice_t image_bulk_allocation;
-    struct image_instanced_data_t *image_bulk_slice_begin;
-
+    struct kan_render_backend_draw_batch_t image_batch;
     kan_instance_size_t this_frame_instanced_images;
 
-    kan_render_graphics_pipeline_t image_pipeline;
-    kan_render_pipeline_parameter_set_t image_pipeline_material_parameters;
-
-    kan_render_graphics_pipeline_t text_sdf_pipeline;
-    kan_render_pipeline_parameter_set_t text_sdf_pipeline_material_parameters;
-
-    kan_render_graphics_pipeline_t text_icon_pipeline;
-    kan_render_pipeline_parameter_set_t text_icon_pipeline_material_parameters;
+    struct ui_render_transient_material_instance_data_t image;
+    struct ui_render_transient_material_instance_data_t text_sdf;
+    struct ui_render_transient_material_instance_data_t text_icon;
 };
 
 struct ui_render_state_t
@@ -2368,13 +2356,12 @@ static bool ensure_pass_parameter_set_ready (struct ui_render_state_t *state,
 static bool cache_material_instance_data (struct ui_render_state_t *state,
                                           kan_interned_string_t pass_name,
                                           kan_interned_string_t material_instance_name,
-                                          kan_render_graphics_pipeline_t *output_pipeline,
-                                          kan_render_pipeline_parameter_set_t *output_parameters)
+                                          struct ui_render_transient_material_instance_data_t *output)
 {
     KAN_UMI_VALUE_READ_REQUIRED (material_instance, kan_render_material_instance_loaded_t, name,
                                  &material_instance_name)
 
-    *output_parameters = material_instance->parameter_set;
+    output->set_material = material_instance->parameter_set;
     KAN_UMI_VALUE_READ_REQUIRED (material, kan_render_material_loaded_t, name, &material_instance->material_name)
 
     for (kan_memory_size_t index = 0u; index < material->pipelines.size; ++index)
@@ -2384,7 +2371,7 @@ static bool cache_material_instance_data (struct ui_render_state_t *state,
 
         if (pipeline->pass_name == pass_name && pipeline->variant_name == KAN_STATIC_INTERNED_ID_GET (default))
         {
-            *output_pipeline = pipeline->pipeline;
+            output->pipeline = pipeline->pipeline;
             if (material->vertex_attribute_sources.size != 1u)
             {
                 KAN_LOG (ui_render, KAN_LOG_ERROR,
@@ -2436,23 +2423,20 @@ static bool cache_material_instance_data (struct ui_render_state_t *state,
     return false;
 }
 
-static void flush_instanced_ui_images (struct ui_render_state_t *state)
+static void instanced_images_batch_submit (kan_memory_size_t user_data,
+                                           kan_render_buffer_t buffer,
+                                           kan_instance_size_t buffer_offset,
+                                           kan_instance_size_t count)
 {
-    if (!state->transient.image_bulk_run_begin)
-    {
-        return;
-    }
-
-    const kan_instance_size_t instance_count =
-        (kan_instance_size_t) (state->transient.image_bulk_next - state->transient.image_bulk_run_begin);
+    struct ui_render_state_t *state = (struct ui_render_state_t *) user_data;
     kan_render_pass_instance_t pass_instance = state->transient.ui_render_graph->final_pass_instance;
 
     if (state->transient.bound_pipeline != UI_BOUND_PIPELINE_IMAGE &&
-        kan_render_pass_instance_graphics_pipeline (pass_instance, state->transient.image_pipeline))
+        kan_render_pass_instance_graphics_pipeline (pass_instance, state->transient.image.pipeline))
     {
         kan_render_pipeline_parameter_set_t sets[] = {
             state->transient.private->pass_parameter_set,
-            state->transient.image_pipeline_material_parameters,
+            state->transient.image.set_material,
         };
 
         kan_render_pass_instance_pipeline_parameter_sets (pass_instance, KAN_RPL_SET_PASS,
@@ -2468,21 +2452,12 @@ static void flush_instanced_ui_images (struct ui_render_state_t *state)
     // Check again as bind might have failed.
     if (state->transient.bound_pipeline == UI_BOUND_PIPELINE_IMAGE)
     {
-        const kan_instance_size_t begin_index =
-            (kan_instance_size_t) (state->transient.image_bulk_run_begin - state->transient.image_bulk_slice_begin);
-
-        const kan_instance_size_t full_offset =
-            state->transient.image_bulk_allocation.slice_offset + begin_index * sizeof (struct image_instanced_data_t);
-
-        kan_render_pass_instance_attributes (pass_instance, UI_INSTANCED_BINDING, 1u,
-                                             &state->transient.image_bulk_allocation.buffer, &full_offset);
-
+        kan_render_pass_instance_attributes (pass_instance, UI_INSTANCED_BINDING, 1u, &buffer, &buffer_offset);
         kan_render_pass_instance_draw (pass_instance, 0u, sizeof (ui_rect_indices) / sizeof (ui_rect_indices[0u]), 0u,
-                                       0u, instance_count);
+                                       0u, count);
     }
 
-    state->transient.image_bulk_run_begin = NULL;
-    state->transient.this_frame_instanced_images += instance_count;
+    state->transient.this_frame_instanced_images += count;
 }
 
 static inline void apply_clip_rect (struct ui_render_state_t *state, const struct kan_ui_clip_rect_t *clip_rect)
@@ -2490,7 +2465,7 @@ static inline void apply_clip_rect (struct ui_render_state_t *state, const struc
     if (clip_rect->x != state->transient.clip_rect.x || clip_rect->y != state->transient.clip_rect.y ||
         clip_rect->width != state->transient.clip_rect.width || clip_rect->height != state->transient.clip_rect.height)
     {
-        flush_instanced_ui_images (state);
+        kan_render_backend_draw_batch_submit (&state->transient.image_batch);
         state->transient.clip_rect = *clip_rect;
 
         struct kan_render_integer_region_2d_t scissor = {
@@ -2502,43 +2477,6 @@ static inline void apply_clip_rect (struct ui_render_state_t *state, const struc
 
         kan_render_pass_instance_override_scissor (state->transient.ui_render_graph->final_pass_instance, &scissor);
     }
-}
-
-static void allocate_new_image_bulk_region (struct ui_render_state_t *state)
-{
-    kan_instance_size_t allocation_size = 0u;
-    if (state->transient.private->previous_frame_instanced_images == 0u)
-    {
-        // Unknown amount of images, allocate 25% of a page.
-        allocation_size = (kan_instance_size_t) kan_apply_alignment (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE / 4u,
-                                                                     alignof (struct image_instanced_data_t));
-    }
-    else
-    {
-        static_assert (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE % alignof (struct image_instanced_data_t) == 0u,
-                       "Page size is aligned to image data.");
-
-        allocation_size =
-            state->transient.private->previous_frame_instanced_images * sizeof (struct image_instanced_data_t);
-        allocation_size = KAN_MIN (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE, allocation_size);
-    }
-
-    state->transient.image_bulk_allocation = kan_render_frame_lifetime_buffer_allocator_allocate (
-        state->transient.private->frame_lifetime_allocator, allocation_size, alignof (struct image_instanced_data_t));
-
-    if (!KAN_HANDLE_IS_VALID (state->transient.image_bulk_allocation.buffer))
-    {
-        kan_error_critical ("Failed to allocate bulk image instanced data, critical error.", __FILE__, __LINE__);
-    }
-
-    state->transient.image_bulk_slice_begin =
-        kan_render_buffer_patch (state->transient.image_bulk_allocation.buffer,
-                                 state->transient.image_bulk_allocation.slice_offset, allocation_size);
-
-    state->transient.image_bulk_run_begin = NULL;
-    state->transient.image_bulk_next = state->transient.image_bulk_slice_begin;
-    state->transient.image_bulk_end =
-        state->transient.image_bulk_slice_begin + allocation_size / sizeof (struct image_instanced_data_t);
 }
 
 KAN_REFLECTION_IGNORE
@@ -2626,11 +2564,11 @@ static void execute_draw_text_command (struct ui_render_state_t *state,
     if (glyph_count > 0u)
     {
         if (state->transient.bound_pipeline != UI_BOUND_PIPELINE_TEXT_SDF &&
-            kan_render_pass_instance_graphics_pipeline (pass_instance, state->transient.text_sdf_pipeline))
+            kan_render_pass_instance_graphics_pipeline (pass_instance, state->transient.text_sdf.pipeline))
         {
             kan_render_pipeline_parameter_set_t sets[] = {
                 state->transient.private->pass_parameter_set,
-                state->transient.text_sdf_pipeline_material_parameters,
+                state->transient.text_sdf.set_material,
             };
 
             kan_render_pass_instance_pipeline_parameter_sets (pass_instance, KAN_RPL_SET_PASS,
@@ -2695,11 +2633,11 @@ static void execute_draw_text_command (struct ui_render_state_t *state,
     if (icon_count > 0u)
     {
         if (state->transient.bound_pipeline != UI_BOUND_PIPELINE_TEXT_ICON &&
-            kan_render_pass_instance_graphics_pipeline (pass_instance, state->transient.text_icon_pipeline))
+            kan_render_pass_instance_graphics_pipeline (pass_instance, state->transient.text_icon.pipeline))
         {
             kan_render_pipeline_parameter_set_t sets[] = {
                 state->transient.private->pass_parameter_set,
-                state->transient.text_icon_pipeline_material_parameters,
+                state->transient.text_icon.set_material,
             };
 
             kan_render_pass_instance_pipeline_parameter_sets (pass_instance, KAN_RPL_SET_PASS,
@@ -2834,7 +2772,7 @@ static void execute_draw_custom_command (struct ui_render_state_t *state,
     {
         kan_render_pipeline_parameter_set_t sets[] = {
             state->transient.private->pass_parameter_set,
-            state->transient.image_pipeline_material_parameters,
+            state->transient.image.set_material,
             command->custom.object_set,
             command->custom.shared_set,
         };
@@ -2878,25 +2816,7 @@ static void process_draw_command (struct ui_render_state_t *state,
             break;
         }
 
-        if (!state->transient.image_bulk_slice_begin)
-        {
-            allocate_new_image_bulk_region (state);
-        }
-
-        if (state->transient.image_bulk_next >= state->transient.image_bulk_end)
-        {
-            flush_instanced_ui_images (state);
-            allocate_new_image_bulk_region (state);
-        }
-
-        if (!state->transient.image_bulk_run_begin)
-        {
-            state->transient.image_bulk_run_begin = state->transient.image_bulk_next;
-        }
-
-        struct image_instanced_data_t *data = state->transient.image_bulk_next;
-        ++state->transient.image_bulk_next;
-
+        struct image_instanced_data_t *data = kan_render_backend_draw_batch_next (&state->transient.image_batch);
         kan_instance_offset_t x = drawable->global_x + drawable->draw_offset_x;
         kan_instance_offset_t y = drawable->global_y + drawable->draw_offset_y;
 
@@ -2919,14 +2839,14 @@ static void process_draw_command (struct ui_render_state_t *state,
 
     case KAN_UI_DRAW_COMMAND_TEXT:
     {
-        flush_instanced_ui_images (state);
+        kan_render_backend_draw_batch_submit (&state->transient.image_batch);
         execute_draw_text_command (state, drawable, command);
         break;
     }
 
     case KAN_UI_DRAW_COMMAND_CUSTOM:
     {
-        flush_instanced_ui_images (state);
+        kan_render_backend_draw_batch_submit (&state->transient.image_batch);
         execute_draw_custom_command (state, drawable, command);
         break;
     }
@@ -3077,15 +2997,14 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
 
     ensure_ui_rect_ready (private, render_context);
     if (!ensure_pass_parameter_set_ready (state, private, bundle, text_shaping, render_context) ||
-        !cache_material_instance_data (
-            state, bundle->available_bundle.pass, bundle->available_bundle.image_material_instance,
-            &state->transient.image_pipeline, &state->transient.image_pipeline_material_parameters) ||
-        !cache_material_instance_data (
-            state, bundle->available_bundle.pass, bundle->available_bundle.text_sdf_material_instance,
-            &state->transient.text_sdf_pipeline, &state->transient.text_sdf_pipeline_material_parameters) ||
-        !cache_material_instance_data (
-            state, bundle->available_bundle.pass, bundle->available_bundle.text_icon_material_instance,
-            &state->transient.text_icon_pipeline, &state->transient.text_icon_pipeline_material_parameters))
+        !cache_material_instance_data (state, bundle->available_bundle.pass,
+                                       bundle->available_bundle.material_instances.image, &state->transient.image) ||
+        !cache_material_instance_data (state, bundle->available_bundle.pass,
+                                       bundle->available_bundle.material_instances.text_sdf,
+                                       &state->transient.text_sdf) ||
+        !cache_material_instance_data (state, bundle->available_bundle.pass,
+                                       bundle->available_bundle.material_instances.text_icon,
+                                       &state->transient.text_icon))
     {
         return;
     }
@@ -3107,10 +3026,16 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
     state->transient.clip_rect.width = ui->viewport_width;
     state->transient.clip_rect.height = ui->viewport_height;
 
-    state->transient.image_bulk_run_begin = NULL;
-    state->transient.image_bulk_next = NULL;
-    state->transient.image_bulk_end = NULL;
-    state->transient.image_bulk_slice_begin = NULL;
+    static_assert (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE % alignof (struct image_instanced_data_t) == 0u,
+                   "Page size is aligned to image data.");
+
+    state->transient.image_batch = kan_render_backend_draw_batch_begin (
+        private->frame_lifetime_allocator, sizeof (struct image_instanced_data_t),
+        alignof (struct image_instanced_data_t),
+        state->transient.private->previous_frame_instanced_images != 0u ?
+            state->transient.private->previous_frame_instanced_images :
+            (KAN_UNIVERSE_UI_RENDER_INSTANCED_PAGE / 4u / sizeof (struct image_instanced_data_t)),
+        instanced_images_batch_submit, (kan_memory_size_t) state);
     state->transient.this_frame_instanced_images = 0u;
 
     KAN_UML_INTERVAL_ASCENDING_READ (node, kan_ui_node_drawable_t, draw_index, NULL, NULL)
@@ -3145,9 +3070,17 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
         }
     }
 
-    flush_instanced_ui_images (state);
+    kan_render_backend_draw_batch_end (&state->transient.image_batch);
     private->previous_frame_instanced_images = state->transient.this_frame_instanced_images;
 }
+
+enum ui_bundle_loading_state_t
+{
+    UI_BUNDLE_LOADING_STATE_INITIAL = 0u,
+    UI_BUNDLE_LOADING_STATE_WAITING_MAIN,
+    UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES,
+    UI_BUNDLE_LOADING_STATE_READY,
+};
 
 struct ui_bundle_private_singleton_t
 {
@@ -3155,15 +3088,12 @@ struct ui_bundle_private_singleton_t
     kan_instance_size_t state_frame_id;
 
     kan_resource_usage_id_t main_usage_id;
-    kan_render_material_instance_usage_id_t loading_image_material_instance_usage_id;
     kan_render_atlas_usage_id_t loading_image_atlas_usage_id;
-    kan_render_material_instance_usage_id_t loading_text_sdf_usage_id;
-    kan_render_material_instance_usage_id_t loading_text_icon_usage_id;
+    kan_render_material_instance_usage_id_t loading_material_instances[KAN_RESOURCE_UI_BUNDLE_MATERIAL_INSTANCE_COUNT];
 
-    kan_render_material_instance_usage_id_t available_image_material_instance_usage_id;
     kan_render_atlas_usage_id_t available_image_atlas_usage_id;
-    kan_render_material_instance_usage_id_t available_text_sdf_usage_id;
-    kan_render_material_instance_usage_id_t available_text_icon_usage_id;
+    kan_render_material_instance_usage_id_t
+        available_material_instances[KAN_RESOURCE_UI_BUNDLE_MATERIAL_INSTANCE_COUNT];
 };
 
 UNIVERSE_UI_API void ui_bundle_private_singleton_init (struct ui_bundle_private_singleton_t *instance)
@@ -3172,17 +3102,13 @@ UNIVERSE_UI_API void ui_bundle_private_singleton_init (struct ui_bundle_private_
     instance->state_frame_id = 0u;
 
     instance->main_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-    instance->loading_image_material_instance_usage_id =
-        KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
     instance->loading_image_atlas_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_atlas_usage_id_t);
-    instance->loading_text_sdf_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
-    instance->loading_text_icon_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
+    KAN_FILL_STATIC_ARRAY (instance->loading_material_instances,
+                           KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t))
 
-    instance->available_image_material_instance_usage_id =
-        KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
     instance->available_image_atlas_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_atlas_usage_id_t);
-    instance->available_text_sdf_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
-    instance->available_text_icon_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
+    KAN_FILL_STATIC_ARRAY (instance->available_material_instances,
+                           KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t))
 }
 
 struct ui_bundle_management_state_t
@@ -3261,13 +3187,6 @@ static void advance_bundle_from_initial_state (struct ui_bundle_management_state
         KAN_UM_ACCESS_DELETE (usage);
     }
 
-    if (KAN_TYPED_ID_32_IS_VALID (private->loading_image_material_instance_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
-                                       &private->loading_image_material_instance_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
     if (KAN_TYPED_ID_32_IS_VALID (private->loading_image_atlas_usage_id))
     {
         KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_atlas_usage_t, usage_id,
@@ -3275,19 +3194,8 @@ static void advance_bundle_from_initial_state (struct ui_bundle_management_state
         KAN_UM_ACCESS_DELETE (usage);
     }
 
-    if (KAN_TYPED_ID_32_IS_VALID (private->loading_text_sdf_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
-                                       &private->loading_text_sdf_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->loading_text_icon_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
-                                       &private->loading_text_icon_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
+    KAN_UM_VALUE_DETACH_REQUIRED_STATIC_ID_ARRAY (private->loading_material_instances,
+                                                  kan_render_material_instance_usage_t, usage_id)
 
     private->main_usage_id = kan_next_resource_usage_id (provider);
     KAN_UMO_INDEXED_INSERT (usage, kan_resource_usage_t)
@@ -3322,16 +3230,7 @@ static void advance_bundle_from_waiting_main_state (struct ui_bundle_management_
     KAN_UMI_SINGLETON_READ (program_singleton, kan_render_program_singleton_t)
 
     private->state = UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES;
-    private->loading_image_material_instance_usage_id = kan_next_material_instance_usage_id (program_singleton);
     private->loading_image_atlas_usage_id = kan_next_atlas_usage_id (atlas_singleton);
-    private->loading_text_sdf_usage_id = kan_next_material_instance_usage_id (program_singleton);
-    private->loading_text_icon_usage_id = kan_next_material_instance_usage_id (program_singleton);
-
-    KAN_UMO_INDEXED_INSERT (image_material_instance_usage, kan_render_material_instance_usage_t)
-    {
-        image_material_instance_usage->usage_id = private->loading_image_material_instance_usage_id;
-        image_material_instance_usage->name = resource->image_material_instance;
-    }
 
     KAN_UMO_INDEXED_INSERT (atlas_usage, kan_render_atlas_usage_t)
     {
@@ -3339,16 +3238,14 @@ static void advance_bundle_from_waiting_main_state (struct ui_bundle_management_
         atlas_usage->name = resource->image_atlas;
     }
 
-    KAN_UMO_INDEXED_INSERT (text_sdf_usage, kan_render_material_instance_usage_t)
+    for (kan_instance_size_t index = 0u; index < KAN_RESOURCE_UI_BUNDLE_MATERIAL_INSTANCE_COUNT; ++index)
     {
-        text_sdf_usage->usage_id = private->loading_text_sdf_usage_id;
-        text_sdf_usage->name = resource->text_sdf_material_instance;
-    }
-
-    KAN_UMO_INDEXED_INSERT (text_icon_usage, kan_render_material_instance_usage_t)
-    {
-        text_icon_usage->usage_id = private->loading_text_icon_usage_id;
-        text_icon_usage->name = resource->text_icon_material_instance;
+        private->loading_material_instances[index] = kan_next_material_instance_usage_id (program_singleton);
+        KAN_UMO_INDEXED_INSERT (usage, kan_render_material_instance_usage_t)
+        {
+            usage->usage_id = private->loading_material_instances[index];
+            usage->name = resource->material_instances_array[index];
+        }
     }
 
     advance_bundle_from_waiting_resources_state (state, provider, public, private);
@@ -3366,14 +3263,6 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
     KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_ui_bundle_t, &public->bundle_name)
     KAN_ASSERT (resource)
 
-    KAN_UMI_VALUE_READ_OPTIONAL (image_material_instance, kan_render_material_instance_loaded_t, name,
-                                 &resource->image_material_instance)
-
-    if (!image_material_instance)
-    {
-        return;
-    }
-
     KAN_UMI_VALUE_READ_OPTIONAL (pass, kan_render_foundation_pass_loaded_t, name, &resource->pass)
     if (!pass)
     {
@@ -3386,20 +3275,15 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
         return;
     }
 
-    KAN_UMI_VALUE_READ_OPTIONAL (text_sdf_material_instance, kan_render_material_instance_loaded_t, name,
-                                 &resource->text_sdf_material_instance)
-
-    if (!text_sdf_material_instance)
+    for (kan_instance_size_t index = 0u; index < KAN_RESOURCE_UI_BUNDLE_MATERIAL_INSTANCE_COUNT; ++index)
     {
-        return;
-    }
+        KAN_UMI_VALUE_READ_OPTIONAL (material_instance, kan_render_material_instance_loaded_t, name,
+                                     &resource->material_instances_array[index])
 
-    KAN_UMI_VALUE_READ_OPTIONAL (text_icon_material_instance, kan_render_material_instance_loaded_t, name,
-                                 &resource->text_icon_material_instance)
-
-    if (!text_icon_material_instance)
-    {
-        return;
+        if (!material_instance)
+        {
+            return;
+        }
     }
 
     // Everything is loaded, so we can finalize the loading now.
@@ -3407,10 +3291,8 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
     private->state = UI_BUNDLE_LOADING_STATE_READY;
     public->available = true;
     public->available_bundle.pass = resource->pass;
-    public->available_bundle.image_material_instance = resource->image_material_instance;
     public->available_bundle.image_atlas = resource->image_atlas;
-    public->available_bundle.text_sdf_material_instance = resource->text_sdf_material_instance;
-    public->available_bundle.text_icon_material_instance = resource->text_icon_material_instance;
+    public->available_bundle.material_instances = resource->material_instances;
 
     public->available_bundle.hit_box_interaction_styles.size = 0u;
     kan_dynamic_array_set_capacity (&public->available_bundle.hit_box_interaction_styles,
@@ -3422,13 +3304,6 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
 
     // Remove usages of old available data.
 
-    if (KAN_TYPED_ID_32_IS_VALID (private->available_image_material_instance_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
-                                       &private->available_image_material_instance_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
     if (KAN_TYPED_ID_32_IS_VALID (private->available_image_atlas_usage_id))
     {
         KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_atlas_usage_t, usage_id,
@@ -3436,32 +3311,13 @@ static void advance_bundle_from_waiting_resources_state (struct ui_bundle_manage
         KAN_UM_ACCESS_DELETE (usage);
     }
 
-    if (KAN_TYPED_ID_32_IS_VALID (private->available_text_sdf_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
-                                       &private->available_text_sdf_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->available_text_icon_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_material_instance_usage_t, usage_id,
-                                       &private->available_text_icon_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
+    KAN_UM_VALUE_DETACH_REQUIRED_STATIC_ID_ARRAY (private->available_material_instances,
+                                                  kan_render_material_instance_usage_t, usage_id)
 
     // Move loading usages to available.
 
-    private->available_image_material_instance_usage_id = private->loading_image_material_instance_usage_id;
-    private->available_image_atlas_usage_id = private->loading_image_atlas_usage_id;
-    private->available_text_sdf_usage_id = private->loading_text_sdf_usage_id;
-    private->available_text_icon_usage_id = private->loading_text_icon_usage_id;
-
-    private->loading_image_material_instance_usage_id =
-        KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
-    private->loading_image_atlas_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_atlas_usage_id_t);
-    private->loading_text_sdf_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
-    private->loading_text_icon_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
+    KAN_TYPED_ID_32_MOVE (private->loading_image_atlas_usage_id, private->available_image_atlas_usage_id);
+    KAN_TYPED_ID_32_MOVE_STATIC_ARRAY (private->loading_material_instances, private->available_material_instances)
 
     // Remove usage to resource that is no longer needed.
     KAN_UMI_VALUE_DETACH_REQUIRED (main_usage, kan_resource_usage_t, usage_id, &private->main_usage_id)

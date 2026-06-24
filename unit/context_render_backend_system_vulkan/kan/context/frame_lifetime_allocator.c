@@ -475,6 +475,13 @@ struct kan_render_allocated_slice_t kan_render_frame_lifetime_buffer_allocator_a
     };
 }
 
+kan_instance_size_t kan_render_frame_lifetime_buffer_allocator_get_page_size (
+    kan_render_frame_lifetime_buffer_allocator_t allocator)
+{
+    struct render_backend_frame_lifetime_allocator_t *data = KAN_HANDLE_GET (allocator);
+    return data->page_size;
+}
+
 void kan_render_frame_lifetime_buffer_allocator_destroy (kan_render_frame_lifetime_buffer_allocator_t allocator)
 {
     struct render_backend_frame_lifetime_allocator_t *data = KAN_HANDLE_GET (allocator);

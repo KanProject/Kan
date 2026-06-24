@@ -9,7 +9,7 @@
 #include <kan/context/context.h>
 #include <kan/math/inline.h>
 
-///// \file
+/// \file
 /// \brief Contains full API of render backed context system with functional basic graphics interface.
 ///
 /// \par Definition
@@ -1163,6 +1163,10 @@ CONTEXT_RENDER_BACKEND_SYSTEM_API struct kan_render_allocated_slice_t
 kan_render_frame_lifetime_buffer_allocator_allocate (kan_render_frame_lifetime_buffer_allocator_t allocator,
                                                      kan_instance_size_t size,
                                                      kan_instance_size_t alignment);
+
+/// \brief Returns the page size of the frame lifetime allocator.
+CONTEXT_RENDER_BACKEND_SYSTEM_API kan_instance_size_t
+kan_render_frame_lifetime_buffer_allocator_get_page_size (kan_render_frame_lifetime_buffer_allocator_t allocator);
 
 /// \brief Requests given frame lifetime allocator to be destroyed.
 CONTEXT_RENDER_BACKEND_SYSTEM_API void kan_render_frame_lifetime_buffer_allocator_destroy (

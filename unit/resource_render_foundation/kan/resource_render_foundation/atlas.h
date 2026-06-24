@@ -18,6 +18,15 @@
 /// per entry configuration is supported, which makes it possible to setup nine slice or color table usage independently
 /// for every entry texture of the atlas. Also, locale-based entry replacement is supported as well.
 /// \endparblock
+///
+/// \par Autocropping
+/// \parblock
+/// Atlas packing automatically detects 0-alpha borders of the images and packs images without this borders along with
+/// data needed to reconstruct source image size for proper sampling. Image size reconstruction logic introduces 1-2%
+/// overhead in case when no images were cropped. However, autocropping makes it easier to introduce lots of overlay
+/// images like effects or sprite layers with relatively small cost and without storing custom offsets in gameplay
+/// logic as image will be cropped during packing and unnecessary sampling will be omitted in shader code.
+/// \endparblock
 
 KAN_C_HEADER_BEGIN
 
@@ -54,6 +63,11 @@ struct kan_resource_atlas_image_nine_slice_t
 };
 
 /// \brief Describes one image on atlas, either primary entry or replacement.
+/// \details `width` and `height` values match the width and height of the data on atlas page, which might not be equal
+///          to the actual source image width and height due to 0-alpha borders cropping. Source image width and height
+///          is stored in `source_width` and `source_height` and cropping offset is stored in `source_offset_x` and
+///          `source_offset_y`, which makes it possible to restore the size of cropped borders in order to pass them
+///          to the GPU to sample the image properly.
 struct kan_resource_atlas_image_t
 {
     kan_instance_size_t page;
@@ -61,6 +75,11 @@ struct kan_resource_atlas_image_t
     kan_instance_size_t y;
     kan_instance_size_t width;
     kan_instance_size_t height;
+
+    kan_instance_size_t source_width;
+    kan_instance_size_t source_height;
+    kan_instance_size_t source_offset_x;
+    kan_instance_size_t source_offset_y;
 
     /// \brief Type of the image that should be used for proper sampling.
     enum kan_resource_atlas_image_type_t type;

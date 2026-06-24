@@ -120,6 +120,13 @@ typedef float kan_floating_t;
         uint64_t: UINT64_MAX,                                                                                          \
         default: UINT32_MAX)
 
+/// \brief Syntax sugar for filling an array of static known size with values using given expression.
+#define KAN_FILL_STATIC_ARRAY(ARRAY, ...)                                                                              \
+    for (kan_instance_size_t array_index = 0u; array_index < (sizeof (ARRAY) / sizeof ((ARRAY)[0u])); ++array_index)   \
+    {                                                                                                                  \
+        (ARRAY)[array_index] = __VA_ARGS__;                                                                            \
+    }
+
 /// \brief Defines new handle type with given name.
 #define KAN_HANDLE_DEFINE(NAME)                                                                                        \
     struct handle_struct_for_##NAME                                                                                    \
@@ -200,6 +207,19 @@ typedef uint32_t kan_id_32_t;
 #define KAN_TYPED_ID_32_INITIALIZE_INVALID                                                                             \
     {                                                                                                                  \
         KAN_TYPED_ID_32_INVALID_LITERAL,                                                                               \
+    }
+
+/// \brief Syntax sugar for moving value from one typed id to another and resetting the old variable to invalid id.
+#define KAN_TYPED_ID_32_MOVE(SOURCE, TARGET)                                                                           \
+    TARGET = SOURCE;                                                                                                   \
+    SOURCE.typed_id_32_internals = KAN_TYPED_ID_32_INVALID_LITERAL
+
+/// \brief Syntax sugar for applying KAN_TYPED_ID_32_MOVE on array of static known size.
+#define KAN_TYPED_ID_32_MOVE_STATIC_ARRAY(SOURCE_ARRAY, TARGET_ARRAY)                                                  \
+    for (kan_instance_size_t array_index = 0u; array_index < (sizeof (SOURCE_ARRAY) / sizeof (SOURCE_ARRAY[0u]));      \
+         ++array_index)                                                                                                \
+    {                                                                                                                  \
+        KAN_TYPED_ID_32_MOVE (SOURCE_ARRAY[array_index], TARGET_ARRAY[array_index]);                                   \
     }
 
 KAN_C_HEADER_END

@@ -112,7 +112,14 @@ struct atlas_image_node_t
     kan_interned_string_t name;
 
     /// \brief We load all raw images at once. If they need to fit inside atlas, it should be okay to load them all.
+    /// \warning Some features like autocrop may change the size of the image on the atlas, therefore `target_*` fields
+    ///          should be used to retrieve size and offset values used to pack data.
     struct kan_image_raw_data_t raw_data;
+
+    kan_instance_size_t target_width;
+    kan_instance_size_t target_height;
+    kan_instance_size_t target_x;
+    kan_instance_size_t target_y;
 
     kan_instance_size_t allocated_page;
     kan_instance_size_t allocated_x;
@@ -169,12 +176,12 @@ static void atlas_build_context_shutdown (struct atlas_build_context_t *instance
 static bool atlas_image_sort_comparator (struct atlas_image_node_t *left, struct atlas_image_node_t *right)
 {
     // Use > as we need bigger -> smaller order.
-    if (left->raw_data.height != right->raw_data.height)
+    if (left->target_height != right->target_height)
     {
-        return left->raw_data.height > right->raw_data.height;
+        return left->target_height > right->target_height;
     }
 
-    return left->raw_data.width > right->raw_data.width;
+    return left->target_width > right->target_width;
 }
 
 static inline struct atlas_image_node_t *atlas_build_context_find_image (struct atlas_build_context_t *context,
@@ -277,6 +284,121 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
             new_node->name = secondary->name;
             new_node->raw_data = image_data;
 
+            new_node->target_width = new_node->raw_data.width;
+            new_node->target_height = new_node->raw_data.height;
+            new_node->target_x = 0u;
+            new_node->target_y = 0u;
+
+            // Do the autocrop passes. If the image is completely 0-alpha, we leave one pixel of it so the logic that
+            // expects image with that name is not broken.
+
+            // Autocrop the top line.
+            while (new_node->target_height > 1u)
+            {
+                bool can_crop = true;
+                for (kan_instance_size_t x = 0u; x < new_node->target_width; ++x)
+                {
+                    const kan_instance_size_t pixel_index =
+                        new_node->target_y * new_node->raw_data.width + new_node->target_x + x;
+
+                    if (new_node->raw_data.data[pixel_index * 4u + 3u])
+                    {
+                        can_crop = false;
+                        break;
+                    }
+                }
+
+                if (can_crop)
+                {
+                    ++new_node->target_y;
+                    --new_node->target_height;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            // Autocrop the bottom line.
+            while (new_node->target_height > 1u)
+            {
+                bool can_crop = true;
+                for (kan_instance_size_t x = 0u; x < new_node->target_width; ++x)
+                {
+                    const kan_instance_size_t pixel_index =
+                        (new_node->target_y + new_node->target_height - 1u) * new_node->raw_data.width +
+                        new_node->target_x + x;
+
+                    if (new_node->raw_data.data[pixel_index * 4u + 3u])
+                    {
+                        can_crop = false;
+                        break;
+                    }
+                }
+
+                if (can_crop)
+                {
+                    --new_node->target_height;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            // Autocrop the left line.
+            while (new_node->target_width > 1u)
+            {
+                bool can_crop = true;
+                for (kan_instance_size_t y = 0u; y < new_node->target_height; ++y)
+                {
+                    const kan_instance_size_t pixel_index =
+                        (new_node->target_y + y) * new_node->raw_data.width + new_node->target_x;
+
+                    if (new_node->raw_data.data[pixel_index * 4u + 3u])
+                    {
+                        can_crop = false;
+                        break;
+                    }
+                }
+
+                if (can_crop)
+                {
+                    ++new_node->target_x;
+                    --new_node->target_width;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            // Autocrop the right line.
+            while (new_node->target_width > 1u)
+            {
+                bool can_crop = true;
+                for (kan_instance_size_t y = 0u; y < new_node->target_height; ++y)
+                {
+                    const kan_instance_size_t pixel_index = (new_node->target_y + y) * new_node->raw_data.width +
+                                                            new_node->target_x + new_node->target_width - 1u;
+
+                    if (new_node->raw_data.data[pixel_index * 4u + 3u])
+                    {
+                        can_crop = false;
+                        break;
+                    }
+                }
+
+                if (can_crop)
+                {
+                    --new_node->target_width;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
             new_node->allocated_page = 0u;
             new_node->allocated_x = 0u;
             new_node->allocated_y = 0u;
@@ -337,8 +459,8 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
 
             while (suitable_pin)
             {
-                if (suitable_pin->width >= image_node->raw_data.width &&
-                    suitable_pin->height >= image_node->raw_data.height)
+                if (suitable_pin->width >= image_node->target_width &&
+                    suitable_pin->height >= image_node->target_height)
                 {
                     // Can allocate from here.
                     break;
@@ -367,7 +489,7 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
             image_node->allocated_x = suitable_pin->x;
             image_node->allocated_y = suitable_pin->y;
 
-            if (suitable_pin->height - image_node->raw_data.height > cut_out_size)
+            if (suitable_pin->height - image_node->target_height > cut_out_size)
             {
                 // Can allocate under this allocation in the future. Create new pin for that.
                 struct atlas_allocation_pin_t *bottom_pin =
@@ -375,18 +497,18 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
 
                 bottom_pin->page = suitable_pin->page;
                 bottom_pin->x = suitable_pin->x;
-                bottom_pin->y = suitable_pin->y + image_node->raw_data.height + input->border_size;
+                bottom_pin->y = suitable_pin->y + image_node->target_height + input->border_size;
                 bottom_pin->width = suitable_pin->width;
-                bottom_pin->height = suitable_pin->height - image_node->raw_data.height - input->border_size;
+                bottom_pin->height = suitable_pin->height - image_node->target_height - input->border_size;
                 kan_bd_list_add (&build_context.allocation_pins, suitable_pin->node.next, &bottom_pin->node);
             }
 
-            suitable_pin->x += image_node->raw_data.width;
-            suitable_pin->width -= image_node->raw_data.width;
+            suitable_pin->x += image_node->target_width;
+            suitable_pin->width -= image_node->target_width;
 
             // Further allocations along this pin cannot be bigger that this allocation.
             // It should never happen due to sorting, but we still set height to keep proper values in data.
-            suitable_pin->height = image_node->raw_data.height;
+            suitable_pin->height = image_node->target_height;
 
             if (suitable_pin->width > cut_out_size)
             {
@@ -432,14 +554,16 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
                 ((struct atlas_image_node_t **) build_context.sorted_images.data)[index];
             const kan_instance_size_t page_base_pixel = image_node->allocated_page * page_size;
 
-            for (kan_instance_size_t image_y = 0u; image_y < image_node->raw_data.height; ++image_y)
+            for (kan_instance_size_t image_y = 0u; image_y < image_node->target_height; ++image_y)
             {
-                const kan_instance_size_t image_row_pixel = image_y * image_node->raw_data.width;
+                const kan_instance_size_t image_row_pixel =
+                    (image_node->target_y + image_y) * image_node->raw_data.width + image_node->target_x;
+
                 const kan_instance_size_t atlas_row_pixel =
                     page_base_pixel + (image_node->allocated_y + image_y) * input->page_width + image_node->allocated_x;
 
                 memcpy (&output->data.data[atlas_row_pixel * 4u], &image_node->raw_data.data[image_row_pixel * 4u],
-                        image_node->raw_data.width * 4u);
+                        image_node->target_width * 4u);
             }
         }
     }
@@ -470,8 +594,12 @@ static enum kan_resource_build_rule_result_t atlas_build (struct kan_resource_bu
     (TARGET).page = (NODE)->allocated_page;                                                                            \
     (TARGET).x = (NODE)->allocated_x;                                                                                  \
     (TARGET).y = (NODE)->allocated_y;                                                                                  \
-    (TARGET).width = (NODE)->raw_data.width;                                                                           \
-    (TARGET).height = (NODE)->raw_data.height;                                                                         \
+    (TARGET).width = (NODE)->target_width;                                                                             \
+    (TARGET).height = (NODE)->target_height;                                                                           \
+    (TARGET).source_width = (NODE)->raw_data.width;                                                                    \
+    (TARGET).source_height = (NODE)->raw_data.height;                                                                  \
+    (TARGET).source_offset_x = (NODE)->target_x;                                                                       \
+    (TARGET).source_offset_y = (NODE)->target_y;                                                                       \
     (TARGET).type = (SOURCE).type;                                                                                     \
                                                                                                                        \
     switch ((TARGET).type)                                                                                             \

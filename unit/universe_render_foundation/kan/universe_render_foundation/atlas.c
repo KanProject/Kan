@@ -230,6 +230,7 @@ enum atlas_entry_gpu_flags_t
 {
     ATLAS_ENTRY_GPU_FLAG_NINE_SLICE = 1u << 0u,
     ATLAS_ENTRY_GPU_FLAG_COLOR_MULTIPLIER = 1u << 1u,
+    ATLAS_ENTRY_GPU_FLAG_AUTOCROP = 1u << 2u,
 };
 
 KAN_REFLECTION_IGNORE
@@ -245,6 +246,9 @@ struct atlas_entry_gpu_data_t
 {
     uint32_t flags;
     uint32_t page;
+
+    struct kan_float_vector_2_t content_offset;
+    struct kan_float_vector_2_t content_size;
 
     struct kan_float_vector_2_t uv_min;
     struct kan_float_vector_2_t uv_max;
@@ -363,8 +367,18 @@ static void load_atlas (struct render_foundation_atlas_management_state_t *state
             entry_flags |= ATLAS_ENTRY_GPU_FLAG_COLOR_MULTIPLIER;                                                      \
         }                                                                                                              \
                                                                                                                        \
+        if (input->source_width != input->width || input->source_height != input->height)                              \
+        {                                                                                                              \
+            entry_flags |= ATLAS_ENTRY_GPU_FLAG_AUTOCROP;                                                              \
+        }                                                                                                              \
+                                                                                                                       \
         output->flags = entry_flags;                                                                                   \
         output->page = (uint32_t) input->page;                                                                         \
+                                                                                                                       \
+        output->content_offset.x = (float) input->source_offset_x / (float) input->source_width;                       \
+        output->content_offset.y = (float) input->source_offset_y / (float) input->source_height;                      \
+        output->content_size.x = (float) input->width / (float) input->source_width;                                   \
+        output->content_size.y = (float) input->height / (float) input->source_height;                                 \
                                                                                                                        \
         output->uv_min.x = (float) input->x / (float) resource->page_width;                                            \
         output->uv_min.y = (float) input->y / (float) resource->page_height;                                           \

@@ -2201,11 +2201,20 @@ static bool compiled_patch_build_into (struct patch_builder_t *patch_builder,
     output_patch->type = type;
     output_patch->node_count = node_count;
     output_patch->section_id_bound = 0u;
-    output_patch->begin = kan_allocate_general (get_compiled_patch_allocation_group (), patch_data_size,
-                                                alignof (struct compiled_patch_node_t));
-    output_patch->end = (struct compiled_patch_node_t *) (((uint8_t *) output_patch->begin) + patch_data_size);
-    compiled_patch_add_to_registry (output_patch, registry_struct);
 
+    if (patch_data_size > 0u)
+    {
+        output_patch->begin = kan_allocate_general (get_compiled_patch_allocation_group (), patch_data_size,
+                                                    alignof (struct compiled_patch_node_t));
+        output_patch->end = (struct compiled_patch_node_t *) (((uint8_t *) output_patch->begin) + patch_data_size);
+    }
+    else
+    {
+        output_patch->begin = NULL;
+        output_patch->end = NULL;
+    }
+
+    compiled_patch_add_to_registry (output_patch, registry_struct);
     current_section = NULL;
     struct compiled_patch_node_section_suffix_t *current_section_suffix = NULL;
     uint8_t *output = (uint8_t *) output_patch->begin;

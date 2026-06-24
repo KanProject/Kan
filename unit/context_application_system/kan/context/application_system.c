@@ -763,6 +763,7 @@ static inline void clean_and_pull_events (struct application_system_t *system,
     }
 
     *needs_clipboard_update = !system->initial_clipboard_update_done;
+    *needs_scan_code_table_update = false;
     system->initial_clipboard_update_done = true;
     struct kan_platform_application_event_t event;
 
@@ -849,6 +850,7 @@ static inline void sync_info_and_clipboard (struct application_system_t *system,
         if (current_holder->next)
         {
             application_system_clean_display_info_since (system, current_holder->next);
+            current_holder->next = NULL;
         }
     }
     else

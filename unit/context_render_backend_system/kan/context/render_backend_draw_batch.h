@@ -98,8 +98,8 @@ static inline void kan_render_backend_draw_batch_submit (struct kan_render_backe
     }
 
     batch->submit (batch->submit_user_data, batch->allocation.buffer,
-                   batch->allocation.slice_offset + (batch->run_begin - batch->allocation_begin),
-                   (batch->next - batch->run_begin) / batch->instance_size);
+                   batch->allocation.slice_offset + (kan_instance_size_t) (batch->run_begin - batch->allocation_begin),
+                   (kan_instance_size_t) (batch->next - batch->run_begin) / batch->instance_size);
 
     if (batch->next >= batch->allocation_end)
     {

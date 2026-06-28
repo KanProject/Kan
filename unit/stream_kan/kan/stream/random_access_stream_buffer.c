@@ -157,19 +157,23 @@ static kan_stable_size_t buffered_write (struct kan_stream_t *stream,
 
     if (available < amount)
     {
-        kan_stable_size_t to_write = data->stream_position - data->buffer_position;
-        KAN_ASSERT (to_write > 0u)
+        // If we have anything inside buffer, flush it first.
+        const kan_stable_size_t to_write = data->stream_position - data->buffer_position;
 
-        if (!data->source_stream->operations->seek (data->source_stream, KAN_STREAM_SEEK_START, data->buffer_position))
+        if (to_write > 0u)
         {
-            // Failed to seek to buffer output, exiting.
-            return 0u;
-        }
+            if (!data->source_stream->operations->seek (data->source_stream, KAN_STREAM_SEEK_START,
+                                                        data->buffer_position))
+            {
+                // Failed to seek to buffer output, exiting.
+                return 0u;
+            }
 
-        if (data->source_stream->operations->write (data->source_stream, to_write, data->buffer) != to_write)
-        {
-            // Unable to flush buffer, exiting.
-            return 0u;
+            if (data->source_stream->operations->write (data->source_stream, to_write, data->buffer) != to_write)
+            {
+                // Unable to flush buffer, exiting.
+                return 0u;
+            }
         }
 
         data->buffer_position = data->stream_position;

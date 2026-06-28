@@ -523,7 +523,9 @@ static inline void add_command (struct generation_temporary_state_t *state, stru
     if (command.type == SCRIPT_COMMAND_BLOCK && state->last_command &&
         state->last_command->command.type == SCRIPT_COMMAND_BLOCK &&
         state->last_command->command.condition_index == command.condition_index &&
-        state->last_command->command.offset + state->last_command->command.block.size == command.offset)
+        state->last_command->command.offset + state->last_command->command.block.size == command.offset &&
+        // However, we should not make blocks too big for one step.
+        state->last_command->command.block.size + command.block.size <= KAN_SERIALIZATION_BINARY_BLOCK_MAX_STEP)
     {
         state->last_command->command.block.size += command.block.size;
         return;
@@ -2344,23 +2346,38 @@ enum kan_serialization_state_t kan_serialization_binary_reader_step (kan_seriali
 
         case SCRIPT_COMMAND_BLOCK_DYNAMIC_ARRAY:
         {
-            kan_instance_size_t size;
-            if (!read_array_or_patch_size (state, &size))
-            {
-                return KAN_SERIALIZATION_FAILED;
-            }
-
             struct kan_dynamic_array_t *array = (struct kan_dynamic_array_t *) address;
-            kan_dynamic_array_set_capacity (array, size);
-            array->size = size;
-
-            if (state->common.stream->operations->read (state->common.stream, array->size * array->item_size,
-                                                        array->data) != array->size * array->item_size)
+            if (!ensure_dynamic_array_read_suffix_ready (state, top_state, array))
             {
                 return KAN_SERIALIZATION_FAILED;
             }
 
-            script_state_go_to_next_command (top_state);
+            const kan_instance_size_t one_step =
+                KAN_MAX (1u, KAN_SERIALIZATION_BINARY_BLOCK_MAX_STEP / array->item_size);
+
+            const kan_instance_size_t this_step =
+                KAN_MIN (one_step,
+                         top_state->suffix_dynamic_array.items_total - top_state->suffix_dynamic_array.items_processed);
+
+            if (this_step > 0u)
+            {
+                if (state->common.stream->operations->read (
+                        state->common.stream, this_step * array->item_size,
+                        array->data + top_state->suffix_dynamic_array.items_processed * array->item_size) !=
+                    this_step * array->item_size)
+                {
+                    return KAN_SERIALIZATION_FAILED;
+                }
+
+                top_state->suffix_dynamic_array.items_processed += this_step;
+            }
+
+            if (top_state->suffix_dynamic_array.items_processed >= top_state->suffix_dynamic_array.items_total)
+            {
+                array->size = array->capacity;
+                script_state_go_to_next_command (top_state);
+            }
+
             break;
         }
 
@@ -3000,18 +3017,36 @@ enum kan_serialization_state_t kan_serialization_binary_writer_step (kan_seriali
         case SCRIPT_COMMAND_BLOCK_DYNAMIC_ARRAY:
         {
             struct kan_dynamic_array_t *array = (struct kan_dynamic_array_t *) address;
-            if (!write_array_or_patch_size (state, (kan_instance_size_t) array->size))
+            if (!ensure_dynamic_array_write_suffix_ready (state, top_state, array))
             {
                 return KAN_SERIALIZATION_FAILED;
             }
 
-            if (state->common.stream->operations->write (state->common.stream, array->size * array->item_size,
-                                                         array->data) != array->size * array->item_size)
+            const kan_instance_size_t one_step =
+                KAN_MAX (1u, KAN_SERIALIZATION_BINARY_BLOCK_MAX_STEP / array->item_size);
+
+            const kan_instance_size_t this_step =
+                KAN_MIN (one_step,
+                         top_state->suffix_dynamic_array.items_total - top_state->suffix_dynamic_array.items_processed);
+
+            if (this_step > 0u)
             {
-                return KAN_SERIALIZATION_FAILED;
+                if (state->common.stream->operations->write (
+                        state->common.stream, this_step * array->item_size,
+                        array->data + top_state->suffix_dynamic_array.items_processed * array->item_size) !=
+                    this_step * array->item_size)
+                {
+                    return KAN_SERIALIZATION_FAILED;
+                }
+
+                top_state->suffix_dynamic_array.items_processed += this_step;
             }
 
-            script_state_go_to_next_command (top_state);
+            if (top_state->suffix_dynamic_array.items_processed >= top_state->suffix_dynamic_array.items_total)
+            {
+                script_state_go_to_next_command (top_state);
+            }
+
             break;
         }
 

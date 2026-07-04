@@ -9,5 +9,5 @@ concrete_require (
         application_framework context_application_system resource_test_expectation test_routine universe
         universe_render_foundation universe_resource_provider)
 
-register_application_resource_directory ("${CMAKE_CURRENT_SOURCE_DIR}/resources")
+register_unit_resource_packages ("resources")
 setup_reflected_preprocessing ()

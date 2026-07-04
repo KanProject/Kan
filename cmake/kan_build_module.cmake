@@ -19,6 +19,7 @@ include ("${CMAKE_CURRENT_LIST_DIR}/kan/context.cmake")
 include ("${CMAKE_CURRENT_LIST_DIR}/kan/global_options.cmake")
 include ("${CMAKE_CURRENT_LIST_DIR}/kan/preprocessing.cmake")
 include ("${CMAKE_CURRENT_LIST_DIR}/kan/reflection_statics.cmake")
+include ("${CMAKE_CURRENT_LIST_DIR}/kan/resource_pipeline.cmake")
 include ("${CMAKE_CURRENT_LIST_DIR}/kan/testing.cmake")
 
 # Standard-setting logic is exposed as macro so it could also be easily called by user projects.

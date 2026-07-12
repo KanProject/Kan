@@ -33,8 +33,12 @@ RESOURCE_PIPELINE_API kan_allocation_group_t kan_resource_log_get_allocation_gro
 KAN_REFLECTION_FLAGS
 enum kan_resource_reference_flags_t
 {
-    /// \brief Enabled if none of the actual references has KAN_RESOURCE_REFERENCE_META_PLATFORM_OPTIONAL flag.
+    /// \brief Enabled if any of the actual references does not have KAN_RESOURCE_REFERENCE_META_PLATFORM_OPTIONAL flag.
     KAN_RESOURCE_REFERENCE_REQUIRED = 1u << 0u,
+
+    /// \brief Enabled if any of the actual references does not have
+    ///        KAN_RESOURCE_REFERENCE_META_LOADING_NOT_REQUIRED flag.
+    KAN_RESOURCE_REFERENCE_LOADING_REQUIRED = 1u << 1u,
 };
 
 /// \brief Describes resource reference stored inside resource build action log.
@@ -120,6 +124,7 @@ struct kan_resource_log_dependency_t
 ///          Third party resources have `NULL` instead of `type` as they do not have any native type.
 struct kan_resource_log_entry_t
 {
+    kan_interned_string_t package;
     kan_interned_string_t type;
     kan_interned_string_t name;
     struct kan_resource_log_version_t version;
@@ -160,30 +165,14 @@ RESOURCE_PIPELINE_API void kan_resource_log_entry_init_copy (struct kan_resource
 
 RESOURCE_PIPELINE_API void kan_resource_log_entry_shutdown (struct kan_resource_log_entry_t *instance);
 
-/// \brief Contains data about all resources used during build routine inside specific target.
-struct kan_resource_log_target_t
-{
-    kan_interned_string_t name;
-
-    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_log_entry_t)
-    struct kan_dynamic_array_t entries;
-};
-
-RESOURCE_PIPELINE_API void kan_resource_log_target_init (struct kan_resource_log_target_t *instance);
-
-RESOURCE_PIPELINE_API void kan_resource_log_target_init_copy (struct kan_resource_log_target_t *instance,
-                                                              const struct kan_resource_log_target_t *copy_from);
-
-RESOURCE_PIPELINE_API void kan_resource_log_target_shutdown (struct kan_resource_log_target_t *instance);
-
 /// \brief Default name for resource log file.
 #define KAN_RESOURCE_LOG_DEFAULT_NAME ".resource_log"
 
 /// \brief Resource build action log root data structure.
 struct kan_resource_log_t
 {
-    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_log_target_t)
-    struct kan_dynamic_array_t targets;
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_resource_log_entry_t)
+    struct kan_dynamic_array_t entries;
 };
 
 RESOURCE_PIPELINE_API void kan_resource_log_init (struct kan_resource_log_t *instance);

@@ -785,30 +785,41 @@ static void set_base_directories_to_project (struct kan_resource_project_t *proj
     memcpy (project->platform_configuration_directory, container.path, container.length + 1u);
 }
 
-#define TEST_TARGET_NAME "test_target"
-#define TEST_TARGET_RESOURCE_DIRECTORY "resources"
-
-static void add_common_basic_test_target_to_project (struct kan_resource_project_t *project)
+static void create_default_package_manifest_in_directory (kan_reflection_registry_t registry, const char *directory)
 {
-    struct kan_resource_project_target_t *target = kan_dynamic_array_add_last (&project->targets);
-    if (!target)
+    struct kan_resource_package_t package;
+    kan_resource_package_init (&package);
+    CUSHION_DEFER { kan_resource_package_shutdown (&package); }
+    package.level = KAN_RESOURCE_PACKAGE_LEVEL_REQUIRED;
+
+    struct kan_file_system_path_container_t path;
+    kan_file_system_path_container_copy_string (&path, directory);
+    kan_file_system_path_container_append (&path, KAN_RESOURCE_PACKAGE_RAW_FILE_NAME);
+    save_rd_to (registry, path.path, KAN_STATIC_INTERNED_ID_GET (kan_resource_package_t), &package);
+}
+
+#define TEST_PACKAGE_NAME "test_package"
+#define TEST_PACKAGE_RESOURCE_DIRECTORY "resources"
+
+static void add_common_basic_test_package_to_project (struct kan_resource_project_t *project)
+{
+    struct kan_resource_project_package_t *package = kan_dynamic_array_add_last (&project->packages);
+    if (!package)
     {
-        kan_dynamic_array_set_capacity (&project->targets, KAN_MAX (1u, project->targets.size * 2u));
-        target = kan_dynamic_array_add_last (&project->targets);
+        kan_dynamic_array_set_capacity (&project->packages, KAN_MAX (1u, project->packages.size * 2u));
+        package = kan_dynamic_array_add_last (&project->packages);
     }
 
-    kan_resource_project_target_init (target);
-    target->name = kan_string_intern (TEST_TARGET_NAME);
+    kan_resource_project_package_init (package);
+    package->name = kan_string_intern (TEST_PACKAGE_NAME);
+    package->group = KAN_RESOURCE_PACKAGE_GROUP_CORE;
 
     struct kan_file_system_path_container_t container;
-    KAN_TEST_ASSERT (kan_file_system_to_absolute_path (TEST_TARGET_RESOURCE_DIRECTORY, &container))
+    KAN_TEST_ASSERT (kan_file_system_to_absolute_path (TEST_PACKAGE_RESOURCE_DIRECTORY, &container))
 
-    char *directory =
+    package->directory =
         kan_allocate_general (kan_resource_project_get_allocation_group (), container.length + 1u, alignof (char));
-    memcpy (directory, container.path, container.length + 1u);
-
-    kan_dynamic_array_set_capacity (&target->directories, 1u);
-    *(char **) kan_dynamic_array_add_last (&target->directories) = directory;
+    memcpy (package->directory, container.path, container.length + 1u);
 }
 
 #define SETUP_CONTEXT_AND_GET_REFLECTION                                                                               \
@@ -830,8 +841,9 @@ static void add_common_basic_test_target_to_project (struct kan_resource_project
 #define SETUP_TRIVIAL_TEST_ENVIRONMENT                                                                                 \
     ensure_statics_initialized ();                                                                                     \
     SETUP_CONTEXT_AND_GET_REFLECTION                                                                                   \
-    kan_file_system_remove_directory_with_content (TEST_TARGET_RESOURCE_DIRECTORY);                                    \
-    KAN_TEST_CHECK (kan_file_system_make_directory (TEST_TARGET_RESOURCE_DIRECTORY))                                   \
+    kan_file_system_remove_directory_with_content (TEST_PACKAGE_RESOURCE_DIRECTORY);                                   \
+    KAN_TEST_CHECK (kan_file_system_make_directory (TEST_PACKAGE_RESOURCE_DIRECTORY))                                  \
+    create_default_package_manifest_in_directory (registry, TEST_PACKAGE_RESOURCE_DIRECTORY);                          \
                                                                                                                        \
     kan_file_system_remove_directory_with_content (WORKSPACE_DIRECTORY);                                               \
     KAN_TEST_CHECK (kan_file_system_make_directory (WORKSPACE_DIRECTORY))                                              \
@@ -844,7 +856,7 @@ static void add_common_basic_test_target_to_project (struct kan_resource_project
     kan_resource_project_init (&project);                                                                              \
     CUSHION_DEFER { kan_resource_project_shutdown (&project); }                                                        \
                                                                                                                        \
-    add_common_basic_test_target_to_project (&project);                                                                \
+    add_common_basic_test_package_to_project (&project);                                                               \
     set_base_directories_to_project (&project);                                                                        \
                                                                                                                        \
     struct kan_resource_reflected_data_storage_t reflected_data;                                                       \
@@ -858,10 +870,7 @@ static void add_common_basic_test_target_to_project (struct kan_resource_project
     setup.project = &project;                                                                                          \
     setup.reflected_data = &reflected_data;                                                                            \
     setup.pack_mode = KAN_RESOURCE_BUILD_PACK_MODE_NONE;                                                               \
-    setup.log_verbosity = KAN_LOG_VERBOSE;                                                                             \
-                                                                                                                       \
-    kan_dynamic_array_set_capacity (&setup.targets, 1u);                                                               \
-    *(kan_interned_string_t *) kan_dynamic_array_add_last (&setup.targets) = kan_string_intern (TEST_TARGET_NAME)
+    setup.log_verbosity = KAN_LOG_VERBOSE
 
 KAN_TEST_CASE (correctness)
 {
@@ -871,28 +880,28 @@ KAN_TEST_CASE (correctness)
         KAN_STATIC_INTERNED_ID_GET (additional_precision_tag);
 
     struct kan_file_system_path_container_t write_path;
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "1.txt");
     save_text_to (write_path.path, "123");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "2.txt");
     save_text_to (write_path.path, "456");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "3.txt");
     save_text_to (write_path.path, "789");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "4.txt");
     save_text_to (write_path.path, "0");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "5.txt");
     save_text_to (write_path.path, "1111");
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "test.rd");
 
         struct sum_resource_raw_t raw;
@@ -909,7 +918,7 @@ KAN_TEST_CASE (correctness)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "root.rd");
 
         struct root_resource_t root;
@@ -931,7 +940,7 @@ KAN_TEST_CASE (correctness)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_parsed_source_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_parsed_source_t",
                                                            "1.txt");
 
         struct sum_parsed_source_t resource;
@@ -941,7 +950,7 @@ KAN_TEST_CASE (correctness)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_parsed_source_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_parsed_source_t",
                                                            "2.txt");
 
         struct sum_parsed_source_t resource;
@@ -951,7 +960,7 @@ KAN_TEST_CASE (correctness)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_parsed_source_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_parsed_source_t",
                                                            "3.txt");
 
         struct sum_parsed_source_t resource;
@@ -961,7 +970,7 @@ KAN_TEST_CASE (correctness)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_parsed_source_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_parsed_source_t",
                                                            "4.txt");
 
         struct sum_parsed_source_t resource;
@@ -971,14 +980,14 @@ KAN_TEST_CASE (correctness)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_parsed_source_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_parsed_source_t",
                                                            "5.txt");
         KAN_TEST_CHECK (!kan_file_system_check_existence (read_path.path))
     }
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t", "test");
 
         struct sum_resource_t resource;
         load_binary_from (script_storage, read_path.path, KAN_STATIC_INTERNED_ID_GET (sum_resource_t), &resource);
@@ -987,7 +996,7 @@ KAN_TEST_CASE (correctness)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "root_resource_t", "root");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "root_resource_t", "root");
 
         struct root_resource_t resource;
         root_resource_init (&resource);
@@ -1003,20 +1012,20 @@ KAN_TEST_CASE (rebuild)
     SETUP_TRIVIAL_TEST_ENVIRONMENT;
 
     struct kan_file_system_path_container_t write_path;
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "1.txt");
     save_text_to (write_path.path, "1");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "2.txt");
     save_text_to (write_path.path, "2");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "3.txt");
     save_text_to (write_path.path, "3");
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "test_1_2.rd");
 
         struct sum_resource_raw_t raw;
@@ -1031,7 +1040,7 @@ KAN_TEST_CASE (rebuild)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "test_2_3.rd");
 
         struct sum_resource_raw_t raw;
@@ -1046,7 +1055,7 @@ KAN_TEST_CASE (rebuild)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "root.rd");
 
         struct root_resource_t root;
@@ -1074,7 +1083,8 @@ KAN_TEST_CASE (rebuild)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_1_2");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_1_2");
 
         struct sum_resource_t resource;
         load_binary_from (script_storage, read_path.path, KAN_STATIC_INTERNED_ID_GET (sum_resource_t), &resource);
@@ -1087,7 +1097,8 @@ KAN_TEST_CASE (rebuild)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_2_3");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_2_3");
 
         struct sum_resource_t resource;
         load_binary_from (script_storage, read_path.path, KAN_STATIC_INTERNED_ID_GET (sum_resource_t), &resource);
@@ -1103,7 +1114,8 @@ KAN_TEST_CASE (rebuild)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_1_2");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_1_2");
 
         struct kan_file_system_entry_status_t status;
         KAN_TEST_ASSERT (kan_file_system_query_entry (read_path.path, &status))
@@ -1113,7 +1125,8 @@ KAN_TEST_CASE (rebuild)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_2_3");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_2_3");
 
         struct kan_file_system_entry_status_t status;
         KAN_TEST_ASSERT (kan_file_system_query_entry (read_path.path, &status))
@@ -1125,7 +1138,7 @@ KAN_TEST_CASE (rebuild)
     // changes were too close to each to other for filesystem to change modification time.
     kan_precise_time_sleep (10000000u);
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "1.txt");
     save_text_to (write_path.path, "10");
 
@@ -1134,7 +1147,8 @@ KAN_TEST_CASE (rebuild)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_1_2");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_1_2");
 
         struct kan_file_system_entry_status_t status;
         KAN_TEST_ASSERT (kan_file_system_query_entry (read_path.path, &status))
@@ -1148,7 +1162,8 @@ KAN_TEST_CASE (rebuild)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_2_3");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_2_3");
 
         struct kan_file_system_entry_status_t status;
         KAN_TEST_ASSERT (kan_file_system_query_entry (read_path.path, &status))
@@ -1160,7 +1175,7 @@ KAN_TEST_CASE (rebuild)
     // changes were too close to each to other for filesystem to change modification time.
     kan_precise_time_sleep (10000000u);
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "2.txt");
     save_text_to (write_path.path, "20");
 
@@ -1169,7 +1184,8 @@ KAN_TEST_CASE (rebuild)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_1_2");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_1_2");
 
         struct kan_file_system_entry_status_t status;
         KAN_TEST_ASSERT (kan_file_system_query_entry (read_path.path, &status))
@@ -1183,7 +1199,8 @@ KAN_TEST_CASE (rebuild)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_2_3");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_2_3");
 
         struct kan_file_system_entry_status_t status;
         KAN_TEST_ASSERT (kan_file_system_query_entry (read_path.path, &status))
@@ -1199,7 +1216,7 @@ KAN_TEST_CASE (rebuild)
     // changes were too close to each to other for filesystem to change modification time.
     kan_precise_time_sleep (10000000u);
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "3.txt");
     save_text_to (write_path.path, "30");
 
@@ -1208,7 +1225,8 @@ KAN_TEST_CASE (rebuild)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_1_2");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_1_2");
 
         struct kan_file_system_entry_status_t status;
         KAN_TEST_ASSERT (kan_file_system_query_entry (read_path.path, &status))
@@ -1218,7 +1236,8 @@ KAN_TEST_CASE (rebuild)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_2_3");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_2_3");
 
         struct kan_file_system_entry_status_t status;
         KAN_TEST_ASSERT (kan_file_system_query_entry (read_path.path, &status))
@@ -1236,16 +1255,16 @@ KAN_TEST_CASE (references)
     SETUP_TRIVIAL_TEST_ENVIRONMENT;
 
     struct kan_file_system_path_container_t write_path;
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "1.txt");
     save_text_to (write_path.path, "1");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "2.txt");
     save_text_to (write_path.path, "2");
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "test_1.rd");
 
         struct sum_resource_raw_t raw;
@@ -1257,7 +1276,7 @@ KAN_TEST_CASE (references)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "test_2.rd");
 
         struct sum_resource_raw_t raw;
@@ -1269,7 +1288,7 @@ KAN_TEST_CASE (references)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "root.rd");
 
         struct root_resource_t root;
@@ -1290,23 +1309,23 @@ KAN_TEST_CASE (references)
     const kan_instance_size_t read_path_base_length = read_path.length;
 
     kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-    kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_1");
+    kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t", "test_1");
     KAN_TEST_CHECK (!kan_file_system_check_existence (read_path.path))
 
     kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-    kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_1");
+    kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t", "test_1");
     KAN_TEST_CHECK (!kan_file_system_check_existence (read_path.path))
 
     kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-    kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_2");
+    kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t", "test_2");
     KAN_TEST_CHECK (kan_file_system_check_existence (read_path.path))
 
     kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-    kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_parsed_source_t", "1.txt");
+    kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_parsed_source_t", "1.txt");
     KAN_TEST_CHECK (!kan_file_system_check_existence (read_path.path))
 
     kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-    kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_parsed_source_t", "2.txt");
+    kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_parsed_source_t", "2.txt");
     KAN_TEST_CHECK (kan_file_system_check_existence (read_path.path))
 }
 
@@ -1316,7 +1335,7 @@ KAN_TEST_CASE (secondary)
     struct kan_file_system_path_container_t write_path;
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "test.rd");
 
         struct secondary_producer_resource_raw_t raw;
@@ -1325,7 +1344,7 @@ KAN_TEST_CASE (secondary)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "root.rd");
 
         struct root_resource_t root;
@@ -1351,7 +1370,7 @@ KAN_TEST_CASE (secondary)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "secondary_resource_raw_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "secondary_resource_raw_t",
                                                            "test_child_0");
 
         struct secondary_resource_raw_t resource;
@@ -1362,7 +1381,7 @@ KAN_TEST_CASE (secondary)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "secondary_resource_raw_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "secondary_resource_raw_t",
                                                            "test_child_1");
 
         struct secondary_resource_raw_t resource;
@@ -1373,7 +1392,7 @@ KAN_TEST_CASE (secondary)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "secondary_resource_raw_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "secondary_resource_raw_t",
                                                            "test_child_2");
 
         struct secondary_resource_raw_t resource;
@@ -1384,7 +1403,7 @@ KAN_TEST_CASE (secondary)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "secondary_resource_t",
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "secondary_resource_t",
                                                             "test_child_0");
 
         struct secondary_resource_t resource;
@@ -1398,7 +1417,7 @@ KAN_TEST_CASE (secondary)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "secondary_resource_t",
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "secondary_resource_t",
                                                             "test_child_1");
 
         struct secondary_resource_t resource;
@@ -1408,7 +1427,7 @@ KAN_TEST_CASE (secondary)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "secondary_resource_t",
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "secondary_resource_t",
                                                             "test_child_2");
 
         struct secondary_resource_t resource;
@@ -1418,7 +1437,7 @@ KAN_TEST_CASE (secondary)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME,
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME,
                                                             "secondary_producer_resource_t", "test");
 
         struct secondary_producer_resource_t resource;
@@ -1451,14 +1470,14 @@ KAN_TEST_CASE (secondary)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "secondary_resource_raw_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "secondary_resource_raw_t",
                                                            "test_child_0");
         KAN_TEST_CHECK (kan_file_system_check_existence (read_path.path))
     }
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "secondary_resource_t",
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "secondary_resource_t",
                                                             "test_child_0");
 
         struct kan_file_system_entry_status_t status;
@@ -1468,7 +1487,7 @@ KAN_TEST_CASE (secondary)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME,
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME,
                                                             "secondary_producer_resource_t", "test");
 
         struct kan_file_system_entry_status_t status;
@@ -1477,7 +1496,7 @@ KAN_TEST_CASE (secondary)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "test.rd");
 
         struct secondary_producer_resource_raw_t raw;
@@ -1494,21 +1513,21 @@ KAN_TEST_CASE (secondary)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "secondary_resource_raw_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "secondary_resource_raw_t",
                                                            "test_child_0");
         KAN_TEST_CHECK (kan_file_system_check_existence (read_path.path))
     }
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "secondary_resource_raw_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "secondary_resource_raw_t",
                                                            "test_child_2");
         KAN_TEST_CHECK (!kan_file_system_check_existence (read_path.path))
     }
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "secondary_resource_t",
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "secondary_resource_t",
                                                             "test_child_0");
 
         struct secondary_resource_t resource;
@@ -1522,7 +1541,7 @@ KAN_TEST_CASE (secondary)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "secondary_resource_t",
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "secondary_resource_t",
                                                             "test_child_1");
 
         struct secondary_resource_t resource;
@@ -1532,14 +1551,14 @@ KAN_TEST_CASE (secondary)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "secondary_resource_t",
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "secondary_resource_t",
                                                             "test_child_2");
         KAN_TEST_CHECK (!kan_file_system_check_existence (read_path.path))
     }
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME,
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME,
                                                             "secondary_producer_resource_t", "test");
 
         struct secondary_producer_resource_t resource;
@@ -1561,22 +1580,25 @@ KAN_TEST_CASE (secondary)
     }
 }
 
-#define TEST_BASE_TARGET_NAME "test_base_target"
-#define TEST_BASE_TARGET_RESOURCE_DIRECTORY "base_resources"
+#define TEST_CORE_PACKAGE_NAME "test_core_package"
+#define TEST_CORE_PACKAGE_RESOURCE_DIRECTORY "core_resources"
 
-#define TEST_CHILD_TARGET_NAME "test_child_target"
-#define TEST_CHILD_TARGET_RESOURCE_DIRECTORY "child_resources"
+#define TEST_PLUGIN_PACKAGE_NAME "test_plugin_package"
+#define TEST_PLUGIN_PACKAGE_RESOURCE_DIRECTORY "plugin_resources"
+#define TEST_PLUGIN_NAME "plugin"
 
-KAN_TEST_CASE (target_visibility)
+KAN_TEST_CASE (package_visibility)
 {
     ensure_statics_initialized ();
     SETUP_CONTEXT_AND_GET_REFLECTION
 
-    kan_file_system_remove_directory_with_content (TEST_BASE_TARGET_RESOURCE_DIRECTORY);
-    KAN_TEST_CHECK (kan_file_system_make_directory (TEST_BASE_TARGET_RESOURCE_DIRECTORY))
+    kan_file_system_remove_directory_with_content (TEST_CORE_PACKAGE_RESOURCE_DIRECTORY);
+    KAN_TEST_CHECK (kan_file_system_make_directory (TEST_CORE_PACKAGE_RESOURCE_DIRECTORY))
+    create_default_package_manifest_in_directory (registry, TEST_CORE_PACKAGE_RESOURCE_DIRECTORY);
 
-    kan_file_system_remove_directory_with_content (TEST_CHILD_TARGET_RESOURCE_DIRECTORY);
-    KAN_TEST_CHECK (kan_file_system_make_directory (TEST_CHILD_TARGET_RESOURCE_DIRECTORY))
+    kan_file_system_remove_directory_with_content (TEST_PLUGIN_PACKAGE_RESOURCE_DIRECTORY);
+    KAN_TEST_CHECK (kan_file_system_make_directory (TEST_PLUGIN_PACKAGE_RESOURCE_DIRECTORY))
+    create_default_package_manifest_in_directory (registry, TEST_PLUGIN_PACKAGE_RESOURCE_DIRECTORY);
 
     kan_file_system_remove_directory_with_content (WORKSPACE_DIRECTORY);
     KAN_TEST_CHECK (kan_file_system_make_directory (WORKSPACE_DIRECTORY))
@@ -1590,47 +1612,40 @@ KAN_TEST_CASE (target_visibility)
     CUSHION_DEFER { kan_resource_project_shutdown (&project); }
     set_base_directories_to_project (&project);
 
-    struct kan_resource_project_target_t *base_target = kan_dynamic_array_add_last (&project.targets);
-    if (!base_target)
+    struct kan_resource_project_package_t *core_package = kan_dynamic_array_add_last (&project.packages);
+    if (!core_package)
     {
-        kan_dynamic_array_set_capacity (&project.targets, KAN_MAX (1u, project.targets.size * 2u));
-        base_target = kan_dynamic_array_add_last (&project.targets);
+        kan_dynamic_array_set_capacity (&project.packages, KAN_MAX (1u, project.packages.size * 2u));
+        core_package = kan_dynamic_array_add_last (&project.packages);
     }
 
-    kan_resource_project_target_init (base_target);
-    base_target->name = kan_string_intern (TEST_BASE_TARGET_NAME);
+    kan_resource_project_package_init (core_package);
+    core_package->name = kan_string_intern (TEST_CORE_PACKAGE_NAME);
+    core_package->group = KAN_RESOURCE_PACKAGE_GROUP_CORE;
 
     struct kan_file_system_path_container_t init_path;
-    KAN_TEST_ASSERT (kan_file_system_to_absolute_path (TEST_BASE_TARGET_RESOURCE_DIRECTORY, &init_path))
+    KAN_TEST_ASSERT (kan_file_system_to_absolute_path (TEST_CORE_PACKAGE_RESOURCE_DIRECTORY, &init_path))
 
-    char *directory =
+    core_package->directory =
         kan_allocate_general (kan_resource_project_get_allocation_group (), init_path.length + 1u, alignof (char));
-    memcpy (directory, init_path.path, init_path.length + 1u);
+    memcpy (core_package->directory, init_path.path, init_path.length + 1u);
+    struct kan_resource_project_package_t *child_package = kan_dynamic_array_add_last (&project.packages);
 
-    kan_dynamic_array_set_capacity (&base_target->directories, 1u);
-    *(char **) kan_dynamic_array_add_last (&base_target->directories) = directory;
-
-    struct kan_resource_project_target_t *child_target = kan_dynamic_array_add_last (&project.targets);
-    if (!child_target)
+    if (!child_package)
     {
-        kan_dynamic_array_set_capacity (&project.targets, KAN_MAX (1u, project.targets.size * 2u));
-        child_target = kan_dynamic_array_add_last (&project.targets);
+        kan_dynamic_array_set_capacity (&project.packages, KAN_MAX (1u, project.packages.size * 2u));
+        child_package = kan_dynamic_array_add_last (&project.packages);
     }
 
-    kan_resource_project_target_init (child_target);
-    child_target->name = kan_string_intern (TEST_CHILD_TARGET_NAME);
+    kan_resource_project_package_init (child_package);
+    child_package->name = kan_string_intern (TEST_PLUGIN_PACKAGE_NAME);
+    child_package->group = KAN_RESOURCE_PACKAGE_GROUP_PLUGIN;
+    child_package->plugin = kan_string_intern (TEST_PLUGIN_NAME);
 
-    KAN_TEST_ASSERT (kan_file_system_to_absolute_path (TEST_CHILD_TARGET_RESOURCE_DIRECTORY, &init_path))
-    directory =
+    KAN_TEST_ASSERT (kan_file_system_to_absolute_path (TEST_PLUGIN_PACKAGE_RESOURCE_DIRECTORY, &init_path))
+    child_package->directory =
         kan_allocate_general (kan_resource_project_get_allocation_group (), init_path.length + 1u, alignof (char));
-    memcpy (directory, init_path.path, init_path.length + 1u);
-
-    kan_dynamic_array_set_capacity (&child_target->directories, 1u);
-    *(char **) kan_dynamic_array_add_last (&child_target->directories) = directory;
-
-    kan_dynamic_array_set_capacity (&child_target->visible_targets, 1u);
-    *(kan_interned_string_t *) kan_dynamic_array_add_last (&child_target->visible_targets) =
-        kan_string_intern (TEST_BASE_TARGET_NAME);
+    memcpy (child_package->directory, init_path.path, init_path.length + 1u);
 
     struct kan_resource_reflected_data_storage_t reflected_data;
     kan_resource_reflected_data_storage_build (&reflected_data, registry);
@@ -1645,20 +1660,20 @@ KAN_TEST_CASE (target_visibility)
     setup.pack_mode = KAN_RESOURCE_BUILD_PACK_MODE_NONE;
     setup.log_verbosity = KAN_LOG_VERBOSE;
 
-    kan_dynamic_array_set_capacity (&setup.targets, 1u);
-    *(kan_interned_string_t *) kan_dynamic_array_add_last (&setup.targets) = kan_string_intern (TEST_CHILD_TARGET_NAME);
+    kan_dynamic_array_set_capacity (&setup.plugins, 1u);
+    *(kan_interned_string_t *) kan_dynamic_array_add_last (&setup.plugins) = kan_string_intern (TEST_PLUGIN_NAME);
 
     struct kan_file_system_path_container_t write_path;
-    kan_file_system_path_container_copy_string (&write_path, TEST_BASE_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_CORE_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "1.txt");
     save_text_to (write_path.path, "123");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_BASE_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_CORE_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "2.txt");
     save_text_to (write_path.path, "456");
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_CHILD_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PLUGIN_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "test.rd");
 
         struct sum_resource_raw_t raw;
@@ -1673,7 +1688,7 @@ KAN_TEST_CASE (target_visibility)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_CHILD_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PLUGIN_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "root.rd");
 
         struct root_resource_t root;
@@ -1695,7 +1710,7 @@ KAN_TEST_CASE (target_visibility)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_BASE_TARGET_NAME, "sum_parsed_source_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_CORE_PACKAGE_NAME, "sum_parsed_source_t",
                                                            "1.txt");
 
         struct sum_parsed_source_t resource;
@@ -1705,7 +1720,7 @@ KAN_TEST_CASE (target_visibility)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_CHILD_TARGET_NAME, "sum_resource_t",
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PLUGIN_PACKAGE_NAME, "sum_resource_t",
                                                             "test");
 
         struct sum_resource_t resource;
@@ -1715,7 +1730,7 @@ KAN_TEST_CASE (target_visibility)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_CHILD_TARGET_NAME, "root_resource_t",
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PLUGIN_PACKAGE_NAME, "root_resource_t",
                                                             "root");
 
         struct root_resource_t resource;
@@ -1731,20 +1746,20 @@ KAN_TEST_CASE (platform_unsupported_dependency)
 {
     SETUP_TRIVIAL_TEST_ENVIRONMENT;
     struct kan_file_system_path_container_t write_path;
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "1.txt");
     save_text_to (write_path.path, "123");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "2.txt");
     save_text_to (write_path.path, "456");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "3.txt");
     save_text_to (write_path.path, "789");
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "test.rd");
 
         struct sum_resource_raw_t raw;
@@ -1760,7 +1775,7 @@ KAN_TEST_CASE (platform_unsupported_dependency)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "root.rd");
 
         struct root_resource_t root;
@@ -1782,7 +1797,7 @@ KAN_TEST_CASE (platform_unsupported_dependency)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_parsed_source_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_parsed_source_t",
                                                            "1.txt");
 
         struct sum_parsed_source_t resource;
@@ -1792,7 +1807,7 @@ KAN_TEST_CASE (platform_unsupported_dependency)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_parsed_source_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_parsed_source_t",
                                                            "2.txt");
 
         struct sum_parsed_source_t resource;
@@ -1802,14 +1817,14 @@ KAN_TEST_CASE (platform_unsupported_dependency)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_parsed_source_t",
+        kan_resource_build_append_cache_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_parsed_source_t",
                                                            "3.txt");
         KAN_TEST_CHECK (!kan_file_system_check_existence (read_path.path))
     }
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t", "test");
 
         struct sum_resource_t resource;
         load_binary_from (script_storage, read_path.path, KAN_STATIC_INTERNED_ID_GET (sum_resource_t), &resource);
@@ -1830,15 +1845,15 @@ KAN_TEST_CASE (scale)
     SETUP_TRIVIAL_TEST_ENVIRONMENT;
     struct kan_file_system_path_container_t write_path;
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, SCALE_TXT_DIR);
     KAN_TEST_CHECK (kan_file_system_make_directory (write_path.path))
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, SCALE_SUM_DIR);
     KAN_TEST_CHECK (kan_file_system_make_directory (write_path.path))
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, SCALE_SECONDARY_DIR);
     KAN_TEST_CHECK (kan_file_system_make_directory (write_path.path))
 
@@ -1848,14 +1863,14 @@ KAN_TEST_CASE (scale)
 
         // Generate text.
         snprintf (buffer, sizeof (buffer), "%u.txt", (unsigned int) index);
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, SCALE_TXT_DIR);
         kan_file_system_path_container_append (&write_path, buffer);
         save_text_to (write_path.path, index % 2u ? "42" : "17");
 
         // Generate sum.
         snprintf (buffer, sizeof (buffer), "%u.rd", (unsigned int) index);
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, SCALE_SUM_DIR);
         kan_file_system_path_container_append (&write_path, buffer);
 
@@ -1877,7 +1892,7 @@ KAN_TEST_CASE (scale)
     {
         char buffer[128u];
         snprintf (buffer, sizeof (buffer), "%u.rd", (unsigned int) index);
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, SCALE_SECONDARY_DIR);
         kan_file_system_path_container_append (&write_path, buffer);
 
@@ -1887,7 +1902,7 @@ KAN_TEST_CASE (scale)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "root.rd");
 
         struct root_resource_t root;
@@ -1928,7 +1943,7 @@ KAN_TEST_CASE (scale)
         snprintf (buffer, sizeof (buffer), "%u", (unsigned int) index);
 
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", buffer);
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t", buffer);
 
         if (index < SCALE_REFERENCED_SUM)
         {
@@ -1948,7 +1963,7 @@ KAN_TEST_CASE (scale)
         snprintf (buffer, sizeof (buffer), "%u", (unsigned int) index);
 
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME,
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME,
                                                             "secondary_producer_resource_t", buffer);
 
         if (index < SCALE_REFERENCED_SECONDARY)
@@ -2040,13 +2055,13 @@ KAN_TEST_CASE (pack)
 
         // Generate text.
         snprintf (buffer, sizeof (buffer), "%u.txt", (unsigned int) index);
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, buffer);
         save_text_to (write_path.path, index % 2u ? "42" : "17");
 
         // Generate sum.
         snprintf (buffer, sizeof (buffer), "sum_%u.rd", (unsigned int) index);
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, buffer);
 
         struct sum_resource_raw_t raw;
@@ -2067,7 +2082,7 @@ KAN_TEST_CASE (pack)
     {
         char buffer[128u];
         snprintf (buffer, sizeof (buffer), "secondary_%u.rd", (unsigned int) index);
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, buffer);
 
         struct secondary_producer_resource_raw_t raw;
@@ -2076,7 +2091,7 @@ KAN_TEST_CASE (pack)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "root.rd");
 
         struct root_resource_t root;
@@ -2111,7 +2126,7 @@ KAN_TEST_CASE (pack)
 
     struct kan_file_system_path_container_t pack_path;
     kan_file_system_path_container_copy_string (&pack_path, WORKSPACE_DIRECTORY);
-    kan_resource_build_append_pack_path_in_workspace (&pack_path, TEST_TARGET_NAME);
+    kan_resource_build_append_pack_path_in_workspace (&pack_path, TEST_PACKAGE_NAME);
     KAN_TEST_ASSERT (kan_virtual_file_system_volume_mount_read_only_pack (volume, PACK_MOUNT_PATH, pack_path.path))
 
     struct kan_file_system_path_container_t read_path;
@@ -2316,24 +2331,24 @@ KAN_TEST_CASE (third_party_deploy)
     SETUP_TRIVIAL_TEST_ENVIRONMENT;
 
     struct kan_file_system_path_container_t write_path;
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "1.something");
     save_text_to (write_path.path, "third_party_1");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "2.something");
     save_text_to (write_path.path, "third_party_2");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "3.something");
     save_text_to (write_path.path, "third_party_3");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "4.something");
     save_text_to (write_path.path, "third_party_4");
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "root.rd");
 
         struct root_resource_t root;
@@ -2358,7 +2373,7 @@ KAN_TEST_CASE (third_party_deploy)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "root_resource_t", "root");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "root_resource_t", "root");
 
         struct root_resource_t resource;
         root_resource_init (&resource);
@@ -2375,25 +2390,25 @@ KAN_TEST_CASE (third_party_deploy)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, NULL, "1.something");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, NULL, "1.something");
         check_third_party_content (read_path.path, "third_party_1");
     }
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, NULL, "2.something");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, NULL, "2.something");
         KAN_TEST_CHECK (!kan_file_system_check_existence (read_path.path))
     }
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, NULL, "3.something");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, NULL, "3.something");
         check_third_party_content (read_path.path, "third_party_3");
     }
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, NULL, "4.something");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, NULL, "4.something");
         KAN_TEST_CHECK (!kan_file_system_check_existence (read_path.path))
     }
 }
@@ -2404,24 +2419,24 @@ KAN_TEST_CASE (third_party_pack)
     setup.pack_mode = KAN_RESOURCE_BUILD_PACK_MODE_INTERNED;
 
     struct kan_file_system_path_container_t write_path;
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "1.something");
     save_text_to (write_path.path, "third_party_1");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "2.something");
     save_text_to (write_path.path, "third_party_2");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "3.something");
     save_text_to (write_path.path, "third_party_3");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "4.something");
     save_text_to (write_path.path, "third_party_4");
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "root.rd");
 
         struct root_resource_t root;
@@ -2445,7 +2460,7 @@ KAN_TEST_CASE (third_party_pack)
 
     struct kan_file_system_path_container_t pack_path;
     kan_file_system_path_container_copy_string (&pack_path, WORKSPACE_DIRECTORY);
-    kan_resource_build_append_pack_path_in_workspace (&pack_path, TEST_TARGET_NAME);
+    kan_resource_build_append_pack_path_in_workspace (&pack_path, TEST_PACKAGE_NAME);
     KAN_TEST_ASSERT (kan_virtual_file_system_volume_mount_read_only_pack (volume, PACK_MOUNT_PATH, pack_path.path))
 
     struct kan_file_system_path_container_t read_path;
@@ -2504,20 +2519,20 @@ KAN_TEST_CASE (same_type_raw_and_produced)
     SETUP_TRIVIAL_TEST_ENVIRONMENT;
 
     struct kan_file_system_path_container_t write_path;
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "1.txt");
     save_text_to (write_path.path, "1");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "2.txt");
     save_text_to (write_path.path, "2");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "3.txt");
     save_text_to (write_path.path, "3");
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "test_1_2.rd");
 
         struct sum_resource_raw_t raw;
@@ -2532,7 +2547,7 @@ KAN_TEST_CASE (same_type_raw_and_produced)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "test_all.rd");
 
         struct sum_resource_raw_generator_t raw;
@@ -2542,7 +2557,7 @@ KAN_TEST_CASE (same_type_raw_and_produced)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "root.rd");
 
         struct root_resource_t root;
@@ -2570,7 +2585,8 @@ KAN_TEST_CASE (same_type_raw_and_produced)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_1_2");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_1_2");
 
         struct sum_resource_t resource;
         load_binary_from (script_storage, read_path.path, KAN_STATIC_INTERNED_ID_GET (sum_resource_t), &resource);
@@ -2583,7 +2599,8 @@ KAN_TEST_CASE (same_type_raw_and_produced)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_all");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_all");
 
         struct sum_resource_t resource;
         load_binary_from (script_storage, read_path.path, KAN_STATIC_INTERNED_ID_GET (sum_resource_t), &resource);
@@ -2599,7 +2616,8 @@ KAN_TEST_CASE (same_type_raw_and_produced)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_1_2");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_1_2");
 
         struct kan_file_system_entry_status_t status;
         KAN_TEST_ASSERT (kan_file_system_query_entry (read_path.path, &status))
@@ -2609,7 +2627,8 @@ KAN_TEST_CASE (same_type_raw_and_produced)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_all");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_all");
 
         struct kan_file_system_entry_status_t status;
         KAN_TEST_ASSERT (kan_file_system_query_entry (read_path.path, &status))
@@ -2621,7 +2640,7 @@ KAN_TEST_CASE (same_type_raw_and_produced)
     // changes were too close to each to other for filesystem to change modification time.
     kan_precise_time_sleep (10000000u);
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "3.txt");
     save_text_to (write_path.path, "10");
 
@@ -2630,7 +2649,8 @@ KAN_TEST_CASE (same_type_raw_and_produced)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_1_2");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_1_2");
 
         struct kan_file_system_entry_status_t status;
         KAN_TEST_ASSERT (kan_file_system_query_entry (read_path.path, &status))
@@ -2644,7 +2664,8 @@ KAN_TEST_CASE (same_type_raw_and_produced)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_all");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_all");
 
         struct kan_file_system_entry_status_t status;
         KAN_TEST_ASSERT (kan_file_system_query_entry (read_path.path, &status))
@@ -2662,12 +2683,12 @@ KAN_TEST_CASE (secondary_third_party)
     SETUP_TRIVIAL_TEST_ENVIRONMENT;
 
     struct kan_file_system_path_container_t write_path;
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "multiline.txt");
     save_text_to (write_path.path, "1\n2\n3\n4\n5\n6\n7\n");
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "root.rd");
 
         struct root_resource_t root;
@@ -2690,7 +2711,7 @@ KAN_TEST_CASE (secondary_third_party)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t",
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
                                                             "multiline.txt");
 
         struct sum_resource_t resource;
@@ -2707,7 +2728,7 @@ KAN_TEST_CASE (secondary_third_party)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t",
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
                                                             "multiline.txt");
 
         struct kan_file_system_entry_status_t status;
@@ -2720,7 +2741,7 @@ KAN_TEST_CASE (secondary_third_party)
     // changes were too close to each to other for filesystem to change modification time.
     kan_precise_time_sleep (10000000u);
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "multiline.txt");
     save_text_to (write_path.path, "5\n5\n5\n5\n5");
 
@@ -2729,7 +2750,7 @@ KAN_TEST_CASE (secondary_third_party)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t",
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
                                                             "multiline.txt");
 
         struct kan_file_system_entry_status_t status;
@@ -2748,24 +2769,24 @@ KAN_TEST_CASE (various_rules_for_one_type)
     SETUP_TRIVIAL_TEST_ENVIRONMENT;
 
     struct kan_file_system_path_container_t write_path;
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "1.txt");
     save_text_to (write_path.path, "1");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "2.txt");
     save_text_to (write_path.path, "2");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "3.txt");
     save_text_to (write_path.path, "3");
 
-    kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+    kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
     kan_file_system_path_container_append (&write_path, "multiline.txt");
     save_text_to (write_path.path, "1\n2\n3\n4\n5\n6\n7\n8\n");
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "test_1_2.rd");
 
         struct sum_resource_raw_t raw;
@@ -2780,7 +2801,7 @@ KAN_TEST_CASE (various_rules_for_one_type)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "test_all.rd");
 
         struct sum_resource_raw_generator_t raw;
@@ -2790,7 +2811,7 @@ KAN_TEST_CASE (various_rules_for_one_type)
     }
 
     {
-        kan_file_system_path_container_copy_string (&write_path, TEST_TARGET_RESOURCE_DIRECTORY);
+        kan_file_system_path_container_copy_string (&write_path, TEST_PACKAGE_RESOURCE_DIRECTORY);
         kan_file_system_path_container_append (&write_path, "root.rd");
 
         struct root_resource_t root;
@@ -2816,7 +2837,8 @@ KAN_TEST_CASE (various_rules_for_one_type)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_1_2");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_1_2");
 
         struct sum_resource_t resource;
         load_binary_from (script_storage, read_path.path, KAN_STATIC_INTERNED_ID_GET (sum_resource_t), &resource);
@@ -2825,7 +2847,8 @@ KAN_TEST_CASE (various_rules_for_one_type)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t", "test_all");
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
+                                                            "test_all");
 
         struct sum_resource_t resource;
         load_binary_from (script_storage, read_path.path, KAN_STATIC_INTERNED_ID_GET (sum_resource_t), &resource);
@@ -2834,7 +2857,7 @@ KAN_TEST_CASE (various_rules_for_one_type)
 
     {
         kan_file_system_path_container_reset_length (&read_path, read_path_base_length);
-        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_TARGET_NAME, "sum_resource_t",
+        kan_resource_build_append_deploy_path_in_workspace (&read_path, TEST_PACKAGE_NAME, "sum_resource_t",
                                                             "multiline.txt");
 
         struct sum_resource_t resource;

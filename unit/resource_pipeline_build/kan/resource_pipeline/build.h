@@ -17,11 +17,11 @@
 ///
 /// \par Overview
 /// \parblock
-/// Resource build tool is used to build resources for selected targets of given project. It takes versions and
-/// timestamps into account in order to build only changed and only referenced resources. It is designed to be usable
-/// both as a primary function in command line tool and as drop-in blocking function that can be inserted into other
-/// tool. `kan_resource_build_setup_t` is used to configure tool execution and `kan_resource_build` is an actual
-/// function that executes resource build routine.
+/// Resource build tool is used to build resources in all core packages and selected plugin packages of a given project.
+/// It takes versions and timestamps into account in order to build only changed and only referenced resources. It is
+/// designed to be usable both as a primary function in command line tool and as drop-in blocking function that can be
+/// inserted into other tool. `kan_resource_build_setup_t` is used to configure tool execution and `kan_resource_build`
+/// is an actual function that executes resource build routine.
 ///
 /// Optionally, deployed resources can be packed into read only pack for virtual file system when
 /// `kan_resource_build_pack_mode_t` is provided. When packing is done, resource index is automatically generated with
@@ -63,9 +63,9 @@ struct kan_resource_build_setup_t
     ///          Set this value to KAN_LOG_ERROR of you want only errors to be printed.
     enum kan_log_verbosity_t log_verbosity;
 
-    /// \brief List of targets to build. Targets that are transitively visible from them will also be built.
+    /// \brief List of plugins which packages should be built in addition to core packages.
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (kan_interned_string_t)
-    struct kan_dynamic_array_t targets;
+    struct kan_dynamic_array_t plugins;
 };
 
 RESOURCE_PIPELINE_BUILD_API void kan_resource_build_setup_init (struct kan_resource_build_setup_t *instance);
@@ -78,14 +78,11 @@ enum kan_resource_build_result_t
     /// \brief Execution finished successfully.
     KAN_RESOURCE_BUILD_RESULT_SUCCESS = 0u,
 
-    /// \brief Encountered duplicate targets in project.
-    KAN_RESOURCE_BUILD_RESULT_ERROR_PROJECT_DUPLICATE_TARGETS,
+    /// \brief Encountered duplicate packages in project.
+    KAN_RESOURCE_BUILD_RESULT_ERROR_PROJECT_DUPLICATE_PACKAGES,
 
-    /// \brief Encountered unknown target among the list of targets requested by the user.
-    KAN_RESOURCE_BUILD_RESULT_ERROR_PROJECT_UNKNOWN_TARGET,
-
-    /// \brief Unable to find target that is specified as visible by other target.
-    KAN_RESOURCE_BUILD_RESULT_ERROR_PROJECT_VISIBLE_TARGET_NOT_FOUND,
+    /// \brief Unable to properly setup package information due to inability to read package data in raw resources.
+    KAN_RESOURCE_BUILD_RESULT_ERROR_PROJECT_INVALID_RAW_PACKAGE,
 
     /// \brief Platform configuration setup file is not found.
     KAN_RESOURCE_BUILD_RESULT_ERROR_PLATFORM_CONFIGURATION_NOT_FOUND,
@@ -123,7 +120,7 @@ enum kan_resource_build_result_t
     /// \brief Encountered failure while building resources.
     KAN_RESOURCE_BUILD_RESULT_ERROR_BUILD_FAILED,
 
-    /// \brief Encountered failure while packing resource targets.
+    /// \brief Encountered failure while packing resource packages.
     KAN_RESOURCE_BUILD_RESULT_ERROR_PACK_FAILED,
 };
 
@@ -144,10 +141,10 @@ RESOURCE_PIPELINE_BUILD_API bool kan_resource_project_load (struct kan_resource_
 /// \brief Helper that appends path to deployed entry to container with workspace path.
 /// \details If `type` is `NULL`, then path for third party resource is generated.
 static inline void kan_resource_build_append_deploy_path_in_workspace (
-    struct kan_file_system_path_container_t *container, const char *target, const char *type, const char *name)
+    struct kan_file_system_path_container_t *container, const char *package, const char *type, const char *name)
 {
     kan_file_system_path_container_append (container, KAN_RESOURCE_PROJECT_WORKSPACE_DEPLOY_DIRECTORY);
-    kan_file_system_path_container_append (container, target);
+    kan_file_system_path_container_append (container, package);
     kan_file_system_path_container_append (container, type ? type : KAN_RESOURCE_PROJECT_THIRD_PARTY_SUBDIRECTORY);
     kan_file_system_path_container_append (container, name);
 
@@ -160,10 +157,10 @@ static inline void kan_resource_build_append_deploy_path_in_workspace (
 /// \brief Helper that appends path to cached entry to container with workspace path.
 /// \details If `type` is `NULL`, then path for third party resource is generated.
 static inline void kan_resource_build_append_cache_path_in_workspace (
-    struct kan_file_system_path_container_t *container, const char *target, const char *type, const char *name)
+    struct kan_file_system_path_container_t *container, const char *package, const char *type, const char *name)
 {
     kan_file_system_path_container_append (container, KAN_RESOURCE_PROJECT_WORKSPACE_CACHE_DIRECTORY);
-    kan_file_system_path_container_append (container, target);
+    kan_file_system_path_container_append (container, package);
     kan_file_system_path_container_append (container, type ? type : KAN_RESOURCE_PROJECT_THIRD_PARTY_SUBDIRECTORY);
     kan_file_system_path_container_append (container, name);
 
@@ -175,9 +172,9 @@ static inline void kan_resource_build_append_cache_path_in_workspace (
 
 /// \brief Helper that appends path to built pack to container with workspace path.
 static inline void kan_resource_build_append_pack_path_in_workspace (struct kan_file_system_path_container_t *container,
-                                                                     const char *target)
+                                                                     const char *package)
 {
-    kan_file_system_path_container_append (container, target);
+    kan_file_system_path_container_append (container, package);
     kan_file_system_path_container_add_suffix (container, ".pack");
 }
 

@@ -47,6 +47,24 @@ enum kan_resource_type_flags_t
     /// \brief Resource should be treated as root while building.
     /// \details Root resources are scanned first and are used as roots for used resource scanning algorithm.
     KAN_RESOURCE_TYPE_ROOT = 1u << 0u,
+
+    /// \brief Resource should be treated as streamed.
+    /// \details Streamed resources should never be loaded unless directly requested unlike non-streamed resources that
+    ///          are always loaded when their package is marked for loading. Streamed resources should be used to
+    ///          separate large chunks of better quality data that is not required all the time, like best mips for very
+    ///          heavy textures or cinematic LODs for meshes.
+    KAN_RESOURCE_TYPE_STREAMED = 1u << 1u,
+
+    /// \brief Resource should be treated as transitively loaded by resource provider.
+    /// \details Transitively loaded resources are always converted to other records in application universe during
+    ///          commit step and are never accessed directly except for the process of conversion. It means that
+    ///          resource is only loaded for the commit phase and then unloaded after commit phase is done. This
+    ///          behavior is important for the resources that cannot be consumed directly in any way, for example for
+    ///          materials, textures and other stuff tied to render backend: we need to move their data to the GPU and
+    ///          after that we do not want to keep it allocated. In case of hot reload, transitive resources are loaded
+    ///          again into the commit phase only if they were actually changed, because if they were not changed then
+    ///          using already converted records should suffice.
+    KAN_RESOURCE_TYPE_TRANSITIVELY_LOADED = 1u << 2u,
 };
 
 /// \brief Defines type used for versioning resource types.
@@ -96,6 +114,15 @@ enum kan_resource_reference_meta_flags_t
     /// \warning Also allows reference arrays to be empty. However, reference arrays in patches cannot be validated
     ///          like that as they're always partial, so we cannot easily check whether array is not empty.
     KAN_RESOURCE_REFERENCE_META_NULLABLE = 1u << 1u,
+
+    /// \brief Informs build validation that loading referenced resource from package context is not required.
+    /// \details The most important feature of packages is cascade loading, which means that when loading transaction
+    ///          is done we can be sure that everything that was referenced is loaded. To ensure that for optional
+    ///          packages, we need additional validation step during resource build. However, there are cases when we
+    ///          do not expect resource to be loaded always -- like for cosmetics we would leave a "package enabling
+    ///          tag" and reference to cosmetics asset, that should only be loaded if we actually use that. Such
+    ///          references should be marked with this flag so validation will not flag them as errors.
+    KAN_RESOURCE_REFERENCE_META_LOADING_NOT_REQUIRED = 1u << 2u,
 };
 
 /// \brief Struct field meta that informs that this field is either an interned string with resource name or an array

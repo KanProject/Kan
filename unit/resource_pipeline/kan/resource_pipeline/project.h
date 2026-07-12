@@ -86,13 +86,13 @@ RESOURCE_PIPELINE_API void kan_resource_project_package_init (struct kan_resourc
 
 RESOURCE_PIPELINE_API void kan_resource_project_package_shutdown (struct kan_resource_project_package_t *instance);
 
-/// \brief Deployed resources for every target must be stored in "<workspace>/deploy/<target_name>".
+/// \brief Deployed resources for every package must be stored in "<workspace>/deploy/<package_name>".
 #define KAN_RESOURCE_PROJECT_WORKSPACE_DEPLOY_DIRECTORY "deploy"
 
-/// \brief Cached resources for every target must be stored in "<workspace>/cache/<target_name>".
+/// \brief Cached resources for every package must be stored in "<workspace>/cache/<package_name>".
 #define KAN_RESOURCE_PROJECT_WORKSPACE_CACHE_DIRECTORY "cache"
 
-/// \brief Temporary data for every target must be stored in "<workspace>/temporary/<target_name>".
+/// \brief Temporary data for every package must be stored in "<workspace>/temporary/<package_name>".
 #define KAN_RESOURCE_PROJECT_WORKSPACE_TEMPORARY_DIRECTORY "temporary"
 
 /// \brief Defines project format for application framework tools.

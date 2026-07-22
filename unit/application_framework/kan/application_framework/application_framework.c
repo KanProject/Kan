@@ -340,14 +340,12 @@ static void start_logging_to_file (const char *executable_path_argument, const c
 
     struct kan_file_system_path_container_t path_container;
     struct kan_file_system_path_container_t rename_container;
+
     kan_file_system_path_container_copy_string (&path_container, executable_path_argument);
-
-    while (path_container.length > 0u && path_container.path[path_container.length - 1u] != '/')
-    {
-        --path_container.length;
-    }
-
+    const char *name_begin = kan_file_system_path_walk_to_name_begin (path_container.path, path_container.length);
+    kan_file_system_path_container_reset_length (&path_container, name_begin - path_container.path);
     kan_file_system_path_container_add_suffix (&path_container, "logs");
+
     if (!kan_file_system_check_existence (path_container.path))
     {
         if (!kan_file_system_make_directory (path_container.path))

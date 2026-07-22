@@ -22,6 +22,7 @@ KAN_C_HEADER_BEGIN
 /// \brief Returns allocation group that is used for allocating everything connected to resource project.
 RESOURCE_PIPELINE_API kan_allocation_group_t kan_resource_project_get_allocation_group (void);
 
+/// \brief Package level decides when package will be loaded.
 enum kan_resource_package_level_t
 {
     /// \brief Essential packages are needed to start booting the app, for example to show the loading screen.

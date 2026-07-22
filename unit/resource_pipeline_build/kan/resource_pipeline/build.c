@@ -6013,7 +6013,8 @@ static void execute_pack_for_package (kan_memory_size_t user_data)
         CUSHION_DEFER { index_stream->operations->close (index_stream); }
         kan_serialization_binary_writer_t writer = kan_serialization_binary_writer_create (
             index_stream, &package->manifest, KAN_STATIC_INTERNED_ID_GET (kan_resource_package_t),
-            state->binary_script_storage, interned_string_registry);
+            // Packages should always be serialized without string registries to simplify manifest loading.
+            state->binary_script_storage, KAN_HANDLE_SET_INVALID (kan_serialization_interned_string_registry_t));
         CUSHION_DEFER { kan_serialization_binary_writer_destroy (writer); }
 
         enum kan_serialization_state_t serialization_state;

@@ -260,14 +260,11 @@ int main (int argc, char **argv)
     struct kan_file_system_path_container_t plugin_directory_path;
     kan_file_system_path_container_copy_string (&plugin_directory_path, argv[0u]);
 
-    // Clear out executable name from path.
-    while (plugin_directory_path.length > 0u && plugin_directory_path.path[plugin_directory_path.length - 1u] != '/' &&
-           plugin_directory_path.path[plugin_directory_path.length - 1u] != '\\')
-    {
-        --plugin_directory_path.length;
-    }
+    const char *name_begin =
+        kan_file_system_path_walk_to_name_begin (plugin_directory_path.path, plugin_directory_path.length);
+    kan_file_system_path_container_reset_length (&plugin_directory_path, name_begin - plugin_directory_path.path);
 
-    kan_file_system_path_container_append (&plugin_directory_path, project.plugin_directory_name);
+    kan_file_system_path_container_add_suffix (&plugin_directory_path, project.plugin_directory_name);
     plugin_system_config.plugin_directory_path = kan_string_intern (plugin_directory_path.path);
 
     kan_dynamic_array_set_capacity (&plugin_system_config.plugins, project.plugins.size);

@@ -1480,7 +1480,8 @@ static bool scan_file (struct package_t *package, struct kan_file_system_path_co
             KAN_LOG_WITH_BUFFER (KAN_FILE_SYSTEM_MAX_PATH_LENGTH * 2u, resource_pipeline_build, KAN_LOG_ERROR,
                                  "[Package \"%s\"] Resource at path \"%s\" has type and name collision with resource "
                                  "\"%s\" of type \"%s\" from package \"%s\".",
-                                 package->name, reused_path->path, entry->name, entry->type, entry->package->name)
+                                 package->name, reused_path->path, entry->name, entry->log_type_name,
+                                 entry->package->name)
             return false;
         }
 
@@ -4559,9 +4560,14 @@ static bool mark_root_for_deployment (struct build_state_t *state)
         {
             // We actually need to mark deployment from out of scope packages to make sure that we will not
             // lose resources that are only referenced for deployment from out of scope packages. Therefore,
-            // `!entry->package->marked_for_build` check is not needed here.
+            // `!entry->package->marked_for_build` check is not needed here. However, we should check whether
+            // entry is found in raw resources as otherwise it would mean that this root resource is already deleted.
 
-            *(struct resource_entry_t **) kan_dynamic_array_add_last (&resources_to_mark) = entry;
+            if (entry->located_in_raw_resources)
+            {
+                *(struct resource_entry_t **) kan_dynamic_array_add_last (&resources_to_mark) = entry;
+            }
+
             entry = (struct resource_entry_t *) entry->node.list_node.next;
         }
     }
@@ -4938,6 +4944,9 @@ static inline bool deploy_raw_resource (struct resource_entry_t *entry)
             return false;
         }
 
+        KAN_LOG (resource_pipeline_build, KAN_LOG_DEBUG,
+                 "[Package \"%s\"] Done deploying raw resource file for \"%s\" of third party type as symlink.",
+                 entry->package->name, entry->name, entry->log_type_name)
         return true;
     }
 

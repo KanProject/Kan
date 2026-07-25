@@ -256,6 +256,9 @@ struct kan_resource_provider_singleton_t
     /// \brief Whether essential package loading was finished.
     bool essential_loading_done;
 
+    /// \brief Whether required package loading was finished.
+    bool required_loading_done;
+
     /// \brief Current package loading transaction state.
     enum kan_resource_transaction_state_t transaction_state;
 
@@ -532,9 +535,9 @@ struct kan_resource_third_party_unregistered_event_t
                                         RESOURCE_NAME_POINTER, read, read, const)                                      \
         const struct RESOURCE_TYPE *NAME = NULL;                                                                       \
                                                                                                                        \
-        if (resource_loaded_entry_view_##NAME)                                                                         \
+        if (resource_provider_loaded_entry_##NAME)                                                                     \
         {                                                                                                              \
-            NAME = KAN_RESOURCE_PROVIDER_LOADED_ENTRY_GET (RESOURCE_TYPE, resource_loaded_entry_##NAME)                \
+            NAME = KAN_RESOURCE_PROVIDER_LOADED_ENTRY_GET (RESOURCE_TYPE, resource_provider_loaded_entry_##NAME);      \
         }
 #endif
 
@@ -551,9 +554,10 @@ struct kan_resource_third_party_unregistered_event_t
                                         RESOURCE_NAME_POINTER, read, read, const)                                      \
         const struct RESOURCE_TYPE *NAME = NULL;                                                                       \
                                                                                                                        \
-        if (resource_loaded_entry_view_##NAME)                                                                         \
+        if (resource_provider_loaded_entry_##NAME)                                                                     \
         {                                                                                                              \
-            NAME = KAN_RESOURCE_PROVIDER_LOADED_ENTRY_GET_FRESH (RESOURCE_TYPE, resource_loaded_entry_##NAME)          \
+            NAME =                                                                                                     \
+                KAN_RESOURCE_PROVIDER_LOADED_ENTRY_GET_FRESH (RESOURCE_TYPE, resource_provider_loaded_entry_##NAME);   \
         }
 #endif
 

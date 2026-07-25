@@ -210,6 +210,9 @@ struct universe_resource_provider_generated_node_t
 {
     struct universe_resource_provider_generated_node_t *next;
     const struct kan_reflection_struct_t *source_resource_type;
+    bool streamed;
+    bool transitively_loaded;
+
     struct kan_reflection_struct_t loaded_entry_type;
     struct kan_reflection_struct_t registered_event_type;
     struct kan_reflection_struct_t updated_event_type;
@@ -241,8 +244,6 @@ struct kan_reflection_generator_universe_resource_provider_t
 struct resource_provider_resource_type_interface_t
 {
     kan_interned_string_t resource_type_name;
-    bool streamed;
-    bool transitively_loaded;
 
     struct kan_repository_indexed_insert_query_t insert_loaded_entry;
     struct kan_repository_indexed_value_read_query_t read_loaded_entry_by_id;
@@ -858,7 +859,7 @@ static void schedule_transaction_loading_from_package (struct resource_provider_
             struct resource_provider_resource_type_interface_t *interface =
                 query_resource_type_interface (state, entry->type);
 
-            if (interface->streamed)
+            if (interface->source_node->streamed)
             {
                 // Not interested in streamed entries.
                 continue;
@@ -933,7 +934,7 @@ static void schedule_transaction_unloading_from_package (struct resource_provide
         if (entry->type)
         {
             interface = query_resource_type_interface (state, entry->type);
-            if (interface->streamed)
+            if (interface->source_node->streamed)
             {
                 // Not interested in streamed entries.
                 continue;
@@ -964,12 +965,12 @@ static void start_unconditional_loading_transaction (struct resource_provider_st
     }
 }
 
-static void start_optional_loading_transaction (struct resource_provider_state_t *state,
+static bool start_optional_loading_transaction (struct resource_provider_state_t *state,
                                                 struct kan_resource_provider_singleton_t *public,
                                                 struct resource_provider_private_singleton_t *private)
 {
     KAN_CPU_SCOPED_STATIC_SECTION (start_optional_loading_transaction)
-    public->transaction_state = KAN_RESOURCE_TRANSACTION_STATE_LOADING;
+    bool transaction_triggered = false;
 
     KAN_UML_SEQUENCE_UPDATE (package, kan_resource_package_state_t)
     {
@@ -1006,6 +1007,8 @@ static void start_optional_loading_transaction (struct resource_provider_state_t
         }
 
         package->loaded = should_be_loaded;
+        transaction_triggered = true;
+
         if (should_be_loaded)
         {
             schedule_transaction_loading_from_package (state, private, package);
@@ -1015,6 +1018,13 @@ static void start_optional_loading_transaction (struct resource_provider_state_t
             schedule_transaction_unloading_from_package (state, private, package);
         }
     }
+
+    if (transaction_triggered)
+    {
+        public->transaction_state = KAN_RESOURCE_TRANSACTION_STATE_LOADING;
+    }
+
+    return transaction_triggered;
 }
 
 static kan_instance_size_t calculate_streaming_priority (struct resource_provider_state_t *state,
@@ -1055,7 +1065,7 @@ static void process_streaming_request_insert (struct resource_provider_state_t *
     KAN_ASSERT (type)
     struct resource_provider_resource_type_interface_t *interface = query_resource_type_interface (state, type);
     KAN_ASSERT (interface)
-    KAN_ASSERT (interface->streamed)
+    KAN_ASSERT (interface->source_node->streamed)
 #endif
 
     KAN_UML_VALUE_UPDATE (registered, kan_resource_registered_entry_t, name, &name)
@@ -1320,7 +1330,7 @@ static bool process_file_added (struct resource_provider_state_t *state,
     send_resource_updated_event (state, interface, entry_id, scan_result.name);
     KAN_UMI_VALUE_UPDATE_REQUIRED (registered, kan_resource_registered_entry_t, entry_id, &entry_id)
 
-    if (interface && interface->streamed)
+    if (interface && interface->source_node->streamed)
     {
         KAN_UML_VALUE_READ (request, kan_resource_streaming_request_t, name, &registered->name)
         {
@@ -1431,7 +1441,7 @@ static bool process_file_modified (struct resource_provider_state_t *state,
             KAN_UMI_VALUE_READ_REQUIRED (package, kan_resource_package_state_t, name, &registered->package)
             send_resource_updated_event (state, interface, registered->entry_id, registered->name);
 
-            if (interface && interface->streamed)
+            if (interface && interface->source_node->streamed)
             {
                 if (registered->streaming_counter > 0u)
                 {
@@ -1486,7 +1496,7 @@ static bool process_file_removed (struct resource_provider_state_t *state, const
                 KAN_UMO_EVENT_INSERT_INIT (kan_resource_third_party_unregistered_event_t) {.name = registered->name};
             }
 
-            if (interface && interface->streamed)
+            if (interface && interface->source_node->streamed)
             {
                 KAN_UMI_VALUE_DELETE_OPTIONAL (operation, resource_provider_streaming_operation_t, entry_id,
                                                &registered->entry_id)
@@ -1685,13 +1695,13 @@ static inline enum resource_provider_serve_operation_status_t execute_shared_pro
         return RESOURCE_PROVIDER_SERVE_OPERATION_STATUS_FAILED;
     }
 
-    if (interface->transitively_loaded)
+    if (interface->source_node->transitively_loaded)
     {
         // Unload transitively loaded entry.
-        KAN_ASSERT (!interface->streamed)
+        KAN_ASSERT (!interface->source_node->streamed)
         send_unload_planned_events (state, registered, interface);
     }
-    else if (interface->streamed)
+    else if (interface->source_node->streamed)
     {
         // Streamed operation, flip right away.
         flip_native_resource_loaded_entry (interface, loaded);
@@ -1766,6 +1776,7 @@ static inline enum resource_provider_serve_operation_status_t execute_shared_pro
     KAN_ASSERT (!loaded->loading_data || operation->third_party.read > 0u)
     if (!loaded->loading_data)
     {
+        loaded->loading_data_size = operation->third_party.size;
         loaded->loading_data =
             kan_allocate_general (loaded->my_allocation_group,
                                   (kan_instance_size_t) kan_apply_alignment (
@@ -2079,7 +2090,7 @@ static void perform_unload_on_transaction_finish (struct resource_provider_state
                 query_resource_type_interface (state, event->type);
 
             KAN_ASSERT (interface)
-            KAN_ASSERT (!interface->streamed)
+            KAN_ASSERT (!interface->source_node->streamed)
 
             if (!delete_loaded_entry_by_id (interface, event->entry_id))
             {
@@ -2178,9 +2189,11 @@ UNIVERSE_RESOURCE_PROVIDER_API KAN_UM_MUTATOR_EXECUTE_SIGNATURE (mutator_templat
 
         if (public->tags_dirty)
         {
-            start_optional_loading_transaction (state, public, private);
             public->tags_dirty = false;
-            break;
+            if (start_optional_loading_transaction (state, public, private))
+            {
+                break;
+            }
         }
 
         if (KAN_HANDLE_IS_VALID (private->file_event_provider) &&
@@ -2258,6 +2271,7 @@ UNIVERSE_RESOURCE_PROVIDER_API KAN_UM_MUTATOR_EXECUTE_SIGNATURE (mutator_templat
             break;
         }
 
+        public->required_loading_done = true;
         break;
     }
     }
@@ -2637,7 +2651,8 @@ static inline bool is_resource_type_already_registered (
 
 static inline void register_resource_type (struct kan_reflection_generator_universe_resource_provider_t *instance,
                                            const struct kan_reflection_struct_t *type,
-                                           kan_reflection_system_generation_iterator_t generation_iterator)
+                                           kan_reflection_system_generation_iterator_t generation_iterator,
+                                           const struct kan_resource_type_meta_t *meta)
 {
     struct universe_resource_provider_generated_node_t *node = kan_allocate_general (
         instance->generated_reflection_group, sizeof (struct universe_resource_provider_generated_node_t),
@@ -2648,6 +2663,8 @@ static inline void register_resource_type (struct kan_reflection_generator_unive
     instance->first_node = node;
     ++instance->nodes_count;
 
+    node->streamed = meta->flags & KAN_RESOURCE_TYPE_STREAMED;
+    node->transitively_loaded = meta->flags & KAN_RESOURCE_TYPE_TRANSITIVELY_LOADED;
     char buffer[256u];
 
     // Generated loaded entry struct.
@@ -2836,7 +2853,7 @@ UNIVERSE_RESOURCE_PROVIDER_API void kan_reflection_generator_universe_resource_p
     {
         if (!is_resource_type_already_registered (instance, type->name))
         {
-            register_resource_type (instance, type, iterator);
+            register_resource_type (instance, type, iterator, meta);
         }
     }
 }
@@ -2910,6 +2927,7 @@ void kan_resource_provider_singleton_init (struct kan_resource_provider_singleto
     instance->streaming_id_counter = kan_atomic_int_init (1);
     instance->initial_scan_done = false;
     instance->essential_loading_done = false;
+    instance->required_loading_done = false;
     instance->transaction_state = KAN_RESOURCE_TRANSACTION_STATE_NONE;
     instance->logic_deduplication_frame_id = 0u;
     instance->tags_dirty = true;

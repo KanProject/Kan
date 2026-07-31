@@ -13,10 +13,10 @@
 ///
 /// \par Definition
 /// \parblock
-/// Render foundation texture atlas management automatically loads and unloads texture atlases based on
-/// `kan_render_atlas_usage_t` instances. When texture atlas is loaded, `kan_render_atlas_loaded_t` instance is created
+/// Render foundation texture atlas management automatically loads and unloads texture atlases through resource package
+/// transaction routine. When texture atlas is loaded, `kan_render_atlas_loaded_t` instance is created
 /// with appropriate render image, entry array buffer and data to query entry index in the buffer through
-/// `kan_render_atlas_loaded_query`. When there is no more usages, `kan_render_atlas_loaded_t` is automatically deleted.
+/// `kan_render_atlas_loaded_query`. When package is unloaded, `kan_render_atlas_loaded_t` is automatically deleted.
 ///
 /// On the render pipeline code side, user should sample image using data from atlas entry array, where every entry
 /// has type `atlas_entry` from source file `atlas_entry.rpl`, and atlas entry array could be represented in bindings
@@ -40,39 +40,6 @@ KAN_C_HEADER_BEGIN
 
 /// \brief Checkpoint, that is hit after all render foundation atlas management mutators have finished execution.
 #define KAN_RENDER_FOUNDATION_ATLAS_MANAGEMENT_END_CHECKPOINT "render_foundation_atlas_management_end"
-
-KAN_TYPED_ID_32_DEFINE (kan_render_atlas_usage_id_t);
-
-/// \brief Used to inform atlas management that atlas needs to be loaded.
-struct kan_render_atlas_usage_t
-{
-    /// \brief This usage unique id, must be generated from `kan_next_atlas_usage_id`.
-    kan_immutable kan_render_atlas_usage_id_t usage_id;
-
-    /// \brief Name of the atlas asset to be loaded.
-    kan_immutable kan_interned_string_t name;
-};
-
-/// \brief Singleton for atlas management, primary used to assign atlas usage ids.
-struct kan_render_atlas_singleton_t
-{
-    struct kan_atomic_int_t usage_id_counter;
-
-    /// \brief Count of atlases that are currently being loaded.
-    kan_instance_size_t loading_counter;
-};
-
-UNIVERSE_RENDER_FOUNDATION_API void kan_render_atlas_singleton_init (struct kan_render_atlas_singleton_t *instance);
-
-/// \brief Inline helper for generation of atlas usage ids.
-static inline kan_render_atlas_usage_id_t kan_next_atlas_usage_id (
-    const struct kan_render_atlas_singleton_t *atlas_singleton)
-{
-    // Intentionally request const and de-const it to show that it is multithreading-safe function.
-    return KAN_TYPED_ID_32_SET (
-        kan_render_atlas_usage_id_t,
-        (kan_id_32_t) kan_atomic_int_add ((struct kan_atomic_int_t *) &atlas_singleton->usage_id_counter, 1));
-}
 
 /// \brief Internal structure used primarily for querying entry indices.
 struct kan_render_atlas_loaded_entry_mapping_t

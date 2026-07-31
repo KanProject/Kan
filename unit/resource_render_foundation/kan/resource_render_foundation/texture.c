@@ -1,46 +1,59 @@
 #include <kan/resource_pipeline/meta.h>
 #include <kan/resource_render_foundation/texture.h>
 
-KAN_REFLECTION_STRUCT_META (kan_resource_texture_data_t)
-RESOURCE_RENDER_FOUNDATION_API struct kan_resource_type_meta_t kan_resource_texture_data_resource_type = {
-    .flags = 0u,
+KAN_REFLECTION_STRUCT_META (kan_resource_streamed_texture_data_t)
+RESOURCE_RENDER_FOUNDATION_API struct kan_resource_type_meta_t kan_resource_streamed_texture_data_resource_type = {
+    .flags = KAN_RESOURCE_TYPE_STREAMED,
     .version = CUSHION_START_NS_X64,
     .move = NULL,
     .reset = NULL,
 };
 
-void kan_resource_texture_data_init (struct kan_resource_texture_data_t *instance)
+void kan_resource_streamed_texture_data_init (struct kan_resource_streamed_texture_data_t *instance)
 {
     kan_dynamic_array_init (&instance->data, 0u, sizeof (uint8_t), alignof (int), kan_allocation_group_stack_get ());
 }
 
-void kan_resource_texture_data_shutdown (struct kan_resource_texture_data_t *instance)
+void kan_resource_streamed_texture_data_shutdown (struct kan_resource_streamed_texture_data_t *instance)
 {
     kan_dynamic_array_shutdown (&instance->data);
 }
 
-KAN_REFLECTION_STRUCT_FIELD_META (kan_resource_texture_format_item_t, data_per_mip)
+void kan_resource_inlined_texture_data_init (struct kan_resource_inlined_texture_data_t *instance)
+{
+    kan_dynamic_array_init (&instance->data, 0u, sizeof (uint8_t), alignof (int), kan_allocation_group_stack_get ());
+}
+
+void kan_resource_inlined_texture_data_shutdown (struct kan_resource_inlined_texture_data_t *instance)
+{
+    kan_dynamic_array_shutdown (&instance->data);
+}
+
+KAN_REFLECTION_STRUCT_FIELD_META (kan_resource_texture_format_item_t, streamed_mips)
 RESOURCE_RENDER_FOUNDATION_API struct kan_resource_reference_meta_t
     kan_resource_texture_format_item_reference_data_per_mip = {
-        .type_name = "kan_resource_texture_data_t",
+        .type_name = "kan_resource_streamed_texture_data_t",
         .flags = 0u,
 };
 
 void kan_resource_texture_format_item_init (struct kan_resource_texture_format_item_t *instance)
 {
     instance->format = KAN_RESOURCE_TEXTURE_FORMAT_UNCOMPRESSED_R8_SRGB;
-    kan_dynamic_array_init (&instance->data_per_mip, 0u, sizeof (kan_interned_string_t),
+    kan_dynamic_array_init (&instance->streamed_mips, 0u, sizeof (kan_interned_string_t),
                             alignof (kan_interned_string_t), kan_allocation_group_stack_get ());
+    kan_dynamic_array_init (&instance->inlined_mips, 0u, sizeof (struct kan_resource_inlined_texture_data_t),
+                            alignof (struct kan_resource_inlined_texture_data_t), kan_allocation_group_stack_get ());
 }
 
 void kan_resource_texture_format_item_shutdown (struct kan_resource_texture_format_item_t *instance)
 {
-    kan_dynamic_array_shutdown (&instance->data_per_mip);
+    kan_dynamic_array_shutdown (&instance->streamed_mips);
+    KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->inlined_mips, kan_resource_inlined_texture_data)
 }
 
 KAN_REFLECTION_STRUCT_META (kan_resource_texture_t)
 RESOURCE_RENDER_FOUNDATION_API struct kan_resource_type_meta_t kan_resource_texture_resource_type = {
-    .flags = 0u,
+    .flags = KAN_RESOURCE_TYPE_TRANSITIVELY_LOADED,
     .version = CUSHION_START_NS_X64,
     .move = NULL,
     .reset = NULL,
@@ -51,7 +64,8 @@ void kan_resource_texture_init (struct kan_resource_texture_t *instance)
     instance->width = 1u;
     instance->height = 1u;
     instance->depth = 1u;
-    instance->mips = 1u;
+    instance->streamed_mips = 0u;
+    instance->inlined_mips = 1u;
 
     kan_dynamic_array_init (&instance->formats, 0u, sizeof (struct kan_resource_texture_format_item_t),
                             alignof (struct kan_resource_texture_format_item_t), kan_allocation_group_stack_get ());

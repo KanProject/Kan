@@ -16,31 +16,29 @@
 /// \parblock
 /// This file unifies API for interacting with render passes, materials and material instances and their management
 /// in runtime. These resources are tightly coupled on render implementation level and therefore need to be managed
-/// by unified system that also can unify hot reload routine for these resources to avoid unnecessary complexities.
-/// It was decided to call that unified routine "program management" as combination of passes, materials and material
-/// instance defines something that can be called render programs and their data.
+/// by unified system to avoid unnecessary complexities. It was decided to call that unified routine
+/// "program management" as combination of passes, materials and material instance defines something that can be called
+/// render programs and their data.
 /// \endparblock
 ///
 /// \par Render passes
 /// \parblock
-/// All found render pass resources are loaded and prepared for usage automatically, because in most cases all render
-/// passes are required for the application, therefore there is no sense to load them on demand.
+/// Render passes loading and unloading is done automatically through resource package transaction routine.
 /// \endparblock
 ///
 /// \par Materials
 /// \parblock
-/// All found material resources are also loaded and prepared for usage automatically, however materials that are
-/// already referenced by material instances have higher loading and pipeline compilation priority. The reason for that
-/// is the fact that it is generally considered a good practice to prepare all GPU pipelines for use as soon as
-/// possible, ideally during game startup and main menu phases as pipeline build could be relatively costly operation.
+/// Materials loading and unloading is done automatically through resource package transaction routine. Also, material
+/// pipeline compilation locks transaction commit until all GPU pipelines are compiled, therefore user can be sure
+/// that pipelines are ready when transaction is finished.
 /// \endparblock
 ///
 /// \par Material instances
 /// \parblock
-/// Material instances are only loaded when there is at least one `kan_render_material_instance_usage_t` that is
-/// referencing this material instance. When there is no usages, material instance is automatically unloaded.
-/// Also, usage dictates best and worst required mips for textures required by this material. All variants are loaded
-/// for the material instance so users can extract their instance data right away.
+/// Material instance loading and unloading is also done automatically through resource package transaction routine.
+/// There are also `kan_render_material_instance_quality_t` records that function the same way as
+/// `kan_render_texture_quality_t` and are automatically converted to texture qualities for all textures bound to the
+/// material instance.
 /// \endparblock
 
 KAN_C_HEADER_BEGIN
@@ -54,37 +52,25 @@ KAN_C_HEADER_BEGIN
 /// \brief Checkpoint, that is hit after all render foundation program management mutators have finished execution.
 #define KAN_RENDER_FOUNDATION_PROGRAM_MANAGEMENT_END_CHECKPOINT "render_foundation_program_management_end"
 
-KAN_TYPED_ID_32_DEFINE (kan_render_material_instance_usage_id_t);
+KAN_TYPED_ID_32_DEFINE (kan_render_material_instance_quality_id_t);
 
 /// \brief Singleton for publicly accessible data related to program management.
 struct kan_render_program_singleton_t
 {
-    /// \brief Internal counter for generating material usage ids.
-    struct kan_atomic_int_t material_instance_usage_id_counter;
-
-    /// \brief Count of passes that are currently being loaded.
-    kan_instance_size_t pass_loading_counter;
-
-    /// \brief Count of materials that are currently being loaded.
-    /// \details Material becomes loaded when its pipelines are created and scheduled for compilation.
-    ///          It means that material can be technically loaded while pipelines are not yet built and render backend
-    ///          needs to do some more work to build them.
-    kan_instance_size_t material_loading_counter;
-
-    /// \brief Count of material instances that are currently being loaded.
-    kan_instance_size_t material_instance_loading_counter;
+    /// \brief Internal counter for generating material quality ids.
+    struct kan_atomic_int_t material_instance_quality_id_counter;
 };
 
 UNIVERSE_RENDER_FOUNDATION_API void kan_render_program_singleton_init (struct kan_render_program_singleton_t *instance);
 
-/// \brief Inline helper for generation of material usage ids.
-static inline kan_render_material_instance_usage_id_t kan_next_material_instance_usage_id (
+/// \brief Inline helper for generation of material quality ids.
+static inline kan_render_material_instance_quality_id_t kan_next_material_instance_quality_id (
     const struct kan_render_program_singleton_t *singleton)
 {
     // Intentionally request const and de-const it to show that it is multithreading-safe function.
-    return KAN_TYPED_ID_32_SET (kan_render_material_instance_usage_id_t,
+    return KAN_TYPED_ID_32_SET (kan_render_material_instance_quality_id_t,
                                 (kan_id_32_t) kan_atomic_int_add (
-                                    (struct kan_atomic_int_t *) &singleton->material_instance_usage_id_counter, 1));
+                                    (struct kan_atomic_int_t *) &singleton->material_instance_quality_id_counter, 1));
 }
 
 /// \brief Contains layout and binding information about single variant for pipelines inside render pass.
@@ -140,7 +126,7 @@ struct kan_render_foundation_pass_updated_event_t
     kan_interned_string_t name;
 };
 
-/// \brief Stores information about loaded and instance pipeline for particular pass.
+/// \brief Stores information about loaded and instanced pipeline for particular pass.
 struct kan_render_material_pipeline_t
 {
     /// \brief Name of the pass for which pipeline was created.
@@ -170,13 +156,13 @@ struct kan_render_material_loaded_t
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_render_material_pipeline_t)
     struct kan_dynamic_array_t pipelines;
 
-    /// \brief Layout for material set of parameters for pipeline.
+    /// \brief Layout for material set of parameters for pipeline if any.
     kan_render_pipeline_parameter_set_layout_t set_material;
 
-    /// \brief Layout for object set of parameters for pipeline.
+    /// \brief Layout for object set of parameters for pipeline if any.
     kan_render_pipeline_parameter_set_layout_t set_object;
 
-    /// \brief Layout for shared set of parameters for pipeline.
+    /// \brief Layout for shared set of parameters for pipeline if any.
     kan_render_pipeline_parameter_set_layout_t set_shared;
 
     /// \brief Information about vertex attribute sources used by this material.
@@ -222,25 +208,20 @@ struct kan_render_material_instance_updated_event_t
 };
 
 /// \brief Used to inform program management that material instance needs to be loaded.
-struct kan_render_material_instance_usage_t
+struct kan_render_material_instance_quality_t
 {
-    /// \brief This usage unique id, must be generated from `kan_next_material_instance_usage_id`.
-    kan_immutable kan_render_material_instance_usage_id_t usage_id;
+    /// \brief This quality unique id, must be generated from `kan_next_material_instance_quality_id`.
+    kan_immutable kan_render_material_instance_quality_id_t quality_id;
 
-    /// \brief Name of the material instance asset to be loaded.
+    /// \brief Name of the material instance resource.
     kan_immutable kan_interned_string_t name;
-
-    /// \brief Index of the best mip that is advised to be loaded for material textures.
-    /// \details For example, when there is no usages that advise mip 0, it won't be loaded.
-    kan_immutable uint8_t best_advised_mip;
-
-    /// \brief Index of the worst mip that is advised to be loaded for material textures.
-    /// \details For example, if we know that mips 2 and 3 are never needed, we can save memory and do not load them.
-    kan_immutable uint8_t worst_advised_mip;
+    
+    /// \brief Advised mip value to be loaded for bound textures.
+    kan_immutable kan_instance_size_t best_advised_mip;
 };
 
-UNIVERSE_RENDER_FOUNDATION_API void kan_render_material_instance_usage_init (
-    struct kan_render_material_instance_usage_t *instance);
+UNIVERSE_RENDER_FOUNDATION_API void kan_render_material_instance_quality_init (
+    struct kan_render_material_instance_quality_t *instance);
 
 /// \brief Describes loaded material instance variant.
 struct kan_render_material_instance_variant_t
@@ -278,6 +259,9 @@ struct kan_render_material_instance_loaded_t
 
     /// \brief Built parameter set for material set with data from this material instance.
     kan_render_pipeline_parameter_set_t parameter_set;
+
+    kan_instance_size_t requested_best_mip;
+    kan_instance_size_t requested_best_mip_frame_id;
 
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (struct kan_render_material_instance_variant_t)
     struct kan_dynamic_array_t variants;

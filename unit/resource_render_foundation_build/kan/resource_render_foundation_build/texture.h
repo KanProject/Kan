@@ -58,8 +58,14 @@ struct kan_resource_texture_build_preset_t
 {
     enum kan_resource_texture_mip_generation_t mip_generation;
 
-    /// \brief Advised count of mips. There will be less mips if texture is not big enough.
-    kan_instance_size_t target_mips;
+    /// \brief Advised count of streamed mips.
+    /// \details There will be less mips if texture is not big enough to have at least one inlined mip.
+    kan_instance_size_t streamed_mips;
+
+    /// \brief Advised total count inlined of mips.
+    /// \details If total mip count is too big for the texture, then there will be only one guaranteed inlined mip
+    ///          and all the other mips will be streamed.
+    kan_instance_size_t inlined_mips;
 
     /// \brief Formats in which this texture can be built and stored.
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (enum kan_resource_texture_format_t)

@@ -952,7 +952,7 @@ enum kan_render_pipeline_compilation_priority_t
     KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_CACHE,
 };
 
-/// \brief Returns true if there is no waiting for compilation pipelines with 
+/// \brief Returns true if there is no waiting for compilation pipelines with
 ///        `KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_CRITICAL` or `KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_ACTIVE`
 ///        priority.
 /// \details Needed for various loading systems to decide whether it is needed for still show loading screen as

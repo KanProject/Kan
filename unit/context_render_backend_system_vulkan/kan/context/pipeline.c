@@ -2,6 +2,18 @@
 
 KAN_USE_STATIC_CPU_SECTIONS
 
+bool kan_render_context_are_pipelines_compiled (kan_render_context_t context)
+{
+    kan_cpu_static_sections_ensure_initialized ();
+    struct render_backend_system_t *system = KAN_HANDLE_GET (context);
+    KAN_CPU_SCOPED_STATIC_SECTION (render_context_are_pipelines_compiled)
+
+    KAN_MUTEX_SCOPED_LOCK (system->compiler_state.state_transition_mutex)
+    return !system->compiler_state.graphics_critical.first && !system->compiler_state.graphics_active.first &&
+           (!system->compiler_state.currently_working ||
+            system->compiler_state.current_request_priority == KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_CACHE);
+}
+
 static inline VkBlendFactor to_vulkan_blend_factor (enum kan_render_blend_factor_t factor)
 {
     switch (factor)
@@ -164,20 +176,24 @@ kan_thread_result_t render_backend_pipeline_compiler_state_worker_function (kan_
                     continue;
                 }
 
+                state->currently_working = true;
                 if (state->graphics_critical.first)
                 {
                     request = (struct graphics_pipeline_compilation_request_t *) state->graphics_critical.first;
                     kan_bd_list_remove (&state->graphics_critical, &request->list_node);
+                    state->current_request_priority = KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_CRITICAL;
                 }
                 else if (state->graphics_active.first)
                 {
                     request = (struct graphics_pipeline_compilation_request_t *) state->graphics_active.first;
                     kan_bd_list_remove (&state->graphics_active, &request->list_node);
+                    state->current_request_priority = KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_ACTIVE;
                 }
                 else if (state->graphics_cache.first)
                 {
                     request = (struct graphics_pipeline_compilation_request_t *) state->graphics_cache.first;
                     kan_bd_list_remove (&state->graphics_cache, &request->list_node);
+                    state->current_request_priority = KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_CACHE;
                 }
                 else
                 {
@@ -306,6 +322,7 @@ kan_thread_result_t render_backend_pipeline_compiler_state_worker_function (kan_
             request->pipeline->compilation_state =
                 result == VK_SUCCESS ? PIPELINE_COMPILATION_STATE_SUCCESS : PIPELINE_COMPILATION_STATE_FAILURE;
             request->pipeline->compilation_request = NULL;
+            state->currently_working = false;
         }
 
         render_backend_compiler_state_destroy_graphics_request (request);

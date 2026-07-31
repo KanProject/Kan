@@ -752,6 +752,9 @@ struct render_backend_pipeline_compiler_state_t
     struct kan_bd_list_t graphics_critical;
     struct kan_bd_list_t graphics_active;
     struct kan_bd_list_t graphics_cache;
+    
+    bool currently_working;
+    enum kan_render_pipeline_compilation_priority_t current_request_priority;
 };
 
 kan_thread_result_t render_backend_pipeline_compiler_state_worker_function (kan_thread_user_data_t user_data);

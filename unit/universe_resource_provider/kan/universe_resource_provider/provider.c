@@ -916,7 +916,11 @@ static void send_unload_planned_events (struct resource_provider_state_t *state,
     {
         KAN_UMO_EVENT_INSERT_INIT (kan_resource_third_party_unload_planned_event_t) {.name = entry->name};
     }
+}
 
+static void plan_transactional_unload (struct resource_provider_state_t *state,
+                                       const struct kan_resource_registered_entry_t *entry)
+{
     KAN_UMO_EVENT_INSERT_INIT (resource_provider_transactional_unload_event_t) {
         .entry_id = entry->entry_id,
         .type = entry->type,
@@ -942,6 +946,7 @@ static void schedule_transaction_unloading_from_package (struct resource_provide
         }
 
         send_unload_planned_events (state, entry, interface);
+        plan_transactional_unload (state, entry);
     }
 }
 
@@ -1513,8 +1518,9 @@ static bool process_file_removed (struct resource_provider_state_t *state, const
                 return false;
             }
 
-            // For non streamed entries -- just start new transaction with unload planned.
+            // For non-streamed entries -- just start new transaction with unload planned.
             send_unload_planned_events (state, registered, interface);
+            plan_transactional_unload (state, registered);
             KAN_UM_ACCESS_DELETE (registered);
             return true;
         }
@@ -1697,9 +1703,9 @@ static inline enum resource_provider_serve_operation_status_t execute_shared_pro
 
     if (interface->source_node->transitively_loaded)
     {
-        // Unload transitively loaded entry.
+        // Unload transitively loaded entry after the commit.
         KAN_ASSERT (!interface->source_node->streamed)
-        send_unload_planned_events (state, registered, interface);
+        plan_transactional_unload (state, registered);
     }
     else if (interface->source_node->streamed)
     {
@@ -2244,15 +2250,9 @@ UNIVERSE_RESOURCE_PROVIDER_API KAN_UM_MUTATOR_EXECUTE_SIGNATURE (mutator_templat
 
     case KAN_RESOURCE_TRANSACTION_STATE_COMMIT:
     {
-        bool locked = false;
-        KAN_UML_SEQUENCE_READ (lock, kan_resource_transaction_commit_lock_t)
+        if (kan_atomic_int_set (&public->commit_locked, 0) != 0)
         {
-            locked = true;
-            break;
-        }
-
-        if (locked)
-        {
+            // Commit was locked, wait for one more frame.
             break;
         }
 
@@ -2935,6 +2935,7 @@ void kan_resource_provider_singleton_init (struct kan_resource_provider_singleto
     kan_dynamic_array_init (&instance->tags, KAN_UNIVERSE_RESOURCE_PROVIDER_TAGS_CAPACITY,
                             sizeof (kan_interned_string_t), alignof (kan_interned_string_t),
                             kan_allocation_group_stack_get ());
+    instance->commit_locked = kan_atomic_int_init (0);
 }
 
 void kan_resource_provider_singleton_add_tag (struct kan_resource_provider_singleton_t *instance,

@@ -10,8 +10,7 @@ concrete_require (
 
 setup_reflected_preprocessing ()
 
-set (KAN_UNIVERSE_RESOURCE_PROVIDER_TAGS_CAPACITY "8" CACHE STRING
-        "Initial capacity for resource provider tags array.")
+set (KAN_UNIVERSE_RESOURCE_PROVIDER_TAGS_CAPACITY "8" CACHE STRING "Initial capacity for resource provider tags array.")
 set (KAN_UNIVERSE_RESOURCE_PROVIDER_TYPE_HEADER_BUFFER "256" CACHE STRING 
         "Size of an IO buffer for reading type headers.")
 set (KAN_UNIVERSE_RESOURCE_PROVIDER_IO_BUFFER "16384" CACHE STRING 

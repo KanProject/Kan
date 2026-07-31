@@ -76,8 +76,8 @@
 /// - Once all loading operations are done, state changes to `KAN_RESOURCE_TRANSACTION_STATE_COMMIT` and
 ///   `kan_resource_transaction_commit_started_event_t` is fired.
 /// - Post-loading logic mutators should do their work on loaded resources if needed. If one frame is not enough for
-///   that work then `kan_resource_transaction_commit_lock_t` record should be created to postpone commit finish until
-///   that record removal.
+///   that work then `kan_resource_provider_singleton_extend_commit` should be called to extend commit phase for one
+///   more frame. It should be called every frame until work is completed.
 /// - Once commit is finished, all resources marked for unload are unloaded, including resource of types with
 ///   `KAN_RESOURCE_TYPE_TRANSITIVELY_LOADED` flag, and state is changed to the default
 ///   `KAN_RESOURCE_TRANSACTION_STATE_NONE` values.
@@ -131,10 +131,11 @@
 /// For every non-streamed resource type, unload planned event type is created with name that follows
 /// `KAN_RESOURCE_PROVIDER_UNLOAD_PLANNED_EVENT_TYPE_FORMAT` and content that follows
 /// `kan_resource_unload_planned_event_view_t`. These events are fired prior to the transaction commit stage to inform
-/// the user which resources will be unloaded at the end of transaction, including transitively loaded resources.
-/// Separate event type is created for every resource type as users might need to use type-based ordering while
-/// processing these events. Macro `KAN_UML_RESOURCE_UNLOAD_PLANNED_EVENT_FETCH` is advised for fetching these events.
-/// Third party resources have `kan_resource_third_party_unload_planned_event_t` with the same behavior.
+/// the user which resources will be unloaded at the end of transaction, with special behavior for transitively loaded
+/// resources as described in structure docs. Separate event type is created for every resource type as users might need
+/// to use type-based ordering while processing these events. Macro `KAN_UML_RESOURCE_UNLOAD_PLANNED_EVENT_FETCH` is
+/// advised for fetching these events. Third party resources have `kan_resource_third_party_unload_planned_event_t`
+/// with the same behavior.
 ///
 /// For every resource type, unregistered event type is created with name that follows
 /// `KAN_RESOURCE_PROVIDER_UNREGISTERED_EVENT_TYPE_FORMAT` and content that follows
@@ -284,6 +285,9 @@ struct kan_resource_provider_singleton_t
     ///          `kan_resource_provider_singleton_remove_tag` as this functions manages ::tags_dirty flag automatically.
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (kan_interned_string_t)
     struct kan_dynamic_array_t tags;
+
+    /// \brief Atomic lock for safely updating ::commit_locks from several threads.
+    struct kan_atomic_int_t commit_locked;
 };
 
 UNIVERSE_RESOURCE_PROVIDER_API void kan_resource_provider_singleton_init (
@@ -310,17 +314,18 @@ static inline kan_resource_streaming_id_t kan_next_resource_streaming_id (
         (kan_id_32_t) kan_atomic_int_add ((struct kan_atomic_int_t *) &resource_provider->streaming_id_counter, 1));
 }
 
+/// \brief Inline helper for locking transaction commit for one frame.
+static inline void kan_resource_provider_singleton_extend_commit (
+    const struct kan_resource_provider_singleton_t *resource_provider)
+{
+    // Intentionally uses const and de-const it to show that it is multithreading-safe function.
+    kan_atomic_int_set ((struct kan_atomic_int_t *) &resource_provider->commit_locked, 1);
+}
+
 /// \brief Event that is sent when resource provider transaction goes into commit state from loading state.
 struct kan_resource_transaction_commit_started_event_t
 {
     kan_instance_size_t stub;
-};
-
-/// \brief Used by resource commit mutators to put lock unto transaction until multi-frame commit is done.
-struct kan_resource_transaction_commit_lock_t
-{
-    /// \brief Needed only for the creating mutators so they could identify their locks.
-    kan_interned_string_t owner_name;
 };
 
 /// \brief Event that is sent when resource provider transaction commit is done and transaction is finished.
@@ -476,6 +481,11 @@ struct kan_resource_loaded_event_view_t
 
 /// \brief Describes layout of typed event that is fired when non-streamed resource is planned to be unloaded after
 ///        transaction commit happens.
+/// \details Transitively loaded resources fire this event as if they were normal resources. Otherwise, they would
+///          fire this event every commit and user systems will not be able to detect when they should delete their
+///          top level representation of this resource. Which means that at the end of transaction transitively loaded
+///          resources do not fire this event, but when their package is unloaded they fire this event as if they
+///          were actually loaded.
 KAN_REFLECTION_IGNORE
 struct kan_resource_unload_planned_event_view_t
 {

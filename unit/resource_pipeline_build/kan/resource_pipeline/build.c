@@ -1535,6 +1535,12 @@ static bool scan_file (struct package_t *package, struct kan_file_system_path_co
 
     memcpy (entry->current_file_location, reused_path->path, reused_path->length);
     entry->current_file_location[reused_path->length] = '\0';
+
+    if (!package->marked_for_build)
+    {
+        entry->header.status = RESOURCE_STATUS_OUT_OF_SCOPE;
+    }
+
     return true;
 }
 
@@ -2431,13 +2437,14 @@ static inline const struct kan_dynamic_array_t *get_references_from_resource_ent
                 entry->header.status == RESOURCE_STATUS_PLATFORM_UNSUPPORTED ||
                 entry->header.status == RESOURCE_STATUS_OUT_OF_SCOPE)
 
-    if (entry->header.status == RESOURCE_STATUS_OUT_OF_SCOPE ||
-        (entry->initial_log_entry &&
+    if (entry->initial_log_entry &&
+        (entry->header.status == RESOURCE_STATUS_OUT_OF_SCOPE ||
          kan_resource_log_version_is_up_to_date (entry->initial_log_entry->version, entry->header.available_version)))
     {
         return &entry->initial_log_entry->references;
     }
 
+    KAN_ASSERT (entry->header.status != RESOURCE_STATUS_OUT_OF_SCOPE || entry->new_references.size == 0u)
     return &entry->new_references;
 }
 
@@ -5055,7 +5062,14 @@ static inline bool move_produced_file_for_cache_or_deployment (struct resource_e
 
 static bool execute_deployment_caching_step_for_entry (struct resource_entry_t *entry)
 {
+    if (entry->header.status == RESOURCE_STATUS_OUT_OF_SCOPE)
+    {
+        return true;
+    }
+
+    KAN_ASSERT (entry->package->marked_for_build)
     enum deployment_step_target_location_t old_location = DEPLOYMENT_STEP_TARGET_LOCATION_NONE;
+
     if (entry->initial_log_entry)
     {
         switch (entry->initial_log_entry->saved_directory)
@@ -5371,8 +5385,19 @@ static void add_entry_to_build_log (struct build_state_t *state,
         break;
 
     case RESOURCE_STATUS_OUT_OF_SCOPE:
-        // Must be processed separately on package log generation level.
-        KAN_ASSERT (false)
+        if (entry->initial_log_entry)
+        {
+            struct kan_resource_log_entry_t *log_entry = kan_dynamic_array_add_last (&new_log->entries);
+            if (!log_entry)
+            {
+                kan_dynamic_array_set_capacity (&new_log->entries, new_log->entries.size * 2u);
+                log_entry = kan_dynamic_array_add_last (&new_log->entries);
+                KAN_ASSERT (entry)
+            }
+
+            kan_resource_log_entry_init_copy (log_entry, entry->initial_log_entry);
+        }
+
         return;
     }
 

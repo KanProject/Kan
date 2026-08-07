@@ -267,6 +267,7 @@ static bool scan_potential_referencer_struct (struct kan_resource_reflected_data
     // Any struct could be a referencer as any struct could be inside a patch, so we need to just scan all structs,
     // not only structs that are resource types and are nested in resource types.
 
+    KAN_ASSERT (struct_to_scan)
     const struct kan_resource_reflected_data_referencer_struct_t *existent_data =
         kan_resource_reflected_data_storage_query_referencer_struct (output, struct_to_scan->name);
 

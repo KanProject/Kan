@@ -1039,7 +1039,6 @@ UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_EXECUTE (render_foundation_program
             }
         }
 
-        const kan_interned_string_t lock_id = KAN_STATIC_INTERNED_ID_GET (render_foundation_material_compilation_lock);
         if (!kan_render_context_are_pipelines_compiled (render_context->render_context))
         {
             kan_resource_provider_singleton_extend_commit (provider);

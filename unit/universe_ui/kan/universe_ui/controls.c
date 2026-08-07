@@ -7,6 +7,7 @@
 #include <kan/universe/macro.h>
 #include <kan/universe_locale/locale.h>
 #include <kan/universe_render_foundation/atlas.h>
+#include <kan/universe_resource_provider/provider.h>
 #include <kan/universe_ui/controls.h>
 
 KAN_USE_STATIC_INTERNED_IDS
@@ -309,8 +310,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_controls_input)
     kan_context_t context = kan_universe_get_context (universe);
     state->application_system_handle = kan_context_query (context, KAN_CONTEXT_APPLICATION_SYSTEM_NAME);
 
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_TIME_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_SETUP_END_CHECKPOINT);
     kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_CONTROLS_INPUT_BEGIN_CHECKPOINT);
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_CONTROLS_INPUT_END_CHECKPOINT);
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_CONTROLS_PRE_LAYOUT_BEGIN_CHECKPOINT);
@@ -475,11 +475,11 @@ static inline void use_hit_box_interaction_visuals (struct ui_controls_input_sta
 }
 
 static uint32_t query_image (struct ui_controls_input_state_t *state,
-                             const struct kan_ui_bundle_singleton_t *bundle,
+                             const struct kan_resource_ui_bundle_t *bundle,
                              kan_interned_string_t name)
 {
     KAN_UMI_SINGLETON_READ (locale, kan_locale_singleton_t)
-    KAN_UMI_VALUE_READ_REQUIRED (atlas, kan_render_atlas_loaded_t, name, &bundle->available_bundle.image_atlas)
+    KAN_UMI_VALUE_READ_REQUIRED (atlas, kan_render_atlas_loaded_t, name, &bundle->image_atlas)
     return kan_render_atlas_loaded_query (atlas, name, locale->selected_locale);
 }
 
@@ -523,13 +523,12 @@ static inline enum hit_box_interaction_flags_t calculate_hit_box_interaction_fla
 }
 
 static inline const struct kan_resource_ui_hit_box_interaction_style_t *find_interactable_style (
-    const struct kan_ui_bundle_singleton_t *bundle, kan_interned_string_t style_name)
+    const struct kan_resource_ui_bundle_t *bundle, kan_interned_string_t style_name)
 {
-    for (kan_memory_size_t index = 0u; index < bundle->available_bundle.hit_box_interaction_styles.size; ++index)
+    for (kan_memory_size_t index = 0u; index < bundle->hit_box_interaction_styles.size; ++index)
     {
         const struct kan_resource_ui_hit_box_interaction_style_t *style =
-            &((struct kan_resource_ui_hit_box_interaction_style_t *)
-                  bundle->available_bundle.hit_box_interaction_styles.data)[index];
+            &((struct kan_resource_ui_hit_box_interaction_style_t *) bundle->hit_box_interaction_styles.data)[index];
 
         if (style->name == style_name)
         {
@@ -541,7 +540,7 @@ static inline const struct kan_resource_ui_hit_box_interaction_style_t *find_int
 }
 
 static inline uint32_t select_image_for_hit_box_interaction (struct ui_controls_input_state_t *state,
-                                                             const struct kan_ui_bundle_singleton_t *bundle,
+                                                             const struct kan_resource_ui_bundle_t *bundle,
                                                              kan_interned_string_t style_name,
                                                              enum hit_box_interaction_flags_t flags)
 {
@@ -601,7 +600,7 @@ static void update_interacted_scroll_line_visibility (struct ui_controls_input_s
 
 static void apply_hit_box_interaction_visuals (struct ui_controls_input_state_t *state,
                                                const struct kan_ui_input_singleton_t *public,
-                                               const struct kan_ui_bundle_singleton_t *bundle,
+                                               const struct kan_resource_ui_bundle_t *bundle,
                                                const struct kan_ui_node_hit_box_t *hit_box,
                                                bool force_not_down)
 {
@@ -771,7 +770,7 @@ static void hide_scroll_line (struct ui_controls_input_state_t *state,
 
 static bool process_hit_box_insertion (struct ui_controls_input_state_t *state,
                                        struct kan_ui_input_singleton_t *public,
-                                       const struct kan_ui_bundle_singleton_t *bundle)
+                                       const struct kan_resource_ui_bundle_t *bundle)
 {
     bool hit_boxes_changed = false;
     KAN_UML_EVENT_FETCH (hit_box_inserted_event, kan_ui_node_hit_box_on_insert_event_t)
@@ -1301,7 +1300,7 @@ static void line_edit_process_horizontal_arrow (struct kan_ui_node_line_edit_beh
 
 static void prolong_hit_box_down_visuals (struct ui_controls_input_state_t *state,
                                           struct kan_ui_input_singleton_t *public,
-                                          const struct kan_ui_bundle_singleton_t *bundle,
+                                          const struct kan_resource_ui_bundle_t *bundle,
                                           const struct kan_ui_node_hit_box_t *hit_box)
 {
     if (!hit_box->interactable_style)
@@ -1346,7 +1345,7 @@ static void on_press_begin_internal (struct ui_controls_input_state_t *state,
 static void simulate_press_begin_from_key_binding (struct ui_controls_input_state_t *state,
                                                    struct kan_ui_input_singleton_t *public,
                                                    const struct kan_ui_singleton_t *ui,
-                                                   const struct kan_ui_bundle_singleton_t *bundle,
+                                                   const struct kan_resource_ui_bundle_t *bundle,
                                                    const struct kan_platform_application_event_t *event)
 {
     struct kan_repository_indexed_value_read_access_t access;
@@ -1397,7 +1396,7 @@ static void simulate_press_begin_from_key_binding (struct ui_controls_input_stat
 static void process_key_down_internal (struct ui_controls_input_state_t *state,
                                        struct kan_ui_input_singleton_t *public,
                                        const struct kan_ui_singleton_t *ui,
-                                       const struct kan_ui_bundle_singleton_t *bundle,
+                                       const struct kan_resource_ui_bundle_t *bundle,
                                        const struct kan_platform_application_event_t *event)
 {
     if (!KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
@@ -1526,7 +1525,7 @@ static void on_press_end_internal (struct ui_controls_input_state_t *state,
 static void simulate_press_end_from_key_binding (struct ui_controls_input_state_t *state,
                                                  struct kan_ui_input_singleton_t *public,
                                                  const struct kan_ui_singleton_t *ui,
-                                                 const struct kan_ui_bundle_singleton_t *bundle,
+                                                 const struct kan_resource_ui_bundle_t *bundle,
                                                  const struct kan_platform_application_event_t *event)
 {
     KAN_UML_SEQUENCE_UPDATE (down_mark, kan_ui_node_down_mark_t)
@@ -1566,7 +1565,7 @@ static void simulate_press_end_from_key_binding (struct ui_controls_input_state_
 static void process_key_up_internal (struct ui_controls_input_state_t *state,
                                      struct kan_ui_input_singleton_t *public,
                                      const struct kan_ui_singleton_t *ui,
-                                     const struct kan_ui_bundle_singleton_t *bundle,
+                                     const struct kan_resource_ui_bundle_t *bundle,
                                      const struct kan_platform_application_event_t *event)
 {
     if (!KAN_TYPED_ID_32_IS_VALID (public->input_receiver_id))
@@ -2434,7 +2433,7 @@ static void update_popup_states (struct ui_controls_input_state_t *state,
 static void process_events (struct ui_controls_input_state_t *state,
                             struct kan_ui_input_singleton_t *public,
                             const struct kan_ui_singleton_t *ui,
-                            const struct kan_ui_bundle_singleton_t *bundle,
+                            const struct kan_resource_ui_bundle_t *bundle,
                             bool visuals_changed,
                             bool hit_boxes_changed)
 {
@@ -3184,7 +3183,7 @@ static bool line_edit_parse_float (struct kan_ui_node_line_edit_behavior_t *beha
 static void process_line_edit_content_dirty_inner (struct ui_controls_input_state_t *state)
 {
     KAN_UMI_SINGLETON_READ (locale_singleton, kan_locale_singleton_t)
-    KAN_UMI_VALUE_READ_OPTIONAL (locale, kan_locale_t, name, &locale_singleton->selected_locale)
+    KAN_UMI_RESOURCE_RETRIEVE_LOADED (locale, kan_resource_locale_t, &locale_singleton->selected_locale)
 
     if (!locale)
     {
@@ -3249,7 +3248,7 @@ static void process_line_edit_content_dirty_inner (struct ui_controls_input_stat
 
 static void process_interactable_state_changes (struct ui_controls_input_state_t *state,
                                                 const struct kan_ui_input_singleton_t *public,
-                                                const struct kan_ui_bundle_singleton_t *bundle)
+                                                const struct kan_resource_ui_bundle_t *bundle)
 {
     KAN_UML_EVENT_FETCH (changed_event, kan_ui_node_hit_box_on_state_change_event_t)
     {
@@ -3264,7 +3263,7 @@ static void process_interactable_state_changes (struct ui_controls_input_state_t
 static void clear_old_down_marks (struct ui_controls_input_state_t *state,
                                   const struct kan_ui_singleton_t *ui,
                                   const struct kan_ui_input_singleton_t *public,
-                                  const struct kan_ui_bundle_singleton_t *bundle)
+                                  const struct kan_resource_ui_bundle_t *bundle)
 {
     KAN_UML_SEQUENCE_DELETE (down_mark, kan_ui_node_down_mark_t)
     {
@@ -3320,8 +3319,10 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_input)
         return;
     }
 
-    KAN_UMI_SINGLETON_READ (bundle, kan_ui_bundle_singleton_t)
-    if (!bundle->available)
+    KAN_UMI_SINGLETON_READ (bundle_singleton, kan_ui_bundle_singleton_t)
+    KAN_UMI_RESOURCE_RETRIEVE_LOADED (bundle, kan_resource_ui_bundle_t, &bundle_singleton->bundle_name)
+
+    if (!bundle)
     {
         // As long as there is no bundle, there is also no render: no sense to update anything, just skip events.
         while (kan_application_system_event_iterator_get (state->application_system_handle, public->event_iterator))
@@ -3335,7 +3336,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_controls_input)
     KAN_UMI_SINGLETON_READ (ui, kan_ui_singleton_t)
     bool visuals_changed = false;
 
-    KAN_UML_EVENT_FETCH (bundle_updated_event, kan_ui_bundle_updated_t)
+    KAN_UML_EVENT_FETCH (bundle_updated_event, kan_ui_bundle_updated_event_t)
     {
         visuals_changed = INPUT_HIT_BOX_MOUSE_UPDATE_MODE_EXECUTE;
     }

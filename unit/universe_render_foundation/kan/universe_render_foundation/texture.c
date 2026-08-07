@@ -63,7 +63,7 @@ struct render_foundation_texture_streaming_t
 KAN_REFLECTION_STRUCT_META (render_foundation_texture_streaming_t)
 UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_cascade_deletion_t
     render_foundation_texture_streaming_request_cascade_deletion = {
-        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"streaming_id"}},
+        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"request_id"}},
         .child_type_name = "kan_resource_streaming_request_t",
         .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"request_id"}},
 };

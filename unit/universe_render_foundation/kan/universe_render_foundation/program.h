@@ -215,7 +215,7 @@ struct kan_render_material_instance_quality_t
 
     /// \brief Name of the material instance resource.
     kan_immutable kan_interned_string_t name;
-    
+
     /// \brief Advised mip value to be loaded for bound textures.
     kan_immutable kan_instance_size_t best_advised_mip;
 };

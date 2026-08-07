@@ -22,14 +22,11 @@ KAN_LOG_DEFINE_CATEGORY (ui_render);
 KAN_USE_STATIC_INTERNED_IDS
 KAN_USE_STATIC_CPU_SECTIONS
 
-KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_time)
+KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_setup)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_layout)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_render_graph)
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_render)
 UNIVERSE_UI_API KAN_UM_MUTATOR_GROUP_META (ui_core, KAN_UI_CORE_MUTATOR_GROUP);
-
-KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (ui_bundle_management)
-UNIVERSE_UI_API KAN_UM_MUTATOR_GROUP_META (ui_bundle_management, KAN_UI_BUNDLE_MANAGEMENT_MUTATOR_GROUP);
 
 struct kan_ui_singleton_viewport_on_change_event_t
 {
@@ -207,26 +204,39 @@ UNIVERSE_UI_API struct kan_repository_meta_automatic_cascade_deletion_t kan_ui_n
     .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"id"}},
 };
 
-struct ui_time_state_t
+struct ui_setup_state_t
 {
-    KAN_UM_GENERATE_STATE_QUERIES (ui_time)
-    KAN_UM_BIND_STATE (ui_time, state)
+    KAN_UM_GENERATE_STATE_QUERIES (ui_setup)
+    KAN_UM_BIND_STATE (ui_setup, state)
+    kan_interned_string_t default_bundle;
 };
 
-UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_time)
+UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_setup)
 {
     kan_static_interned_ids_ensure_initialized ();
     kan_cpu_static_sections_ensure_initialized ();
 
+    state->default_bundle = NULL;
+    const struct kan_ui_configuration_t *configuration =
+        kan_universe_world_query_configuration (world, kan_string_intern (KAN_UI_CONFIGURATION));
+
+    if (configuration)
+    {
+        state->default_bundle = configuration->default_bundle_name;
+    }
+
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_RESOURCE_PROVIDER_END_CHECKPOINT);
     kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_FRAME_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_TIME_BEGIN_CHECKPOINT);
-    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_TIME_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_SETUP_BEGIN_CHECKPOINT);
+    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_SETUP_END_CHECKPOINT);
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_LAYOUT_BEGIN_CHECKPOINT);
 }
 
-UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_time)
+UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_setup)
 {
     KAN_UMI_SINGLETON_WRITE (public, kan_ui_singleton_t)
+    KAN_UMI_SINGLETON_WRITE (bundle, kan_ui_bundle_singleton_t)
+
     if (public->last_time_ns != KAN_INT_MAX (kan_stable_size_t))
     {
         const kan_stable_size_t delta_ns = kan_precise_time_get_elapsed_nanoseconds () - public->last_time_ns;
@@ -235,6 +245,39 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_time)
         public->animation_global_time_s =
             fmodf (public->animation_global_time_s + delta_s, public->animation_global_time_loop_s);
         public->animation_delta_time_s = delta_s;
+    }
+
+    if (!bundle->bundle_name && state->default_bundle)
+    {
+        bundle->bundle_name = state->default_bundle;
+    }
+
+    if (bundle->selection_dirty)
+    {
+        KAN_UMO_EVENT_INSERT_INIT (kan_ui_bundle_updated_event_t) {.stub = 0u};
+        KAN_UMO_EVENT_INSERT_INIT (kan_ui_atlas_updated_event_t) {.stub = 0u};
+        bundle->selection_dirty = false;
+    }
+
+    KAN_UML_EVENT_FETCH (transaction_finished_event, kan_resource_transaction_commit_finished_event_t)
+    {
+        KAN_UML_RESOURCE_LOADED_EVENT_FETCH (bundle_loaded, kan_resource_ui_bundle_t)
+        {
+            if (bundle->bundle_name == bundle_loaded->name)
+            {
+                KAN_UMO_EVENT_INSERT_INIT (kan_ui_bundle_updated_event_t) {.stub = 0u};
+                KAN_UMO_EVENT_INSERT_INIT (kan_ui_atlas_updated_event_t) {.stub = 0u};
+            }
+        }
+
+        KAN_UMI_RESOURCE_RETRIEVE_LOADED (bundle_resource, kan_resource_ui_bundle_t, &bundle->bundle_name)
+        KAN_UML_EVENT_FETCH (atlas_updated_event, kan_render_atlas_updated_event_t)
+        {
+            if (atlas_updated_event->name == bundle_resource->image_atlas)
+            {
+                KAN_UMO_EVENT_INSERT_INIT (kan_ui_atlas_updated_event_t) {.stub = 0u};
+            }
+        }
     }
 
     public->last_time_ns = kan_precise_time_get_elapsed_nanoseconds ();
@@ -1823,8 +1866,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_render_graph)
 
     kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_FRAME_END_CHECKPOINT);
     kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_LAYOUT_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_TIME_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_SETUP_END_CHECKPOINT);
     kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_RENDER_GRAPH_BEGIN_CHECKPOINT);
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_RENDER_GRAPH_END_CHECKPOINT);
 }
@@ -1844,9 +1886,12 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
         return;
     }
 
-    KAN_UMI_SINGLETON_READ (bundle, kan_ui_bundle_singleton_t)
-    if (!bundle->available)
+    KAN_UMI_SINGLETON_READ (bundle_singleton, kan_ui_bundle_singleton_t)
+    KAN_UMI_RESOURCE_RETRIEVE_LOADED (bundle, kan_resource_ui_bundle_t, &bundle_singleton->bundle_name)
+
+    if (!bundle)
     {
+        // If bundle is not yet available, then there is nothing to do at all.
         return;
     }
 
@@ -1858,7 +1903,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render_graph)
     }
 
     KAN_UMI_SINGLETON_READ (render_graph, kan_render_graph_resource_management_singleton_t)
-    KAN_UMI_VALUE_READ_REQUIRED (pass, kan_render_foundation_pass_loaded_t, name, &bundle->available_bundle.pass)
+    KAN_UMI_VALUE_READ_REQUIRED (pass, kan_render_foundation_pass_loaded_t, name, &bundle->pass)
 
     if (pass->attachments.size != 1u)
     {
@@ -2056,7 +2101,7 @@ struct ui_render_transient_state_t
     const struct kan_ui_singleton_t *ui;
     struct ui_render_private_singleton_t *private;
     const struct kan_ui_render_graph_singleton_t *ui_render_graph;
-    const struct kan_ui_bundle_singleton_t *bundle;
+    const struct kan_resource_ui_bundle_t *bundle;
 
     enum ui_bound_pipeline_t bound_pipeline;
     struct kan_ui_clip_rect_t clip_rect;
@@ -2121,7 +2166,7 @@ static void ensure_ui_rect_ready (struct ui_render_private_singleton_t *private,
 
 static bool ensure_pass_parameter_set_ready (struct ui_render_state_t *state,
                                              struct ui_render_private_singleton_t *private,
-                                             const struct kan_ui_bundle_singleton_t *bundle,
+                                             const struct kan_resource_ui_bundle_t *bundle,
                                              const struct kan_text_shaping_singleton_t *text_shaping,
                                              const struct kan_render_context_singleton_t *render_context)
 {
@@ -2130,8 +2175,8 @@ static bool ensure_pass_parameter_set_ready (struct ui_render_state_t *state,
         return true;
     }
 
-    KAN_UMI_VALUE_READ_REQUIRED (pass_loaded, kan_render_foundation_pass_loaded_t, name, &bundle->available_bundle.pass)
-    KAN_UMI_VALUE_READ_REQUIRED (atlas_loaded, kan_render_atlas_loaded_t, name, &bundle->available_bundle.image_atlas)
+    KAN_UMI_VALUE_READ_REQUIRED (pass_loaded, kan_render_foundation_pass_loaded_t, name, &bundle->pass)
+    KAN_UMI_VALUE_READ_REQUIRED (atlas_loaded, kan_render_atlas_loaded_t, name, &bundle->image_atlas)
 
     private->binding_pass_view_data = KAN_INT_MAX (kan_instance_size_t);
     private->binding_image_sampler = KAN_INT_MAX (kan_instance_size_t);
@@ -2714,7 +2759,7 @@ static void execute_draw_custom_command (struct ui_render_state_t *state,
 
     KAN_UMI_VALUE_READ_REQUIRED (material, kan_render_material_loaded_t, name, &material_instance->material_name)
     kan_render_graphics_pipeline_t selected_pipeline = KAN_HANDLE_SET_INVALID (kan_render_graphics_pipeline_t);
-    const kan_interned_string_t pass_name = state->transient.bundle->available_bundle.pass;
+    const kan_interned_string_t pass_name = state->transient.bundle->pass;
 
     for (kan_memory_size_t index = 0u; index < material->pipelines.size; ++index)
     {
@@ -2856,9 +2901,10 @@ static void process_draw_command (struct ui_render_state_t *state,
 UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
 {
     KAN_UMI_SINGLETON_WRITE (private, ui_render_private_singleton_t)
-    KAN_UMI_SINGLETON_READ (bundle, kan_ui_bundle_singleton_t)
+    KAN_UMI_SINGLETON_READ (bundle_singleton, kan_ui_bundle_singleton_t)
+    KAN_UMI_RESOURCE_RETRIEVE_LOADED (bundle, kan_resource_ui_bundle_t, &bundle_singleton->bundle_name)
 
-    if (!bundle->available)
+    if (!bundle)
     {
         // If bundle is not yet available, then there is nothing to do at all.
         return;
@@ -2867,7 +2913,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
     // We need to check all the updates before checking frame: for the rare cases when frame was not scheduled,
     // but the bound resources were changed and must be unbound,
 
-    KAN_UML_EVENT_FETCH (bundle_updated_event, kan_ui_bundle_updated_t)
+    KAN_UML_EVENT_FETCH (bundle_updated_event, kan_ui_bundle_updated_event_t)
     {
         if (KAN_HANDLE_IS_VALID (private->pass_parameter_set))
         {
@@ -2880,7 +2926,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
 
     KAN_UML_EVENT_FETCH (pass_updated_event, kan_render_foundation_pass_updated_event_t)
     {
-        if (bundle->available && pass_updated_event->name == bundle->available_bundle.pass)
+        if (pass_updated_event->name == bundle->pass)
         {
             if (KAN_HANDLE_IS_VALID (private->pass_parameter_set))
             {
@@ -2894,8 +2940,7 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
 
     KAN_UML_EVENT_FETCH (atlas_updated_event, kan_render_atlas_updated_event_t)
     {
-        if (atlas_updated_event->name == bundle->available_bundle.image_atlas &&
-            KAN_HANDLE_IS_VALID (private->pass_parameter_set))
+        if (atlas_updated_event->name == bundle->image_atlas && KAN_HANDLE_IS_VALID (private->pass_parameter_set))
         {
             KAN_UMI_VALUE_READ_REQUIRED (atlas_loaded, kan_render_atlas_loaded_t, name, &atlas_updated_event->name)
             kan_instance_size_t atlas_layers;
@@ -2997,14 +3042,9 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
 
     ensure_ui_rect_ready (private, render_context);
     if (!ensure_pass_parameter_set_ready (state, private, bundle, text_shaping, render_context) ||
-        !cache_material_instance_data (state, bundle->available_bundle.pass,
-                                       bundle->available_bundle.material_instances.image, &state->transient.image) ||
-        !cache_material_instance_data (state, bundle->available_bundle.pass,
-                                       bundle->available_bundle.material_instances.text_sdf,
-                                       &state->transient.text_sdf) ||
-        !cache_material_instance_data (state, bundle->available_bundle.pass,
-                                       bundle->available_bundle.material_instances.text_icon,
-                                       &state->transient.text_icon))
+        !cache_material_instance_data (state, bundle->pass, bundle->image_material, &state->transient.image) ||
+        !cache_material_instance_data (state, bundle->pass, bundle->text_sdf_material, &state->transient.text_sdf) ||
+        !cache_material_instance_data (state, bundle->pass, bundle->text_icon_material, &state->transient.text_icon))
     {
         return;
     }
@@ -3074,350 +3114,6 @@ UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_render)
     private->previous_frame_instanced_images = state->transient.this_frame_instanced_images;
 }
 
-enum ui_bundle_loading_state_t
-{
-    UI_BUNDLE_LOADING_STATE_INITIAL = 0u,
-    UI_BUNDLE_LOADING_STATE_WAITING_MAIN,
-    UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES,
-    UI_BUNDLE_LOADING_STATE_READY,
-};
-
-struct ui_bundle_private_singleton_t
-{
-    enum ui_bundle_loading_state_t state;
-    kan_instance_size_t state_frame_id;
-
-    kan_resource_usage_id_t main_usage_id;
-    kan_render_atlas_usage_id_t loading_image_atlas_usage_id;
-    kan_render_material_instance_usage_id_t loading_material_instances[KAN_RESOURCE_UI_BUNDLE_MATERIAL_INSTANCE_COUNT];
-
-    kan_render_atlas_usage_id_t available_image_atlas_usage_id;
-    kan_render_material_instance_usage_id_t
-        available_material_instances[KAN_RESOURCE_UI_BUNDLE_MATERIAL_INSTANCE_COUNT];
-};
-
-UNIVERSE_UI_API void ui_bundle_private_singleton_init (struct ui_bundle_private_singleton_t *instance)
-{
-    instance->state = UI_BUNDLE_LOADING_STATE_INITIAL;
-    instance->state_frame_id = 0u;
-
-    instance->main_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-    instance->loading_image_atlas_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_atlas_usage_id_t);
-    KAN_FILL_STATIC_ARRAY (instance->loading_material_instances,
-                           KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t))
-
-    instance->available_image_atlas_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_atlas_usage_id_t);
-    KAN_FILL_STATIC_ARRAY (instance->available_material_instances,
-                           KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t))
-}
-
-struct ui_bundle_management_state_t
-{
-    KAN_UM_GENERATE_STATE_QUERIES (ui_bundle_management)
-    KAN_UM_BIND_STATE (ui_bundle_management, state)
-
-    kan_interned_string_t default_bundle;
-};
-
-UNIVERSE_UI_API KAN_UM_MUTATOR_DEPLOY (ui_bundle_management)
-{
-    kan_static_interned_ids_ensure_initialized ();
-    kan_cpu_static_sections_ensure_initialized ();
-
-    state->default_bundle = NULL;
-    const struct kan_ui_configuration_t *configuration =
-        kan_universe_world_query_configuration (world, kan_string_intern (KAN_UI_CONFIGURATION));
-
-    if (configuration)
-    {
-        state->default_bundle = configuration->default_bundle_name;
-    }
-
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_RESOURCE_PROVIDER_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_ATLAS_MANAGEMENT_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_FRAME_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_PROGRAM_MANAGEMENT_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_BEGIN_CHECKPOINT);
-    kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT);
-}
-
-static void advance_bundle_from_initial_state (struct ui_bundle_management_state_t *state,
-                                               const struct kan_resource_provider_singleton_t *provider,
-                                               struct kan_ui_bundle_singleton_t *public,
-                                               struct ui_bundle_private_singleton_t *private);
-
-static void advance_bundle_from_waiting_main_state (struct ui_bundle_management_state_t *state,
-                                                    const struct kan_resource_provider_singleton_t *provider,
-                                                    struct kan_ui_bundle_singleton_t *public,
-                                                    struct ui_bundle_private_singleton_t *private);
-
-static void advance_bundle_from_waiting_resources_state (struct ui_bundle_management_state_t *state,
-                                                         const struct kan_resource_provider_singleton_t *provider,
-                                                         struct kan_ui_bundle_singleton_t *public,
-                                                         struct ui_bundle_private_singleton_t *private);
-
-static void on_bundle_resource_updated (struct ui_bundle_management_state_t *state,
-                                        const struct kan_resource_provider_singleton_t *provider,
-                                        struct kan_ui_bundle_singleton_t *public,
-                                        struct ui_bundle_private_singleton_t *private)
-{
-    private->state = UI_BUNDLE_LOADING_STATE_INITIAL;
-    private->state_frame_id = provider->logic_deduplication_frame_id;
-
-    // Start advancing, having some data loaded is very likely here.
-    advance_bundle_from_initial_state (state, provider, public, private);
-}
-
-static void advance_bundle_from_initial_state (struct ui_bundle_management_state_t *state,
-                                               const struct kan_resource_provider_singleton_t *provider,
-                                               struct kan_ui_bundle_singleton_t *public,
-                                               struct ui_bundle_private_singleton_t *private)
-{
-    KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG,
-             "Attempting to advance bundle \"%s\" state from initial to waiting main.", public->bundle_name)
-
-    private->state_frame_id = provider->logic_deduplication_frame_id;
-    private->state = UI_BUNDLE_LOADING_STATE_WAITING_MAIN; // We will always advance from initial state.
-
-    // Clear resource usages that are used for loading.
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->main_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_resource_usage_t, usage_id, &private->main_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->loading_image_atlas_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_atlas_usage_t, usage_id,
-                                       &private->loading_image_atlas_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
-    KAN_UM_VALUE_DETACH_REQUIRED_STATIC_ID_ARRAY (private->loading_material_instances,
-                                                  kan_render_material_instance_usage_t, usage_id)
-
-    private->main_usage_id = kan_next_resource_usage_id (provider);
-    KAN_UMO_INDEXED_INSERT (usage, kan_resource_usage_t)
-    {
-        usage->usage_id = private->main_usage_id;
-        usage->type = KAN_STATIC_INTERNED_ID_GET (kan_resource_ui_bundle_t);
-        usage->name = public->bundle_name;
-        usage->priority = KAN_UNIVERSE_UI_BUNDLE_PRIORITY;
-    }
-
-    advance_bundle_from_waiting_main_state (state, provider, public, private);
-}
-
-static void advance_bundle_from_waiting_main_state (struct ui_bundle_management_state_t *state,
-                                                    const struct kan_resource_provider_singleton_t *provider,
-                                                    struct kan_ui_bundle_singleton_t *public,
-                                                    struct ui_bundle_private_singleton_t *private)
-{
-    KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG,
-             "Attempting to advance bundle \"%s\" state from waiting main to waiting resources.", public->bundle_name)
-
-    private->state_frame_id = provider->logic_deduplication_frame_id;
-    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_ui_bundle_t, &public->bundle_name)
-
-    if (!resource)
-    {
-        // Still waiting.
-        return;
-    }
-
-    KAN_UMI_SINGLETON_READ (atlas_singleton, kan_render_atlas_singleton_t)
-    KAN_UMI_SINGLETON_READ (program_singleton, kan_render_program_singleton_t)
-
-    private->state = UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES;
-    private->loading_image_atlas_usage_id = kan_next_atlas_usage_id (atlas_singleton);
-
-    KAN_UMO_INDEXED_INSERT (atlas_usage, kan_render_atlas_usage_t)
-    {
-        atlas_usage->usage_id = private->loading_image_atlas_usage_id;
-        atlas_usage->name = resource->image_atlas;
-    }
-
-    for (kan_instance_size_t index = 0u; index < KAN_RESOURCE_UI_BUNDLE_MATERIAL_INSTANCE_COUNT; ++index)
-    {
-        private->loading_material_instances[index] = kan_next_material_instance_usage_id (program_singleton);
-        KAN_UMO_INDEXED_INSERT (usage, kan_render_material_instance_usage_t)
-        {
-            usage->usage_id = private->loading_material_instances[index];
-            usage->name = resource->material_instances_array[index];
-        }
-    }
-
-    advance_bundle_from_waiting_resources_state (state, provider, public, private);
-}
-
-static void advance_bundle_from_waiting_resources_state (struct ui_bundle_management_state_t *state,
-                                                         const struct kan_resource_provider_singleton_t *provider,
-                                                         struct kan_ui_bundle_singleton_t *public,
-                                                         struct ui_bundle_private_singleton_t *private)
-{
-    KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG,
-             "Attempting to advance bundle \"%s\" state from waiting resources to ready.", public->bundle_name)
-
-    private->state_frame_id = provider->logic_deduplication_frame_id;
-    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_ui_bundle_t, &public->bundle_name)
-    KAN_ASSERT (resource)
-
-    KAN_UMI_VALUE_READ_OPTIONAL (pass, kan_render_foundation_pass_loaded_t, name, &resource->pass)
-    if (!pass)
-    {
-        return;
-    }
-
-    KAN_UMI_VALUE_READ_OPTIONAL (image_atlas, kan_render_atlas_loaded_t, name, &resource->image_atlas)
-    if (!image_atlas)
-    {
-        return;
-    }
-
-    for (kan_instance_size_t index = 0u; index < KAN_RESOURCE_UI_BUNDLE_MATERIAL_INSTANCE_COUNT; ++index)
-    {
-        KAN_UMI_VALUE_READ_OPTIONAL (material_instance, kan_render_material_instance_loaded_t, name,
-                                     &resource->material_instances_array[index])
-
-        if (!material_instance)
-        {
-            return;
-        }
-    }
-
-    // Everything is loaded, so we can finalize the loading now.
-
-    private->state = UI_BUNDLE_LOADING_STATE_READY;
-    public->available = true;
-    public->available_bundle.pass = resource->pass;
-    public->available_bundle.image_atlas = resource->image_atlas;
-    public->available_bundle.material_instances = resource->material_instances;
-
-    public->available_bundle.hit_box_interaction_styles.size = 0u;
-    kan_dynamic_array_set_capacity (&public->available_bundle.hit_box_interaction_styles,
-                                    resource->hit_box_interaction_styles.size);
-    public->available_bundle.hit_box_interaction_styles.size = resource->hit_box_interaction_styles.size;
-
-    memcpy (public->available_bundle.hit_box_interaction_styles.data, resource->hit_box_interaction_styles.data,
-            sizeof (struct kan_resource_ui_hit_box_interaction_style_t) * resource->hit_box_interaction_styles.size);
-
-    // Remove usages of old available data.
-
-    if (KAN_TYPED_ID_32_IS_VALID (private->available_image_atlas_usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_render_atlas_usage_t, usage_id,
-                                       &private->available_image_atlas_usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-    }
-
-    KAN_UM_VALUE_DETACH_REQUIRED_STATIC_ID_ARRAY (private->available_material_instances,
-                                                  kan_render_material_instance_usage_t, usage_id)
-
-    // Move loading usages to available.
-
-    KAN_TYPED_ID_32_MOVE (private->loading_image_atlas_usage_id, private->available_image_atlas_usage_id);
-    KAN_TYPED_ID_32_MOVE_STATIC_ARRAY (private->loading_material_instances, private->available_material_instances)
-
-    // Remove usage to resource that is no longer needed.
-    KAN_UMI_VALUE_DETACH_REQUIRED (main_usage, kan_resource_usage_t, usage_id, &private->main_usage_id)
-    KAN_UM_ACCESS_DELETE (main_usage);
-    private->main_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-
-    KAN_UMO_EVENT_INSERT_INIT (kan_ui_bundle_updated_t) {.stub = 0u};
-    KAN_LOG (ui_bundle_management, KAN_LOG_DEBUG, "Advanced bundle \"%s\" state to ready.", public->bundle_name)
-}
-
-UNIVERSE_UI_API KAN_UM_MUTATOR_EXECUTE (ui_bundle_management)
-{
-    KAN_UMI_SINGLETON_READ (resource_provider, kan_resource_provider_singleton_t)
-    if (!resource_provider->scan_done)
-    {
-        return;
-    }
-
-    KAN_UMI_SINGLETON_WRITE (public, kan_ui_bundle_singleton_t)
-    KAN_UMI_SINGLETON_WRITE (private, ui_bundle_private_singleton_t)
-    bool should_reinitialize = public->selection_dirty;
-
-    if (!public->bundle_name && state->default_bundle)
-    {
-        public->bundle_name = state->default_bundle;
-        should_reinitialize = true;
-    }
-
-    if (should_reinitialize)
-    {
-        // The same as resource update.
-        on_bundle_resource_updated (state, resource_provider, public, private);
-        public->selection_dirty = false;
-    }
-
-    KAN_UML_RESOURCE_UPDATED_EVENT_FETCH (updated_event, kan_resource_ui_bundle_t)
-    {
-        if (!should_reinitialize && updated_event->name == public->bundle_name)
-        {
-            on_bundle_resource_updated (state, resource_provider, public, private);
-        }
-    }
-
-    KAN_UML_RESOURCE_LOADED_EVENT_FETCH (bundle_loaded_event, kan_resource_ui_bundle_t)
-    {
-        if (bundle_loaded_event->name == public->bundle_name &&
-            private->state_frame_id != resource_provider->logic_deduplication_frame_id)
-        {
-            switch (private->state)
-            {
-            case UI_BUNDLE_LOADING_STATE_INITIAL:
-            case UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES:
-            case UI_BUNDLE_LOADING_STATE_READY:
-                KAN_ASSERT_FORMATTED (false,
-                                      "Bundle \"%s\" in state %u received main resource loaded event, which is totally "
-                                      "unexpected in this state.",
-                                      public->bundle_name, (unsigned int) private->state)
-                break;
-
-            case UI_BUNDLE_LOADING_STATE_WAITING_MAIN:
-                advance_bundle_from_waiting_main_state (state, resource_provider, public, private);
-                break;
-            }
-        }
-    }
-
-    KAN_UML_EVENT_FETCH (pass_updated_event, kan_render_foundation_pass_updated_event_t)
-    {
-        if (private->state_frame_id != resource_provider->logic_deduplication_frame_id &&
-            // Bundle coherence is not broken by separate pass reloading,
-            // therefore we just check if we need to advance just in case.
-            private->state == UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES)
-        {
-            advance_bundle_from_waiting_resources_state (state, resource_provider, public, private);
-        }
-    }
-
-    KAN_UML_EVENT_FETCH (material_instance_updated_event, kan_render_material_instance_updated_event_t)
-    {
-        if (private->state_frame_id != resource_provider->logic_deduplication_frame_id &&
-            // Bundle coherence is not broken by separate material instance reloading,
-            // therefore we just check if we need to advance just in case.
-            private->state == UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES)
-        {
-            advance_bundle_from_waiting_resources_state (state, resource_provider, public, private);
-        }
-    }
-
-    KAN_UML_EVENT_FETCH (atlas_updated_event, kan_render_atlas_updated_event_t)
-    {
-        if (private->state_frame_id != resource_provider->logic_deduplication_frame_id &&
-            // Bundle coherence is not broken by separate atlas reloading,
-            // therefore we just check if we need to advance just in case.
-            private->state == UI_BUNDLE_LOADING_STATE_WAITING_RESOURCES)
-        {
-            advance_bundle_from_waiting_resources_state (state, resource_provider, public, private);
-        }
-    }
-}
-
 void kan_ui_singleton_init (struct kan_ui_singleton_t *instance)
 {
     instance->node_id_counter = kan_atomic_int_init (1);
@@ -3434,13 +3130,6 @@ void kan_ui_bundle_singleton_init (struct kan_ui_bundle_singleton_t *instance)
 {
     instance->bundle_name = NULL;
     instance->selection_dirty = false;
-    instance->available = false;
-    kan_resource_ui_bundle_init (&instance->available_bundle);
-}
-
-void kan_ui_bundle_singleton_shutdown (struct kan_ui_bundle_singleton_t *instance)
-{
-    kan_resource_ui_bundle_shutdown (&instance->available_bundle);
 }
 
 void kan_ui_node_init (struct kan_ui_node_t *instance)

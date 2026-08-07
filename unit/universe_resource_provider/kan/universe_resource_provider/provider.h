@@ -394,6 +394,9 @@ struct kan_resource_loaded_entry_view_t
     ///          for some time until loading data is flipped into it after the transaction end.
     bool data_ready;
 
+    /// \brief Convenience flag that shows that this resource would be unloaded at the end of transaction.
+    bool unload_planned;
+
     uint8_t data_begin[];
 };
 
@@ -406,7 +409,7 @@ struct kan_resource_loaded_entry_view_t
          NULL)
 
 /// \brief Helper macro for extracting either loaded data or loading data during commit phase of transaction.
-/// \details Should only be used by resource commit systems to access loading data to be commited before flip happens!
+/// \details Should never be used during transaction loading phase as it will return half-loaded resources.
 #define KAN_RESOURCE_PROVIDER_LOADED_ENTRY_GET_FRESH(TYPE_NAME, ENTRY)                                                 \
     (((const struct TYPE_NAME *) ((struct kan_resource_loaded_entry_view_t *) ENTRY)->loading_data) ?                  \
          ((const struct TYPE_NAME *) ((struct kan_resource_loaded_entry_view_t *) ENTRY)->loading_data) :              \
@@ -426,6 +429,10 @@ struct kan_resource_loaded_third_party_entry_t
 
     kan_instance_size_t loaded_data_size;
     kan_instance_size_t loading_data_size;
+
+    /// \brief Convenience flag that shows that this resource would be unloaded at the end of transaction.
+    bool unload_planned;
+
     kan_allocation_group_t my_allocation_group;
 };
 
@@ -536,18 +543,19 @@ struct kan_resource_third_party_unregistered_event_t
 #    define KAN_UMI_RESOURCE_RETRIEVE_LOADED(NAME, RESOURCE_TYPE, RESOURCE_NAME_POINTER)                               \
         /* Highlight-autocomplete replacement. */                                                                      \
         const struct RESOURCE_TYPE *NAME = NULL;                                                                       \
+        const struct kan_resource_loaded_entry_view_t *NAME##_entry_view = NULL;                                       \
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_pointer_for_highlight_##NAME = RESOURCE_NAME_POINTER;
 #else
 #    define KAN_UMI_RESOURCE_RETRIEVE_LOADED(NAME, RESOURCE_TYPE, RESOURCE_NAME_POINTER)                               \
-        KAN_UM_INTERNAL_VALUE_OPTIONAL (resource_provider_loaded_entry_##NAME,                                         \
-                                        KAN_RESOURCE_PROVIDER_MAKE_LOADED_ENTRY_TYPE (RESOURCE_TYPE), name,            \
-                                        RESOURCE_NAME_POINTER, read, read, const)                                      \
+        KAN_UM_INTERNAL_VALUE_OPTIONAL_CUSTOM_POINTER_TYPE (                                                           \
+            NAME##_entry_view, KAN_RESOURCE_PROVIDER_MAKE_LOADED_ENTRY_TYPE (RESOURCE_TYPE),                           \
+            kan_resource_loaded_entry_view_t, name, RESOURCE_NAME_POINTER, read, read, const)                          \
         const struct RESOURCE_TYPE *NAME = NULL;                                                                       \
                                                                                                                        \
-        if (resource_provider_loaded_entry_##NAME)                                                                     \
+        if (NAME##_entry_view)                                                                                         \
         {                                                                                                              \
-            NAME = KAN_RESOURCE_PROVIDER_LOADED_ENTRY_GET (RESOURCE_TYPE, resource_provider_loaded_entry_##NAME);      \
+            NAME = KAN_RESOURCE_PROVIDER_LOADED_ENTRY_GET (RESOURCE_TYPE, NAME##_entry_view);                          \
         }
 #endif
 
@@ -555,53 +563,77 @@ struct kan_resource_third_party_unregistered_event_t
 #    define KAN_UMI_RESOURCE_RETRIEVE_FRESH_LOADED(NAME, RESOURCE_TYPE, RESOURCE_NAME_POINTER)                         \
         /* Highlight-autocomplete replacement. */                                                                      \
         const struct RESOURCE_TYPE *NAME = NULL;                                                                       \
+        const struct kan_resource_loaded_entry_view_t *NAME##_entry_view = NULL;                                       \
         /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
         const void *argument_pointer_for_highlight_##NAME = RESOURCE_NAME_POINTER;
 #else
 #    define KAN_UMI_RESOURCE_RETRIEVE_FRESH_LOADED(NAME, RESOURCE_TYPE, RESOURCE_NAME_POINTER)                         \
-        KAN_UM_INTERNAL_VALUE_OPTIONAL (resource_provider_loaded_entry_##NAME,                                         \
-                                        KAN_RESOURCE_PROVIDER_MAKE_LOADED_ENTRY_TYPE (RESOURCE_TYPE), name,            \
-                                        RESOURCE_NAME_POINTER, read, read, const)                                      \
+        KAN_UM_INTERNAL_VALUE_OPTIONAL_CUSTOM_POINTER_TYPE (                                                           \
+            NAME##_entry_view, KAN_RESOURCE_PROVIDER_MAKE_LOADED_ENTRY_TYPE (RESOURCE_TYPE),                           \
+            kan_resource_loaded_entry_view_t, name, RESOURCE_NAME_POINTER, read, read, const)                          \
         const struct RESOURCE_TYPE *NAME = NULL;                                                                       \
                                                                                                                        \
-        if (resource_provider_loaded_entry_##NAME)                                                                     \
+        if (NAME##_entry_view)                                                                                         \
         {                                                                                                              \
-            NAME =                                                                                                     \
-                KAN_RESOURCE_PROVIDER_LOADED_ENTRY_GET_FRESH (RESOURCE_TYPE, resource_provider_loaded_entry_##NAME);   \
+            NAME = KAN_RESOURCE_PROVIDER_LOADED_ENTRY_GET_FRESH (RESOURCE_TYPE, NAME##_entry_view);                    \
+        }
+#endif
+
+#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
+#    define KAN_UMI_RESOURCE_RETRIEVE_BOTH_LOADED(NAME, RESOURCE_TYPE, RESOURCE_NAME_POINTER)                          \
+        /* Highlight-autocomplete replacement. */                                                                      \
+        const struct RESOURCE_TYPE *NAME##_current = NULL;                                                             \
+        const struct RESOURCE_TYPE *NAME##_fresh = NULL;                                                               \
+        const struct kan_resource_loaded_entry_view_t *NAME##_entry_view = NULL;                                       \
+        /* Add this useless pointer so IDE highlight would never consider argument unused. */                          \
+        const void *argument_pointer_for_highlight_##NAME = RESOURCE_NAME_POINTER;
+#else
+#    define KAN_UMI_RESOURCE_RETRIEVE_BOTH_LOADED(NAME, RESOURCE_TYPE, RESOURCE_NAME_POINTER)                          \
+        KAN_UM_INTERNAL_VALUE_OPTIONAL_CUSTOM_POINTER_TYPE (                                                           \
+            NAME##_entry_view, KAN_RESOURCE_PROVIDER_MAKE_LOADED_ENTRY_TYPE (RESOURCE_TYPE),                           \
+            kan_resource_loaded_entry_view_t, name, RESOURCE_NAME_POINTER, read, read, const)                          \
+                                                                                                                       \
+        const struct RESOURCE_TYPE *NAME##_current = NULL;                                                             \
+        const struct RESOURCE_TYPE *NAME##_fresh = NULL;                                                               \
+                                                                                                                       \
+        if (NAME##_entry_view)                                                                                         \
+        {                                                                                                              \
+            NAME##_current = KAN_RESOURCE_PROVIDER_LOADED_ENTRY_GET (RESOURCE_TYPE, NAME##_entry_view);                \
+            NAME##_fresh = KAN_RESOURCE_PROVIDER_LOADED_ENTRY_GET_FRESH (RESOURCE_TYPE, NAME##_entry_view);            \
         }
 #endif
 
 #define KAN_UMI_RESOURCE_RETRIEVE_LOADED_THIRD_PARTY(NAME, RESOURCE_NAME_POINTER)                                      \
-    KAN_UMI_VALUE_READ_OPTIONAL (resource_provider_third_party_##NAME, kan_resource_loaded_third_party_entry_t, name,  \
+    KAN_UMI_VALUE_READ_OPTIONAL (NAME##_entry_view, kan_resource_loaded_third_party_entry_t, name,                     \
                                  RESOURCE_NAME_POINTER)                                                                \
                                                                                                                        \
     void *NAME = NULL;                                                                                                 \
     kan_instance_size_t NAME##_size = 0u;                                                                              \
                                                                                                                        \
-    if (resource_provider_third_party_##NAME)                                                                          \
+    if (NAME##_entry_view)                                                                                             \
     {                                                                                                                  \
-        NAME = resource_provider_third_party_##NAME->loaded_data;                                                      \
-        NAME##_size = resource_provider_third_party_##NAME->loaded_data_size;                                          \
+        NAME = NAME##_entry_view->loaded_data;                                                                         \
+        NAME##_size = NAME##_entry_view->loaded_data_size;                                                             \
     }
 
 #define KAN_UMI_RESOURCE_RETRIEVE_FRESH_LOADED_THIRD_PARTY(NAME, RESOURCE_NAME_POINTER)                                \
-    KAN_UMI_VALUE_READ_OPTIONAL (resource_provider_third_party_##NAME, kan_resource_loaded_third_party_entry_t, name,  \
+    KAN_UMI_VALUE_READ_OPTIONAL (NAME##_entry_view, kan_resource_loaded_third_party_entry_t, name,                     \
                                  RESOURCE_NAME_POINTER)                                                                \
                                                                                                                        \
     void *NAME = NULL;                                                                                                 \
     kan_instance_size_t NAME##_size = 0u;                                                                              \
                                                                                                                        \
-    if (resource_provider_third_party_##NAME)                                                                          \
+    if (NAME##_entry_view)                                                                                             \
     {                                                                                                                  \
-        if (resource_provider_third_party_##NAME->loading_data)                                                        \
+        if (NAME##_entry_view->loading_data)                                                                           \
         {                                                                                                              \
-            NAME = resource_provider_third_party_##NAME->loading_data;                                                 \
-            NAME##_size = resource_provider_third_party_##NAME->loading_data_size;                                     \
+            NAME = NAME##_entry_view->loading_data;                                                                    \
+            NAME##_size = NAME##_entry_view->loading_data_size;                                                        \
         }                                                                                                              \
         else                                                                                                           \
         {                                                                                                              \
-            NAME = resource_provider_third_party_##NAME->loaded_data;                                                  \
-            NAME##_size = resource_provider_third_party_##NAME->loaded_data_size;                                      \
+            NAME = NAME##_entry_view->loaded_data;                                                                     \
+            NAME##_size = NAME##_entry_view->loaded_data_size;                                                         \
         }                                                                                                              \
     }
 

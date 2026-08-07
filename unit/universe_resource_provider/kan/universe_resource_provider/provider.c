@@ -703,7 +703,7 @@ static void scan_directory (struct resource_provider_state_t *state,
 {
     const kan_instance_size_t base_length = container->length;
 
-#if KAN_WITH_ASSERT
+#if defined(KAN_WITH_ASSERT)
     // Assert that directory structure is linearized and we don't have any overlapping packages.
     if (assigned_package_name)
     {
@@ -925,6 +925,29 @@ static void plan_transactional_unload (struct resource_provider_state_t *state,
         .entry_id = entry->entry_id,
         .type = entry->type,
     };
+
+    if (entry->type)
+    {
+        struct resource_provider_resource_type_interface_t *interface =
+            query_resource_type_interface (state, entry->type);
+
+        KAN_ASSERT (interface)
+        KAN_ASSERT (!interface->source_node->streamed)
+
+        struct kan_repository_indexed_value_update_access_t access = update_loaded_entry (interface, entry->entry_id);
+        struct kan_resource_loaded_entry_view_t *view = kan_repository_indexed_value_update_access_resolve (&access);
+
+        if (view)
+        {
+            view->unload_planned = true;
+            kan_repository_indexed_value_update_access_close (&access);
+        }
+    }
+    else
+    {
+        KAN_UMI_VALUE_UPDATE_OPTIONAL (loaded, kan_resource_loaded_third_party_entry_t, entry_id, &entry->entry_id)
+        loaded->unload_planned = true;
+    }
 }
 
 static void schedule_transaction_unloading_from_package (struct resource_provider_state_t *state,
@@ -2268,6 +2291,17 @@ UNIVERSE_RESOURCE_PROVIDER_API KAN_UM_MUTATOR_EXECUTE_SIGNATURE (mutator_templat
             KAN_UMO_EVENT_INSERT_INIT (kan_resource_essentials_loaded_event_t) {.stub = 0u};
             public->essential_loading_done = true;
             start_unconditional_loading_transaction (state, public, private, KAN_RESOURCE_PACKAGE_LEVEL_REQUIRED);
+
+            // Append optional loading transaction into required loading transaction if needed.
+            // The reason is that some important things like localized fonts have to reside in optional packages
+            // as they should not be loaded unless specific locale is used, but we still need to load them
+            // as soon as possible.
+            if (public->tags_dirty)
+            {
+                public->tags_dirty = false;
+                start_optional_loading_transaction (state, public, private);
+            }
+
             break;
         }
 
@@ -2395,6 +2429,7 @@ static void generated_loaded_entry_init (kan_memory_size_t function_user_data, v
     instance->my_allocation_group = kan_allocation_group_stack_get ();
     instance->loading_data = NULL;
     instance->data_ready = false;
+    instance->unload_planned = false;
 
     if (boxed_type->init)
     {
@@ -2604,11 +2639,11 @@ UNIVERSE_RESOURCE_PROVIDER_API void kan_reflection_generator_universe_resource_p
         kan_free_general (instance->generated_reflection_group, node->unload_planned_event_type.fields,
                           sizeof (struct kan_reflection_field_t) * node->unload_planned_event_type.fields_count);
 
-        kan_free_general (instance->generated_reflection_group, node,
-                          sizeof (struct universe_resource_provider_generated_node_t));
-
         kan_free_general (instance->generated_reflection_group, node->unregistered_event_type.fields,
                           sizeof (struct kan_reflection_field_t) * node->unregistered_event_type.fields_count);
+
+        kan_free_general (instance->generated_reflection_group, node,
+                          sizeof (struct universe_resource_provider_generated_node_t));
         node = next;
     }
 
@@ -2993,6 +3028,8 @@ void kan_resource_package_state_shutdown (struct kan_resource_package_state_t *i
     {
         kan_serialization_interned_string_registry_destroy (instance->string_registry);
     }
+
+    kan_resource_package_shutdown (&instance->manifest);
 }
 
 void kan_resource_registered_entry_init (struct kan_resource_registered_entry_t *instance)
@@ -3025,6 +3062,7 @@ void kan_resource_loaded_third_party_entry_init (struct kan_resource_loaded_thir
     instance->loading_data = NULL;
     instance->loaded_data_size = 0u;
     instance->loading_data_size = 0u;
+    instance->unload_planned = false;
     instance->my_allocation_group = kan_allocation_group_stack_get ();
 }
 

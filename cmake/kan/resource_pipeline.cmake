@@ -94,25 +94,28 @@ endfunction ()
 # - PLUGIN_DIRECTORY_NAME: name of the directory used to store plugins.
 # - PLATFORM_CONFIGURATION: path to the platform configuration directory.
 # - PLATFORM_CONFIGURATION_TAGS: list of enabled platform configuration tags if any. Optional.
-# - CORE_ROOT_TARGETS: list of shared library targets that together form always used core.
+# - CORE_ROOT_TARGET: shared library that is used as an always loaded core.
+# - CORE_PLUGIN_ROOT_TARGETS: list of shared library targets that are plugins, but are in always loaded core.
 # - PLUGIN_ROOT_TARGETS: list of plugin library targets, every target is treated as independent plugin.
 function (generate_resource_project)
     cmake_parse_arguments (ARG ""
-            "OUTPUT_FILE;WORKSPACE;PLUGIN_DIRECTORY_NAME;PLATFORM_CONFIGURATION"
-            "PLATFORM_CONFIGURATION_TAGS;CORE_ROOT_TARGETS;PLUGIN_ROOT_TARGETS" ${ARGV})
+            "OUTPUT_FILE;WORKSPACE;PLUGIN_DIRECTORY_NAME;PLATFORM_CONFIGURATION;CORE_ROOT_TARGET"
+            "PLATFORM_CONFIGURATION_TAGS;CORE_PLUGIN_ROOT_TARGETS;PLUGIN_ROOT_TARGETS" ${ARGV})
 
     if (DEFINED ARG_UNPARSED_ARGUMENTS OR
             NOT DEFINED ARG_OUTPUT_FILE OR
             NOT DEFINED ARG_WORKSPACE OR
             NOT DEFINED ARG_PLUGIN_DIRECTORY_NAME OR
             NOT DEFINED ARG_PLATFORM_CONFIGURATION OR
-            NOT DEFINED ARG_CORE_ROOT_TARGETS OR
+            NOT DEFINED ARG_CORE_ROOT_TARGET OR
+            NOT DEFINED ARG_CORE_PLUGIN_ROOT_TARGETS OR
             NOT DEFINED ARG_PLUGIN_ROOT_TARGETS)
         message (FATAL_ERROR "Incorrect function arguments!")
     endif ()
 
     set (CONTENT "//! kan_resource_project_t\n\n")
-    gather_resource_packages (OUTPUT_NAMES NAMES OUTPUT_DIRECTORIES DIRECTORIES ROOT_TARGETS "${ARG_CORE_ROOT_TARGETS}")
+    gather_resource_packages (OUTPUT_NAMES NAMES OUTPUT_DIRECTORIES DIRECTORIES ROOT_TARGETS
+            ${ARG_CORE_ROOT_TARGET} ${ARG_CORE_PLUGIN_ROOT_TARGETS})
 
     foreach (NAME DIRECTORY IN ZIP_LISTS NAMES DIRECTORIES)
         string (APPEND CONTENT "+packages {\n")
@@ -136,10 +139,11 @@ function (generate_resource_project)
 
     string (APPEND CONTENT "workspace_directory = \"${ARG_WORKSPACE}\"\n")
     string (APPEND CONTENT "platform_configuration_directory = \"${ARG_PLATFORM_CONFIGURATION}\"")
-    string (APPEND CONTENT "platform_configuration_tags =\n")
-    set (COMMA "    ")
 
     if (ARG_PLATFORM_CONFIGURATION_TAGS)
+        string (APPEND CONTENT "platform_configuration_tags =\n")
+        set (COMMA "    ")
+
         foreach (TAG ${ARG_PLATFORM_CONFIGURATION_TAGS})
             string (APPEND CONTENT "${COMMA}\"${TAG}\"")
             set (COMMA ",\n    ")
@@ -151,7 +155,7 @@ function (generate_resource_project)
     string (APPEND CONTENT "plugins =\n")
     set (COMMA "    ")
 
-    foreach (PLUGIN_TARGET ${ARG_PLUGIN_ROOT_TARGETS})
+    foreach (PLUGIN_TARGET ${ARG_PLUGIN_ROOT_TARGETS} ${ARG_CORE_PLUGIN_ROOT_TARGETS})
         string (APPEND CONTENT "${COMMA}\"${PLUGIN_TARGET}\"")
         set (COMMA ",\n    ")
     endforeach ()

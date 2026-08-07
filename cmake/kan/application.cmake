@@ -640,7 +640,7 @@ function (private_configuration_mount_read_only_pack OUTPUT MOUNT_PATH REAL_PATH
     set (PREFIX "string (APPEND ENABLED_SYSTEMS \"")
     string (APPEND "${OUTPUT}" "${PREFIX}        +mount_read_only_pack {\\n\")\n")
     string (APPEND "${OUTPUT}" "${PREFIX}            mount_path = \\\"${MOUNT_PATH}\\\"\\n\")\n")
-    string (APPEND "${OUTPUT}" "${PREFIX}            pack_real_path = \\\" ${REAL_PATH} \\\"\\n\")\n")
+    string (APPEND "${OUTPUT}" "${PREFIX}            pack_real_path = \\\"${REAL_PATH}\\\"\\n\")\n")
     string (APPEND "${OUTPUT}" "${PREFIX}        }\\n\")\n")
     set ("${OUTPUT}" "${${OUTPUT}}" PARENT_SCOPE)
 endfunction ()
@@ -816,7 +816,8 @@ function (application_generate)
             PLUGIN_DIRECTORY_NAME "${KAN_APPLICATION_PLUGINS_DIRECTORY_NAME}"
             PLATFORM_CONFIGURATION "${PLATFORM_CONFIGURATION_DIRECTORY}"
             PLATFORM_CONFIGURATION_TAGS ${MY_PLATFORM_CONFIGURATION_TAGS}
-            CORE_ROOT_TARGETS "${APPLICATION_NAME}_core_library" ${CORE_PLUGIN_LIBRARY_TARGETS}
+            CORE_ROOT_TARGET "${APPLICATION_NAME}_core_library"
+            CORE_PLUGIN_ROOT_TARGETS ${CORE_PLUGIN_LIBRARY_TARGETS}
             PLUGIN_ROOT_TARGETS ${PLUGIN_LIBRARY_TARGETS})
 
     # Generate development core configuration.
@@ -904,6 +905,11 @@ function (application_generate)
         if (PROGRAM_GROUPS)
             private_gather_plugins_from_groups ("${PROGRAM_GROUPS}" PROGRAM_PLUGINS)
         endif ()
+        
+        set (PROGRAM_PLUGINS_TARGETS)
+        foreach (PLUGIN ${PROGRAM_PLUGINS})
+            list (APPEND PROGRAM_PLUGINS_TARGETS "${PLUGIN}_library")
+        endforeach ()
 
         # Generate program plugins target.
 
@@ -929,7 +935,7 @@ function (application_generate)
                 "--project" "${RESOURCE_PROJECT_PATH}"
                 "--log" "quiet"
                 "--pack" "none"
-                "--plugins" ${PROGRAM_PLUGINS}
+                "--plugins" ${PROGRAM_PLUGINS_TARGETS}
                 JOB_POOL "${APPLICATION_NAME}_resource_build_pool"
                 COMMENT "Building resource for application \"${APPLICATION_NAME}\" program \"${PROGRAM_NAME}\"."
                 COMMAND_EXPAND_LISTS
@@ -981,7 +987,7 @@ function (application_generate)
         string (APPEND DEV_PROGRAM_CONFIGURATOR_CONTENT "${PREFIX}        __type = kan_virtual_file_system_config_t\\n\")\n")
 
         foreach (PLUGIN ${PROGRAM_PLUGINS})
-            gather_resource_packages (OUTPUT_NAMES PLUGIN_PACKAGE_NAMES ROOT_TARGETS "${PLUGIN}")
+            gather_resource_packages (OUTPUT_NAMES PLUGIN_PACKAGE_NAMES ROOT_TARGETS "${PLUGIN}_library")
             foreach (PACKAGE_NAME ${PLUGIN_PACKAGE_NAMES})
                 private_configuration_mount_real (
                         DEV_PROGRAM_CONFIGURATOR_CONTENT
@@ -1126,7 +1132,9 @@ function (application_generate)
 
         # Copy plugins used by variant.
 
+        set (USED_PLUGINS_TARGETS)
         foreach (PLUGIN ${USED_PLUGINS})
+            list (APPEND USED_PLUGINS_TARGETS "${PLUGIN}_library")
             setup_shared_library_copy (
                     LIBRARY "${PLUGIN}_library"
                     USER "${VARIANT}_package"
@@ -1222,7 +1230,7 @@ function (application_generate)
                     "${PREFIX}        __type = kan_virtual_file_system_config_t\\n\")\n")
 
             foreach (PLUGIN ${PROGRAM_PLUGINS})
-                gather_resource_packages (OUTPUT_NAMES PLUGIN_PACKAGE_NAMES ROOT_TARGETS "${PLUGIN}")
+                gather_resource_packages (OUTPUT_NAMES PLUGIN_PACKAGE_NAMES ROOT_TARGETS "${PLUGIN}_library")
                 foreach (PACKAGE_NAME ${PLUGIN_PACKAGE_NAMES})
                     private_configuration_mount_read_only_pack (
                             PACK_PROGRAM_CONFIGURATOR_CONTENT
@@ -1277,7 +1285,7 @@ function (application_generate)
                 "--project" "${RESOURCE_PROJECT_PATH}"
                 "--log" "quiet"
                 "--pack" "interned"
-                "--plugins" ${USED_PLUGINS}
+                "--plugins" ${USED_PLUGINS_TARGETS}
                 JOB_POOL "${APPLICATION_NAME}_resource_build_pool"
                 COMMENT "Running resource build for application \"${APPLICATION_NAME}\" variant \"${NAME}\"."
                 COMMAND_EXPAND_LISTS
@@ -1287,7 +1295,7 @@ function (application_generate)
         list (APPEND ALL_PACKAGE_NAMES ${CORE_PACKAGE_NAMES})
 
         foreach (PLUGIN ${PROGRAM_PLUGINS})
-            gather_resource_packages (OUTPUT_NAMES PLUGIN_PACKAGE_NAMES ROOT_TARGETS "${PLUGIN}")
+            gather_resource_packages (OUTPUT_NAMES PLUGIN_PACKAGE_NAMES ROOT_TARGETS "${PLUGIN}_library")
             list (APPEND ALL_PACKAGE_NAMES ${PLUGIN_PACKAGE_NAMES})
         endforeach ()
 
@@ -1298,7 +1306,7 @@ function (application_generate)
                     "${CMAKE_COMMAND}"
                     -E copy -t
                     "${PACK_RESOURCES_DIRECTORY}"
-                    "${RESOURCE_BUILD_DIRECTORY}/core.pack"
+                    "${RESOURCE_BUILD_DIRECTORY}/${PACKAGE_NAME}.pack"
                     COMMENT
                     "Copying package \"${PACKAGE_NAME}\" for application \"${APPLICATION_NAME}\" variant \"${NAME}\"."
                     VERBATIM)

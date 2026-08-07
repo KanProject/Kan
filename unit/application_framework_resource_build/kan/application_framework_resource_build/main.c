@@ -18,7 +18,7 @@ enum argument_mode_t
     ARGUMENT_MODE_PROJECT,
     ARGUMENT_MODE_LOG,
     ARGUMENT_MODE_PACK,
-    ARGUMENT_MODE_TARGETS,
+    ARGUMENT_MODE_PLUGINS,
 };
 
 static const char help_message[] =
@@ -40,7 +40,7 @@ static const char help_message[] =
     "                         regular     Uses regular packing strategy for resources.\n"
     "                         interned    Strings are interned in resource binary data in target scope.\n"
     "\n"
-    "    --targets        Specifies target names to build. Supports several arguments.\n"
+    "    --plugins        Specifies plugin names to build in addition to the core. Supports several arguments.\n"
     "\n"
     "For proper execution, resource project and at least one target must be specified.\n";
 
@@ -90,9 +90,9 @@ int main (int argc, char **argv)
             argument_mode = ARGUMENT_MODE_PACK;
             continue;
         }
-        else if (strcmp (argument, "--targets") == 0)
+        else if (strcmp (argument, "--plugins") == 0)
         {
-            argument_mode = ARGUMENT_MODE_TARGETS;
+            argument_mode = ARGUMENT_MODE_PLUGINS;
             continue;
         }
 
@@ -174,13 +174,13 @@ int main (int argc, char **argv)
 
             break;
 
-        case ARGUMENT_MODE_TARGETS:
+        case ARGUMENT_MODE_PLUGINS:
         {
-            kan_interned_string_t *spot = kan_dynamic_array_add_last (&setup.targets);
+            kan_interned_string_t *spot = kan_dynamic_array_add_last (&setup.plugins);
             if (!spot)
             {
-                kan_dynamic_array_set_capacity (&setup.targets, KAN_MAX (1u, setup.targets.size * 2u));
-                spot = kan_dynamic_array_add_last (&setup.targets);
+                kan_dynamic_array_set_capacity (&setup.plugins, KAN_MAX (1u, setup.plugins.size * 2u));
+                spot = kan_dynamic_array_add_last (&setup.plugins);
             }
 
             *spot = kan_string_intern (argument);
@@ -193,12 +193,6 @@ int main (int argc, char **argv)
     {
         KAN_LOG (application_framework_resource_build, KAN_LOG_ERROR,
                  "Project path is not specified, aborting execution.");
-        return ERROR_CODE_INVALID_ARGUMENTS;
-    }
-
-    if (setup.targets.size == 0u)
-    {
-        KAN_LOG (application_framework_resource_build, KAN_LOG_ERROR, "No targets specified, aborting execution.")
         return ERROR_CODE_INVALID_ARGUMENTS;
     }
 

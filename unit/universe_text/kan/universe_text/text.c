@@ -21,24 +21,14 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_GROUP_META (text_management, KAN_TEXT_MANAGEMEN
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (text_shaping)
 UNIVERSE_TEXT_API KAN_UM_MUTATOR_GROUP_META (text_shaping, KAN_TEXT_SHAPING_MUTATOR_GROUP);
 
-enum font_library_loading_state_t
+struct text_management_private_singleton_t
 {
-    FONT_LIBRARY_LOADING_STATE_INITIAL = 0u,
-    FONT_LIBRARY_LOADING_STATE_WAITING_MAIN,
-    FONT_LIBRARY_LOADING_STATE_WAITING_BLOBS,
-    FONT_LIBRARY_LOADING_STATE_READY,
+    bool pending_full_reload;
 };
 
-struct text_management_singleton_t
+UNIVERSE_TEXT_API void text_management_private_singleton_init (struct text_management_private_singleton_t *instance)
 {
-    enum font_library_loading_state_t font_library_loading_state;
-    kan_instance_size_t font_library_loading_state_frame_id;
-};
-
-UNIVERSE_TEXT_API void text_management_singleton_init (struct text_management_singleton_t *instance)
-{
-    instance->font_library_loading_state = FONT_LIBRARY_LOADING_STATE_INITIAL;
-    instance->font_library_loading_state_frame_id = 0u;
+    instance->pending_full_reload = false;
 }
 
 struct font_library_t
@@ -46,27 +36,22 @@ struct font_library_t
     kan_interned_string_t name;
     kan_font_library_t library;
     kan_interned_string_t usage_class;
-    kan_resource_usage_id_t usage_id;
-
-    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (kan_instance_size_t)
-    struct kan_dynamic_array_t selected_categories;
+    kan_instance_size_t loading_frame_id;
 };
 
 KAN_REFLECTION_STRUCT_META (font_library_t)
 UNIVERSE_TEXT_API struct kan_repository_meta_automatic_cascade_deletion_t font_library_usage_id_cascade_deletion = {
-    .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"usage_id"}},
-    .child_type_name = "kan_resource_usage_t",
-    .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"usage_id"}},
+    .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"name"}},
+    .child_type_name = "font_file_link_t",
+    .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"library_name"}},
 };
 
 UNIVERSE_TEXT_API void font_library_init (struct font_library_t *instance)
 {
     instance->name = NULL;
-    instance->usage_class = NULL;
     instance->library = KAN_HANDLE_SET_INVALID (kan_font_library_t);
-    instance->usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-    kan_dynamic_array_init (&instance->selected_categories, 0u, sizeof (kan_instance_size_t),
-                            alignof (kan_instance_size_t), kan_allocation_group_stack_get ());
+    instance->usage_class = NULL;
+    instance->loading_frame_id = 0u;
 }
 
 UNIVERSE_TEXT_API void font_library_shutdown (struct font_library_t *instance)
@@ -75,36 +60,17 @@ UNIVERSE_TEXT_API void font_library_shutdown (struct font_library_t *instance)
     {
         kan_font_library_destroy (instance->library);
     }
-
-    kan_dynamic_array_shutdown (&instance->selected_categories);
 }
 
-struct font_blob_t
+struct font_file_link_t
+{
+    kan_interned_string_t library_name;
+    kan_interned_string_t file_name;
+};
+
+struct font_library_updated_event_t
 {
     kan_interned_string_t name;
-    kan_resource_third_party_blob_id_t current;
-    kan_resource_third_party_blob_id_t loading;
-    bool used_in_current;
-    bool used_for_loading;
-};
-
-KAN_REFLECTION_STRUCT_META (font_blob_t)
-UNIVERSE_TEXT_API struct kan_repository_meta_automatic_cascade_deletion_t font_blob_current_cascade_deletion = {
-    .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"current"}},
-    .child_type_name = "kan_resource_third_party_blob_t",
-    .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"blob_id"}},
-};
-
-KAN_REFLECTION_STRUCT_META (font_blob_t)
-UNIVERSE_TEXT_API struct kan_repository_meta_automatic_cascade_deletion_t font_blob_current_loading_deletion = {
-    .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"loading"}},
-    .child_type_name = "kan_resource_third_party_blob_t",
-    .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"blob_id"}},
-};
-
-struct font_libraries_loaded_event_t
-{
-    kan_instance_size_t stub;
 };
 
 struct text_management_state_t
@@ -127,280 +93,50 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_DEPLOY (text_management)
 
     kan_workflow_graph_node_depend_on (workflow_node, KAN_RESOURCE_PROVIDER_END_CHECKPOINT);
     kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_FRAME_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_LOCALE_MANAGEMENT_END_CHECKPOINT);
     kan_workflow_graph_node_depend_on (workflow_node, KAN_TEXT_MANAGEMENT_BEGIN_CHECKPOINT);
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_TEXT_MANAGEMENT_END_CHECKPOINT);
 }
 
-static void cancel_font_library_blob_loading (struct text_management_state_t *state)
+static void load_font_library (struct text_management_state_t *state,
+                               const struct kan_resource_provider_singleton_t *provider,
+                               const struct kan_locale_singleton_t *locale_selection,
+                               const struct kan_render_context_singleton_t *render_context,
+                               struct font_library_t *library)
 {
-    KAN_UML_SEQUENCE_UPDATE (blob, font_blob_t)
+    KAN_CPU_SCOPED_STATIC_SECTION (load_font_library)
+    library->loading_frame_id = provider->logic_deduplication_frame_id;
+    library->usage_class = NULL;
+    KAN_UML_VALUE_DETACH (old_link, font_file_link_t, library_name, &library->name) { KAN_UM_ACCESS_DELETE (old_link); }
+
+    if (KAN_HANDLE_IS_VALID (library->library))
     {
-        if (KAN_TYPED_ID_32_IS_VALID (blob->loading))
-        {
-            KAN_UMI_VALUE_DETACH_REQUIRED (request, kan_resource_third_party_blob_t, blob_id, &blob->loading)
-            KAN_UM_ACCESS_DELETE (request);
-        }
-
-        blob->loading = KAN_TYPED_ID_32_SET_INVALID (kan_resource_third_party_blob_id_t);
-    }
-}
-
-static bool on_font_library_updated (struct text_management_state_t *state,
-                                     struct text_management_singleton_t *private,
-                                     const struct kan_resource_provider_singleton_t *provider,
-                                     kan_interned_string_t name)
-{
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (font_library, font_library_t, name, &name)
-    if (!font_library)
-    {
-        return false;
-    }
-
-    // Usage should already exist.
-    KAN_ASSERT (KAN_TYPED_ID_32_IS_VALID (font_library->usage_id))
-
-    if (private->font_library_loading_state == FONT_LIBRARY_LOADING_STATE_WAITING_BLOBS)
-    {
-        cancel_font_library_blob_loading (state);
-    }
-
-    private->font_library_loading_state = FONT_LIBRARY_LOADING_STATE_WAITING_MAIN;
-    private->font_library_loading_state_frame_id = provider->logic_deduplication_frame_id;
-    return true;
-}
-
-static void on_font_library_registered (struct text_management_state_t *state,
-                                        struct text_management_singleton_t *private,
-                                        const struct kan_resource_provider_singleton_t *provider,
-                                        kan_interned_string_t name)
-{
-    // Reset loading state if we've suddenly found new font library.
-    if (private->font_library_loading_state == FONT_LIBRARY_LOADING_STATE_WAITING_BLOBS)
-    {
-        cancel_font_library_blob_loading (state);
-    }
-
-    private->font_library_loading_state = FONT_LIBRARY_LOADING_STATE_WAITING_MAIN;
-    private->font_library_loading_state_frame_id = provider->logic_deduplication_frame_id;
-
-    KAN_UMO_INDEXED_INSERT (library, font_library_t)
-    {
-        library->name = name;
+        kan_font_library_destroy (library->library);
         library->library = KAN_HANDLE_SET_INVALID (kan_font_library_t);
-        library->usage_class = NULL;
-        library->usage_id = kan_next_resource_usage_id (provider);
-
-        KAN_UMO_INDEXED_INSERT (usage, kan_resource_usage_t)
-        {
-            usage->usage_id = library->usage_id;
-            usage->type = KAN_STATIC_INTERNED_ID_GET (kan_resource_font_library_t);
-            usage->name = name;
-            usage->priority = KAN_UNIVERSE_TEXT_FONT_LIBRARY_PRIORITY;
-        }
-    }
-}
-
-static void advance_font_libraries_from_waiting_main (struct text_management_state_t *state,
-                                                      struct text_management_singleton_t *private,
-                                                      const struct kan_resource_provider_singleton_t *provider,
-                                                      const struct kan_locale_singleton_t *locale);
-
-static void advance_font_libraries_from_waiting_blobs (struct text_management_state_t *state,
-                                                       struct text_management_singleton_t *private,
-                                                       const struct kan_resource_provider_singleton_t *provider,
-                                                       const struct kan_locale_singleton_t *locale);
-
-static void font_blob_start_new_loading (struct text_management_state_t *state,
-                                         const struct kan_resource_provider_singleton_t *provider,
-                                         struct font_blob_t *blob)
-{
-    if (KAN_TYPED_ID_32_IS_VALID (blob->loading))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (request, kan_resource_third_party_blob_t, blob_id, &blob->loading)
-        KAN_UM_ACCESS_DELETE (request);
     }
 
-    blob->loading = kan_next_resource_third_party_blob_id (provider);
-    KAN_UMO_INDEXED_INSERT (request, kan_resource_third_party_blob_t)
-    {
-        request->blob_id = blob->loading;
-        request->name = blob->name;
-        request->priority = KAN_UNIVERSE_TEXT_FONT_BLOB_PRIORITY;
-    }
-}
-
-static void update_font_blob_usage (struct text_management_state_t *state,
-                                    struct text_management_singleton_t *private,
-                                    const struct kan_resource_provider_singleton_t *provider,
-                                    kan_interned_string_t locale_name)
-{
-    KAN_UMI_VALUE_READ_OPTIONAL (locale, kan_locale_t, name, &locale_name)
+    KAN_UMI_RESOURCE_RETRIEVE_FRESH_LOADED (locale, kan_resource_locale_t, &locale_selection->selected_locale)
     if (!locale)
     {
         KAN_LOG (text_management, KAN_LOG_ERROR,
-                 "Cannot properly update font blob loading state as locale \"%s\" cannot be found!", locale_name)
+                 "Cannot properly create font library \"%s\" as current locale is not accessible!", library->name)
+        KAN_UMO_EVENT_INSERT_INIT (font_library_updated_event_t) {.name = library->name};
         return;
     }
 
-    KAN_ASSERT (private->font_library_loading_state == FONT_LIBRARY_LOADING_STATE_WAITING_BLOBS)
-    KAN_UML_SEQUENCE_UPDATE (blob_to_clear, font_blob_t) { blob_to_clear->used_for_loading = false; }
-
-    KAN_UML_SEQUENCE_UPDATE (loaded_library, font_library_t)
+    KAN_UMI_RESOURCE_RETRIEVE_FRESH_LOADED (resource, kan_resource_font_library_t, &library->name)
+    if (resource_entry_view->unload_planned)
     {
-        KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_font_library_t, &loaded_library->name)
-        KAN_ASSERT (resource)
-        loaded_library->selected_categories.size = 0u;
-
-        // We have to honor order in locale to make sure that font library categories order matches order of languages
-        // in locale resource to avoid unexpected behaviors.
-        for (kan_instance_size_t locale_language_index = 0u;
-             locale_language_index < locale->resource.font_languages.size; ++locale_language_index)
-        {
-            for (kan_instance_size_t category_index = 0u; category_index < resource->categories.size; ++category_index)
-            {
-                const struct kan_resource_font_category_t *category =
-                    &((struct kan_resource_font_category_t *) resource->categories.data)[category_index];
-                bool filtered_in = false;
-
-                for (kan_instance_size_t category_language_index = 0u;
-                     category_language_index < category->used_for_languages.size; ++category_language_index)
-                {
-                    if (((kan_interned_string_t *) category->used_for_languages.data)[category_language_index] ==
-                        ((kan_interned_string_t *) locale->resource.font_languages.data)[locale_language_index])
-                    {
-                        filtered_in = true;
-                        break;
-                    }
-                }
-
-                if (!filtered_in)
-                {
-                    continue;
-                }
-
-                kan_instance_size_t *spot = kan_dynamic_array_add_last (&loaded_library->selected_categories);
-                if (!spot)
-                {
-                    kan_dynamic_array_set_capacity (&loaded_library->selected_categories,
-                                                    KAN_MAX (1u, loaded_library->selected_categories.size * 2u));
-                    spot = kan_dynamic_array_add_last (&loaded_library->selected_categories);
-                }
-
-                *spot = category_index;
-                for (kan_memory_size_t style_index = 0u; style_index < category->styles.size; ++style_index)
-                {
-                    const struct kan_resource_font_style_t *style =
-                        &((struct kan_resource_font_style_t *) category->styles.data)[style_index];
-
-                    KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_blob, font_blob_t, name, &style->font_data_file)
-                    if (existing_blob)
-                    {
-                        existing_blob->used_for_loading = true;
-                        if (!KAN_TYPED_ID_32_IS_VALID (existing_blob->loading) &&
-                            !KAN_TYPED_ID_32_IS_VALID (existing_blob->current))
-                        {
-                            font_blob_start_new_loading (state, provider, existing_blob);
-                        }
-
-                        continue;
-                    }
-
-                    KAN_UMO_INDEXED_INSERT (new_blob, font_blob_t)
-                    {
-                        new_blob->name = style->font_data_file;
-                        new_blob->current = KAN_TYPED_ID_32_SET_INVALID (kan_resource_third_party_blob_id_t);
-                        new_blob->loading = KAN_TYPED_ID_32_SET_INVALID (kan_resource_third_party_blob_id_t);
-                        new_blob->used_in_current = false;
-                        new_blob->used_for_loading = true;
-                        font_blob_start_new_loading (state, provider, new_blob);
-                    }
-                }
-            }
-        }
+        // Ignore, will be deleted after the transaction.
+        KAN_UMO_EVENT_INSERT_INIT (font_library_updated_event_t) {.name = library->name};
+        return;
     }
 
-    KAN_UML_SEQUENCE_DELETE (blob_to_check, font_blob_t)
-    {
-        if (!blob_to_check->used_in_current && !blob_to_check->used_for_loading)
-        {
-            KAN_UM_ACCESS_DELETE (blob_to_check);
-        }
-    }
-}
-
-static void advance_font_libraries_from_waiting_main (struct text_management_state_t *state,
-                                                      struct text_management_singleton_t *private,
-                                                      const struct kan_resource_provider_singleton_t *provider,
-                                                      const struct kan_locale_singleton_t *locale)
-{
-    KAN_LOG (text_management, KAN_LOG_DEBUG,
-             "Attempting to advance font library loading from waiting main to waiting blobs state.")
-    private->font_library_loading_state_frame_id = provider->logic_deduplication_frame_id;
-
-    KAN_UML_SEQUENCE_READ (library, font_library_t)
-    {
-        KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_font_library_t, &library->name)
-        if (!resource)
-        {
-            // Not all resources loaded.
-            return;
-        }
-    }
-
-    // Update usage classes.
-    KAN_UML_SEQUENCE_UPDATE (loaded_library, font_library_t)
-    {
-        KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_font_library_t, &loaded_library->name)
-        KAN_ASSERT (resource)
-        loaded_library->usage_class = resource->usage_class;
-    }
-
-    private->font_library_loading_state = FONT_LIBRARY_LOADING_STATE_WAITING_BLOBS;
-    update_font_blob_usage (state, private, provider, locale->selected_locale);
-    advance_font_libraries_from_waiting_blobs (state, private, provider, locale);
-}
-
-static void advance_font_libraries_from_waiting_blobs (struct text_management_state_t *state,
-                                                       struct text_management_singleton_t *private,
-                                                       const struct kan_resource_provider_singleton_t *provider,
-                                                       const struct kan_locale_singleton_t *locale)
-{
-    KAN_LOG (text_management, KAN_LOG_DEBUG,
-             "Attempting to advance font library loading from waiting blobs to ready state.")
-    private->font_library_loading_state_frame_id = provider->logic_deduplication_frame_id;
-
-    KAN_UML_SEQUENCE_READ (blob_to_check, font_blob_t)
-    {
-        if (!blob_to_check->used_for_loading)
-        {
-            continue;
-        }
-
-        if (KAN_TYPED_ID_32_IS_VALID (blob_to_check->loading))
-        {
-            KAN_UMI_VALUE_READ_REQUIRED (data, kan_resource_third_party_blob_t, blob_id, &blob_to_check->loading)
-            if (!data->available)
-            {
-                return;
-            }
-        }
-        else
-        {
-            KAN_ASSERT (KAN_TYPED_ID_32_IS_VALID (blob_to_check->current))
-#if defined(KAN_WITH_ASSERT)
-            KAN_UMI_VALUE_READ_REQUIRED (data, kan_resource_third_party_blob_t, blob_id, &blob_to_check->current)
-            KAN_ASSERT (data->available)
-#endif
-        }
-    }
-
-    KAN_UMI_SINGLETON_READ (render_context, kan_render_context_singleton_t)
-    KAN_ASSERT (KAN_HANDLE_IS_VALID (render_context->render_context))
-
+    KAN_ASSERT (resource)
+    library->usage_class = resource->usage_class;
     struct kan_font_library_category_t categories_static[KAN_UNIVERSE_TEXT_FONT_CATEGORY_INIT_STACK];
     kan_instance_size_t categories_size = KAN_UNIVERSE_TEXT_FONT_CATEGORY_INIT_STACK;
     struct kan_font_library_category_t *categories = categories_static;
+    kan_instance_size_t selected_categories_count = 0u;
 
     CUSHION_DEFER
     {
@@ -411,26 +147,32 @@ static void advance_font_libraries_from_waiting_blobs (struct text_management_st
         }
     }
 
-    KAN_UML_SEQUENCE_UPDATE (library, font_library_t)
+    // We have to honor order in locale to make sure that font library categories order matches order of languages
+    // in locale resource to avoid unexpected behaviors.
+    for (kan_instance_size_t locale_language_index = 0u; locale_language_index < locale->font_languages.size;
+         ++locale_language_index)
     {
-        KAN_CPU_SCOPED_STATIC_SECTION (font_library_create)
-        if (KAN_HANDLE_IS_VALID (library->library))
+        for (kan_instance_size_t category_index = 0u; category_index < resource->categories.size; ++category_index)
         {
-            kan_font_library_destroy (library->library);
-        }
-
-        KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_font_library_t, &library->name)
-        KAN_ASSERT (resource)
-        library->usage_class = resource->usage_class;
-        kan_instance_size_t selected_categories_count = 0u;
-
-        for (kan_memory_size_t selection_index = 0u; selection_index < library->selected_categories.size;
-             ++selection_index)
-        {
-            kan_instance_size_t selected_index =
-                ((kan_instance_size_t *) library->selected_categories.data)[selection_index];
             const struct kan_resource_font_category_t *category =
-                &((struct kan_resource_font_category_t *) resource->categories.data)[selected_index];
+                &((struct kan_resource_font_category_t *) resource->categories.data)[category_index];
+            bool filtered_in = false;
+
+            for (kan_instance_size_t category_language_index = 0u;
+                 category_language_index < category->used_for_languages.size; ++category_language_index)
+            {
+                if (((kan_interned_string_t *) category->used_for_languages.data)[category_language_index] ==
+                    ((kan_interned_string_t *) locale->font_languages.data)[locale_language_index])
+                {
+                    filtered_in = true;
+                    break;
+                }
+            }
+
+            if (!filtered_in)
+            {
+                continue;
+            }
 
             if (selected_categories_count + category->styles.size > categories_size)
             {
@@ -459,6 +201,25 @@ static void advance_font_libraries_from_waiting_blobs (struct text_management_st
                 const struct kan_resource_font_style_t *style =
                     &((struct kan_resource_font_style_t *) category->styles.data)[style_index];
 
+                KAN_UMI_RESOURCE_RETRIEVE_FRESH_LOADED_THIRD_PARTY (data, &style->font_data_file)
+                if (!data || data_size == 0u)
+                {
+                    KAN_LOG (text_management, KAN_LOG_ERROR,
+                             "Font library \"%s\" is unable to find font data \"%s\" from style \"%s\" from category "
+                             "\"%s\"!",
+                             library->name, style->font_data_file, style->style, category->used_for_languages)
+                    continue;
+                }
+
+                if (data_entry_view->unload_planned)
+                {
+                    KAN_LOG (text_management, KAN_LOG_ERROR,
+                             "Font library \"%s\" is unable to tried to use font data \"%s\" from style \"%s\" from "
+                             "category \"%s\", but it is marked for unload!",
+                             library->name, style->font_data_file, style->style, category->used_for_languages)
+                    continue;
+                }
+
                 struct kan_font_library_category_t *setup = &categories[selected_categories_count];
                 ++selected_categories_count;
                 KAN_ASSERT (selected_categories_count <= categories_size)
@@ -467,40 +228,40 @@ static void advance_font_libraries_from_waiting_blobs (struct text_management_st
                 setup->style = style->style;
                 setup->variable_axis_count = style->variable_font_axes.size;
                 setup->variable_axis = (kan_floating_t *) style->variable_font_axes.data;
-
-                KAN_UMI_VALUE_READ_REQUIRED (font_blob, font_blob_t, name, &style->font_data_file)
-                KAN_ASSERT (font_blob->used_for_loading)
-
-                kan_resource_third_party_blob_id_t blob_id =
-                    KAN_TYPED_ID_32_IS_VALID (font_blob->loading) ? font_blob->loading : font_blob->current;
-
-                KAN_ASSERT (KAN_TYPED_ID_32_IS_VALID (blob_id))
-                KAN_UMI_VALUE_READ_REQUIRED (blob, kan_resource_third_party_blob_t, blob_id, &blob_id)
-                KAN_ASSERT (blob->available)
-
-                setup->data_size = blob->available_size;
-                setup->data = blob->available_data;
+                setup->data_size = data_size;
+                setup->data = data;
             }
         }
+    }
 
-        library->library =
-            kan_font_library_create (render_context->render_context, selected_categories_count, categories);
-
-        if (!KAN_HANDLE_IS_VALID (library->library))
+    library->library = kan_font_library_create (render_context->render_context, selected_categories_count, categories);
+    if (KAN_HANDLE_IS_VALID (library->library))
+    {
+        KAN_CPU_SCOPED_STATIC_SECTION (font_library_precache)
+        for (kan_instance_size_t locale_language_index = 0u; locale_language_index < locale->font_languages.size;
+             ++locale_language_index)
         {
-            KAN_LOG (text_management, KAN_LOG_ERROR, "Failed to create font library \"%s\".", library->name)
-            continue;
-        }
-
-        {
-            KAN_CPU_SCOPED_STATIC_SECTION (font_library_precache)
-            for (kan_memory_size_t selection_index = 0u; selection_index < library->selected_categories.size;
-                 ++selection_index)
+            for (kan_instance_size_t category_index = 0u; category_index < resource->categories.size; ++category_index)
             {
-                kan_instance_size_t selected_index =
-                    ((kan_instance_size_t *) library->selected_categories.data)[selection_index];
                 const struct kan_resource_font_category_t *category =
-                    &((struct kan_resource_font_category_t *) resource->categories.data)[selected_index];
+                    &((struct kan_resource_font_category_t *) resource->categories.data)[category_index];
+                bool filtered_in = false;
+
+                for (kan_instance_size_t category_language_index = 0u;
+                     category_language_index < category->used_for_languages.size; ++category_language_index)
+                {
+                    if (((kan_interned_string_t *) category->used_for_languages.data)[category_language_index] ==
+                        ((kan_interned_string_t *) locale->font_languages.data)[locale_language_index])
+                    {
+                        filtered_in = true;
+                        break;
+                    }
+                }
+
+                if (!filtered_in)
+                {
+                    continue;
+                }
 
                 for (kan_memory_size_t style_index = 0u; style_index < category->styles.size; ++style_index)
                 {
@@ -542,80 +303,12 @@ static void advance_font_libraries_from_waiting_blobs (struct text_management_st
             }
         }
     }
-
-    KAN_UML_SEQUENCE_WRITE (blob, font_blob_t)
+    else
     {
-        if (blob->used_for_loading)
-        {
-            if (KAN_TYPED_ID_32_IS_VALID (blob->loading))
-            {
-                if (KAN_TYPED_ID_32_IS_VALID (blob->current))
-                {
-                    KAN_UMI_VALUE_DETACH_REQUIRED (request, kan_resource_third_party_blob_t, blob_id, &blob->current)
-                    KAN_UM_ACCESS_DELETE (request);
-                }
-
-                blob->current = blob->loading;
-                blob->loading = KAN_TYPED_ID_32_SET_INVALID (kan_resource_third_party_blob_id_t);
-            }
-
-            blob->used_in_current = true;
-            blob->used_for_loading = false;
-        }
-        else
-        {
-            KAN_UM_ACCESS_DELETE (blob);
-        }
+        KAN_LOG (text_management, KAN_LOG_ERROR, "Failed to create font library \"%s\".", library->name)
     }
 
-    KAN_UMO_EVENT_INSERT_INIT (font_libraries_loaded_event_t) {.stub = 0u};
-    private->font_library_loading_state = FONT_LIBRARY_LOADING_STATE_READY;
-    KAN_LOG (text_management, KAN_LOG_DEBUG, "Advanced font library loading to ready state.")
-}
-
-static void on_third_party_updated (struct text_management_state_t *state,
-                                    struct text_management_singleton_t *private,
-                                    const struct kan_resource_provider_singleton_t *provider,
-                                    const struct kan_locale_singleton_t *locale,
-                                    kan_interned_string_t name)
-{
-    switch (private->font_library_loading_state)
-    {
-    case FONT_LIBRARY_LOADING_STATE_INITIAL:
-    case FONT_LIBRARY_LOADING_STATE_WAITING_MAIN:
-        // Don't care yet.
-        return;
-
-    case FONT_LIBRARY_LOADING_STATE_WAITING_BLOBS:
-        // No additional logic needed.
-        break;
-
-    case FONT_LIBRARY_LOADING_STATE_READY:
-    {
-        // If it is a font blob, we need to do a reset.
-        {
-            KAN_UMI_VALUE_READ_OPTIONAL (font_blob, font_blob_t, name, &name)
-            if (!font_blob)
-            {
-                return;
-            }
-        }
-
-        private->font_library_loading_state = FONT_LIBRARY_LOADING_STATE_WAITING_BLOBS;
-        private->font_library_loading_state_frame_id = provider->logic_deduplication_frame_id;
-        update_font_blob_usage (state, private, provider, locale->selected_locale);
-        break;
-    }
-    }
-
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (font_blob, font_blob_t, name, &name)
-    if (!font_blob || !font_blob->used_for_loading)
-    {
-        return;
-    }
-
-    // Blob updated, load new version.
-    font_blob_start_new_loading (state, provider, font_blob);
+    KAN_UMO_EVENT_INSERT_INIT (font_library_updated_event_t) {.name = library->name};
 }
 
 UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_management)
@@ -628,160 +321,99 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_management)
     }
 
     KAN_UMI_SINGLETON_READ (provider, kan_resource_provider_singleton_t)
-    if (!provider->scan_done)
+    KAN_UMI_SINGLETON_WRITE (private, text_management_private_singleton_t)
+    KAN_UMI_SINGLETON_READ (locale_selection, kan_locale_singleton_t)
+
+    KAN_UML_EVENT_FETCH (locale_updated_event, kan_locale_updated_event_t)
     {
-        return;
-    }
-
-    KAN_UMI_SINGLETON_READ (locale, kan_locale_singleton_t)
-    if (locale->locale_counter > 0u)
-    {
-        // Cannot properly load fonts until locale are loaded.
-        return;
-    }
-
-    if (!locale->selected_locale)
-    {
-        KAN_LOG (text_management, KAN_LOG_DEBUG,
-                 "Skipping text management mutator execution as locale is not yet selected.")
-        return;
-    }
-
-    KAN_UMI_SINGLETON_WRITE (private, text_management_singleton_t)
-    bool need_advance = false;
-
-    KAN_UML_RESOURCE_UPDATED_EVENT_FETCH (main_updated_event, kan_resource_font_library_t)
-    {
-        need_advance |= on_font_library_updated (state, private, provider, main_updated_event->name);
-    }
-
-    KAN_UML_RESOURCE_REGISTERED_EVENT_FETCH (main_registered_event, kan_resource_font_library_t)
-    {
-        on_font_library_registered (state, private, provider, main_registered_event->name);
-        need_advance = true;
-    }
-
-    bool process_locale_change = false;
-    KAN_UML_EVENT_FETCH (locale_selection_event, kan_locale_selection_updated_t) { process_locale_change = true; }
-
-    KAN_UML_EVENT_FETCH (locale_updated_event, kan_locale_updated_t)
-    {
-        if (locale_updated_event->name == locale->selected_locale)
+        if (provider->transaction_state != KAN_RESOURCE_TRANSACTION_STATE_NONE || provider->tags_dirty)
         {
-            process_locale_change = true;
-        }
-    }
-
-    if (process_locale_change)
-    {
-        switch (private->font_library_loading_state)
-        {
-        case FONT_LIBRARY_LOADING_STATE_INITIAL:
-        case FONT_LIBRARY_LOADING_STATE_WAITING_MAIN:
-            // Main data is not ready, cannot (and no need to) update blob usage.
-            break;
-
-        case FONT_LIBRARY_LOADING_STATE_WAITING_BLOBS:
-            update_font_blob_usage (state, private, provider, locale->selected_locale);
-            break;
-
-        case FONT_LIBRARY_LOADING_STATE_READY:
-            // Format disabled due to strange behavior on Windows.
-            // clang-format off
-            private->font_library_loading_state = FONT_LIBRARY_LOADING_STATE_WAITING_BLOBS;
-            // clang-format on
-            private->font_library_loading_state_frame_id = provider->logic_deduplication_frame_id;
-            // We do not need any additional logic when falling back to loading blobs,
-            // as we're calling usage update right away.
-            update_font_blob_usage (state, private, provider, locale->selected_locale);
-            break;
+            private->pending_full_reload = true;
+            continue;
         }
 
-        need_advance = true;
-    }
-
-    KAN_UML_EVENT_FETCH (third_party_updated_event, kan_resource_third_party_updated_event_t)
-    {
-        on_third_party_updated (state, private, provider, locale, third_party_updated_event->name);
-    }
-
-    if (need_advance)
-    {
-        switch (private->font_library_loading_state)
+        KAN_UML_SEQUENCE_UPDATE (library, font_library_t)
         {
-        case FONT_LIBRARY_LOADING_STATE_INITIAL:
-        case FONT_LIBRARY_LOADING_STATE_READY:
-            KAN_ASSERT_FORMATTED (
-                false, "Failed to advance text management routine as there is no available font libraries at all.", );
-            break;
-
-        case FONT_LIBRARY_LOADING_STATE_WAITING_MAIN:
-            advance_font_libraries_from_waiting_main (state, private, provider, locale);
-            break;
-
-        case FONT_LIBRARY_LOADING_STATE_WAITING_BLOBS:
-            advance_font_libraries_from_waiting_blobs (state, private, provider, locale);
-            break;
-        }
-    }
-
-    KAN_UML_RESOURCE_LOADED_EVENT_FETCH (library_loaded_event, kan_resource_font_library_t)
-    {
-        if (private->font_library_loading_state_frame_id != provider->logic_deduplication_frame_id)
-        {
-            switch (private->font_library_loading_state)
+            if (library->loading_frame_id != provider->logic_deduplication_frame_id)
             {
-            case FONT_LIBRARY_LOADING_STATE_INITIAL:
-            case FONT_LIBRARY_LOADING_STATE_WAITING_BLOBS:
-            case FONT_LIBRARY_LOADING_STATE_READY:
-                KAN_ASSERT_FORMATTED (
-                    false, "Font library \"%s\" loaded event received while not expecting it due to state %d.",
-                    library_loaded_event->name, (unsigned int) private->font_library_loading_state)
-                break;
-
-            case FONT_LIBRARY_LOADING_STATE_WAITING_MAIN:
-                advance_font_libraries_from_waiting_main (state, private, provider, locale);
-                break;
+                load_font_library (state, provider, locale_selection, render_context, library);
             }
         }
     }
 
-    KAN_UML_EVENT_FETCH (blob_loaded_event, kan_resource_third_party_blob_available_t)
+    if (provider->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_COMMIT)
     {
-#if defined(KAN_WITH_ASSERT)
-        kan_interned_string_t blob_name_for_log = NULL;
-#endif
-
+        KAN_UML_RESOURCE_LOADED_EVENT_FETCH (library_loaded_event, kan_resource_font_library_t)
         {
-            KAN_UMI_VALUE_READ_REQUIRED (data_blob, kan_resource_third_party_blob_t, blob_id,
-                                         &blob_loaded_event->blob_id)
-
-            KAN_UMI_VALUE_READ_OPTIONAL (font_blob, font_blob_t, name, &data_blob->name)
-#if defined(KAN_WITH_ASSERT)
-            blob_name_for_log = data_blob->name;
-#endif
-
-            if (!font_blob)
+            KAN_UMI_VALUE_UPDATE_OPTIONAL (library, font_library_t, name, &library_loaded_event->name)
+            if (library)
             {
-                continue;
+                if (library->loading_frame_id != provider->logic_deduplication_frame_id)
+                {
+                    load_font_library (state, provider, locale_selection, render_context, library);
+                }
+            }
+            else
+            {
+                KAN_UMI_INDEXED_INSERT (new_library, font_library_t)
+                new_library->name = library_loaded_event->name;
+                load_font_library (state, provider, locale_selection, render_context, new_library);
             }
         }
 
-        if (private->font_library_loading_state_frame_id != provider->logic_deduplication_frame_id)
+        KAN_UML_EVENT_FETCH (third_party_loaded_event, kan_resource_third_party_loaded_event_t)
         {
-            switch (private->font_library_loading_state)
+            KAN_UMI_VALUE_UPDATE_OPTIONAL (link, font_file_link_t, file_name, &third_party_loaded_event->name)
+            if (link)
             {
-            case FONT_LIBRARY_LOADING_STATE_INITIAL:
-            case FONT_LIBRARY_LOADING_STATE_WAITING_MAIN:
-            case FONT_LIBRARY_LOADING_STATE_READY:
-                KAN_ASSERT_FORMATTED (false,
-                                      "Font blob \"%s\" loaded event received while not expecting it due to state %d.",
-                                      blob_name_for_log, (unsigned int) private->font_library_loading_state)
-                break;
+                KAN_UMI_VALUE_UPDATE_OPTIONAL (library, font_library_t, name, &link->library_name)
+                if (library && library->loading_frame_id != provider->logic_deduplication_frame_id)
+                {
+                    KAN_UM_ACCESS_CLOSE_IMMEDIATELY (link);
+                    load_font_library (state, provider, locale_selection, render_context, library);
+                }
+            }
+        }
 
-            case FONT_LIBRARY_LOADING_STATE_WAITING_BLOBS:
-                advance_font_libraries_from_waiting_blobs (state, private, provider, locale);
-                break;
+        // We have to process third party unloads right away in order to destroy objects that rely on that data
+        // sitting in the memory at the expected address.
+        KAN_UML_EVENT_FETCH (third_party_unload_event, kan_resource_third_party_unload_planned_event_t)
+        {
+            KAN_UMI_VALUE_UPDATE_OPTIONAL (link, font_file_link_t, file_name, &third_party_unload_event->name)
+            if (link)
+            {
+                KAN_UMI_VALUE_UPDATE_OPTIONAL (library, font_library_t, name, &link->library_name)
+                if (library && library->loading_frame_id != provider->logic_deduplication_frame_id)
+                {
+                    KAN_UM_ACCESS_CLOSE_IMMEDIATELY (link);
+                    load_font_library (state, provider, locale_selection, render_context, library);
+                }
+            }
+        }
+
+        // Only do pending full reload if there is no dirty tags, as otherwise it might mean that locale changes have
+        // not yet reached resource transaction control.
+        if (private->pending_full_reload && !provider->tags_dirty)
+        {
+            private->pending_full_reload = false;
+            KAN_UML_SEQUENCE_UPDATE (library, font_library_t)
+            {
+                if (library->loading_frame_id != provider->logic_deduplication_frame_id)
+                {
+                    load_font_library (state, provider, locale_selection, render_context, library);
+                }
+            }
+        }
+    }
+
+    if (provider->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_NONE)
+    {
+        KAN_UML_RESOURCE_UNLOAD_PLANNED_EVENT_FETCH (unload_event, kan_resource_font_library_t)
+        {
+            KAN_UMI_VALUE_DELETE_OPTIONAL (library, font_library_t, name, &unload_event->name)
+            if (library)
+            {
+                KAN_UM_ACCESS_DELETE (library);
             }
         }
     }
@@ -847,7 +479,7 @@ static void shaping_unit_on_failed (struct kan_text_shaping_unit_t *unit)
 
 static void shape_unit (struct text_shaping_state_t *state,
                         struct kan_text_shaping_unit_t *unit,
-                        const struct kan_locale_t *locale,
+                        const struct kan_resource_locale_t *locale,
                         kan_font_library_t font_library,
                         kan_render_context_t render_context)
 {
@@ -859,7 +491,7 @@ static void shape_unit (struct text_shaping_state_t *state,
         return;
     }
 
-    switch (locale->resource.preferred_direction)
+    switch (locale->preferred_direction)
     {
     case KAN_LOCALE_PREFERRED_TEXT_DIRECTION_LEFT_TO_RIGHT:
         unit->request.reading_direction = KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT;
@@ -975,16 +607,9 @@ static void shape_unit (struct text_shaping_state_t *state,
 UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
 {
     KAN_UMI_SINGLETON_WRITE (public, kan_text_shaping_singleton_t)
-    KAN_UMI_SINGLETON_READ (private, text_management_singleton_t)
     KAN_UMI_SINGLETON_READ (locale_singleton, kan_locale_singleton_t)
+    KAN_UMI_RESOURCE_RETRIEVE_LOADED (locale, kan_resource_locale_t, &locale_singleton->selected_locale)
 
-    if (private->font_library_loading_state != FONT_LIBRARY_LOADING_STATE_READY)
-    {
-        // Libraries are not ready, no shaping is allowed.
-        return;
-    }
-
-    KAN_UMI_VALUE_READ_OPTIONAL (locale, kan_locale_t, name, &locale_singleton->selected_locale)
     if (!locale)
     {
         // Can't shape while locale is not available.
@@ -993,12 +618,14 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
 
     public->font_library_sdf_atlas = KAN_HANDLE_SET_INVALID (kan_render_image_t);
     kan_font_library_t selected_font_library = KAN_HANDLE_SET_INVALID (kan_font_library_t);
+    kan_interned_string_t selected_font_library_name = NULL;
 
     KAN_UML_SEQUENCE_READ (font_library, font_library_t)
     {
-        if (font_library->usage_class == public->library_usage_class)
+        if (KAN_HANDLE_IS_VALID (font_library->library) && font_library->usage_class == public->library_usage_class)
         {
             selected_font_library = font_library->library;
+            selected_font_library_name = font_library->name;
             break;
         }
     }
@@ -1015,7 +642,13 @@ UNIVERSE_TEXT_API KAN_UM_MUTATOR_EXECUTE (text_shaping)
     KAN_ASSERT (KAN_HANDLE_IS_VALID (render_context->render_context))
 
     bool after_loading_reshape = false;
-    KAN_UML_EVENT_FETCH (loaded_event, font_libraries_loaded_event_t) { after_loading_reshape = true; }
+    KAN_UML_EVENT_FETCH (loaded_event, font_library_updated_event_t)
+    {
+        if (loaded_event->name == selected_font_library_name)
+        {
+            after_loading_reshape = true;
+        }
+    }
 
     // Right now, shaping mutator implementation is intentionally not multithreaded:
     // We do not expect to get that many shaping requests per frame in order to make multithreading justified.

@@ -9,7 +9,7 @@
 KAN_REFLECTION_STRUCT_FIELD_META (kan_resource_font_style_t, font_data_file)
 RESOURCE_TEXT_API struct kan_resource_reference_meta_t kan_resource_font_style_reference_font_data_file = {
     .type_name = NULL,
-    .flags = 0u,
+    .flags = KAN_RESOURCE_REFERENCE_META_LOADING_NOT_REQUIRED,
 };
 
 void kan_resource_font_style_init (struct kan_resource_font_style_t *instance)

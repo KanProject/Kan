@@ -203,7 +203,7 @@ struct kan_text_shaped_t
     {                                                                                                                  \
         NAME##_text_description.guide_bidi_with_direction = true;                                                      \
         NAME##_text_description.direction_to_guide_bidi =                                                              \
-            (LOCALE)->resource.preferred_direction == KAN_LOCALE_PREFERRED_TEXT_DIRECTION_LEFT_TO_RIGHT ?              \
+            (LOCALE)->preferred_direction == KAN_LOCALE_PREFERRED_TEXT_DIRECTION_LEFT_TO_RIGHT ?                       \
                 KAN_TEXT_READING_DIRECTION_LEFT_TO_RIGHT :                                                             \
                 KAN_TEXT_READING_DIRECTION_RIGHT_TO_LEFT;                                                              \
                                                                                                                        \

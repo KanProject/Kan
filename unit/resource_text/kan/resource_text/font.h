@@ -24,10 +24,11 @@
 /// font axes if variable font is used. Also, every category has array of characters to be precached for rendering for
 /// horizontal and for vertical orientations. Precaching is done for every style in category.
 ///
-/// When loading font library, categories are chosen based on current selected locale by matching
+/// When loading font library, categories are instantiated based on current selected locale by matching
 /// `kan_resource_font_style_t::used_for_languages` with `kan_resource_locale_t::font_languages`. Only categories that
-/// are used for enabled languages are loaded at runtime. Also, font libraries are root resources and are always loaded
-/// when registered.
+/// are used for enabled languages are instantiated. However, face data files are still loaded along with their
+/// packages, so it is recommended to move heavy font files into optional packages that are only enabled using
+/// `kan_resource_locale_t::package_tags`.
 /// \endparblock
 
 KAN_C_HEADER_BEGIN
@@ -45,6 +46,8 @@ struct kan_resource_font_style_t
     /// \invariant When several styles or categories select the same font file, even if these categories belong to
     ///            different font libraries, font file is guaranteed to be loaded in runtime only once, which is very
     ///            important when using variable fonts.
+    /// \warning It is generally advised to keep optional heavyweight locales in optional packages to avoid loading them
+    ///          when they're not necessary.
     kan_interned_string_t font_data_file;
 
     /// \brief If using variable font, stores values for variable axes.

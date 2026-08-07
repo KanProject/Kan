@@ -23,6 +23,8 @@ enum kan_locale_preferred_text_direction_t
 };
 
 /// \brief Describes information about particular locale for the application.
+/// \warning It is generally advised to put locales into essential package as they're lightweight configurations,
+///          so engine logic would know about every locale right away.
 struct kan_resource_locale_t
 {
     enum kan_locale_preferred_text_direction_t preferred_direction;
@@ -32,6 +34,10 @@ struct kan_resource_locale_t
     ///          will fall back to the first available category. Sticking to iso 639 is advised, but not required.
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (kan_interned_string_t)
     struct kan_dynamic_array_t font_languages;
+
+    /// \brief Optional resource package loading tags to be added when this locale is selected.
+    KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (kan_interned_string_t)
+    struct kan_dynamic_array_t package_tags;
 };
 
 RESOURCE_LOCALE_API void kan_resource_locale_init (struct kan_resource_locale_t *instance);

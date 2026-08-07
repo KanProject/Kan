@@ -33,7 +33,7 @@ KAN_REFLECTION_STRUCT_FIELD_META (kan_resource_texture_format_item_t, streamed_m
 RESOURCE_RENDER_FOUNDATION_API struct kan_resource_reference_meta_t
     kan_resource_texture_format_item_reference_data_per_mip = {
         .type_name = "kan_resource_streamed_texture_data_t",
-        .flags = 0u,
+        .flags = KAN_RESOURCE_REFERENCE_META_NULLABLE,
 };
 
 void kan_resource_texture_format_item_init (struct kan_resource_texture_format_item_t *instance)

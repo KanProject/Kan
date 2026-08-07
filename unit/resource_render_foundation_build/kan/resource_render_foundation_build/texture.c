@@ -677,9 +677,9 @@ static enum kan_resource_build_rule_result_t texture_build (struct kan_resource_
                 kan_interned_string_t *spot = kan_dynamic_array_add_last (&item->streamed_mips);
                 *spot = kan_string_intern (name_buffer);
 
-                if (!context->produce_native_secondary_output (context->interface,
-                                                               KAN_STATIC_INTERNED_ID_GET (kan_resource_texture_data_t),
-                                                               *spot, &streamed_texture_data))
+                if (!context->produce_native_secondary_output (
+                        context->interface, KAN_STATIC_INTERNED_ID_GET (kan_resource_streamed_texture_data_t), *spot,
+                        &streamed_texture_data))
                 {
                     KAN_LOG (resource_render_foundation_texture, KAN_LOG_ERROR,
                              "Failed to produce data resource \"%s\" for texture \"%s\".", *spot, context->primary_name)

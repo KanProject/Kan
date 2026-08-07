@@ -191,8 +191,8 @@ static void load_texture (struct render_foundation_texture_management_state_t *s
     loaded->depth = resource->depth;
     loaded->inlined_mips_count = resource->inlined_mips;
 
-    loaded->current_best_mip = loaded->streamed_mips.size;
-    loaded->requested_best_mip = loaded->streamed_mips.size;
+    loaded->current_best_mip = resource->streamed_mips;
+    loaded->requested_best_mip = resource->streamed_mips;
     loaded->requested_best_mip_frame_id = 0u;
     loaded->streaming_frame_id = 0u;
 

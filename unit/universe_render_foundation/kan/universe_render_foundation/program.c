@@ -1365,11 +1365,36 @@ UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_EXECUTE (render_foundation_materia
                 }
             }
         }
+    }
+
+    if (provider->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_NONE)
+    {
+        KAN_UML_RESOURCE_UNLOAD_PLANNED_EVENT_FETCH (unload_event, kan_resource_material_instance_t)
+        {
+            KAN_UMI_VALUE_DELETE_OPTIONAL (existing_loaded, kan_render_material_instance_loaded_t, name,
+                                           &unload_event->name)
+
+            if (existing_loaded)
+            {
+                KAN_UM_ACCESS_DELETE (existing_loaded);
+            }
+        }
+
+        KAN_UML_EVENT_FETCH (on_insert_event, render_foundation_material_instance_quality_on_insert_event_t)
+        {
+            on_material_instance_quality_insert_or_delete (state, provider, on_insert_event->material_instance_name);
+        }
+
+        KAN_UML_EVENT_FETCH (on_delete_event, render_foundation_material_instance_quality_on_delete_event_t)
+        {
+            on_material_instance_quality_insert_or_delete (state, provider, on_delete_event->material_instance_name);
+        }
 
         KAN_UML_EVENT_FETCH (texture_updated_event, kan_render_texture_updated_event_t)
         {
             KAN_CPU_SCOPED_STATIC_SECTION (texture_updated)
             KAN_UMI_VALUE_READ_OPTIONAL (texture, kan_render_texture_loaded_t, name, &texture_updated_event->name)
+
             if (!texture)
             {
                 continue;
@@ -1398,30 +1423,6 @@ UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_EXECUTE (render_foundation_materia
                     kan_render_pipeline_parameter_set_update (material_instance->parameter_set, 1u, &binding);
                 }
             }
-        }
-    }
-
-    if (provider->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_NONE)
-    {
-        KAN_UML_RESOURCE_UNLOAD_PLANNED_EVENT_FETCH (unload_event, kan_resource_material_instance_t)
-        {
-            KAN_UMI_VALUE_DELETE_OPTIONAL (existing_loaded, kan_render_material_instance_loaded_t, name,
-                                           &unload_event->name)
-
-            if (existing_loaded)
-            {
-                KAN_UM_ACCESS_DELETE (existing_loaded);
-            }
-        }
-
-        KAN_UML_EVENT_FETCH (on_insert_event, render_foundation_material_instance_quality_on_insert_event_t)
-        {
-            on_material_instance_quality_insert_or_delete (state, provider, on_insert_event->material_instance_name);
-        }
-
-        KAN_UML_EVENT_FETCH (on_delete_event, render_foundation_material_instance_quality_on_delete_event_t)
-        {
-            on_material_instance_quality_insert_or_delete (state, provider, on_delete_event->material_instance_name);
         }
     }
 }

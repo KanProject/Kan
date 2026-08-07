@@ -8,7 +8,8 @@ scheduler_name = "trivial"
     +layers {
         data {
             __type = kan_resource_provider_configuration_t
-            serve_budget_ns = 2000000
+            transaction_budget_ns = 12000000
+            streaming_budget_ns = 2000000
             resource_directory_path = "resources"
         }
     }

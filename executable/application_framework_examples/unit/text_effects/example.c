@@ -94,8 +94,6 @@ struct example_text_effects_singleton_t
 {
     kan_application_system_window_t window_handle;
     kan_render_surface_t window_surface;
-    kan_resource_usage_id_t config_usage_id;
-    kan_render_material_instance_usage_id_t text_material_instance_usage_id;
 
     kan_text_shaping_unit_id_t stable_text_id;
     kan_text_shaping_unit_id_t dirty_text_id;
@@ -121,8 +119,6 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API void example_text_effects_single
 {
     instance->window_handle = KAN_HANDLE_SET_INVALID (kan_application_system_window_t);
     instance->window_surface = KAN_HANDLE_SET_INVALID (kan_render_surface_t);
-    instance->config_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-    instance->text_material_instance_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
 
     instance->stable_text_id = KAN_TYPED_ID_32_SET_INVALID (kan_text_shaping_unit_id_t);
     instance->dirty_text_id = KAN_TYPED_ID_32_SET_INVALID (kan_text_shaping_unit_id_t);
@@ -377,8 +373,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
         singleton->stable_text_id = stable_shaping_unit->id;
 
         // Initialize locale here as well, because this will only be executed once.
-        KAN_UMI_SINGLETON_WRITE (locale, kan_locale_singleton_t)
-        locale->selected_locale = kan_string_intern ("en");
+        KAN_UMO_EVENT_INSERT_INIT (kan_locale_selection_request_t) {.new_locale = kan_string_intern ("en")};
     }
 
     if (!KAN_TYPED_ID_32_IS_VALID (singleton->dirty_text_id))
@@ -900,52 +895,35 @@ APPLICATION_FRAMEWORK_EXAMPLES_TEXT_EFFECTS_API KAN_UM_MUTATOR_EXECUTE (text_eff
             NULL, KAN_STATIC_INTERNED_ID_GET (test_read_back_buffer));
     }
 
-    const kan_interned_string_t root_config_name = KAN_STATIC_INTERNED_ID_GET (root_config);
-    if (!KAN_TYPED_ID_32_IS_VALID (singleton->config_usage_id))
+    if (!resource_provider->required_loading_done)
     {
-        KAN_UMO_INDEXED_INSERT (request, kan_resource_usage_t)
-        {
-            request->usage_id = kan_next_resource_usage_id (resource_provider);
-            singleton->config_usage_id = request->usage_id;
-            request->type = KAN_STATIC_INTERNED_ID_GET (text_effects_config_t);
-            request->name = root_config_name;
-        }
+        return;
     }
 
+    const kan_interned_string_t root_config_name = KAN_STATIC_INTERNED_ID_GET (root_config);
     if (!singleton->object_buffers_initialized && KAN_HANDLE_IS_VALID (render_context->render_context))
     {
         example_text_effects_singleton_initialize_object_buffers (singleton, render_context->render_context);
     }
 
-    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (root_config, text_effects_config_t, &root_config_name)
-    if (root_config)
+    KAN_UMI_RESOURCE_RETRIEVE_LOADED (root_config, text_effects_config_t, &root_config_name)
+    KAN_ASSERT (root_config)
+
+    KAN_UML_EVENT_FETCH (material_instance_updated, kan_render_material_instance_updated_event_t)
     {
-        if (!KAN_TYPED_ID_32_IS_VALID (singleton->text_material_instance_usage_id))
+        // Destroy parameter sets on hot reload in order to create new ones during next render.
+        if (material_instance_updated->name == root_config->text_material_instance_name)
         {
-            KAN_UMO_INDEXED_INSERT (usage, kan_render_material_instance_usage_t)
+            if (KAN_HANDLE_IS_VALID (singleton->text_shared_parameter_set))
             {
-                usage->usage_id = kan_next_material_instance_usage_id (program_singleton);
-                singleton->text_material_instance_usage_id = usage->usage_id;
-                usage->name = root_config->text_material_instance_name;
+                kan_render_pipeline_parameter_set_destroy (singleton->text_shared_parameter_set);
+                singleton->text_shared_parameter_set = KAN_HANDLE_SET_INVALID (kan_render_pipeline_parameter_set_t);
             }
         }
+    }
 
-        KAN_UML_EVENT_FETCH (material_instance_updated, kan_render_material_instance_updated_event_t)
-        {
-            // Destroy parameter sets on hot reload in order to create new ones during next render.
-            if (material_instance_updated->name == root_config->text_material_instance_name)
-            {
-                if (KAN_HANDLE_IS_VALID (singleton->text_shared_parameter_set))
-                {
-                    kan_render_pipeline_parameter_set_destroy (singleton->text_shared_parameter_set);
-                    singleton->text_shared_parameter_set = KAN_HANDLE_SET_INVALID (kan_render_pipeline_parameter_set_t);
-                }
-            }
-        }
-
-        if (KAN_HANDLE_IS_VALID (render_context->render_context) && render_context->frame_scheduled)
-        {
-            try_render_frame (state, render_context, render_graph, test, singleton, root_config);
-        }
+    if (KAN_HANDLE_IS_VALID (render_context->render_context) && render_context->frame_scheduled)
+    {
+        try_render_frame (state, render_context, render_graph, test, singleton, root_config);
     }
 }

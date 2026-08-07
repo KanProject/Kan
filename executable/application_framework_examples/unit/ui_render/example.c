@@ -69,8 +69,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_DEPLOY (ui_example_r
         kan_context_query (context, KAN_CONTEXT_APPLICATION_FRAMEWORK_SYSTEM_NAME);
     state->render_backend_system_handle = kan_context_query (context, KAN_CONTEXT_RENDER_BACKEND_SYSTEM_NAME);
 
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT);
-    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_TIME_END_CHECKPOINT);
+    kan_workflow_graph_node_depend_on (workflow_node, KAN_UI_SETUP_END_CHECKPOINT);
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_TEXT_SHAPING_BEGIN_CHECKPOINT);
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_UI_CONTROLS_INPUT_BEGIN_CHECKPOINT);
 }
@@ -79,14 +78,15 @@ static void build_playground_ui (struct ui_example_render_update_state_t *state,
                                  struct example_ui_render_singleton_t *singleton)
 {
     KAN_UMI_SINGLETON_READ (text_shaping, kan_text_shaping_singleton_t)
-    KAN_UMI_SINGLETON_READ (ui_bundle, kan_ui_bundle_singleton_t)
+    KAN_UMI_SINGLETON_READ (ui_bundle_singleton, kan_ui_bundle_singleton_t)
+    KAN_UMI_RESOURCE_RETRIEVE_LOADED (ui_bundle, kan_resource_ui_bundle_t, &ui_bundle_singleton->bundle_name)
 
-    if (!ui_bundle->available)
+    if (!ui_bundle)
     {
         return;
     }
 
-    KAN_UMI_VALUE_READ_OPTIONAL (atlas, kan_render_atlas_loaded_t, name, &ui_bundle->available_bundle.image_atlas)
+    KAN_UMI_VALUE_READ_OPTIONAL (atlas, kan_render_atlas_loaded_t, name, &ui_bundle->image_atlas)
     if (!atlas)
     {
         return;
@@ -333,8 +333,7 @@ APPLICATION_FRAMEWORK_EXAMPLES_UI_RENDER_API KAN_UM_MUTATOR_EXECUTE (ui_example_
         kan_application_system_window_raise (state->application_system_handle, singleton->window_handle);
 
         // Initialize locale here as well, because this will only be executed once.
-        KAN_UMI_SINGLETON_WRITE (locale, kan_locale_singleton_t)
-        locale->selected_locale = kan_string_intern ("en");
+        KAN_UMO_EVENT_INSERT_INIT (kan_locale_selection_request_t) {.new_locale = kan_string_intern ("en")};
 
         KAN_UMI_SINGLETON_WRITE (ui_render_graph, kan_ui_render_graph_singleton_t)
         ui_render_graph->clear_color = kan_make_color_linear (0.0f, 1.0f, 1.0f, 1.0f);

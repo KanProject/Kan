@@ -17,7 +17,6 @@ scheduler_name = "trivial"
     name = "update"
     mutator_groups =
         text_shaping,
-        ui_bundle_management,
         ui_controls,
         ui_core,
         ui_example_render

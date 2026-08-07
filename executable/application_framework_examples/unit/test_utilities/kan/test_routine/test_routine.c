@@ -34,16 +34,12 @@ static inline bool check_is_test_mode (kan_context_system_t application_framewor
 struct test_routine_private_singleton_t
 {
     kan_interned_string_t setup_name;
-    kan_resource_usage_id_t setup_usage_id;
-    bool setup_read;
     kan_instance_size_t frames_count;
 };
 
 TEST_ROUTINE_API void test_routine_private_singleton_init (struct test_routine_private_singleton_t *instance)
 {
     instance->setup_name = NULL;
-    instance->setup_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-    instance->setup_read = false;
     instance->frames_count = 0u;
 }
 
@@ -90,34 +86,25 @@ TEST_ROUTINE_API KAN_UM_MUTATOR_EXECUTE (test_routine)
     }
 
     KAN_UMI_SINGLETON_READ (resource_provider, kan_resource_provider_singleton_t)
-    if (!resource_provider->scan_done)
+    if (!resource_provider->required_loading_done)
     {
         return;
     }
 
     ++private->frames_count;
-    if (!KAN_TYPED_ID_32_IS_VALID (private->setup_usage_id))
+    if (!private->setup_name)
     {
-        private->setup_name = NULL;
-        KAN_UML_SEQUENCE_READ (node, kan_resource_generic_entry_t)
+        KAN_UML_SEQUENCE_READ (registered, kan_resource_registered_entry_t)
         {
-            if (node->type == KAN_STATIC_INTERNED_ID_GET (test_setup_t))
+            if (registered->type == KAN_STATIC_INTERNED_ID_GET (test_setup_t))
             {
-                private->setup_name = node->name;
+                private->setup_name = registered->name;
                 break;
             }
         }
 
         KAN_ASSERT_FORMATTED (private->setup_name,
-                              "Test setup must be present in resources in order for test mode to work%s.", "");
-
-        KAN_UMO_INDEXED_INSERT (request, kan_resource_usage_t)
-        {
-            request->usage_id = kan_next_resource_usage_id (resource_provider);
-            private->setup_usage_id = request->usage_id;
-            request->type = KAN_STATIC_INTERNED_ID_GET (test_setup_t);
-            request->name = private->setup_name;
-        }
+                              "Test setup must be present in resources in order for test mode to work.");
     }
 
     switch (public->manual_result)
@@ -137,20 +124,7 @@ TEST_ROUTINE_API KAN_UM_MUTATOR_EXECUTE (test_routine)
         kan_application_framework_system_request_exit (state->application_framework_system_handle, 1);
     }
 
-    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED (setup, test_setup_t, &private->setup_name)
-    if (setup && !private->setup_read)
-    {
-        for (kan_memory_size_t index = 0u; index < setup->expectations.size; ++index)
-        {
-            KAN_UMO_INDEXED_INSERT (request, kan_resource_usage_t)
-            {
-                request->usage_id = kan_next_resource_usage_id (resource_provider);
-                request->type = KAN_STATIC_INTERNED_ID_GET (test_expectation_t);
-                request->name = ((kan_interned_string_t *) setup->expectations.data)[index];
-            }
-        }
-    }
-
+    KAN_UMI_RESOURCE_RETRIEVE_LOADED (setup, test_setup_t, &private->setup_name)
     if (setup && setup->expectations.size > 0u && KAN_HANDLE_IS_VALID (public->expectation_read_back_buffer) &&
         public->expectation_read_back_statuses.size > 0u)
     {
@@ -162,16 +136,6 @@ TEST_ROUTINE_API KAN_UM_MUTATOR_EXECUTE (test_routine)
                 if (kan_read_read_back_status_get (
                         ((kan_render_read_back_status_t *) public->expectation_read_back_statuses.data)[index]) !=
                     KAN_RENDER_READ_BACK_STATE_FINISHED)
-                {
-                    ready_for_testing = false;
-                    break;
-                }
-
-                const kan_interned_string_t expectation_name =
-                    ((kan_interned_string_t *) setup->expectations.data)[index];
-                KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED (expectation, test_expectation_t, &expectation_name)
-
-                if (!expectation)
                 {
                     ready_for_testing = false;
                     break;
@@ -197,7 +161,7 @@ TEST_ROUTINE_API KAN_UM_MUTATOR_EXECUTE (test_routine)
                     const kan_interned_string_t expectation_name =
                         ((kan_interned_string_t *) setup->expectations.data)[index];
 
-                    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED (expectation, test_expectation_t, &expectation_name)
+                    KAN_UMI_RESOURCE_RETRIEVE_LOADED (expectation, test_expectation_t, &expectation_name)
                     KAN_ASSERT (expectation)
 
                     struct kan_image_raw_data_t frame_raw_data;

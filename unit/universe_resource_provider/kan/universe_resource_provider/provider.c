@@ -934,13 +934,20 @@ static void plan_transactional_unload (struct resource_provider_state_t *state,
         KAN_ASSERT (interface)
         KAN_ASSERT (!interface->source_node->streamed)
 
-        struct kan_repository_indexed_value_update_access_t access = update_loaded_entry (interface, entry->entry_id);
-        struct kan_resource_loaded_entry_view_t *view = kan_repository_indexed_value_update_access_resolve (&access);
-
-        if (view)
+        if (interface->source_node->transitively_loaded)
         {
-            view->unload_planned = true;
-            kan_repository_indexed_value_update_access_close (&access);
+            // Transitively loaded entries must put that flag themselves to avoid concurrent access issues.
+            struct kan_repository_indexed_value_update_access_t access =
+                update_loaded_entry (interface, entry->entry_id);
+
+            struct kan_resource_loaded_entry_view_t *view =
+                kan_repository_indexed_value_update_access_resolve (&access);
+
+            if (view)
+            {
+                view->unload_planned = true;
+                kan_repository_indexed_value_update_access_close (&access);
+            }
         }
     }
     else
@@ -1729,6 +1736,7 @@ static inline enum resource_provider_serve_operation_status_t execute_shared_pro
     {
         // Unload transitively loaded entry after the commit.
         KAN_ASSERT (!interface->source_node->streamed)
+        loaded->unload_planned = true;
         plan_transactional_unload (state, registered);
     }
     else if (interface->source_node->streamed)

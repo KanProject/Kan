@@ -13,16 +13,10 @@ concrete_require (
         CONCRETE_INTERFACE universe_locale universe_render_foundation universe_resource_provider)
 setup_reflected_preprocessing ()
 
-set (KAN_UNIVERSE_TEXT_FONT_LIBRARY_PRIORITY "300" CACHE STRING
-        "Loading priority at which font library information is loaded.")
-set (KAN_UNIVERSE_TEXT_FONT_BLOB_PRIORITY "100" CACHE STRING
-        "Loading priority at which font true type blobs are loaded.")
 set (KAN_UNIVERSE_TEXT_FONT_CATEGORY_INIT_STACK "32" CACHE STRING
         "Size of stack allocated array for font category initialization.")
 
 concrete_compile_definitions (
         PRIVATE
-        KAN_UNIVERSE_TEXT_FONT_LIBRARY_PRIORITY=${KAN_UNIVERSE_TEXT_FONT_LIBRARY_PRIORITY}
-        KAN_UNIVERSE_TEXT_FONT_BLOB_PRIORITY=${KAN_UNIVERSE_TEXT_FONT_BLOB_PRIORITY}
         KAN_UNIVERSE_TEXT_FONT_CATEGORY_INIT_STACK=${KAN_UNIVERSE_TEXT_FONT_CATEGORY_INIT_STACK})
 

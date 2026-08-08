@@ -585,8 +585,8 @@ KAN_C_HEADER_BEGIN
         KAN_UM_INTERNAL_VALUE_REQUIRED (NAME, TYPE, FIELD, ARGUMENT_POINTER, write, write, )
 #endif
 
-#define KAN_UM_INTERNAL_VALUE_OPTIONAL(NAME, TYPE, FIELD, ARGUMENT_POINTER, ACCESS_TYPE, ACCESS_NAME, QUALIFIER)       \
-                                                                                                                       \
+#define KAN_UM_INTERNAL_VALUE_OPTIONAL_CUSTOM_POINTER_TYPE(NAME, TYPE, POINTER_TYPE, FIELD, ARGUMENT_POINTER,          \
+                                                           ACCESS_TYPE, ACCESS_NAME, QUALIFIER)                        \
     KAN_UM_INTERNAL_STATE_FIELD (kan_repository_indexed_value_##ACCESS_TYPE##_query_t,                                 \
                                  ACCESS_NAME##_value__##__CUSHION_EVALUATED_ARGUMENT__ (TYPE)##__##FIELD)              \
                                                                                                                        \
@@ -598,7 +598,8 @@ KAN_C_HEADER_BEGIN
     struct kan_repository_indexed_value_##ACCESS_TYPE##_access_t NAME##_access =                                       \
         kan_repository_indexed_value_##ACCESS_TYPE##_cursor_next (&NAME##_cursor);                                     \
                                                                                                                        \
-    QUALIFIER struct TYPE *const NAME = kan_repository_indexed_value_##ACCESS_TYPE##_access_resolve (&NAME##_access);  \
+    QUALIFIER struct POINTER_TYPE *const NAME =                                                                        \
+        kan_repository_indexed_value_##ACCESS_TYPE##_access_resolve (&NAME##_access);                                  \
     KAN_UM_INTERNAL_ACCESS_DEFER (NAME, kan_repository_indexed_value_##ACCESS_TYPE##_access_close)                     \
                                                                                                                        \
     CUSHION_SNIPPET (KAN_SNIPPET_CLOSE_ACCESS_##NAME,                                                                  \
@@ -613,6 +614,10 @@ KAN_C_HEADER_BEGIN
     }                                                                                                                  \
                                                                                                                        \
     kan_repository_indexed_value_##ACCESS_TYPE##_cursor_close (&NAME##_cursor);
+
+#define KAN_UM_INTERNAL_VALUE_OPTIONAL(NAME, TYPE, FIELD, ARGUMENT_POINTER, ACCESS_TYPE, ACCESS_NAME, QUALIFIER)       \
+    KAN_UM_INTERNAL_VALUE_OPTIONAL_CUSTOM_POINTER_TYPE (NAME, TYPE, TYPE, FIELD, ARGUMENT_POINTER, ACCESS_TYPE,        \
+                                                        ACCESS_NAME, QUALIFIER)
 
 #if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
 #    define KAN_UMI_VALUE_READ_OPTIONAL(NAME, TYPE, FIELD, ARGUMENT_POINTER)                                           \

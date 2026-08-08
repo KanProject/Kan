@@ -10,7 +10,7 @@ RESOURCE_RENDER_FOUNDATION_API struct kan_resource_reference_meta_t
 
 KAN_REFLECTION_STRUCT_META (kan_resource_atlas_t)
 RESOURCE_RENDER_FOUNDATION_API struct kan_resource_type_meta_t kan_resource_atlas_resource_type = {
-    .flags = 0u,
+    .flags = KAN_RESOURCE_TYPE_TRANSITIVELY_LOADED,
     .version = CUSHION_START_NS_X64,
     .move = NULL,
     .reset = NULL,

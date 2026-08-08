@@ -13,8 +13,8 @@ concrete_require (
         CONCRETE_INTERFACE universe_locale universe_resource_provider
         THIRD_PARTY qsort)
 
+register_unit_resource_packages ("resources")
 setup_reflected_preprocessing ()
-register_application_resource_directory ("${CMAKE_CURRENT_SOURCE_DIR}/resources")
 
 set (KAN_UNIVERSE_UI_LAYOUT_TEMPORARY_PAGE "32768" CACHE STRING
         "Size of a page for ui layout calculation temporary allocations.")

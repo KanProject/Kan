@@ -242,9 +242,6 @@ struct example_deferred_render_singleton_t
 {
     kan_application_system_window_t window_handle;
     kan_render_surface_t window_surface;
-    kan_resource_usage_id_t config_usage_id;
-    kan_render_material_instance_usage_id_t ground_material_instance_usage_id;
-    kan_render_material_instance_usage_id_t cube_material_instance_usage_id;
     bool frame_checked;
 
     kan_render_buffer_t full_screen_quad_vertex_buffer;
@@ -281,9 +278,6 @@ APPLICATION_FRAMEWORK_EXAMPLES_DEFERRED_RENDER_API void example_deferred_render_
 {
     instance->window_handle = KAN_HANDLE_SET_INVALID (kan_application_system_window_t);
     instance->window_surface = KAN_HANDLE_SET_INVALID (kan_render_surface_t);
-    instance->config_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-    instance->ground_material_instance_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
-    instance->cube_material_instance_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
     instance->frame_checked = false;
 
     instance->object_buffers_initialized = false;
@@ -2036,18 +2030,12 @@ APPLICATION_FRAMEWORK_EXAMPLES_DEFERRED_RENDER_API KAN_UM_MUTATOR_EXECUTE (defer
             FIXED_TEST_WIDTH * FIXED_TEST_HEIGHT * 4u, NULL, KAN_STATIC_INTERNED_ID_GET (test_read_back_buffer));
     }
 
-    const kan_interned_string_t root_config_name = KAN_STATIC_INTERNED_ID_GET (root_config);
-    if (!KAN_TYPED_ID_32_IS_VALID (singleton->config_usage_id))
+    if (!resource_provider->required_loading_done)
     {
-        KAN_UMO_INDEXED_INSERT (request, kan_resource_usage_t)
-        {
-            request->usage_id = kan_next_resource_usage_id (resource_provider);
-            singleton->config_usage_id = request->usage_id;
-            request->type = KAN_STATIC_INTERNED_ID_GET (deferred_render_config_t);
-            request->name = root_config_name;
-        }
+        return;
     }
 
+    const kan_interned_string_t root_config_name = KAN_STATIC_INTERNED_ID_GET (root_config);
     if (!singleton->object_buffers_initialized && KAN_HANDLE_IS_VALID (render_context->render_context))
     {
         example_deferred_render_singleton_initialize_object_buffers (singleton, render_context->render_context);
@@ -2072,55 +2060,34 @@ APPLICATION_FRAMEWORK_EXAMPLES_DEFERRED_RENDER_API KAN_UM_MUTATOR_EXECUTE (defer
         }
     }
 
-    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (root_config, deferred_render_config_t, &root_config_name)
-    if (root_config)
+    KAN_UMI_RESOURCE_RETRIEVE_LOADED (root_config, deferred_render_config_t, &root_config_name)
+    KAN_ASSERT (root_config)
+
+    KAN_UML_EVENT_FETCH (material_updated, kan_render_material_updated_event_t)
     {
-        if (!KAN_TYPED_ID_32_IS_VALID (singleton->ground_material_instance_usage_id))
+        // Destroy parameter sets on hot reload in order to create new ones during next render.
+        if (material_updated->name == root_config->directional_light_material_name)
         {
-            KAN_UMO_INDEXED_INSERT (usage, kan_render_material_instance_usage_t)
+            if (KAN_HANDLE_IS_VALID (singleton->directional_light_object_parameter_set))
             {
-                usage->usage_id = kan_next_material_instance_usage_id (program_singleton);
-                singleton->ground_material_instance_usage_id = usage->usage_id;
-                usage->name = root_config->ground_material_instance_name;
+                kan_render_pipeline_parameter_set_destroy (singleton->directional_light_object_parameter_set);
+                singleton->directional_light_object_parameter_set =
+                    KAN_HANDLE_SET_INVALID (kan_render_pipeline_parameter_set_t);
             }
         }
+        else if (material_updated->name == root_config->point_light_material_name)
+        {
+            if (KAN_HANDLE_IS_VALID (singleton->point_light_shared_parameter_set))
+            {
+                kan_render_pipeline_parameter_set_destroy (singleton->point_light_shared_parameter_set);
+                singleton->point_light_shared_parameter_set =
+                    KAN_HANDLE_SET_INVALID (kan_render_pipeline_parameter_set_t);
+            }
+        }
+    }
 
-        if (!KAN_TYPED_ID_32_IS_VALID (singleton->cube_material_instance_usage_id))
-        {
-            KAN_UMO_INDEXED_INSERT (usage, kan_render_material_instance_usage_t)
-            {
-                usage->usage_id = kan_next_material_instance_usage_id (program_singleton);
-                singleton->cube_material_instance_usage_id = usage->usage_id;
-                usage->name = root_config->cube_material_instance_name;
-            }
-        }
-
-        KAN_UML_EVENT_FETCH (material_updated, kan_render_material_updated_event_t)
-        {
-            // Destroy parameter sets on hot reload in order to create new ones during next render.
-            if (material_updated->name == root_config->directional_light_material_name)
-            {
-                if (KAN_HANDLE_IS_VALID (singleton->directional_light_object_parameter_set))
-                {
-                    kan_render_pipeline_parameter_set_destroy (singleton->directional_light_object_parameter_set);
-                    singleton->directional_light_object_parameter_set =
-                        KAN_HANDLE_SET_INVALID (kan_render_pipeline_parameter_set_t);
-                }
-            }
-            else if (material_updated->name == root_config->point_light_material_name)
-            {
-                if (KAN_HANDLE_IS_VALID (singleton->point_light_shared_parameter_set))
-                {
-                    kan_render_pipeline_parameter_set_destroy (singleton->point_light_shared_parameter_set);
-                    singleton->point_light_shared_parameter_set =
-                        KAN_HANDLE_SET_INVALID (kan_render_pipeline_parameter_set_t);
-                }
-            }
-        }
-
-        if (KAN_HANDLE_IS_VALID (render_context->render_context) && render_context->frame_scheduled)
-        {
-            try_render_frame (state, render_context, render_graph, test, singleton, root_config);
-        }
+    if (KAN_HANDLE_IS_VALID (render_context->render_context) && render_context->frame_scheduled)
+    {
+        try_render_frame (state, render_context, render_graph, test, singleton, root_config);
     }
 }

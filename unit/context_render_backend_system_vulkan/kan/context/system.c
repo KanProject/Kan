@@ -92,6 +92,9 @@ kan_context_system_t render_backend_system_create (kan_allocation_group_t group,
     kan_bd_list_init (&system->compiler_state.graphics_active);
     kan_bd_list_init (&system->compiler_state.graphics_cache);
 
+    system->compiler_state.currently_working = false;
+    system->compiler_state.current_request_priority = KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_CACHE;
+
     system->compiler_state.thread = kan_thread_create ("context_render_backend_system_vulkan_pipeline_compiler",
                                                        render_backend_pipeline_compiler_state_worker_function,
                                                        (kan_thread_user_data_t) &system->compiler_state);

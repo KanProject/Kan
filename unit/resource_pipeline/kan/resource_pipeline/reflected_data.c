@@ -24,8 +24,8 @@ static void ensure_statics_initialized (void)
 }
 
 #define UNWRAP_ERROR_CONTEXT_STRINGS                                                                                   \
-    optional_error_context && optional_error_context->resource_target ? optional_error_context->resource_target :      \
-                                                                        "<no info>",                                   \
+    optional_error_context && optional_error_context->resource_package ? optional_error_context->resource_package :    \
+                                                                         "<no info>",                                  \
         optional_error_context && optional_error_context->resource_name ? optional_error_context->resource_name :      \
                                                                           "<no info>",                                 \
         optional_error_context && optional_error_context->resource_type ? optional_error_context->resource_type :      \
@@ -98,6 +98,14 @@ static void scan_potential_resource_type (struct kan_resource_reflected_data_sto
         kan_reflection_struct_meta_iterator_next (&iterator);
         KAN_ASSERT_FORMATTED (!kan_reflection_struct_meta_iterator_get (&iterator),
                               "Resource type \"%s\" has several resource type metas.", struct_to_scan->name)
+
+        if (resource_type->flags & KAN_RESOURCE_TYPE_STREAMED)
+        {
+            KAN_ASSERT_FORMATTED ((resource_type->flags & KAN_RESOURCE_TYPE_TRANSITIVELY_LOADED) == 0u,
+                                  "Resource type \"%s\" is streamed, but also has transitively loaded flag, which "
+                                  "makes no sense as streamed resources do not participate in regular loading routine.",
+                                  struct_to_scan->name)
+        }
 #endif
 
         struct kan_resource_reflected_data_resource_type_t *node =
@@ -259,6 +267,7 @@ static bool scan_potential_referencer_struct (struct kan_resource_reflected_data
     // Any struct could be a referencer as any struct could be inside a patch, so we need to just scan all structs,
     // not only structs that are resource types and are nested in resource types.
 
+    KAN_ASSERT (struct_to_scan)
     const struct kan_resource_reflected_data_referencer_struct_t *existent_data =
         kan_resource_reflected_data_storage_query_referencer_struct (output, struct_to_scan->name);
 
@@ -495,6 +504,11 @@ static void add_detected_reference (struct kan_dynamic_array_t *output,
         log_flags |= KAN_RESOURCE_REFERENCE_REQUIRED;
     }
 
+    if ((flags & KAN_RESOURCE_REFERENCE_META_LOADING_NOT_REQUIRED) == 0u)
+    {
+        log_flags |= KAN_RESOURCE_REFERENCE_LOADING_REQUIRED;
+    }
+
     for (kan_memory_size_t index = 0u; index < output->size; ++index)
     {
         struct kan_resource_log_reference_t *reference = &((struct kan_resource_log_reference_t *) output->data)[index];
@@ -583,7 +597,7 @@ static bool detect_references_inside_data_chunk_for_struct_instance (
             if (!name && (field->flags & KAN_RESOURCE_REFERENCE_META_NULLABLE) == 0u)
             {
                 KAN_LOG (resource_pipeline_detect_references, KAN_LOG_ERROR,
-                         "[Target \"%s\"] Resource \"%s\" of type \"%s\" has null reference in field \"%s\" of "
+                         "[Package \"%s\"] Resource \"%s\" of type \"%s\" has null reference in field \"%s\" of "
                          "struct with type \"%s\" within a patch, which is not allowed.",
                          UNWRAP_ERROR_CONTEXT_STRINGS, field->field->name, part_type_name)
                 successful = false;
@@ -633,10 +647,11 @@ static bool detect_references_inside_data_chunk_for_struct_instance (
 
                     if (!name && (field->flags & KAN_RESOURCE_REFERENCE_META_NULLABLE) == 0u)
                     {
-                        KAN_LOG (resource_pipeline_detect_references, KAN_LOG_ERROR,
-                                 "[Target \"%s\"] Resource \"%s\" of type \"%s\" has null reference in field \"%s\" of "
-                                 "struct with type \"%s\" within a patch, which is not allowed.",
-                                 UNWRAP_ERROR_CONTEXT_STRINGS, field->field->name, part_type_name)
+                        KAN_LOG (
+                            resource_pipeline_detect_references, KAN_LOG_ERROR,
+                            "[Package \"%s\"] Resource \"%s\" of type \"%s\" has null reference in field \"%s\" of "
+                            "struct with type \"%s\" within a patch, which is not allowed.",
+                            UNWRAP_ERROR_CONTEXT_STRINGS, field->field->name, part_type_name)
                         successful = false;
                         break;
                     }
@@ -796,11 +811,12 @@ static inline bool detect_references_inside_patch (
 
                                     if (!name && (field->flags & KAN_RESOURCE_REFERENCE_META_NULLABLE) == 0u)
                                     {
-                                        KAN_LOG (resource_pipeline_detect_references, KAN_LOG_ERROR,
-                                                 "[Target \"%s\"] Resource \"%s\" of type \"%s\" has null reference in "
-                                                 "field \"%s\" of struct with type \"%s\" within a patch, which is not "
-                                                 "allowed.",
-                                                 UNWRAP_ERROR_CONTEXT_STRINGS, field->field->name, patch_type->name)
+                                        KAN_LOG (
+                                            resource_pipeline_detect_references, KAN_LOG_ERROR,
+                                            "[Package \"%s\"] Resource \"%s\" of type \"%s\" has null reference in "
+                                            "field \"%s\" of struct with type \"%s\" within a patch, which is not "
+                                            "allowed.",
+                                            UNWRAP_ERROR_CONTEXT_STRINGS, field->field->name, patch_type->name)
                                         successful = false;
                                         continue;
                                     }
@@ -958,7 +974,7 @@ bool kan_resource_reflected_data_storage_detect_references (
             if (!name && (field->flags & KAN_RESOURCE_REFERENCE_META_NULLABLE) == 0u)
             {
                 KAN_LOG (resource_pipeline_detect_references, KAN_LOG_ERROR,
-                         "[Target \"%s\"] Resource \"%s\" of type \"%s\" has null reference in field \"%s\" of struct "
+                         "[Package \"%s\"] Resource \"%s\" of type \"%s\" has null reference in field \"%s\" of struct "
                          "with type \"%s\", which is not allowed.",
                          UNWRAP_ERROR_CONTEXT_STRINGS, field->field->name, referencer_type_name)
                 successful = false;
@@ -996,10 +1012,11 @@ bool kan_resource_reflected_data_storage_detect_references (
             case KAN_REFLECTION_ARCHETYPE_INTERNED_STRING:
                 if (size == 0u && (field->flags & KAN_RESOURCE_REFERENCE_META_NULLABLE) == 0u)
                 {
-                    KAN_LOG (resource_pipeline_detect_references, KAN_LOG_ERROR,
-                             "[Target \"%s\"] Resource \"%s\" of type \"%s\" has empty reference array in field \"%s\" "
-                             "of struct with type \"%s\", which is not allowed.",
-                             UNWRAP_ERROR_CONTEXT_STRINGS, field->field->name, referencer_type_name)
+                    KAN_LOG (
+                        resource_pipeline_detect_references, KAN_LOG_ERROR,
+                        "[Package \"%s\"] Resource \"%s\" of type \"%s\" has empty reference array in field \"%s\" "
+                        "of struct with type \"%s\", which is not allowed.",
+                        UNWRAP_ERROR_CONTEXT_STRINGS, field->field->name, referencer_type_name)
                     successful = false;
                     break;
                 }
@@ -1009,10 +1026,11 @@ bool kan_resource_reflected_data_storage_detect_references (
                     kan_interned_string_t name = ((kan_interned_string_t *) field_address)[index];
                     if (!name && (field->flags & KAN_RESOURCE_REFERENCE_META_NULLABLE) == 0u)
                     {
-                        KAN_LOG (resource_pipeline_detect_references, KAN_LOG_ERROR,
-                                 "[Target \"%s\"] Resource \"%s\" of type \"%s\" has null reference in field \"%s\" of "
-                                 "struct with type \"%s\", which is not allowed.",
-                                 UNWRAP_ERROR_CONTEXT_STRINGS, field->field->name, referencer_type_name)
+                        KAN_LOG (
+                            resource_pipeline_detect_references, KAN_LOG_ERROR,
+                            "[Package \"%s\"] Resource \"%s\" of type \"%s\" has null reference in field \"%s\" of "
+                            "struct with type \"%s\", which is not allowed.",
+                            UNWRAP_ERROR_CONTEXT_STRINGS, field->field->name, referencer_type_name)
                         successful = false;
                         continue;
                     }
@@ -1068,10 +1086,11 @@ bool kan_resource_reflected_data_storage_detect_references (
             case KAN_REFLECTION_ARCHETYPE_INTERNED_STRING:
                 if (array->size == 0u && (field->flags & KAN_RESOURCE_REFERENCE_META_NULLABLE) == 0u)
                 {
-                    KAN_LOG (resource_pipeline_detect_references, KAN_LOG_ERROR,
-                             "[Target \"%s\"] Resource \"%s\" of type \"%s\" has empty reference array in field \"%s\" "
-                             "of struct with type \"%s\", which is not allowed.",
-                             UNWRAP_ERROR_CONTEXT_STRINGS, field->field->name, referencer_type_name)
+                    KAN_LOG (
+                        resource_pipeline_detect_references, KAN_LOG_ERROR,
+                        "[Package \"%s\"] Resource \"%s\" of type \"%s\" has empty reference array in field \"%s\" "
+                        "of struct with type \"%s\", which is not allowed.",
+                        UNWRAP_ERROR_CONTEXT_STRINGS, field->field->name, referencer_type_name)
                     successful = false;
                     break;
                 }
@@ -1081,10 +1100,11 @@ bool kan_resource_reflected_data_storage_detect_references (
                     kan_interned_string_t name = ((kan_interned_string_t *) array->data)[index];
                     if (!name && (field->flags & KAN_RESOURCE_REFERENCE_META_NULLABLE) == 0u)
                     {
-                        KAN_LOG (resource_pipeline_detect_references, KAN_LOG_ERROR,
-                                 "[Target \"%s\"] Resource \"%s\" of type \"%s\" has null reference in field \"%s\" of "
-                                 "struct with type \"%s\", which is not allowed.",
-                                 UNWRAP_ERROR_CONTEXT_STRINGS, field->field->name, referencer_type_name)
+                        KAN_LOG (
+                            resource_pipeline_detect_references, KAN_LOG_ERROR,
+                            "[Package \"%s\"] Resource \"%s\" of type \"%s\" has null reference in field \"%s\" of "
+                            "struct with type \"%s\", which is not allowed.",
+                            UNWRAP_ERROR_CONTEXT_STRINGS, field->field->name, referencer_type_name)
                         successful = false;
                         continue;
                     }

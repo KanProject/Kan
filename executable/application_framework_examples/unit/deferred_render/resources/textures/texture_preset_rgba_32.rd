@@ -1,3 +1,4 @@
 //! kan_resource_texture_build_preset_t
-target_mips = 7
+streamed_mips = 0
+inlined_mips = 7
 supported_target_formats = KAN_RESOURCE_TEXTURE_FORMAT_UNCOMPRESSED_RGBA32_SRGB

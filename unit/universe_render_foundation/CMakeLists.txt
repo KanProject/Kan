@@ -6,14 +6,10 @@ concrete_require (
         SCOPE PUBLIC
         ABSTRACT context_render_backend_system
         CONCRETE_INTERFACE math resource_render_foundation universe)
-
-concrete_require (
-        SCOPE PRIVATE
-        ABSTRACT context_hot_reload_coordination_system cpu_profiler log
-        CONCRETE_INTERFACE universe_resource_provider)
+concrete_require (SCOPE PRIVATE ABSTRACT cpu_profiler log CONCRETE_INTERFACE universe_resource_provider)
 
 setup_reflected_preprocessing ()
-register_application_resource_directory ("${CMAKE_CURRENT_SOURCE_DIR}/resources")
+register_unit_resource_packages ("resources")
 
 set (KAN_UNIVERSE_RENDER_FOUNDATION_GIC_BUCKETS "17" CACHE STRING
         "Initial count of buckets for render foundation graph resource management image cache.")
@@ -33,29 +29,11 @@ set (KAN_UNIVERSE_RENDER_FOUNDATION_BINDINGS_MAX_STATIC "16" CACHE STRING
 set (KAN_UNIVERSE_RENDER_FOUNDATION_NAME_BUFFER_LENGTH "256" CACHE STRING
         "Size of a buffer for forming various backend objects tracking names.")
 
-set (KAN_UNIVERSE_RENDER_FOUNDATION_ATLAS_PRIORITY "100" CACHE STRING
-        "Loading priority at which atlases are loaded.")
-
-set (KAN_UNIVERSE_RENDER_FOUNDATION_PASS_PRIORITY "1000" CACHE STRING
-        "Loading priority at which render pass information is loaded.")
-
-set (KAN_UNIVERSE_RENDER_FOUNDATION_MATERIAL_BASE_PRIORITY "50" CACHE STRING
-        "Loading priority at which materials are loaded if they're not used by material instances yet.")
-
-set (KAN_UNIVERSE_RENDER_FOUNDATION_MATERIAL_USED_PRIORITY "150" CACHE STRING
-        "Loading priority at which materials are loaded if they are already needed for some material instance loading.")
-
-set (KAN_UNIVERSE_RENDER_FOUNDATION_MI_PRIORITY "125" CACHE STRING
-        "Loading priority at which material instances datas are loaded.")
-
 set (KAN_UNIVERSE_RENDER_FOUNDATION_MI_UPDATES_COUNT "32" CACHE STRING
         "Size of a buffer for material instance parameter set initial bindings.")
 
-set (KAN_UNIVERSE_RENDER_FOUNDATION_TEXTURE_INFO_PRIORITY "200" CACHE STRING
-        "Loading priority at which texture information is loaded.")
-
-set (KAN_UNIVERSE_RENDER_FOUNDATION_TEXTURE_DATA_PRIORITY "100" CACHE STRING
-        "Loading priority at which texture data is loaded.")
+set (KAN_UNIVERSE_RENDER_FOUNDATION_TEXTURE_PRIORITY "100" CACHE STRING
+        "Loading priority at which texture streamed data is loaded.")
 
 concrete_compile_definitions (
         PRIVATE
@@ -65,11 +43,5 @@ concrete_compile_definitions (
         KAN_UNIVERSE_RENDER_FOUNDATION_ATTACHMENTS_MAX_STATIC=${KAN_UNIVERSE_RENDER_FOUNDATION_ATTACHMENTS_MAX_STATIC}
         KAN_UNIVERSE_RENDER_FOUNDATION_BINDINGS_MAX_STATIC=${KAN_UNIVERSE_RENDER_FOUNDATION_BINDINGS_MAX_STATIC}
         KAN_UNIVERSE_RENDER_FOUNDATION_NAME_BUFFER_LENGTH=${KAN_UNIVERSE_RENDER_FOUNDATION_NAME_BUFFER_LENGTH}
-        KAN_UNIVERSE_RENDER_FOUNDATION_ATLAS_PRIORITY=${KAN_UNIVERSE_RENDER_FOUNDATION_ATLAS_PRIORITY}
-        KAN_UNIVERSE_RENDER_FOUNDATION_PASS_PRIORITY=${KAN_UNIVERSE_RENDER_FOUNDATION_PASS_PRIORITY}
-        KAN_UNIVERSE_RENDER_FOUNDATION_MATERIAL_BASE_PRIORITY=${KAN_UNIVERSE_RENDER_FOUNDATION_MATERIAL_BASE_PRIORITY}
-        KAN_UNIVERSE_RENDER_FOUNDATION_MATERIAL_USED_PRIORITY=${KAN_UNIVERSE_RENDER_FOUNDATION_MATERIAL_USED_PRIORITY}
-        KAN_UNIVERSE_RENDER_FOUNDATION_MI_PRIORITY=${KAN_UNIVERSE_RENDER_FOUNDATION_MI_PRIORITY}
         KAN_UNIVERSE_RENDER_FOUNDATION_MI_UPDATES_COUNT=${KAN_UNIVERSE_RENDER_FOUNDATION_MI_UPDATES_COUNT}
-        KAN_UNIVERSE_RENDER_FOUNDATION_TEXTURE_INFO_PRIORITY=${KAN_UNIVERSE_RENDER_FOUNDATION_TEXTURE_INFO_PRIORITY}
-        KAN_UNIVERSE_RENDER_FOUNDATION_TEXTURE_DATA_PRIORITY=${KAN_UNIVERSE_RENDER_FOUNDATION_TEXTURE_DATA_PRIORITY})
+        KAN_UNIVERSE_RENDER_FOUNDATION_TEXTURE_PRIORITY=${KAN_UNIVERSE_RENDER_FOUNDATION_TEXTURE_PRIORITY})

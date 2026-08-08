@@ -130,7 +130,7 @@ kan_resource_reflected_data_storage_query_referencer_struct (
 
 struct kan_resource_reference_detection_error_context_t
 {
-    kan_interned_string_t resource_target;
+    kan_interned_string_t resource_package;
     kan_interned_string_t resource_type;
     kan_interned_string_t resource_name;
 };

@@ -14,9 +14,12 @@ void kan_resource_locale_init (struct kan_resource_locale_t *instance)
     instance->preferred_direction = KAN_LOCALE_PREFERRED_TEXT_DIRECTION_LEFT_TO_RIGHT;
     kan_dynamic_array_init (&instance->font_languages, 0u, sizeof (kan_interned_string_t),
                             alignof (kan_interned_string_t), kan_allocation_group_stack_get ());
+    kan_dynamic_array_init (&instance->package_tags, 0u, sizeof (kan_interned_string_t),
+                            alignof (kan_interned_string_t), kan_allocation_group_stack_get ());
 }
 
 void kan_resource_locale_shutdown (struct kan_resource_locale_t *instance)
 {
     kan_dynamic_array_shutdown (&instance->font_languages);
+    kan_dynamic_array_shutdown (&instance->package_tags);
 }

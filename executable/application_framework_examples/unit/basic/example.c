@@ -34,16 +34,12 @@ APPLICATION_FRAMEWORK_EXAMPLES_BASIC_API struct kan_resource_type_meta_t basic_d
 struct example_basic_singleton_t
 {
     kan_application_system_window_t window_handle;
-    bool test_usage_added;
-    kan_resource_usage_id_t test_usage_id;
     kan_stable_size_t last_frame_time_ns;
 };
 
 APPLICATION_FRAMEWORK_EXAMPLES_BASIC_API void example_basic_singleton_init (struct example_basic_singleton_t *instance)
 {
     instance->window_handle = KAN_HANDLE_SET_INVALID (kan_application_system_window_t);
-    instance->test_usage_added = false;
-    instance->test_usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
     instance->last_frame_time_ns = kan_precise_time_get_elapsed_nanoseconds ();
 }
 
@@ -79,27 +75,12 @@ APPLICATION_FRAMEWORK_EXAMPLES_BASIC_API KAN_UM_MUTATOR_EXECUTE (example_basic)
         kan_application_system_window_raise (state->application_system_handle, singleton->window_handle);
     }
 
-    if (!singleton->test_usage_added)
-    {
-        KAN_UMI_SINGLETON_READ (provider, kan_resource_provider_singleton_t)
-        KAN_UMO_INDEXED_INSERT (usage, kan_resource_usage_t)
-        {
-            usage->usage_id = kan_next_resource_usage_id (provider);
-            usage->type = KAN_STATIC_INTERNED_ID_GET (basic_data_type_t);
-            usage->name = KAN_STATIC_INTERNED_ID_GET (test);
-            usage->priority = 0u;
-            singleton->test_usage_id = usage->usage_id;
-        }
-
-        singleton->test_usage_added = true;
-    }
-
     kan_instance_size_t x = 0;
     kan_instance_size_t y = 0;
 
     {
         const kan_interned_string_t name = KAN_STATIC_INTERNED_ID_GET (test);
-        KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED (loaded, basic_data_type_t, &name)
+        KAN_UMI_RESOURCE_RETRIEVE_LOADED (loaded, basic_data_type_t, &name)
 
         if (loaded)
         {

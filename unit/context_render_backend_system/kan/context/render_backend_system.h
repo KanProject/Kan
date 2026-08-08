@@ -952,6 +952,14 @@ enum kan_render_pipeline_compilation_priority_t
     KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_CACHE,
 };
 
+/// \brief Returns true if there is no waiting for compilation pipelines with
+///        `KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_CRITICAL` or `KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_ACTIVE`
+///        priority.
+/// \details Needed for various loading systems to decide whether it is needed for still show loading screen as
+///          pipelines are not ready for rendering. `KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_CACHE` priority is skipped
+///          on purpose as it explicitly tells the render backend that pipeline is not going to be used soon.
+CONTEXT_RENDER_BACKEND_SYSTEM_API bool kan_render_context_are_pipelines_compiled (kan_render_context_t context);
+
 /// \brief Creates new graphics pipeline and adds it to compilation queue.
 CONTEXT_RENDER_BACKEND_SYSTEM_API kan_render_graphics_pipeline_t
 kan_render_graphics_pipeline_create (kan_render_context_t context,

@@ -99,6 +99,25 @@ CONTAINER_API void kan_dynamic_array_reset (struct kan_dynamic_array_t *array);
 ///          therefore it must be done manually before releasing resources.
 CONTAINER_API void kan_dynamic_array_shutdown (struct kan_dynamic_array_t *array);
 
+/// \def KAN_DYNAMIC_ARRAY_FOR_EACH
+/// \brief Syntax sugar macro for a little bit more convenient for-each iteration on dynamic arrays.
+
+#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
+#    define KAN_DYNAMIC_ARRAY_FOR_EACH(ARRAY, TYPE, INDEX_NAME_PREFIX)                                                 \
+        KAN_HIGHLIGHT_SIZEOF_POSSIBLE (TYPE);                                                                          \
+        kan_memory_size_t INDEX_NAME_PREFIX##_index = 0u;                                                              \
+        TYPE *value = NULL;                                                                                            \
+        kan_dynamic_array_shutdown (&(ARRAY));
+#else
+#    define KAN_DYNAMIC_ARRAY_FOR_EACH(ARRAY, TYPE, INDEX_NAME_PREFIX)                                                 \
+        for (kan_memory_size_t INDEX_NAME_PREFIX##_index = 0u; INDEX_NAME_PREFIX##_index < (ARRAY).size;               \
+             ++INDEX_NAME_PREFIX##_index)                                                                              \
+        {                                                                                                              \
+            TYPE *value = &((TYPE *) (ARRAY).data)[array_item_index];                                                  \
+            __CUSHION_WRAPPED__                                                                                        \
+        }
+#endif
+
 /// \def KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS
 /// \brief Syntax sugar macro for a little bit more convenient destruction of dynamic arrays with per item destructors.
 
@@ -109,13 +128,8 @@ CONTAINER_API void kan_dynamic_array_shutdown (struct kan_dynamic_array_t *array
         kan_dynamic_array_shutdown (&(ARRAY));
 #else
 #    define KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS(ARRAY, TYPE)                                                         \
-        for (kan_memory_size_t array_item_index = 0u; array_item_index < (ARRAY).size; ++array_item_index)             \
-        {                                                                                                              \
-            TYPE *value = &((TYPE *) (ARRAY).data)[array_item_index];                                                  \
-            __CUSHION_WRAPPED__                                                                                        \
-        }                                                                                                              \
-                                                                                                                       \
-        kan_dynamic_array_shutdown (&(ARRAY));
+        KAN_DYNAMIC_ARRAY_FOR_EACH (ARRAY, TYPE,                                                                       \
+                                    array_item) {__CUSHION_WRAPPED__} kan_dynamic_array_shutdown (&(ARRAY));
 #endif
 
 /// \def KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO
@@ -129,10 +143,12 @@ CONTAINER_API void kan_dynamic_array_shutdown (struct kan_dynamic_array_t *array
         kan_dynamic_array_shutdown (&(ARRAY));
 #else
 #    define KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO(ARRAY, TYPE_NAME_NO_SUFFIX)                                     \
-        KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS (ARRAY, struct __CUSHION_EVALUATED_ARGUMENT__ (TYPE_NAME_NO_SUFFIX)##_t) \
+        KAN_DYNAMIC_ARRAY_FOR_EACH (ARRAY, struct __CUSHION_EVALUATED_ARGUMENT__ (TYPE_NAME_NO_SUFFIX)##_t,            \
+                                    array_item)                                                                        \
         {                                                                                                              \
             __CUSHION_EVALUATED_ARGUMENT__ (TYPE_NAME_NO_SUFFIX)##_shutdown (value);                                   \
-        }
+        }                                                                                                              \
+        kan_dynamic_array_shutdown (&(ARRAY));
 #endif
 
 KAN_C_HEADER_END

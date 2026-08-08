@@ -16,9 +16,9 @@ setup_core_preprocessing ()
 set (KAN_RESOURCE_PIPELINE_BUILD_RESOURCE_BUCKETS "257" CACHE STRING
         "Initial count of buckets for resource entries in resource type storage.")
 set (KAN_RESOURCE_PIPELINE_BUILD_TYPES_BUCKETS "67" CACHE STRING
-        "Initial count of buckets for resource type storages in resource build target.")
-set (KAN_RESOURCE_PIPELINE_BUILD_THIRD_PARTY_BUCKETS "257" CACHE STRING
-        "Initial count of buckets for raw third party resources in resource build target.")
+        "Initial count of buckets for global resource type storage.")
+set (KAN_RESOURCE_PIPELINE_BUILD_PACKAGE_BUCKETS "17" CACHE STRING
+        "Initial count of buckets for resource package storage.")
 set (KAN_RESOURCE_PIPELINE_BUILD_IO_BUFFER "16384" CACHE STRING 
         "Default stream read and write buffer size for IO operations.")
 set (KAN_RESOURCE_PIPELINE_BUILD_TPC_ENTRIES_PER_LAYER "32" CACHE STRING
@@ -31,10 +31,10 @@ set (KAN_RESOURCE_PIPELINE_BUILD_RRDM_INITIAL "32" CACHE STRING
         "Initial size of an array where root resources for deployment mark are stored in the beginning of the build.")
 set (KAN_RESOURCE_PIPELINE_BUILD_WORKING_CHECK_DELAY_NS "1000000" CACHE STRING
         "Delay between checks on working thread whether task threads are still busy building resources.")
-set (KAN_RESOURCE_PIPELINE_BUILD_LOG_ENTRIES_CAPACITY "512" CACHE STRING
-        "Base capacity for resource entry arrays in every target when log generation begins.")
-set (KAN_RESOURCE_PIPELINE_BUILD_PACK_ENTRIES_CAPACITY "1024" CACHE STRING
-        "Base capacity for resource entry array to be packed for target.")
+set (KAN_RESOURCE_PIPELINE_BUILD_LOG_ENTRIES_CAPACITY "1024" CACHE STRING
+        "Base capacity for resource entry arrays global array when log generation begins.")
+set (KAN_RESOURCE_PIPELINE_BUILD_PACK_ENTRIES_CAPACITY "512" CACHE STRING
+        "Base capacity for resource entry array to be packed for particular package.")
 set (KAN_RESOURCE_PIPELINE_BUILD_PACK_INDEX_ITEM_CAPACITY "256" CACHE STRING
         "Base capacity for array of items of the same type in packed resource index.")
 set (KAN_RESOURCE_PIPELINE_BUILD_PACK_INDEX_TPI_CAPACITY "64" CACHE STRING
@@ -44,7 +44,7 @@ concrete_compile_definitions (
         PRIVATE
         KAN_RESOURCE_PIPELINE_BUILD_RESOURCE_BUCKETS=${KAN_RESOURCE_PIPELINE_BUILD_RESOURCE_BUCKETS}
         KAN_RESOURCE_PIPELINE_BUILD_TYPES_BUCKETS=${KAN_RESOURCE_PIPELINE_BUILD_TYPES_BUCKETS}
-        KAN_RESOURCE_PIPELINE_BUILD_THIRD_PARTY_BUCKETS=${KAN_RESOURCE_PIPELINE_BUILD_THIRD_PARTY_BUCKETS}
+        KAN_RESOURCE_PIPELINE_BUILD_PACKAGE_BUCKETS=${KAN_RESOURCE_PIPELINE_BUILD_PACKAGE_BUCKETS}
         KAN_RESOURCE_PIPELINE_BUILD_IO_BUFFER=${KAN_RESOURCE_PIPELINE_BUILD_IO_BUFFER}
         KAN_RESOURCE_PIPELINE_BUILD_TPC_ENTRIES_PER_LAYER=${KAN_RESOURCE_PIPELINE_BUILD_TPC_ENTRIES_PER_LAYER}
         KAN_RESOURCE_PIPELINE_BUILD_PC_BUCKETS=${KAN_RESOURCE_PIPELINE_BUILD_PC_BUCKETS}

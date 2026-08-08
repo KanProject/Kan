@@ -8,13 +8,12 @@
 #include <kan/threading/atomic.h>
 #include <kan/universe/universe.h>
 
-/// \file
 /// \brief Provides API for interacting with locale management implementation.
 ///
 /// \par Definition
 /// \parblock
-/// Locale management automatically loads all information about available locales from the resources and also supports
-/// hot reload of locales.
+/// Locale management automatically manages resource package loading tags from locale selection in
+/// `kan_locale_singleton_t`. Locale resources loading is done automatically by resource provider itself.
 /// \endparblock
 
 KAN_C_HEADER_BEGIN
@@ -28,39 +27,31 @@ KAN_C_HEADER_BEGIN
 /// \brief Checkpoint, that is hit after all locale management mutators have finished execution.
 #define KAN_LOCALE_MANAGEMENT_END_CHECKPOINT "locale_management_end"
 
-/// \brief Singleton for selecting current locale and checking locale loading status.
+/// \brief Singleton for selecting current locale.
 struct kan_locale_singleton_t
 {
+    /// \brief Selected locale name.
+    /// \invariant Do not edit it manually! Use `kan_locale_selection_request_t` to ask it to be properly changed!
     kan_interned_string_t selected_locale;
-
-    /// \brief Count of locale configurations that are currently being loaded.
-    kan_instance_size_t locale_counter;
 };
 
 UNIVERSE_LOCALE_API void kan_locale_singleton_init (struct kan_locale_singleton_t *instance);
 
-/// \brief Event that is automatically sent if `kan_locale_singleton_t::selected_locale` is changed by anyone.
-struct kan_locale_selection_updated_t
+/// \brief Event for asking current selected locale to be changed.
+struct kan_locale_selection_request_t
+{
+    /// \brief New requested locale name. Request is ignored if it is NULL.
+    kan_interned_string_t new_locale;
+};
+
+/// \brief Event that is sent when either locale selection was changed or locale data was loaded or updated.
+/// \details Both locale change and locale hot reload need the same set of actions: reloading dependent data.
+///          Therefore it is merged into one event. It also means that `old_selection` will be equal to `new_selection`
+///          for the cases when it was related to loading or hot reload.
+struct kan_locale_updated_event_t
 {
     kan_interned_string_t old_selection;
     kan_interned_string_t new_selection;
-};
-
-/// \brief Stores information about loaded locale setup.
-struct kan_locale_t
-{
-    kan_immutable kan_interned_string_t name;
-    struct kan_resource_locale_t resource;
-};
-
-UNIVERSE_LOCALE_API void kan_locale_init (struct kan_locale_t *instance);
-
-UNIVERSE_LOCALE_API void kan_locale_shutdown (struct kan_locale_t *instance);
-
-/// \brief Event that is fired when locale information is changed either due to hot reload or initial load.
-struct kan_locale_updated_t
-{
-    kan_interned_string_t name;
 };
 
 KAN_C_HEADER_END

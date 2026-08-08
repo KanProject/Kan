@@ -2,8 +2,6 @@
 
 #include <string.h>
 
-#include <kan/context/all_system_names.h>
-#include <kan/context/hot_reload_coordination_system.h>
 #include <kan/cpu_profiler/markup.h>
 #include <kan/log/logging.h>
 #include <kan/resource_render_foundation/material.h>
@@ -23,30 +21,6 @@ KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (render_foundation_program_core_management
 KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (render_foundation_material_instance_management)
 UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_GROUP_META (render_foundation_program_management,
                                                           KAN_RENDER_FOUNDATION_PROGRAM_MANAGEMENT_MUTATOR_GROUP);
-
-/// \details Material instances depend on materials and materials depend on passes, therefore we need to synchronize
-///          whole hot reload routine for these resources to avoid broken frames (where some of the resources are
-///          unavailable due to dependency-driven resource initialization).
-enum render_foundation_program_hot_reload_state_t
-{
-    RENDER_FOUNDATION_HOT_RELOAD_STATE_NONE = 0u,
-    RENDER_FOUNDATION_HOT_RELOAD_STATE_SETUP_FRAME,
-    RENDER_FOUNDATION_HOT_RELOAD_STATE_LOADING_SCOPE,
-    RENDER_FOUNDATION_HOT_RELOAD_STATE_APPLICATION_FRAME,
-};
-
-struct render_foundation_program_management_singleton_t
-{
-    enum render_foundation_program_hot_reload_state_t hot_reload_state;
-    kan_instance_size_t hot_reload_blocks;
-};
-
-UNIVERSE_RENDER_FOUNDATION_API void render_foundation_program_management_singleton_init (
-    struct render_foundation_program_management_singleton_t *instance)
-{
-    instance->hot_reload_state = RENDER_FOUNDATION_HOT_RELOAD_STATE_NONE;
-    instance->hot_reload_blocks = 0u;
-}
 
 static kan_render_pipeline_parameter_set_layout_t construct_parameter_set_layout_from_meta (
     kan_render_context_t render_context,
@@ -136,82 +110,15 @@ static kan_render_pipeline_parameter_set_layout_t construct_parameter_set_layout
     return kan_render_pipeline_parameter_set_layout_create (render_context, &description);
 }
 
-enum render_foundation_pass_state_t
-{
-    RENDER_FOUNDATION_PASS_STATE_INITIAL,
-    RENDER_FOUNDATION_PASS_STATE_WAITING,
-    RENDER_FOUNDATION_PASS_STATE_READY,
-};
-
-struct render_foundation_pass_t
-{
-    kan_interned_string_t name;
-    kan_resource_usage_id_t usage_id;
-    enum render_foundation_pass_state_t state;
-    kan_instance_size_t state_frame_id;
-    bool hot_reload_mark;
-    bool hot_reload_ready_mark;
-};
-
-KAN_REFLECTION_STRUCT_META (render_foundation_pass_t)
-UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_cascade_deletion_t
-    render_foundation_pass_id_cascade_deletion = {
-        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"usage_id"}},
-        .child_type_name = "kan_resource_usage_t",
-        .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"usage_id"}},
-};
-
-KAN_REFLECTION_STRUCT_META (render_foundation_pass_t)
-UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_cascade_deletion_t
-    render_foundation_pass_loaded_cascade_deletion = {
-        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"name"}},
-        .child_type_name = "kan_render_foundation_pass_loaded_t",
-        .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"name"}},
-};
-
-enum render_foundation_material_state_t
-{
-    RENDER_FOUNDATION_MATERIAL_STATE_INITIAL,
-    RENDER_FOUNDATION_MATERIAL_STATE_WAITING,
-    RENDER_FOUNDATION_MATERIAL_STATE_READY,
-};
-
-struct render_foundation_material_t
-{
-    kan_interned_string_t name;
-    kan_resource_usage_id_t usage_id;
-    kan_instance_size_t instance_references;
-    enum render_foundation_material_state_t state;
-    kan_instance_size_t state_frame_id;
-    bool hot_reload_mark;
-    bool hot_reload_ready_mark;
-};
-
-KAN_REFLECTION_STRUCT_META (render_foundation_material_t)
-UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_cascade_deletion_t
-    render_foundation_material_usage_id_cascade_deletion = {
-        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"usage_id"}},
-        .child_type_name = "kan_resource_usage_t",
-        .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"usage_id"}},
-};
-
-KAN_REFLECTION_STRUCT_META (render_foundation_material_t)
-UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_cascade_deletion_t
-    render_foundation_material_loaded_cascade_deletion = {
-        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"name"}},
-        .child_type_name = "kan_render_material_loaded_t",
-        .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"name"}},
-};
-
-struct render_foundation_material_instance_usage_on_insert_event_t
+struct render_foundation_material_instance_quality_on_insert_event_t
 {
     kan_interned_string_t material_instance_name;
 };
 
-KAN_REFLECTION_STRUCT_META (kan_render_material_instance_usage_t)
+KAN_REFLECTION_STRUCT_META (kan_render_material_instance_quality_t)
 UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_on_insert_event_t
-    render_foundation_material_instance_usage_on_insert_event = {
-        .event_type = "render_foundation_material_instance_usage_on_insert_event_t",
+    render_foundation_material_instance_quality_on_insert_event = {
+        .event_type = "render_foundation_material_instance_quality_on_insert_event_t",
         .copy_outs_count = 1u,
         .copy_outs =
             (struct kan_repository_copy_out_t[]) {
@@ -223,15 +130,15 @@ UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_on_insert_ev
             },
 };
 
-struct render_foundation_material_instance_usage_on_delete_event_t
+struct render_foundation_material_instance_quality_on_delete_event_t
 {
     kan_interned_string_t material_instance_name;
 };
 
-KAN_REFLECTION_STRUCT_META (kan_render_material_instance_usage_t)
+KAN_REFLECTION_STRUCT_META (kan_render_material_instance_quality_t)
 UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_on_delete_event_t
-    render_foundation_material_instance_usage_on_delete_event = {
-        .event_type = "render_foundation_material_instance_usage_on_delete_event_t",
+    render_foundation_material_instance_quality_on_delete_event = {
+        .event_type = "render_foundation_material_instance_quality_on_delete_event_t",
         .copy_outs_count = 1u,
         .copy_outs =
             (struct kan_repository_copy_out_t[]) {
@@ -245,56 +152,22 @@ UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_on_delete_ev
 
 struct render_foundation_material_instance_texture_usage_t
 {
-    kan_interned_string_t material_instance_name;
-    kan_interned_string_t texture_name;
-    kan_instance_size_t binding;
-    bool bound;
-    kan_render_texture_usage_id_t usage_id;
+    kan_immutable kan_interned_string_t material_instance_name;
+    kan_immutable kan_interned_string_t texture_name;
+    kan_immutable kan_instance_size_t binding;
+    kan_render_texture_quality_id_t quality_id;
+    kan_render_image_t bound_image;
 };
 
 KAN_REFLECTION_STRUCT_META (render_foundation_material_instance_texture_usage_t)
 UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_cascade_deletion_t
     render_foundation_material_instance_texture_usage_cascade_deletion = {
-        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"usage_id"}},
-        .child_type_name = "kan_render_texture_usage_t",
-        .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"usage_id"}},
+        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"quality_id"}},
+        .child_type_name = "kan_render_texture_quality_t",
+        .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"quality_id"}},
 };
 
-enum render_foundation_material_instance_state_t
-{
-    RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_INITIAL = 0u,
-    RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_WAITING_RESOURCE,
-    RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_WAITING_DEPENDENCIES,
-    RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_READY,
-};
-
-struct render_foundation_material_instance_t
-{
-    kan_interned_string_t name;
-    kan_interned_string_t loading_material_name;
-    kan_instance_size_t reference_count;
-    kan_resource_usage_id_t usage_id;
-
-    enum render_foundation_material_instance_state_t state;
-    kan_instance_size_t state_frame_id;
-
-    kan_instance_size_t usages_mip_frame_id;
-    uint8_t usages_best_mip;
-    uint8_t usages_worst_mip;
-
-    bool hot_reload_mark;
-    bool hot_reload_ready_mark;
-};
-
-KAN_REFLECTION_STRUCT_META (render_foundation_material_instance_t)
-UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_cascade_deletion_t
-    render_foundation_material_instance_usage_id_cascade_deletion = {
-        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"usage_id"}},
-        .child_type_name = "kan_resource_usage_t",
-        .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"usage_id"}},
-};
-
-KAN_REFLECTION_STRUCT_META (render_foundation_material_instance_t)
+KAN_REFLECTION_STRUCT_META (kan_render_material_instance_loaded_t)
 UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_cascade_deletion_t
     render_foundation_material_instance_texture_cascade_deletion = {
         .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"name"}},
@@ -303,20 +176,10 @@ UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_cascade_dele
                            .reflection_path = (const char *[]) {"material_instance_name"}},
 };
 
-KAN_REFLECTION_STRUCT_META (render_foundation_material_instance_t)
-UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_cascade_deletion_t
-    render_foundation_material_instance_loaded_cascade_deletion = {
-        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"name"}},
-        .child_type_name = "kan_render_material_instance_loaded_t",
-        .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"name"}},
-};
-
 struct render_foundation_program_core_management_state_t
 {
     KAN_UM_GENERATE_STATE_QUERIES (render_foundation_program_core_management)
     KAN_UM_BIND_STATE (render_foundation_program_core_management, state)
-
-    kan_context_system_t hot_reload_coordination_system;
     kan_allocation_group_t temporary_allocation_group;
 };
 
@@ -324,9 +187,6 @@ UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_DEPLOY (render_foundation_program_
 {
     kan_static_interned_ids_ensure_initialized ();
     kan_cpu_static_sections_ensure_initialized ();
-
-    state->hot_reload_coordination_system =
-        kan_context_query (kan_universe_get_context (universe), KAN_CONTEXT_HOT_RELOAD_COORDINATION_SYSTEM_NAME);
     state->temporary_allocation_group = kan_allocation_group_get_child (kan_allocation_group_stack_get (), "temporary");
 
     kan_workflow_graph_node_depend_on (workflow_node, KAN_RESOURCE_PROVIDER_END_CHECKPOINT);
@@ -334,118 +194,8 @@ UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_DEPLOY (render_foundation_program_
     kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_PROGRAM_MANAGEMENT_BEGIN_CHECKPOINT);
 }
 
-static void advance_pass_from_initial_state (struct render_foundation_program_core_management_state_t *state,
-                                             struct kan_render_program_singleton_t *public,
-                                             struct render_foundation_program_management_singleton_t *private,
-                                             const struct kan_resource_provider_singleton_t *provider,
-                                             struct render_foundation_pass_t *pass);
-
-static void advance_pass_from_waiting_state (struct render_foundation_program_core_management_state_t *state,
-                                             struct kan_render_program_singleton_t *public,
-                                             struct render_foundation_program_management_singleton_t *private,
-                                             const struct kan_resource_provider_singleton_t *provider,
-                                             struct render_foundation_pass_t *pass);
-
-static inline void on_any_resource_update_received (struct render_foundation_program_management_singleton_t *private)
-{
-    switch (private->hot_reload_state)
-    {
-    case RENDER_FOUNDATION_HOT_RELOAD_STATE_NONE:
-        // Format disabled due to strange behavior on Windows.
-        // clang-format off
-        private->hot_reload_state = RENDER_FOUNDATION_HOT_RELOAD_STATE_SETUP_FRAME;
-        // clang-format on
-        break;
-
-    case RENDER_FOUNDATION_HOT_RELOAD_STATE_SETUP_FRAME:
-        break;
-
-    case RENDER_FOUNDATION_HOT_RELOAD_STATE_LOADING_SCOPE:
-    case RENDER_FOUNDATION_HOT_RELOAD_STATE_APPLICATION_FRAME:
-        // Mismanaged hot reload routine, should not be possible.
-        KAN_ASSERT (false)
-        break;
-    }
-
-    ++private->hot_reload_blocks;
-}
-
-static void on_pass_resource_updated (struct render_foundation_program_core_management_state_t *state,
-                                      struct kan_render_program_singleton_t *public,
-                                      struct render_foundation_program_management_singleton_t *private,
-                                      const struct kan_resource_provider_singleton_t *provider,
-                                      kan_interned_string_t pass_name)
-{
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (pass, render_foundation_pass_t, name, &pass_name)
-    if (!pass)
-    {
-        return;
-    }
-
-    on_any_resource_update_received (private);
-    if (KAN_TYPED_ID_32_IS_VALID (pass->usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_resource_usage_t, usage_id, &pass->usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-        pass->usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-    }
-
-    pass->state = RENDER_FOUNDATION_PASS_STATE_INITIAL;
-    pass->state_frame_id = provider->logic_deduplication_frame_id;
-    pass->hot_reload_mark = true;
-    pass->hot_reload_ready_mark = false;
-
-    ++public->pass_loading_counter;
-    advance_pass_from_initial_state (state, public, private, provider, pass);
-}
-
-static inline void on_pass_registered (struct render_foundation_program_core_management_state_t *state,
-                                       struct kan_render_program_singleton_t *public,
-                                       struct render_foundation_program_management_singleton_t *private,
-                                       const struct kan_resource_provider_singleton_t *provider,
-                                       kan_interned_string_t pass_name)
-{
-    KAN_UMO_INDEXED_INSERT (pass, render_foundation_pass_t)
-    {
-        pass->name = pass_name;
-        pass->usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-        pass->state = RENDER_FOUNDATION_PASS_STATE_INITIAL;
-        pass->state_frame_id = provider->logic_deduplication_frame_id;
-        pass->hot_reload_mark = false;
-        pass->hot_reload_ready_mark = false;
-
-        ++public->pass_loading_counter;
-        advance_pass_from_initial_state (state, public, private, provider, pass);
-    }
-}
-
-static void advance_pass_from_initial_state (struct render_foundation_program_core_management_state_t *state,
-                                             struct kan_render_program_singleton_t *public,
-                                             struct render_foundation_program_management_singleton_t *private,
-                                             const struct kan_resource_provider_singleton_t *provider,
-                                             struct render_foundation_pass_t *pass)
-{
-    KAN_LOG (render_foundation_program, KAN_LOG_DEBUG,
-             "Attempting to advance pass \"%s\" state from initial to waiting.", pass->name)
-
-    pass->state_frame_id = provider->logic_deduplication_frame_id;
-    pass->state = RENDER_FOUNDATION_PASS_STATE_WAITING; // We will always advance from initial state.
-
-    KAN_ASSERT (!KAN_TYPED_ID_32_IS_VALID (pass->usage_id))
-    pass->usage_id = kan_next_resource_usage_id (provider);
-
-    KAN_UMO_INDEXED_INSERT (usage, kan_resource_usage_t)
-    {
-        usage->usage_id = pass->usage_id;
-        usage->type = KAN_STATIC_INTERNED_ID_GET (kan_resource_render_pass_t);
-        usage->name = pass->name;
-        usage->priority = KAN_UNIVERSE_RENDER_FOUNDATION_PASS_PRIORITY;
-    }
-
-    advance_pass_from_waiting_state (state, public, private, provider, pass);
-}
-
 static void load_pass (struct render_foundation_program_core_management_state_t *state,
+                       const struct kan_render_context_singleton_t *render_context,
                        const struct kan_resource_render_pass_t *resource,
                        struct kan_render_foundation_pass_loaded_t *pass)
 {
@@ -462,7 +212,6 @@ static void load_pass (struct render_foundation_program_core_management_state_t 
             &((struct kan_render_foundation_pass_variant_t *) pass->variants.data)[variant_index]);
     }
 
-    KAN_UMI_SINGLETON_READ (render_context, kan_render_context_singleton_t)
     pass->attachments.size = 0u;
     pass->variants.size = 0u;
 
@@ -479,6 +228,9 @@ static void load_pass (struct render_foundation_program_core_management_state_t 
     {
         KAN_LOG (render_foundation_program, KAN_LOG_ERROR, "Failed to create render pass from resources \"%s\".",
                  pass->name)
+
+        // Event needs to be sent even on failure as initial pass was destroyed.
+        KAN_UMO_EVENT_INSERT_INIT (kan_render_foundation_pass_updated_event_t) {.name = pass->name};
         return;
     }
 
@@ -528,165 +280,6 @@ static void load_pass (struct render_foundation_program_core_management_state_t 
     }
 
     KAN_UMO_EVENT_INSERT_INIT (kan_render_foundation_pass_updated_event_t) {.name = pass->name};
-}
-
-#define HELPER_ACKNOWLEDGE_POSSIBLE_BLOCK_DURING_HOT_RELOAD(RESOURCE)                                                  \
-    switch (private->hot_reload_state)                                                                                 \
-    {                                                                                                                  \
-    case RENDER_FOUNDATION_HOT_RELOAD_STATE_NONE:                                                                      \
-    case RENDER_FOUNDATION_HOT_RELOAD_STATE_APPLICATION_FRAME:                                                         \
-        break;                                                                                                         \
-                                                                                                                       \
-    case RENDER_FOUNDATION_HOT_RELOAD_STATE_SETUP_FRAME:                                                               \
-    case RENDER_FOUNDATION_HOT_RELOAD_STATE_LOADING_SCOPE:                                                             \
-    {                                                                                                                  \
-        if ((RESOURCE)->hot_reload_mark)                                                                               \
-        {                                                                                                              \
-            if (!(RESOURCE)->hot_reload_ready_mark)                                                                    \
-            {                                                                                                          \
-                KAN_ASSERT (private->hot_reload_blocks > 0u)                                                           \
-                --private->hot_reload_blocks;                                                                          \
-                (RESOURCE)->hot_reload_ready_mark = true;                                                              \
-            }                                                                                                          \
-                                                                                                                       \
-            return;                                                                                                    \
-        }                                                                                                              \
-                                                                                                                       \
-        break;                                                                                                         \
-    }                                                                                                                  \
-    }
-
-static void advance_pass_from_waiting_state (struct render_foundation_program_core_management_state_t *state,
-                                             struct kan_render_program_singleton_t *public,
-                                             struct render_foundation_program_management_singleton_t *private,
-                                             const struct kan_resource_provider_singleton_t *provider,
-                                             struct render_foundation_pass_t *pass)
-{
-    KAN_LOG (render_foundation_program, KAN_LOG_DEBUG, "Attempting to advance pass \"%s\" state from waiting to ready.",
-             pass->name)
-
-    pass->state_frame_id = provider->logic_deduplication_frame_id;
-    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_render_pass_t, &pass->name)
-
-    if (!resource)
-    {
-        // Still loading.
-        return;
-    }
-
-    HELPER_ACKNOWLEDGE_POSSIBLE_BLOCK_DURING_HOT_RELOAD (pass)
-    pass->state = RENDER_FOUNDATION_PASS_STATE_READY;
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_loaded, kan_render_foundation_pass_loaded_t, name, &pass->name)
-
-    if (existing_loaded)
-    {
-        load_pass (state, resource, existing_loaded);
-    }
-    else
-    {
-        KAN_UMO_INDEXED_INSERT (new_loaded, kan_render_foundation_pass_loaded_t)
-        {
-            new_loaded->name = pass->name;
-            load_pass (state, resource, new_loaded);
-        }
-    }
-
-    KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_resource_usage_t, usage_id, &pass->usage_id)
-    KAN_UM_ACCESS_DELETE (usage);
-    pass->usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-
-    KAN_ASSERT (public->pass_loading_counter > 0u)
-    --public->pass_loading_counter;
-    KAN_LOG (render_foundation_program, KAN_LOG_DEBUG, "Advanced pass \"%s\" state to ready.", pass->name)
-}
-
-static void advance_material_from_initial_state (struct render_foundation_program_core_management_state_t *state,
-                                                 struct kan_render_program_singleton_t *public,
-                                                 struct render_foundation_program_management_singleton_t *private,
-                                                 const struct kan_resource_provider_singleton_t *provider,
-                                                 struct render_foundation_material_t *material);
-
-static void advance_material_from_waiting_state (struct render_foundation_program_core_management_state_t *state,
-                                                 struct kan_render_program_singleton_t *public,
-                                                 struct render_foundation_program_management_singleton_t *private,
-                                                 const struct kan_resource_provider_singleton_t *provider,
-                                                 struct render_foundation_material_t *material);
-
-static void on_material_resource_updated (struct render_foundation_program_core_management_state_t *state,
-                                          struct kan_render_program_singleton_t *public,
-                                          struct render_foundation_program_management_singleton_t *private,
-                                          const struct kan_resource_provider_singleton_t *provider,
-                                          kan_interned_string_t material_name)
-{
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (material, render_foundation_material_t, name, &material_name)
-    if (!material)
-    {
-        return;
-    }
-
-    on_any_resource_update_received (private);
-    if (KAN_TYPED_ID_32_IS_VALID (material->usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_resource_usage_t, usage_id, &material->usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-        material->usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-    }
-
-    material->state = RENDER_FOUNDATION_MATERIAL_STATE_INITIAL;
-    material->state_frame_id = provider->logic_deduplication_frame_id;
-    material->hot_reload_mark = true;
-    material->hot_reload_ready_mark = false;
-
-    ++public->material_loading_counter;
-    advance_material_from_initial_state (state, public, private, provider, material);
-}
-
-static inline void on_material_registered (struct render_foundation_program_core_management_state_t *state,
-                                           struct kan_render_program_singleton_t *public,
-                                           struct render_foundation_program_management_singleton_t *private,
-                                           const struct kan_resource_provider_singleton_t *provider,
-                                           kan_interned_string_t material_name)
-{
-    KAN_UMO_INDEXED_INSERT (material, render_foundation_material_t)
-    {
-        material->name = material_name;
-        material->usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-        material->instance_references = 0u;
-        material->state = RENDER_FOUNDATION_MATERIAL_STATE_INITIAL;
-        material->state_frame_id = provider->logic_deduplication_frame_id;
-        material->hot_reload_mark = false;
-        material->hot_reload_ready_mark = false;
-
-        ++public->material_loading_counter;
-        advance_material_from_initial_state (state, public, private, provider, material);
-    }
-}
-
-static void advance_material_from_initial_state (struct render_foundation_program_core_management_state_t *state,
-                                                 struct kan_render_program_singleton_t *public,
-                                                 struct render_foundation_program_management_singleton_t *private,
-                                                 const struct kan_resource_provider_singleton_t *provider,
-                                                 struct render_foundation_material_t *material)
-{
-    KAN_LOG (render_foundation_program, KAN_LOG_DEBUG,
-             "Attempting to advance material \"%s\" state from initial to waiting.", material->name)
-
-    material->state_frame_id = provider->logic_deduplication_frame_id;
-    material->state = RENDER_FOUNDATION_MATERIAL_STATE_WAITING; // We will always advance from initial state.
-
-    KAN_ASSERT (!KAN_TYPED_ID_32_IS_VALID (material->usage_id))
-    material->usage_id = kan_next_resource_usage_id (provider);
-
-    KAN_UMO_INDEXED_INSERT (usage, kan_resource_usage_t)
-    {
-        usage->usage_id = material->usage_id;
-        usage->type = KAN_STATIC_INTERNED_ID_GET (kan_resource_material_t);
-        usage->name = material->name;
-        usage->priority = material->instance_references > 0u ? KAN_UNIVERSE_RENDER_FOUNDATION_MATERIAL_USED_PRIORITY :
-                                                               KAN_UNIVERSE_RENDER_FOUNDATION_MATERIAL_BASE_PRIORITY;
-    }
-
-    advance_material_from_waiting_state (state, public, private, provider, material);
 }
 
 static void add_attributes_from_source (const struct kan_rpl_meta_attribute_source_t *source,
@@ -935,24 +528,23 @@ static inline enum kan_render_blend_operation_t convert_blend_operation (enum ka
 }
 
 static void load_material (struct render_foundation_program_core_management_state_t *state,
-                           struct render_foundation_material_t *material,
+                           const struct kan_render_context_singleton_t *render_context,
                            const struct kan_resource_material_t *resource,
                            struct kan_render_material_loaded_t *loaded)
 {
     KAN_CPU_SCOPED_STATIC_SECTION (load_material)
+    const kan_interned_string_t name = loaded->name;
     // Not the most effective way to reset material content technically,
     // but should be rare enough for us to not care about it at all.
     kan_render_material_loaded_shutdown (loaded);
     kan_render_material_loaded_init (loaded);
-
-    KAN_UMI_SINGLETON_READ (render_context, kan_render_context_singleton_t)
-    loaded->name = material->name;
+    loaded->name = name;
 
     char tracking_name_buffer[KAN_UNIVERSE_RENDER_FOUNDATION_NAME_BUFFER_LENGTH];
     if (resource->set_material.buffers.size > 0u || resource->set_material.samplers.size > 0u ||
         resource->set_material.images.size > 0u)
     {
-        snprintf (tracking_name_buffer, sizeof (tracking_name_buffer), "%s::material_set", material->name);
+        snprintf (tracking_name_buffer, sizeof (tracking_name_buffer), "%s::material_set", loaded->name);
         loaded->set_material = construct_parameter_set_layout_from_meta (
             render_context->render_context, &resource->set_material, kan_string_intern (tracking_name_buffer),
             state->temporary_allocation_group);
@@ -960,14 +552,14 @@ static void load_material (struct render_foundation_program_core_management_stat
         if (!KAN_HANDLE_IS_VALID (loaded->set_material))
         {
             KAN_LOG (render_foundation_program, KAN_LOG_ERROR,
-                     "Failed to create material parameter set layout for material \"%s\".", material->name)
+                     "Failed to create material parameter set layout for material \"%s\".", loaded->name)
         }
     }
 
     if (resource->set_object.buffers.size > 0u || resource->set_object.samplers.size > 0u ||
         resource->set_object.images.size > 0u)
     {
-        snprintf (tracking_name_buffer, sizeof (tracking_name_buffer), "%s::object_set", material->name);
+        snprintf (tracking_name_buffer, sizeof (tracking_name_buffer), "%s::object_set", loaded->name);
         loaded->set_object = construct_parameter_set_layout_from_meta (
             render_context->render_context, &resource->set_object, kan_string_intern (tracking_name_buffer),
             state->temporary_allocation_group);
@@ -975,14 +567,14 @@ static void load_material (struct render_foundation_program_core_management_stat
         if (!KAN_HANDLE_IS_VALID (loaded->set_object))
         {
             KAN_LOG (render_foundation_program, KAN_LOG_ERROR,
-                     "Failed to create object parameter set layout for material \"%s\".", material->name)
+                     "Failed to create object parameter set layout for material \"%s\".", loaded->name)
         }
     }
 
     if (resource->set_shared.buffers.size > 0u || resource->set_shared.samplers.size > 0u ||
         resource->set_shared.images.size > 0u)
     {
-        snprintf (tracking_name_buffer, sizeof (tracking_name_buffer), "%s::shared_set", material->name);
+        snprintf (tracking_name_buffer, sizeof (tracking_name_buffer), "%s::shared_set", loaded->name);
         loaded->set_shared = construct_parameter_set_layout_from_meta (
             render_context->render_context, &resource->set_shared, kan_string_intern (tracking_name_buffer),
             state->temporary_allocation_group);
@@ -990,7 +582,7 @@ static void load_material (struct render_foundation_program_core_management_stat
         if (!KAN_HANDLE_IS_VALID (loaded->set_shared))
         {
             KAN_LOG (render_foundation_program, KAN_LOG_ERROR,
-                     "Failed to create shared parameter set layout for material \"%s\".", material->name)
+                     "Failed to create shared parameter set layout for material \"%s\".", loaded->name)
         }
     }
 
@@ -1089,9 +681,9 @@ static void load_material (struct render_foundation_program_core_management_stat
         }
     }
 
+    // We always just use active priority as we'll lock the commit until everything is compiled.
     const enum kan_render_pipeline_compilation_priority_t pipeline_priority =
-        material->instance_references > 0u ? KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_ACTIVE :
-                                             KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_CACHE;
+        KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_ACTIVE;
     kan_dynamic_array_set_capacity (&loaded->pipelines, resource->pipelines.size);
 
     for (kan_memory_size_t index = 0u; index < resource->pipelines.size; ++index)
@@ -1099,7 +691,7 @@ static void load_material (struct render_foundation_program_core_management_stat
         const struct kan_resource_material_pipeline_t *input =
             &((struct kan_resource_material_pipeline_t *) resource->pipelines.data)[index];
 
-        snprintf (tracking_name_buffer, sizeof (tracking_name_buffer), "%s::%s::%s", material->name, input->pass_name,
+        snprintf (tracking_name_buffer, sizeof (tracking_name_buffer), "%s::%s::%s", loaded->name, input->pass_name,
                   input->variant_name ? input->variant_name : "<base>");
         const kan_interned_string_t tracking_name = kan_string_intern (tracking_name_buffer);
 
@@ -1109,7 +701,7 @@ static void load_material (struct render_foundation_program_core_management_stat
             KAN_LOG (render_foundation_program, KAN_LOG_ERROR,
                      "Failed to create pipeline for material \"%s\" for pass \"%s\" for variant \"%s\" as pass is not "
                      "available in runtime for some reason.",
-                     material->name, input->pass_name, input->variant_name ? input->variant_name : "<base>")
+                     loaded->name, input->pass_name, input->variant_name ? input->variant_name : "<base>")
             continue;
         }
 
@@ -1118,7 +710,7 @@ static void load_material (struct render_foundation_program_core_management_stat
             KAN_LOG (render_foundation_program, KAN_LOG_ERROR,
                      "Failed to create pipeline for material \"%s\" for pass \"%s\" for variant \"%s\" as its code "
                      "format is not supported.",
-                     material->name, input->pass_name, input->variant_name ? input->variant_name : "<base>")
+                     loaded->name, input->pass_name, input->variant_name ? input->variant_name : "<base>")
             continue;
         }
 
@@ -1130,7 +722,7 @@ static void load_material (struct render_foundation_program_core_management_stat
             KAN_LOG (render_foundation_program, KAN_LOG_ERROR,
                      "Failed to create pipeline for material \"%s\" for pass \"%s\" for variant \"%s\" as code module "
                      "creation has failed.",
-                     material->name, input->pass_name, input->variant_name ? input->variant_name : "<base>")
+                     loaded->name, input->pass_name, input->variant_name ? input->variant_name : "<base>")
             continue;
         }
 
@@ -1351,7 +943,7 @@ static void load_material (struct render_foundation_program_core_management_stat
             KAN_LOG (render_foundation_program, KAN_LOG_ERROR,
                      "Failed to create pipeline for material \"%s\" for pass \"%s\" for variant \"%s\" as pipeline "
                      "creation function has failed.",
-                     material->name, input->pass_name, input->variant_name ? input->variant_name : "<base>")
+                     loaded->name, input->pass_name, input->variant_name ? input->variant_name : "<base>")
             continue;
         }
 
@@ -1390,52 +982,7 @@ static void load_material (struct render_foundation_program_core_management_stat
 
     kan_rpl_meta_set_bindings_shutdown (&loaded->set_shared_bindings);
     kan_rpl_meta_set_bindings_init_copy (&loaded->set_shared_bindings, &resource->set_shared);
-    KAN_UMO_EVENT_INSERT_INIT (kan_render_material_updated_event_t) {.name = material->name};
-}
-
-static void advance_material_from_waiting_state (struct render_foundation_program_core_management_state_t *state,
-                                                 struct kan_render_program_singleton_t *public,
-                                                 struct render_foundation_program_management_singleton_t *private,
-                                                 const struct kan_resource_provider_singleton_t *provider,
-                                                 struct render_foundation_material_t *material)
-{
-    KAN_LOG (render_foundation_program, KAN_LOG_DEBUG,
-             "Attempting to advance material \"%s\" state from waiting to ready.", material->name)
-
-    material->state_frame_id = provider->logic_deduplication_frame_id;
-    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_material_t, &material->name)
-
-    if (!resource)
-    {
-        // Still loading.
-        return;
-    }
-
-    HELPER_ACKNOWLEDGE_POSSIBLE_BLOCK_DURING_HOT_RELOAD (material)
-    material->state = RENDER_FOUNDATION_MATERIAL_STATE_READY;
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_loaded, kan_render_material_loaded_t, name, &material->name)
-
-    if (existing_loaded)
-    {
-        load_material (state, material, resource, existing_loaded);
-    }
-    else
-    {
-        KAN_UMO_INDEXED_INSERT (new_loaded, kan_render_material_loaded_t)
-        {
-            new_loaded->name = material->name;
-            load_material (state, material, resource, new_loaded);
-        }
-    }
-
-    KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_resource_usage_t, usage_id, &material->usage_id)
-    KAN_UM_ACCESS_DELETE (usage);
-    material->usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-
-    KAN_ASSERT (public->material_loading_counter > 0u)
-    --public->material_loading_counter;
-
-    KAN_LOG (render_foundation_program, KAN_LOG_DEBUG, "Advanced material \"%s\" state to ready.", material->name)
+    KAN_UMO_EVENT_INSERT_INIT (kan_render_material_updated_event_t) {.name = loaded->name};
 }
 
 UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_EXECUTE (render_foundation_program_core_management)
@@ -1447,122 +994,78 @@ UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_EXECUTE (render_foundation_program
     }
 
     KAN_UMI_SINGLETON_READ (provider, kan_resource_provider_singleton_t)
-    if (!provider->scan_done)
+    if (provider->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_COMMIT)
     {
-        return;
-    }
-
-    KAN_UMI_SINGLETON_WRITE (public, kan_render_program_singleton_t)
-    KAN_UMI_SINGLETON_WRITE (private, render_foundation_program_management_singleton_t)
-
-    if (private->hot_reload_state == RENDER_FOUNDATION_HOT_RELOAD_STATE_SETUP_FRAME)
-    {
-        private->hot_reload_state = RENDER_FOUNDATION_HOT_RELOAD_STATE_LOADING_SCOPE;
-    }
-
-    if (private->hot_reload_state == RENDER_FOUNDATION_HOT_RELOAD_STATE_APPLICATION_FRAME)
-    {
-        private->hot_reload_state = RENDER_FOUNDATION_HOT_RELOAD_STATE_NONE;
-    }
-
-    if (private->hot_reload_state == RENDER_FOUNDATION_HOT_RELOAD_STATE_LOADING_SCOPE &&
-        private->hot_reload_blocks == 0u)
-    {
-        private->hot_reload_state = RENDER_FOUNDATION_HOT_RELOAD_STATE_APPLICATION_FRAME;
-        KAN_UML_SIGNAL_UPDATE (pass, render_foundation_pass_t, hot_reload_mark, true)
+        KAN_UML_RESOURCE_LOADED_EVENT_FETCH (pass_loaded_event, kan_resource_render_pass_t)
         {
-            KAN_ASSERT (pass->hot_reload_ready_mark)
-            KAN_ASSERT (pass->state == RENDER_FOUNDATION_PASS_STATE_WAITING)
-            advance_pass_from_waiting_state (state, public, private, provider, pass);
-            pass->hot_reload_mark = false;
-            pass->hot_reload_ready_mark = false;
-        }
+            KAN_UMI_RESOURCE_RETRIEVE_FRESH_LOADED (resource, kan_resource_render_pass_t, &pass_loaded_event->name)
+            KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_loaded, kan_render_foundation_pass_loaded_t, name,
+                                           &pass_loaded_event->name)
 
-        KAN_UML_SIGNAL_UPDATE (material, render_foundation_material_t, hot_reload_mark, true)
-        {
-            KAN_ASSERT (material->hot_reload_ready_mark)
-            KAN_ASSERT (material->state == RENDER_FOUNDATION_MATERIAL_STATE_WAITING)
-            advance_material_from_waiting_state (state, public, private, provider, material);
-            material->hot_reload_mark = false;
-            material->hot_reload_ready_mark = false;
-        }
-    }
-
-    // Delay hot reload rebuilds until our segmented synchronized hot reload is done.
-    if (KAN_HANDLE_IS_VALID (state->hot_reload_coordination_system) &&
-        kan_hot_reload_coordination_system_is_scheduled (state->hot_reload_coordination_system) &&
-        private->hot_reload_state != RENDER_FOUNDATION_HOT_RELOAD_STATE_NONE)
-    {
-        kan_hot_reload_coordination_system_delay (state->hot_reload_coordination_system);
-    }
-
-    KAN_UML_RESOURCE_UPDATED_EVENT_FETCH (pass_updated_event, kan_resource_render_pass_t)
-    {
-        on_pass_resource_updated (state, public, private, provider, pass_updated_event->name);
-    }
-
-    KAN_UML_RESOURCE_UPDATED_EVENT_FETCH (material_updated_event, kan_resource_material_t)
-    {
-        on_material_resource_updated (state, public, private, provider, material_updated_event->name);
-    }
-
-    KAN_UML_RESOURCE_REGISTERED_EVENT_FETCH (pass_registered, kan_resource_render_pass_t)
-    {
-        on_pass_registered (state, public, private, provider, pass_registered->name);
-    }
-
-    KAN_UML_RESOURCE_LOADED_EVENT_FETCH (pass_loaded_event, kan_resource_render_pass_t)
-    {
-        KAN_UMI_VALUE_UPDATE_REQUIRED (pass, render_foundation_pass_t, name, &pass_loaded_event->name)
-        if (pass->state_frame_id != provider->logic_deduplication_frame_id)
-        {
-            switch (pass->state)
+            if (existing_loaded)
             {
-            case RENDER_FOUNDATION_PASS_STATE_INITIAL:
-            case RENDER_FOUNDATION_PASS_STATE_READY:
-                KAN_ASSERT_FORMATTED (false,
-                                      "Render pass \"%s\" in state %u received resource loaded event, which is totally "
-                                      "unexpected in this state.",
-                                      pass->name, (unsigned int) pass->state)
-                break;
-
-            case RENDER_FOUNDATION_PASS_STATE_WAITING:
-                advance_pass_from_waiting_state (state, public, private, provider, pass);
-                break;
+                load_pass (state, render_context, resource, existing_loaded);
+            }
+            else
+            {
+                KAN_UMO_INDEXED_INSERT (new_loaded, kan_render_foundation_pass_loaded_t)
+                {
+                    new_loaded->name = pass_loaded_event->name;
+                    load_pass (state, render_context, resource, new_loaded);
+                }
             }
         }
-    }
 
-    if (public->pass_loading_counter > 0u && private->hot_reload_state == RENDER_FOUNDATION_HOT_RELOAD_STATE_NONE)
-    {
-        // We do not start loading materials unless all passes are loaded.
-        // Hot reload is a special case as we need to schedule reload of all the materials too.
-        return;
-    }
+        // We do not need to manually update materials after pass updates as if pass was updated
+        // then material would always be updated by build system as well.
 
-    KAN_UML_RESOURCE_REGISTERED_EVENT_FETCH (material_registered, kan_resource_material_t)
-    {
-        on_material_registered (state, public, private, provider, material_registered->name);
-    }
-
-    KAN_UML_RESOURCE_LOADED_EVENT_FETCH (material_loaded_event, kan_resource_material_t)
-    {
-        KAN_UMI_VALUE_UPDATE_REQUIRED (material, render_foundation_material_t, name, &material_loaded_event->name)
-        if (material->state_frame_id != provider->logic_deduplication_frame_id)
+        KAN_UML_RESOURCE_LOADED_EVENT_FETCH (material_loaded_event, kan_resource_material_t)
         {
-            switch (material->state)
-            {
-            case RENDER_FOUNDATION_MATERIAL_STATE_INITIAL:
-            case RENDER_FOUNDATION_MATERIAL_STATE_READY:
-                KAN_ASSERT_FORMATTED (false,
-                                      "Render material \"%s\" in state %u received resource loaded event, which is "
-                                      "totally unexpected in this state.",
-                                      material->name, (unsigned int) material->state)
-                break;
+            KAN_UMI_RESOURCE_RETRIEVE_FRESH_LOADED (resource, kan_resource_material_t, &material_loaded_event->name)
+            KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_loaded, kan_render_material_loaded_t, name,
+                                           &material_loaded_event->name)
 
-            case RENDER_FOUNDATION_MATERIAL_STATE_WAITING:
-                advance_material_from_waiting_state (state, public, private, provider, material);
-                break;
+            if (existing_loaded)
+            {
+                load_material (state, render_context, resource, existing_loaded);
+            }
+            else
+            {
+                KAN_UMO_INDEXED_INSERT (new_loaded, kan_render_material_loaded_t)
+                {
+                    new_loaded->name = material_loaded_event->name;
+                    load_material (state, render_context, resource, new_loaded);
+                }
+            }
+        }
+
+        if (!kan_render_context_are_pipelines_compiled (render_context->render_context))
+        {
+            kan_resource_provider_singleton_extend_commit (provider);
+        }
+    }
+
+    if (provider->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_NONE)
+    {
+        KAN_UML_RESOURCE_UNLOAD_PLANNED_EVENT_FETCH (pass_unload_event, kan_resource_render_pass_t)
+        {
+            KAN_UMI_VALUE_DELETE_OPTIONAL (existing_loaded, kan_render_foundation_pass_loaded_t, name,
+                                           &pass_unload_event->name)
+
+            if (existing_loaded)
+            {
+                KAN_UM_ACCESS_DELETE (existing_loaded);
+            }
+        }
+
+        KAN_UML_RESOURCE_UNLOAD_PLANNED_EVENT_FETCH (material_unload_event, kan_resource_material_t)
+        {
+            KAN_UMI_VALUE_DELETE_OPTIONAL (existing_loaded, kan_render_material_loaded_t, name,
+                                           &material_unload_event->name)
+
+            if (existing_loaded)
+            {
+                KAN_UM_ACCESS_DELETE (existing_loaded);
             }
         }
     }
@@ -1572,8 +1075,6 @@ struct render_foundation_material_instance_management_state_t
 {
     KAN_UM_GENERATE_STATE_QUERIES (render_foundation_material_instance_management)
     KAN_UM_BIND_STATE (render_foundation_material_instance_management, state)
-
-    kan_context_system_t render_backend_system;
     kan_allocation_group_t temporary_allocation_group;
 };
 
@@ -1581,9 +1082,6 @@ UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_DEPLOY (render_foundation_material
 {
     kan_static_interned_ids_ensure_initialized ();
     kan_cpu_static_sections_ensure_initialized ();
-
-    state->render_backend_system =
-        kan_context_query (kan_universe_get_context (universe), KAN_CONTEXT_RENDER_BACKEND_SYSTEM_NAME);
     state->temporary_allocation_group = kan_allocation_group_get_child (kan_allocation_group_stack_get (), "temporary");
 
     kan_workflow_graph_node_depend_on (workflow_node, KAN_RESOURCE_PROVIDER_END_CHECKPOINT);
@@ -1592,372 +1090,73 @@ UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_DEPLOY (render_foundation_material
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_RENDER_FOUNDATION_PROGRAM_MANAGEMENT_END_CHECKPOINT);
 }
 
-static void recalculate_usages_mip (struct render_foundation_material_instance_management_state_t *state,
-                                    struct render_foundation_material_instance_t *material_instance)
+static void update_material_instance_quality (struct render_foundation_material_instance_management_state_t *state,
+                                              const struct kan_resource_provider_singleton_t *provider,
+                                              struct kan_render_material_instance_loaded_t *loaded)
 {
-    material_instance->usages_best_mip = KAN_INT_MAX (typeof (material_instance->usages_best_mip));
-    material_instance->usages_worst_mip = 0u;
+    const kan_instance_size_t old_value = loaded->requested_best_mip;
+    loaded->requested_best_mip = KAN_INT_MAX (kan_instance_size_t);
+    loaded->requested_best_mip_frame_id = provider->logic_deduplication_frame_id;
 
-    KAN_UML_VALUE_READ (usage, kan_render_material_instance_usage_t, name, &material_instance->name)
+    KAN_UML_VALUE_READ (quality, kan_render_material_instance_quality_t, name, &loaded->name)
     {
-        material_instance->usages_best_mip = KAN_MIN (material_instance->usages_best_mip, usage->best_advised_mip);
-        material_instance->usages_worst_mip = KAN_MAX (material_instance->usages_worst_mip, usage->worst_advised_mip);
-    }
-}
-
-static void advance_material_instance_from_initial_state (
-    struct render_foundation_material_instance_management_state_t *state,
-    struct kan_render_program_singleton_t *public,
-    struct render_foundation_program_management_singleton_t *private,
-    const struct kan_resource_provider_singleton_t *provider,
-    struct render_foundation_material_instance_t *material_instance);
-
-static void advance_material_instance_from_waiting_resource_state (
-    struct render_foundation_material_instance_management_state_t *state,
-    struct kan_render_program_singleton_t *public,
-    struct render_foundation_program_management_singleton_t *private,
-    const struct kan_resource_provider_singleton_t *provider,
-    struct render_foundation_material_instance_t *material_instance);
-
-static void advance_material_instance_from_waiting_dependencies_state (
-    struct render_foundation_material_instance_management_state_t *state,
-    struct kan_render_program_singleton_t *public,
-    struct render_foundation_program_management_singleton_t *private,
-    const struct kan_resource_provider_singleton_t *provider,
-    struct render_foundation_material_instance_t *material_instance);
-
-static void remap_material_link_priorities (struct render_foundation_material_instance_management_state_t *state,
-                                            const struct kan_resource_provider_singleton_t *provider,
-                                            struct render_foundation_material_t *material)
-{
-    KAN_CPU_SCOPED_STATIC_SECTION (remap_material_link_priorities)
-    if (KAN_TYPED_ID_32_IS_VALID (material->usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage_to_detach, kan_resource_usage_t, usage_id, &material->usage_id)
-        KAN_UM_ACCESS_DELETE (usage_to_detach);
-        material->usage_id = kan_next_resource_usage_id (provider);
-
-        KAN_UMO_INDEXED_INSERT (usage, kan_resource_usage_t)
-        {
-            usage->usage_id = material->usage_id;
-            usage->type = KAN_STATIC_INTERNED_ID_GET (kan_resource_material_t);
-            usage->name = material->name;
-            usage->priority = material->instance_references > 0u ?
-                                  KAN_UNIVERSE_RENDER_FOUNDATION_MATERIAL_USED_PRIORITY :
-                                  KAN_UNIVERSE_RENDER_FOUNDATION_MATERIAL_BASE_PRIORITY;
-        }
+        loaded->requested_best_mip = KAN_MIN (loaded->requested_best_mip, quality->best_advised_mip);
     }
 
-    KAN_UMI_VALUE_READ_OPTIONAL (loaded, kan_render_material_loaded_t, name, &material->name)
-    if (!loaded)
+    if (old_value == loaded->requested_best_mip)
     {
         return;
     }
 
-    const enum kan_render_pipeline_compilation_priority_t pipeline_priority =
-        material->instance_references > 0u ? KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_ACTIVE :
-                                             KAN_RENDER_PIPELINE_COMPILATION_PRIORITY_CACHE;
-
-    for (kan_memory_size_t index = 0u; index < loaded->pipelines.size; ++index)
-    {
-        const struct kan_render_material_pipeline_t *pipeline =
-            &((struct kan_render_material_pipeline_t *) loaded->pipelines.data)[index];
-        kan_render_graphics_pipeline_change_compilation_priority (pipeline->pipeline, pipeline_priority);
-    }
-}
-
-static void add_material_link_from_instance (struct render_foundation_material_instance_management_state_t *state,
-                                             const struct kan_resource_provider_singleton_t *provider,
-                                             kan_interned_string_t material_name)
-{
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (material, render_foundation_material_t, name, &material_name)
-    if (!material)
-    {
-        return;
-    }
-
-    ++material->instance_references;
-    if (material->instance_references == 1u)
-    {
-        remap_material_link_priorities (state, provider, material);
-    }
-}
-
-static void remove_material_link_from_instance (struct render_foundation_material_instance_management_state_t *state,
-                                                const struct kan_resource_provider_singleton_t *provider,
-                                                kan_interned_string_t material_name)
-{
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (material, render_foundation_material_t, name, &material_name)
-    if (!material)
-    {
-        return;
-    }
-
-    KAN_ASSERT (material->instance_references > 0u)
-    --material->instance_references;
-
-    if (material->instance_references == 0u)
-    {
-        remap_material_link_priorities (state, provider, material);
-    }
-}
-
-static void on_material_instance_resource_updated (struct render_foundation_material_instance_management_state_t *state,
-                                                   struct kan_render_program_singleton_t *public,
-                                                   struct render_foundation_program_management_singleton_t *private,
-                                                   const struct kan_resource_provider_singleton_t *provider,
-                                                   kan_interned_string_t material_instance_name)
-{
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (material_instance, render_foundation_material_instance_t, name,
-                                   &material_instance_name)
-    if (!material_instance)
-    {
-        return;
-    }
-
-    on_any_resource_update_received (private);
-    if (material_instance->loading_material_name)
-    {
-        remove_material_link_from_instance (state, provider, material_instance->loading_material_name);
-        material_instance->loading_material_name = NULL;
-    }
-
-    if (KAN_TYPED_ID_32_IS_VALID (material_instance->usage_id))
-    {
-        KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_resource_usage_t, usage_id, &material_instance->usage_id)
-        KAN_UM_ACCESS_DELETE (usage);
-        material_instance->usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-    }
-
-    KAN_UML_VALUE_DELETE (texture_usage, render_foundation_material_instance_texture_usage_t, material_instance_name,
-                          &material_instance_name)
-    {
-        if (!texture_usage->bound)
-        {
-            KAN_UM_ACCESS_DELETE (texture_usage);
-        }
-    }
-
-    material_instance->state = RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_INITIAL;
-    material_instance->state_frame_id = provider->logic_deduplication_frame_id;
-    material_instance->hot_reload_mark = true;
-    material_instance->hot_reload_ready_mark = false;
-
-    ++public->material_instance_loading_counter;
-    advance_material_instance_from_initial_state (state, public, private, provider, material_instance);
-}
-
-static void on_material_instance_usage_insert (struct render_foundation_material_instance_management_state_t *state,
-                                               struct kan_render_program_singleton_t *public,
-                                               struct render_foundation_program_management_singleton_t *private,
-                                               const struct kan_resource_provider_singleton_t *provider,
-                                               kan_interned_string_t material_instance_name)
-{
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (existent, render_foundation_material_instance_t, name, &material_instance_name)
-    if (existent)
-    {
-        ++existent->reference_count;
-        if (existent->usages_mip_frame_id == provider->logic_deduplication_frame_id)
-        {
-            return;
-        }
-
-        const uint8_t previous_best_mip = existent->usages_best_mip;
-        const uint8_t previous_worst_mip = existent->usages_best_mip;
-
-        recalculate_usages_mip (state, existent);
-        if (previous_best_mip == existent->usages_best_mip && previous_worst_mip == existent->usages_worst_mip)
-        {
-            return;
-        }
-
-        KAN_UMI_SINGLETON_READ (texture_singleton, kan_render_texture_singleton_t)
-        KAN_UML_VALUE_UPDATE (texture_usage, render_foundation_material_instance_texture_usage_t,
-                              material_instance_name, &material_instance_name)
-        {
-            KAN_UMI_VALUE_DETACH_REQUIRED (usage_to_detach, kan_render_texture_usage_t, usage_id,
-                                           &texture_usage->usage_id)
-            KAN_UM_ACCESS_DELETE (usage_to_detach);
-
-            texture_usage->usage_id = kan_next_texture_usage_id (texture_singleton);
-            KAN_UMO_INDEXED_INSERT (usage_to_insert, kan_render_texture_usage_t)
-            {
-                usage_to_insert->usage_id = texture_usage->usage_id;
-                usage_to_insert->name = texture_usage->texture_name;
-                usage_to_insert->best_advised_mip = existent->usages_best_mip;
-                usage_to_insert->worst_advised_mip = existent->usages_worst_mip;
-            }
-        }
-
-        return;
-    }
-
-    KAN_UMO_INDEXED_INSERT (material_instance, render_foundation_material_instance_t)
-    {
-        material_instance->name = material_instance_name;
-        material_instance->loading_material_name = NULL;
-        material_instance->reference_count = 1u;
-        material_instance->usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-
-        material_instance->state = RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_INITIAL;
-        material_instance->state_frame_id = provider->logic_deduplication_frame_id;
-
-        material_instance->usages_mip_frame_id = provider->logic_deduplication_frame_id;
-        recalculate_usages_mip (state, material_instance);
-
-        material_instance->hot_reload_mark = false;
-        material_instance->hot_reload_ready_mark = false;
-        ++public->material_instance_loading_counter;
-        advance_material_instance_from_initial_state (state, public, private, provider, material_instance);
-    }
-}
-
-static void on_material_instance_usage_delete (struct render_foundation_material_instance_management_state_t *state,
-                                               struct kan_render_program_singleton_t *public,
-                                               const struct kan_resource_provider_singleton_t *provider,
-                                               kan_interned_string_t material_instance_name)
-{
-    KAN_UMI_VALUE_WRITE_OPTIONAL (existent, render_foundation_material_instance_t, name, &material_instance_name)
-    if (existent)
-    {
-        --existent->reference_count;
-        if (existent->reference_count == 0u)
-        {
-            if (existent->loading_material_name)
-            {
-                remove_material_link_from_instance (state, provider, existent->loading_material_name);
-            }
-
-            {
-                KAN_UMI_VALUE_DETACH_OPTIONAL (loaded, kan_render_material_instance_loaded_t, name,
-                                               &material_instance_name)
-                remove_material_link_from_instance (state, provider, loaded->material_name);
-                KAN_UM_ACCESS_DELETE (loaded);
-            }
-
-            switch (existent->state)
-            {
-            case RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_INITIAL:
-            case RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_WAITING_RESOURCE:
-            case RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_WAITING_DEPENDENCIES:
-                KAN_ASSERT (public->material_instance_loading_counter > 0u)
-                --public->material_instance_loading_counter;
-                break;
-
-            case RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_READY:
-                break;
-            }
-
-            // Cascade deletion should handle everything.
-            KAN_UM_ACCESS_DELETE (existent);
-        }
-    }
-}
-
-static void advance_material_instance_from_initial_state (
-    struct render_foundation_material_instance_management_state_t *state,
-    struct kan_render_program_singleton_t *public,
-    struct render_foundation_program_management_singleton_t *private,
-    const struct kan_resource_provider_singleton_t *provider,
-    struct render_foundation_material_instance_t *material_instance)
-{
-    KAN_LOG (render_foundation_program, KAN_LOG_DEBUG,
-             "Attempting to advance material instance \"%s\" state from initial to waiting resource.",
-             material_instance->name)
-
-    material_instance->state_frame_id = provider->logic_deduplication_frame_id;
-    material_instance->state = RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_WAITING_RESOURCE;
-
-    KAN_ASSERT (!KAN_TYPED_ID_32_IS_VALID (material_instance->usage_id))
-    material_instance->usage_id = kan_next_resource_usage_id (provider);
-
-    KAN_UMO_INDEXED_INSERT (usage, kan_resource_usage_t)
-    {
-        usage->usage_id = material_instance->usage_id;
-        usage->type = KAN_STATIC_INTERNED_ID_GET (kan_resource_material_instance_t);
-        usage->name = material_instance->name;
-        usage->priority = KAN_UNIVERSE_RENDER_FOUNDATION_MI_PRIORITY;
-    }
-
-    advance_material_instance_from_waiting_resource_state (state, public, private, provider, material_instance);
-}
-
-static void advance_material_instance_from_waiting_resource_state (
-    struct render_foundation_material_instance_management_state_t *state,
-    struct kan_render_program_singleton_t *public,
-    struct render_foundation_program_management_singleton_t *private,
-    const struct kan_resource_provider_singleton_t *provider,
-    struct render_foundation_material_instance_t *material_instance)
-{
-    KAN_LOG (
-        render_foundation_program, KAN_LOG_DEBUG,
-        "Attempting to advance material instance \"%s\" state from waiting resource to waiting dependencies state.",
-        material_instance->name)
-
-    material_instance->state_frame_id = provider->logic_deduplication_frame_id;
-    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_material_instance_t, &material_instance->name)
-
-    if (!resource)
-    {
-        return;
-    }
-
-    // Add link to material, so it will be loaded faster.
-    material_instance->loading_material_name = resource->material;
-    add_material_link_from_instance (state, provider, resource->material);
-
-    // Add usages for all textures mentioned in the resource.
     KAN_UMI_SINGLETON_READ (texture_singleton, kan_render_texture_singleton_t)
-
-    for (kan_memory_size_t index = 0u; index < resource->images.size; ++index)
+    KAN_UML_VALUE_UPDATE (usage, render_foundation_material_instance_texture_usage_t, material_instance_name,
+                          &loaded->name)
     {
-        const struct kan_resource_image_binding_t *binding =
-            &((struct kan_resource_image_binding_t *) resource->images.data)[index];
-
-        // We just insert all the references here as not bound usages.
-        // When everything is loaded, we'll delete previously bound usage and bind new ones.
-        // Not the most effective way,
-
-        KAN_UMO_INDEXED_INSERT (usage, render_foundation_material_instance_texture_usage_t)
+        if (KAN_TYPED_ID_32_IS_VALID (usage->quality_id))
         {
-            usage->material_instance_name = material_instance->name;
-            usage->texture_name = binding->texture;
-            usage->binding = binding->binding;
-            usage->bound = false;
-            usage->usage_id = kan_next_texture_usage_id (texture_singleton);
+            KAN_UMI_VALUE_DETACH_REQUIRED (texture_quality, kan_render_texture_quality_t, quality_id,
+                                           &usage->quality_id)
+            KAN_UM_ACCESS_DELETE (texture_quality);
+            usage->quality_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_texture_quality_id_t);
+        }
 
-            KAN_UMO_INDEXED_INSERT (usage_to_insert, kan_render_texture_usage_t)
-            {
-                usage_to_insert->usage_id = usage->usage_id;
-                usage_to_insert->name = usage->texture_name;
-                usage_to_insert->best_advised_mip = material_instance->usages_best_mip;
-                usage_to_insert->worst_advised_mip = material_instance->usages_worst_mip;
-            }
+        if (loaded->requested_best_mip != KAN_INT_MAX (kan_instance_size_t))
+        {
+            usage->quality_id = kan_next_texture_quality_id (texture_singleton);
+            KAN_UMI_INDEXED_INSERT (texture_quality, kan_render_texture_quality_t)
+            texture_quality->quality_id = usage->quality_id;
+            texture_quality->name = usage->texture_name;
+            texture_quality->best_advised_mip = loaded->requested_best_mip;
         }
     }
-
-    material_instance->state = RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_WAITING_DEPENDENCIES;
-    advance_material_instance_from_waiting_dependencies_state (state, public, private, provider, material_instance);
 }
 
 static void load_material_instance (struct render_foundation_material_instance_management_state_t *state,
+                                    const struct kan_resource_provider_singleton_t *provider,
+                                    const struct kan_render_context_singleton_t *render_context,
                                     const struct kan_resource_material_instance_t *resource,
                                     struct kan_render_material_instance_loaded_t *loaded)
 {
     KAN_CPU_SCOPED_STATIC_SECTION (load_material)
+    const kan_interned_string_t name = loaded->name;
     // Not the most effective way to reset material instance content technically,
     // but should be rare enough for us to not care about it at all.
-    kan_interned_string_t name = loaded->name;
     kan_render_material_instance_loaded_shutdown (loaded);
     kan_render_material_instance_loaded_init (loaded);
+
+    KAN_UML_VALUE_DETACH (usage_to_delete, render_foundation_material_instance_texture_usage_t, material_instance_name,
+                          &name)
+    {
+        KAN_UM_ACCESS_DELETE (usage_to_delete);
+    }
 
     loaded->name = name;
     loaded->material_name = resource->material;
 
-    kan_render_context_t render_context = kan_render_backend_system_get_render_context (state->render_backend_system);
-    KAN_ASSERT (KAN_HANDLE_IS_VALID (render_context))
-
+    // Using required here is fine as if resources were built without errors and loading order is right,
+    // then material should always exist and be loaded at that point.
     KAN_UMI_VALUE_READ_REQUIRED (material_loaded, kan_render_material_loaded_t, name, &resource->material)
+
     struct kan_render_parameter_update_description_t bindings_static[KAN_UNIVERSE_RENDER_FOUNDATION_MI_UPDATES_COUNT];
     struct kan_render_parameter_update_description_t *bindings = bindings_static;
     const kan_instance_size_t bindings_count = resource->buffers.size + resource->samplers.size + resource->images.size;
@@ -2014,8 +1213,8 @@ static void load_material_instance (struct render_foundation_material_instance_m
                   (unsigned int) buffer_binding->binding);
 
         kan_render_buffer_t new_buffer =
-            kan_render_buffer_create (render_context, buffer_type, buffer_binding->data.size, buffer_binding->data.data,
-                                      kan_string_intern (tracking_name_buffer));
+            kan_render_buffer_create (render_context->render_context, buffer_type, buffer_binding->data.size,
+                                      buffer_binding->data.data, kan_string_intern (tracking_name_buffer));
 
         if (!KAN_HANDLE_IS_VALID (new_buffer))
         {
@@ -2047,29 +1246,39 @@ static void load_material_instance (struct render_foundation_material_instance_m
         ++bindings_output;
     }
 
-    KAN_UML_VALUE_WRITE (texture_usage, render_foundation_material_instance_texture_usage_t, material_instance_name,
-                         &loaded->name)
+    for (kan_memory_size_t index = 0u; index < resource->images.size; ++index)
     {
-        if (texture_usage->bound)
+        const struct kan_resource_image_binding_t *binding =
+            &((struct kan_resource_image_binding_t *) resource->images.data)[index];
+
+        KAN_UMO_INDEXED_INSERT (usage, render_foundation_material_instance_texture_usage_t)
         {
-            // Already bound usage from previous loading (happens only with hot reload), delete it now.
-            KAN_UM_ACCESS_DELETE (texture_usage);
-            continue;
+            usage->material_instance_name = loaded->name;
+            usage->texture_name = binding->texture;
+            usage->binding = binding->binding;
+            usage->quality_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_texture_quality_id_t);
+            usage->bound_image = KAN_HANDLE_SET_INVALID (kan_render_image_t);
+
+            KAN_UMI_VALUE_READ_OPTIONAL (texture_loaded, kan_render_texture_loaded_t, name, &binding->texture)
+            if (texture_loaded)
+            {
+                usage->bound_image = texture_loaded->image;
+            }
+
+            if (KAN_HANDLE_IS_VALID (usage->bound_image))
+            {
+                bindings_output->binding = usage->binding;
+                bindings_output->image_binding.image = texture_loaded->image;
+                bindings_output->image_binding.array_index = 0u;
+                bindings_output->image_binding.layer_offset = 0u;
+                bindings_output->image_binding.layer_count = 1u;
+                ++bindings_output;
+            }
         }
-
-        texture_usage->bound = true;
-        KAN_UMI_VALUE_READ_REQUIRED (texture_loaded, kan_render_texture_loaded_t, name, &texture_usage->texture_name)
-
-        bindings_output->binding = texture_usage->binding;
-        bindings_output->image_binding.image = texture_loaded->image;
-        bindings_output->image_binding.array_index = 0u;
-        bindings_output->image_binding.layer_offset = 0u;
-        bindings_output->image_binding.layer_count = 1u;
-        ++bindings_output;
     }
 
     // Technically, having no material set is not an error as it just means that there would be no bindings, and it is
-    // technically fine, as if it not fine, it wouldn't be built as a resource.
+    // technically fine, as if it would not fine, then it wouldn't be built as a resource.
     if (KAN_HANDLE_IS_VALID (material_loaded->set_material))
     {
         struct kan_render_pipeline_parameter_set_description_t description = {
@@ -2080,7 +1289,7 @@ static void load_material_instance (struct render_foundation_material_instance_m
             .initial_bindings = bindings,
         };
 
-        loaded->parameter_set = kan_render_pipeline_parameter_set_create (render_context, &description);
+        loaded->parameter_set = kan_render_pipeline_parameter_set_create (render_context->render_context, &description);
         if (!KAN_HANDLE_IS_VALID (loaded->parameter_set))
         {
             KAN_LOG (render_foundation_program, KAN_LOG_ERROR,
@@ -2105,89 +1314,22 @@ static void load_material_instance (struct render_foundation_material_instance_m
         }
     }
 
+    update_material_instance_quality (state, provider, loaded);
     KAN_UMO_EVENT_INSERT_INIT (kan_render_material_instance_updated_event_t) {.name = name};
 }
 
-static void advance_material_instance_from_waiting_dependencies_state (
+static void on_material_instance_quality_insert_or_delete (
     struct render_foundation_material_instance_management_state_t *state,
-    struct kan_render_program_singleton_t *public,
-    struct render_foundation_program_management_singleton_t *private,
     const struct kan_resource_provider_singleton_t *provider,
-    struct render_foundation_material_instance_t *material_instance)
+    kan_interned_string_t name)
 {
-    KAN_LOG (render_foundation_program, KAN_LOG_DEBUG,
-             "Attempting to advance material instance \"%s\" state from waiting dependencies to ready.",
-             material_instance->name)
-    material_instance->state_frame_id = provider->logic_deduplication_frame_id;
-
-    KAN_UMI_VALUE_READ_OPTIONAL (material_loaded, kan_render_material_loaded_t, name,
-                                 &material_instance->loading_material_name)
-
-    if (!material_loaded)
+    KAN_UMI_VALUE_UPDATE_OPTIONAL (loaded, kan_render_material_instance_loaded_t, name, &name)
+    if (!loaded || loaded->requested_best_mip_frame_id == provider->logic_deduplication_frame_id)
     {
         return;
     }
 
-    KAN_UML_VALUE_READ (texture_usage, render_foundation_material_instance_texture_usage_t, material_instance_name,
-                        &material_instance->name)
-    {
-        if (!texture_usage->bound)
-        {
-            KAN_UMI_VALUE_READ_OPTIONAL (texture_loaded, kan_render_texture_loaded_t, name,
-                                         &texture_usage->texture_name)
-
-            if (!texture_loaded)
-            {
-                return;
-            }
-        }
-    }
-
-    HELPER_ACKNOWLEDGE_POSSIBLE_BLOCK_DURING_HOT_RELOAD (material_instance)
-
-    // Everything seems to be ready for the loading.
-    material_instance->state = RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_READY;
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_loaded, kan_render_material_instance_loaded_t, name,
-                                   &material_instance->name)
-
-    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_material_instance_t, &material_instance->name)
-    KAN_ASSERT (resource)
-
-    if (existing_loaded)
-    {
-        // Remove previous material link.
-        // If material didn't change, we still have loading-time link.
-        // If material has changed, we need to unlink it either way.
-        if (existing_loaded->material_name)
-        {
-            remove_material_link_from_instance (state, provider, existing_loaded->material_name);
-        }
-
-        load_material_instance (state, resource, existing_loaded);
-    }
-    else
-    {
-        KAN_UMO_INDEXED_INSERT (new_loaded, kan_render_material_instance_loaded_t)
-        {
-            new_loaded->name = material_instance->name;
-            load_material_instance (state, resource, new_loaded);
-        }
-    }
-
-    KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_resource_usage_t, usage_id, &material_instance->usage_id)
-    KAN_UM_ACCESS_DELETE (usage);
-    material_instance->usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-
-    material_instance->loading_material_name = NULL;
-    // Material is no longer used for loading purposes, but we should not unlink it
-    // as pipelines might still be compiling, so priority still matters.
-    // However, link should be deleted when hot reload is started.
-
-    KAN_ASSERT (public->material_instance_loading_counter > 0u)
-    --public->material_instance_loading_counter;
-
-    KAN_LOG (render_foundation_program, KAN_LOG_DEBUG, "Advanced material instance \"%s\" state to ready.",
-             material_instance->name)
+    update_material_instance_quality (state, provider, loaded);
 }
 
 UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_EXECUTE (render_foundation_material_instance_management)
@@ -2199,146 +1341,87 @@ UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_EXECUTE (render_foundation_materia
     }
 
     KAN_UMI_SINGLETON_READ (provider, kan_resource_provider_singleton_t)
-    if (!provider->scan_done)
+    if (provider->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_COMMIT)
     {
-        return;
-    }
+        // We do not need to manually update material instances after material updates as if material was updated
+        // then material instance would always be updated by build system as well.
 
-    KAN_UMI_SINGLETON_WRITE (public, kan_render_program_singleton_t)
-    KAN_UMI_SINGLETON_WRITE (private, render_foundation_program_management_singleton_t)
-
-    if (public->pass_loading_counter > 0u && private->hot_reload_state == RENDER_FOUNDATION_HOT_RELOAD_STATE_NONE)
-    {
-        // We do not start loading materials unless all passes are loaded, so we also cannot start loading instances.
-        // Hot reload is a special case as we need to schedule reload of all the materials too.
-        return;
-    }
-
-    KAN_UML_RESOURCE_UPDATED_EVENT_FETCH (material_instance_updated_event, kan_resource_material_instance_t)
-    {
-        on_material_instance_resource_updated (state, public, private, provider, material_instance_updated_event->name);
-    }
-
-    if (private->hot_reload_state == RENDER_FOUNDATION_HOT_RELOAD_STATE_APPLICATION_FRAME)
-    {
-        KAN_UML_SIGNAL_UPDATE (material_instance, render_foundation_material_instance_t, hot_reload_mark, true)
+        KAN_UML_RESOURCE_LOADED_EVENT_FETCH (loaded_event, kan_resource_material_instance_t)
         {
-            KAN_ASSERT (material_instance->hot_reload_ready_mark)
-            KAN_ASSERT (material_instance->state == RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_WAITING_DEPENDENCIES)
-            advance_material_instance_from_waiting_dependencies_state (state, public, private, provider,
-                                                                       material_instance);
-            material_instance->hot_reload_mark = false;
-            material_instance->hot_reload_ready_mark = false;
-        }
-    }
+            KAN_UMI_RESOURCE_RETRIEVE_FRESH_LOADED (resource, kan_resource_material_instance_t, &loaded_event->name)
+            KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_loaded, kan_render_material_instance_loaded_t, name,
+                                           &loaded_event->name)
 
-    KAN_UML_EVENT_FETCH (on_insert_event, render_foundation_material_instance_usage_on_insert_event_t)
-    {
-        on_material_instance_usage_insert (state, public, private, provider, on_insert_event->material_instance_name);
-    }
-
-    KAN_UML_EVENT_FETCH (on_delete_event, render_foundation_material_instance_usage_on_delete_event_t)
-    {
-        on_material_instance_usage_delete (state, public, provider, on_delete_event->material_instance_name);
-    }
-
-    KAN_UML_RESOURCE_LOADED_EVENT_FETCH (resource_loaded_event, kan_resource_material_instance_t)
-    {
-        KAN_UMI_VALUE_UPDATE_OPTIONAL (material_instance, render_foundation_material_instance_t, name,
-                                       &resource_loaded_event->name)
-
-        if (material_instance && material_instance->state_frame_id != provider->logic_deduplication_frame_id)
-        {
-            switch (material_instance->state)
+            if (existing_loaded)
             {
-            case RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_INITIAL:
-            case RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_WAITING_DEPENDENCIES:
-            case RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_READY:
-                KAN_ASSERT_FORMATTED (false,
-                                      "Texture \"%s\" in state %u received main resource loaded event, which is "
-                                      "totally unexpected in this state.",
-                                      material_instance->name, (unsigned int) material_instance->state)
-                break;
-
-            case RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_WAITING_RESOURCE:
-                advance_material_instance_from_waiting_resource_state (state, public, private, provider,
-                                                                       material_instance);
-                break;
+                load_material_instance (state, provider, render_context, resource, existing_loaded);
             }
-        }
-    }
-
-    KAN_UML_EVENT_FETCH (material_loaded_event, kan_render_material_updated_event_t)
-    {
-        KAN_UML_VALUE_UPDATE (material_instance, render_foundation_material_instance_t, loading_material_name,
-                              &material_loaded_event->name)
-        {
-            if (material_instance->state_frame_id != provider->logic_deduplication_frame_id)
+            else
             {
-                switch (material_instance->state)
+                KAN_UMO_INDEXED_INSERT (new_loaded, kan_render_material_instance_loaded_t)
                 {
-                case RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_INITIAL:
-                case RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_WAITING_RESOURCE:
-                case RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_READY:
-                    // Technically possible as material is a shared base resource.
-                    break;
-
-                case RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_WAITING_DEPENDENCIES:
-                    advance_material_instance_from_waiting_dependencies_state (state, public, private, provider,
-                                                                               material_instance);
-                    break;
+                    new_loaded->name = loaded_event->name;
+                    load_material_instance (state, provider, render_context, resource, new_loaded);
                 }
             }
         }
     }
 
-    KAN_UML_EVENT_FETCH (texture_loaded_event, kan_render_texture_updated_event_t)
+    if (provider->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_NONE)
     {
-        KAN_UML_VALUE_READ (usage, render_foundation_material_instance_texture_usage_t, texture_name,
-                            &texture_loaded_event->name)
+        KAN_UML_RESOURCE_UNLOAD_PLANNED_EVENT_FETCH (unload_event, kan_resource_material_instance_t)
         {
-            KAN_UMI_VALUE_UPDATE_REQUIRED (material_instance, render_foundation_material_instance_t, name,
-                                           &usage->material_instance_name)
+            KAN_UMI_VALUE_DELETE_OPTIONAL (existing_loaded, kan_render_material_instance_loaded_t, name,
+                                           &unload_event->name)
 
-            if (usage->bound)
+            if (existing_loaded)
             {
-                KAN_CPU_SCOPED_STATIC_SECTION (rebind_texture)
-                KAN_UMI_VALUE_READ_REQUIRED (instance_loaded, kan_render_material_instance_loaded_t, name,
-                                             &material_instance->name)
+                KAN_UM_ACCESS_DELETE (existing_loaded);
+            }
+        }
 
-                if (!KAN_HANDLE_IS_VALID (instance_loaded->parameter_set))
+        KAN_UML_EVENT_FETCH (on_insert_event, render_foundation_material_instance_quality_on_insert_event_t)
+        {
+            on_material_instance_quality_insert_or_delete (state, provider, on_insert_event->material_instance_name);
+        }
+
+        KAN_UML_EVENT_FETCH (on_delete_event, render_foundation_material_instance_quality_on_delete_event_t)
+        {
+            on_material_instance_quality_insert_or_delete (state, provider, on_delete_event->material_instance_name);
+        }
+
+        KAN_UML_EVENT_FETCH (texture_updated_event, kan_render_texture_updated_event_t)
+        {
+            KAN_CPU_SCOPED_STATIC_SECTION (texture_updated)
+            KAN_UMI_VALUE_READ_OPTIONAL (texture, kan_render_texture_loaded_t, name, &texture_updated_event->name)
+
+            if (!texture)
+            {
+                continue;
+            }
+
+            KAN_UML_VALUE_UPDATE (usage, render_foundation_material_instance_texture_usage_t, texture_name,
+                                  &texture_updated_event->name)
+            {
+                if (KAN_HANDLE_IS_EQUAL (texture->image, usage->bound_image))
                 {
-                    break;
+                    continue;
                 }
 
-                KAN_UMI_VALUE_READ_REQUIRED (texture_loaded, kan_render_texture_loaded_t, name,
-                                             &texture_loaded_event->name)
+                usage->bound_image = texture->image;
+                KAN_UMI_VALUE_READ_REQUIRED (material_instance, kan_render_material_instance_loaded_t, name,
+                                             &usage->material_instance_name)
 
-                struct kan_render_parameter_update_description_t update = {
-                    .binding = usage->binding,
-                    .image_binding =
-                        {
-                            .image = texture_loaded->image,
-                            .array_index = 0u,
-                            .layer_offset = 0u,
-                            .layer_count = 1u,
-                        },
-                };
-
-                kan_render_pipeline_parameter_set_update (instance_loaded->parameter_set, 1u, &update);
-            }
-            else if (material_instance->state == RENDER_FOUNDATION_MATERIAL_INSTANCE_STATE_WAITING_DEPENDENCIES &&
-                     material_instance->state_frame_id != provider->logic_deduplication_frame_id)
-            {
-                // Hack for advancing material instances from inside this loop.
-                // To advance material instance loading, we need to manage their usages, which would be impossible
-                // while this usage access is still open. Therefore, we escape it to close it early.
-                struct kan_repository_indexed_value_read_access_t stolen_access;
-                KAN_UM_ACCESS_ESCAPE (stolen_access, usage);
-                kan_repository_indexed_value_read_access_close (&stolen_access);
-
-                advance_material_instance_from_waiting_dependencies_state (state, public, private, provider,
-                                                                           material_instance);
+                if (KAN_HANDLE_IS_VALID (material_instance->parameter_set))
+                {
+                    struct kan_render_parameter_update_description_t binding;
+                    binding.binding = usage->binding;
+                    binding.image_binding.image = usage->bound_image;
+                    binding.image_binding.array_index = 0u;
+                    binding.image_binding.layer_offset = 0u;
+                    binding.image_binding.layer_count = 1u;
+                    kan_render_pipeline_parameter_set_update (material_instance->parameter_set, 1u, &binding);
+                }
             }
         }
     }
@@ -2346,10 +1429,7 @@ UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_EXECUTE (render_foundation_materia
 
 void kan_render_program_singleton_init (struct kan_render_program_singleton_t *instance)
 {
-    instance->material_instance_usage_id_counter = kan_atomic_int_init (1);
-    instance->pass_loading_counter = 0u;
-    instance->material_loading_counter = 0u;
-    instance->material_instance_loading_counter = 0u;
+    instance->material_instance_quality_id_counter = kan_atomic_int_init (1);
 }
 
 void kan_render_foundation_pass_variant_init (struct kan_render_foundation_pass_variant_t *instance)
@@ -2457,12 +1537,11 @@ void kan_render_material_loaded_shutdown (struct kan_render_material_loaded_t *i
     kan_rpl_meta_set_bindings_shutdown (&instance->set_shared_bindings);
 }
 
-void kan_render_material_instance_usage_init (struct kan_render_material_instance_usage_t *instance)
+void kan_render_material_instance_quality_init (struct kan_render_material_instance_quality_t *instance)
 {
-    instance->usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_usage_id_t);
+    instance->quality_id = KAN_TYPED_ID_32_SET_INVALID (kan_render_material_instance_quality_id_t);
     instance->name = NULL;
     instance->best_advised_mip = 0u;
-    instance->worst_advised_mip = KAN_INT_MAX (uint8_t);
 }
 
 void kan_render_material_instance_variant_init (struct kan_render_material_instance_variant_t *instance)
@@ -2496,6 +1575,9 @@ void kan_render_material_instance_loaded_init (struct kan_render_material_instan
     instance->name = NULL;
     instance->material_name = NULL;
     instance->parameter_set = KAN_HANDLE_SET_INVALID (kan_render_pipeline_parameter_set_t);
+    instance->requested_best_mip = KAN_INT_MAX (kan_instance_size_t);
+    instance->requested_best_mip_frame_id = 0u;
+
     kan_dynamic_array_init (&instance->variants, 0u, sizeof (struct kan_render_material_instance_variant_t),
                             alignof (struct kan_render_material_instance_variant_t), kan_allocation_group_stack_get ());
     kan_dynamic_array_init (&instance->bound_buffers, 0u, sizeof (struct kan_render_material_instance_bound_buffer_t),

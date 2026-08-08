@@ -58,6 +58,7 @@ THREADING_API void kan_atomic_int_unlock_write (struct kan_atomic_int_t *atomic)
 THREADING_API int kan_atomic_int_add (struct kan_atomic_int_t *atomic, int delta);
 
 /// \brief Atomically sets atomic integer value.
+/// \return Value that atomic had prior to setting new value.
 THREADING_API int kan_atomic_int_set (struct kan_atomic_int_t *atomic, int new_value);
 
 /// \brief Atomically compares current value with old value and sets new value if old and current values are equal.

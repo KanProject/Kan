@@ -20,77 +20,6 @@ KAN_UM_ADD_MUTATOR_TO_FOLLOWING_GROUP (render_foundation_atlas_management)
 UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_GROUP_META (render_foundation_atlas_management,
                                                           KAN_RENDER_FOUNDATION_ATLAS_MANAGEMENT_MUTATOR_GROUP);
 
-struct render_foundation_atlas_usage_on_insert_event_t
-{
-    kan_interned_string_t atlas_name;
-};
-
-KAN_REFLECTION_STRUCT_META (kan_render_atlas_usage_t)
-UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_on_insert_event_t
-    render_foundation_atlas_usage_on_insert_event = {
-        .event_type = "render_foundation_atlas_usage_on_insert_event_t",
-        .copy_outs_count = 1u,
-        .copy_outs =
-            (struct kan_repository_copy_out_t[]) {
-                {
-                    .source_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"name"}},
-                    .target_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"atlas_name"}},
-                },
-            },
-};
-
-struct render_foundation_atlas_usage_on_delete_event_t
-{
-    kan_interned_string_t atlas_name;
-};
-
-KAN_REFLECTION_STRUCT_META (kan_render_atlas_usage_t)
-UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_on_delete_event_t
-    render_foundation_atlas_usage_on_delete_event = {
-        .event_type = "render_foundation_atlas_usage_on_delete_event_t",
-        .copy_outs_count = 1u,
-        .copy_outs =
-            (struct kan_repository_copy_out_t[]) {
-                {
-                    .source_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"name"}},
-                    .target_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"atlas_name"}},
-                },
-            },
-};
-
-enum render_foundation_atlas_state_t
-{
-    RENDER_FOUNDATION_ATLAS_STATE_INITIAL = 0u,
-    RENDER_FOUNDATION_ATLAS_STATE_WAITING,
-    RENDER_FOUNDATION_ATLAS_STATE_READY,
-};
-
-struct render_foundation_atlas_t
-{
-    kan_interned_string_t name;
-    kan_instance_size_t reference_count;
-    kan_resource_usage_id_t usage_id;
-
-    enum render_foundation_atlas_state_t state;
-    kan_instance_size_t state_frame_id;
-};
-
-KAN_REFLECTION_STRUCT_META (render_foundation_atlas_t)
-UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_cascade_deletion_t
-    render_foundation_atlas_usage_id_cascade_deletion = {
-        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"usage_id"}},
-        .child_type_name = "kan_resource_usage_t",
-        .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"usage_id"}},
-};
-
-KAN_REFLECTION_STRUCT_META (render_foundation_atlas_t)
-UNIVERSE_RENDER_FOUNDATION_API struct kan_repository_meta_automatic_cascade_deletion_t
-    render_foundation_atlas_loaded_cascade_deletion = {
-        .parent_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"name"}},
-        .child_type_name = "kan_render_atlas_loaded_t",
-        .child_key_path = {.reflection_path_length = 1u, .reflection_path = (const char *[]) {"name"}},
-};
-
 struct render_foundation_atlas_management_state_t
 {
     KAN_UM_GENERATE_STATE_QUERIES (render_foundation_atlas_management)
@@ -106,110 +35,6 @@ UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_DEPLOY (render_foundation_atlas_ma
     kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_FRAME_END_CHECKPOINT);
     kan_workflow_graph_node_depend_on (workflow_node, KAN_RENDER_FOUNDATION_ATLAS_MANAGEMENT_BEGIN_CHECKPOINT);
     kan_workflow_graph_node_make_dependency_of (workflow_node, KAN_RENDER_FOUNDATION_ATLAS_MANAGEMENT_END_CHECKPOINT);
-}
-
-static void advance_from_initial_state (struct render_foundation_atlas_management_state_t *state,
-                                        struct kan_render_atlas_singleton_t *public,
-                                        const struct kan_resource_provider_singleton_t *provider,
-                                        struct render_foundation_atlas_t *atlas);
-
-static void advance_from_waiting_state (struct render_foundation_atlas_management_state_t *state,
-                                        struct kan_render_atlas_singleton_t *public,
-                                        const struct kan_resource_provider_singleton_t *provider,
-                                        struct render_foundation_atlas_t *atlas);
-
-static void on_atlas_resource_updated (struct render_foundation_atlas_management_state_t *state,
-                                       struct kan_render_atlas_singleton_t *public,
-                                       const struct kan_resource_provider_singleton_t *provider,
-                                       kan_interned_string_t atlas_name)
-{
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (atlas, render_foundation_atlas_t, name, &atlas_name)
-    if (!atlas)
-    {
-        return;
-    }
-
-    atlas->state = RENDER_FOUNDATION_ATLAS_STATE_INITIAL;
-    atlas->state_frame_id = provider->logic_deduplication_frame_id;
-
-    ++public->loading_counter;
-    // Start advancing, having some data loaded is very likely here.
-    advance_from_initial_state (state, public, provider, atlas);
-}
-
-static void on_usage_insert (struct render_foundation_atlas_management_state_t *state,
-                             struct kan_render_atlas_singleton_t *public,
-                             const struct kan_resource_provider_singleton_t *provider,
-                             kan_interned_string_t atlas_name)
-{
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (existent, render_foundation_atlas_t, name, &atlas_name)
-    if (existent)
-    {
-        ++existent->reference_count;
-        return;
-    }
-
-    KAN_UMO_INDEXED_INSERT (atlas, render_foundation_atlas_t)
-    {
-        atlas->name = atlas_name;
-        atlas->reference_count = 1u;
-        atlas->usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-
-        atlas->state = RENDER_FOUNDATION_ATLAS_STATE_INITIAL;
-        atlas->state_frame_id = provider->logic_deduplication_frame_id;
-
-        ++public->loading_counter;
-        advance_from_initial_state (state, public, provider, atlas);
-    }
-}
-
-static void on_usage_delete (struct render_foundation_atlas_management_state_t *state,
-                             struct kan_render_atlas_singleton_t *public,
-                             kan_interned_string_t atlas_name)
-{
-    KAN_UMI_VALUE_WRITE_OPTIONAL (existent, render_foundation_atlas_t, name, &atlas_name)
-    if (existent)
-    {
-        --existent->reference_count;
-        if (existent->reference_count == 0u)
-        {
-            if (existent->state != RENDER_FOUNDATION_ATLAS_STATE_READY)
-            {
-                KAN_ASSERT (public->loading_counter > 0u)
-                --public->loading_counter;
-            }
-
-            // Cascade deletion should handle everything.
-            KAN_UM_ACCESS_DELETE (existent);
-        }
-    }
-}
-
-static void advance_from_initial_state (struct render_foundation_atlas_management_state_t *state,
-                                        struct kan_render_atlas_singleton_t *public,
-                                        const struct kan_resource_provider_singleton_t *provider,
-                                        struct render_foundation_atlas_t *atlas)
-{
-    KAN_LOG (render_foundation_atlas, KAN_LOG_DEBUG,
-             "Attempting to advance atlas \"%s\" state from initial to waiting.", atlas->name)
-
-    atlas->state_frame_id = provider->logic_deduplication_frame_id;
-    atlas->state = RENDER_FOUNDATION_ATLAS_STATE_WAITING; // We will always advance from initial state.
-
-    // Usage will already be present if we're starting new hot reload while previous one wasn't finished.
-    if (!KAN_TYPED_ID_32_IS_VALID (atlas->usage_id))
-    {
-        atlas->usage_id = kan_next_resource_usage_id (provider);
-        KAN_UMO_INDEXED_INSERT (usage, kan_resource_usage_t)
-        {
-            usage->usage_id = atlas->usage_id;
-            usage->type = KAN_STATIC_INTERNED_ID_GET (kan_resource_atlas_t);
-            usage->name = atlas->name;
-            usage->priority = KAN_UNIVERSE_RENDER_FOUNDATION_ATLAS_PRIORITY;
-        }
-    }
-
-    advance_from_waiting_state (state, public, provider, atlas);
 }
 
 static inline bool is_image_compatible_with_atlas (kan_render_image_t image,
@@ -462,47 +287,6 @@ static void load_atlas (struct render_foundation_atlas_management_state_t *state
     KAN_UMO_EVENT_INSERT_INIT (kan_render_atlas_updated_event_t) {.name = loaded->name};
 }
 
-static void advance_from_waiting_state (struct render_foundation_atlas_management_state_t *state,
-                                        struct kan_render_atlas_singleton_t *public,
-                                        const struct kan_resource_provider_singleton_t *provider,
-                                        struct render_foundation_atlas_t *atlas)
-{
-    KAN_LOG (render_foundation_atlas, KAN_LOG_DEBUG, "Attempting to advance atlas \"%s\" state from waiting to ready.",
-             atlas->name)
-    atlas->state_frame_id = provider->logic_deduplication_frame_id;
-    KAN_UMI_RESOURCE_RETRIEVE_IF_LOADED_AND_FRESH (resource, kan_resource_atlas_t, &atlas->name)
-
-    if (!resource)
-    {
-        // Still waiting.
-        return;
-    }
-
-    atlas->state = RENDER_FOUNDATION_ATLAS_STATE_READY;
-    KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_loaded, kan_render_atlas_loaded_t, name, &atlas->name)
-
-    if (existing_loaded)
-    {
-        load_atlas (state, resource, existing_loaded);
-    }
-    else
-    {
-        KAN_UMO_INDEXED_INSERT (new_loaded, kan_render_atlas_loaded_t)
-        {
-            new_loaded->name = atlas->name;
-            load_atlas (state, resource, new_loaded);
-        }
-    }
-
-    KAN_UMI_VALUE_DETACH_REQUIRED (usage, kan_resource_usage_t, usage_id, &atlas->usage_id)
-    KAN_UM_ACCESS_DELETE (usage);
-    atlas->usage_id = KAN_TYPED_ID_32_SET_INVALID (kan_resource_usage_id_t);
-
-    KAN_ASSERT (public->loading_counter > 0u)
-    --public->loading_counter;
-    KAN_LOG (render_foundation_atlas, KAN_LOG_DEBUG, "Advanced atlas \"%s\" state to ready.", atlas->name)
-}
-
 UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_EXECUTE (render_foundation_atlas_management)
 {
     KAN_UMI_SINGLETON_READ (render_context, kan_render_context_singleton_t)
@@ -512,54 +296,39 @@ UNIVERSE_RENDER_FOUNDATION_API KAN_UM_MUTATOR_EXECUTE (render_foundation_atlas_m
     }
 
     KAN_UMI_SINGLETON_READ (resource_provider, kan_resource_provider_singleton_t)
-    if (!resource_provider->scan_done)
+    if (resource_provider->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_COMMIT)
     {
-        return;
-    }
-
-    KAN_UMI_SINGLETON_WRITE (public, kan_render_atlas_singleton_t)
-    KAN_UML_RESOURCE_UPDATED_EVENT_FETCH (updated_event, kan_resource_atlas_t)
-    {
-        on_atlas_resource_updated (state, public, resource_provider, updated_event->name);
-    }
-
-    KAN_UML_EVENT_FETCH (on_insert_event, render_foundation_atlas_usage_on_insert_event_t)
-    {
-        on_usage_insert (state, public, resource_provider, on_insert_event->atlas_name);
-    }
-
-    KAN_UML_EVENT_FETCH (on_delete_event, render_foundation_atlas_usage_on_delete_event_t)
-    {
-        on_usage_delete (state, public, on_delete_event->atlas_name);
-    }
-
-    KAN_UML_RESOURCE_LOADED_EVENT_FETCH (loaded_event, kan_resource_atlas_t)
-    {
-        KAN_UMI_VALUE_UPDATE_OPTIONAL (atlas, render_foundation_atlas_t, name, &loaded_event->name)
-        if (atlas && atlas->state_frame_id != resource_provider->logic_deduplication_frame_id)
+        KAN_UML_RESOURCE_LOADED_EVENT_FETCH (loaded_event, kan_resource_atlas_t)
         {
-            switch (atlas->state)
-            {
-            case RENDER_FOUNDATION_ATLAS_STATE_INITIAL:
-            case RENDER_FOUNDATION_ATLAS_STATE_READY:
-                KAN_ASSERT_FORMATTED (false,
-                                      "Atlas \"%s\" in state %u received resource loaded event, which is totally "
-                                      "unexpected in this state.",
-                                      atlas->name, (unsigned int) atlas->state)
-                break;
+            KAN_UMI_RESOURCE_RETRIEVE_FRESH_LOADED (resource, kan_resource_atlas_t, &loaded_event->name)
+            KAN_UMI_VALUE_UPDATE_OPTIONAL (existing_loaded, kan_render_atlas_loaded_t, name, &loaded_event->name)
 
-            case RENDER_FOUNDATION_ATLAS_STATE_WAITING:
-                advance_from_waiting_state (state, public, resource_provider, atlas);
-                break;
+            if (existing_loaded)
+            {
+                load_atlas (state, resource, existing_loaded);
+            }
+            else
+            {
+                KAN_UMO_INDEXED_INSERT (new_loaded, kan_render_atlas_loaded_t)
+                {
+                    new_loaded->name = loaded_event->name;
+                    load_atlas (state, resource, new_loaded);
+                }
             }
         }
     }
-}
 
-void kan_render_atlas_singleton_init (struct kan_render_atlas_singleton_t *instance)
-{
-    instance->usage_id_counter = kan_atomic_int_init (1);
-    instance->loading_counter = 0u;
+    if (resource_provider->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_NONE)
+    {
+        KAN_UML_RESOURCE_UNLOAD_PLANNED_EVENT_FETCH (unload_event, kan_resource_atlas_t)
+        {
+            KAN_UMI_VALUE_DELETE_OPTIONAL (existing_loaded, kan_render_atlas_loaded_t, name, &unload_event->name)
+            if (existing_loaded)
+            {
+                KAN_UM_ACCESS_DELETE (existing_loaded);
+            }
+        }
+    }
 }
 
 void kan_render_atlas_loaded_init (struct kan_render_atlas_loaded_t *instance)

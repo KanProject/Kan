@@ -114,4 +114,16 @@ static inline void kan_file_system_path_container_add_suffix (struct kan_file_sy
     }
 }
 
+/// \brief Helper function that returns pointer to the first character after the last directory separator.
+static inline const char *kan_file_system_path_walk_to_name_begin (const char *path, kan_instance_size_t path_length)
+{
+    const char *name_begin = path + path_length;
+    while (name_begin > path && *(name_begin - 1u) != '/' && *(name_begin - 1u) != '\\')
+    {
+        --name_begin;
+    }
+
+    return name_begin;
+}
+
 KAN_C_HEADER_END

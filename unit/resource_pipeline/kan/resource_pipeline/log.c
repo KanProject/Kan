@@ -22,6 +22,7 @@ kan_allocation_group_t kan_resource_log_get_allocation_group (void)
 
 void kan_resource_log_entry_init (struct kan_resource_log_entry_t *instance)
 {
+    instance->package = NULL;
     instance->type = NULL;
     instance->name = NULL;
     instance->version.type_version = 0u;
@@ -40,6 +41,7 @@ void kan_resource_log_entry_init (struct kan_resource_log_entry_t *instance)
 void kan_resource_log_entry_init_copy (struct kan_resource_log_entry_t *instance,
                                        const struct kan_resource_log_entry_t *copy_from)
 {
+    instance->package = copy_from->package;
     instance->type = copy_from->type;
     instance->name = copy_from->name;
     instance->version = copy_from->version;
@@ -84,41 +86,13 @@ void kan_resource_log_entry_shutdown (struct kan_resource_log_entry_t *instance)
     kan_dynamic_array_shutdown (&instance->additional_dependencies);
 }
 
-void kan_resource_log_target_init (struct kan_resource_log_target_t *instance)
+void kan_resource_log_init (struct kan_resource_log_t *instance)
 {
-    instance->name = NULL;
     kan_dynamic_array_init (&instance->entries, 0u, sizeof (struct kan_resource_log_entry_t),
                             alignof (struct kan_resource_log_entry_t), allocation_group);
 }
 
-void kan_resource_log_target_init_copy (struct kan_resource_log_target_t *instance,
-                                        const struct kan_resource_log_target_t *copy_from)
-{
-    instance->name = copy_from->name;
-    kan_dynamic_array_init (&instance->entries, copy_from->entries.size, sizeof (struct kan_resource_log_entry_t),
-                            alignof (struct kan_resource_log_entry_t), allocation_group);
-
-    for (kan_memory_size_t index = 0u; index < copy_from->entries.size; ++index)
-    {
-        const struct kan_resource_log_entry_t *input =
-            &((struct kan_resource_log_entry_t *) copy_from->entries.data)[index];
-        struct kan_resource_log_entry_t *output = kan_dynamic_array_add_last (&instance->entries);
-        kan_resource_log_entry_init_copy (output, input);
-    }
-}
-
-void kan_resource_log_target_shutdown (struct kan_resource_log_target_t *instance)
-{
-    KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->entries, kan_resource_log_entry)
-}
-
-void kan_resource_log_init (struct kan_resource_log_t *instance)
-{
-    kan_dynamic_array_init (&instance->targets, 0u, sizeof (struct kan_resource_log_target_t),
-                            alignof (struct kan_resource_log_target_t), allocation_group);
-}
-
 void kan_resource_log_shutdown (struct kan_resource_log_t *instance)
 {
-    KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->targets, kan_resource_log_target)
+    KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO (instance->entries, kan_resource_log_entry)
 }

@@ -42,7 +42,7 @@ void kan_resource_material_pipeline_shutdown (struct kan_resource_material_pipel
 
 KAN_REFLECTION_STRUCT_META (kan_resource_material_t)
 RESOURCE_RENDER_FOUNDATION_API struct kan_resource_type_meta_t kan_resource_material_resource_type = {
-    .flags = 0u,
+    .flags = KAN_RESOURCE_TYPE_TRANSITIVELY_LOADED,
     .version = CUSHION_START_NS_X64,
     .move = NULL,
     .reset = NULL,

@@ -16,9 +16,9 @@
 /// \par Bundle
 /// \parblock
 /// Common configuration for rendering UI is provided through bundles: list of resources that reference required
-/// resources, including proper render pass, atlas and material instances. Bundle information is available through
-/// `kan_ui_bundle_singleton_t` and bundle selection can be also changed there. It is also possible to supply
-/// default bundle name through `kan_ui_configuration_t`.
+/// resources, including proper render pass, atlas and material instances. Bundle selection is done through
+/// `kan_ui_bundle_singleton_t` and it is also possible to supply default bundle name through `kan_ui_configuration_t`.
+/// Bundle is loaded as a regular resource and therefore should be accessible by name if needed.
 /// \endparblock
 ///
 /// \par Coordinate units
@@ -92,28 +92,17 @@ KAN_C_HEADER_BEGIN
 /// \brief Group that is used to add all ui core mutators: both layout and render ones.
 #define KAN_UI_CORE_MUTATOR_GROUP "ui_core"
 
-/// \brief Group that is used to add all ui bundle management mutators.
-/// \details Bundle management should be done in as-high-as-possible game worlds, therefore it is separated into special
-///          mutator group.
-#define KAN_UI_BUNDLE_MANAGEMENT_MUTATOR_GROUP "ui_bundle_management"
+/// \brief Checkpoint, after which ui context setup update mutators are executed.
+#define KAN_UI_SETUP_BEGIN_CHECKPOINT "ui_setup_begin"
 
-/// \brief Checkpoint, after which ui ui time update mutators are executed.
-#define KAN_UI_TIME_BEGIN_CHECKPOINT "ui_time_begin"
-
-/// \brief Checkpoint, that is hit after all ui time update mutators have finished execution.
-#define KAN_UI_TIME_END_CHECKPOINT "ui_time_end"
+/// \brief Checkpoint, that is hit after all ui context setup update mutators have finished execution.
+#define KAN_UI_SETUP_END_CHECKPOINT "ui_setup_end"
 
 /// \brief Checkpoint, after which ui layout calculation mutators are executed.
 #define KAN_UI_LAYOUT_BEGIN_CHECKPOINT "ui_layout_begin"
 
 /// \brief Checkpoint, that is hit after all ui layout calculation mutators have finished execution.
 #define KAN_UI_LAYOUT_END_CHECKPOINT "ui_layout_end"
-
-/// \brief Checkpoint, after which ui bundle management mutators are executed.
-#define KAN_UI_BUNDLE_MANAGEMENT_BEGIN_CHECKPOINT "ui_bundle_management_begin"
-
-/// \brief Checkpoint, that is hit after all ui bundle management mutators have finished execution.
-#define KAN_UI_BUNDLE_MANAGEMENT_END_CHECKPOINT "ui_bundle_management_end"
 
 /// \brief Checkpoint, after which ui is allowed to do render graph allocations for itself.
 /// \details Anything that affects allocations, like viewport size, must be edited prior to this checkpoint.
@@ -175,7 +164,7 @@ struct kan_ui_configuration_t
     kan_interned_string_t default_bundle_name;
 };
 
-/// \brief Singleton that contains loaded ui bundle data for this world and its children.
+/// \brief Singleton that contains ui bundle selection for this world and its children.
 /// \details Should not be accessed in root world as it would place this singleton in root and force single bundle
 ///          everywhere, however should be used in as-high-as-possible game worlds and editor worlds in order to avoid
 ///          unnecessary configuration duplication. Creation in root worlds is considered to be bad as editor may use
@@ -188,20 +177,20 @@ struct kan_ui_bundle_singleton_t
 
     /// \brief If user manually changes `bundle_name`, user should make this field `true`.
     bool selection_dirty;
-
-    /// \brief True if bundle data is loaded and also resources bundle depends on are also loaded.
-    bool available;
-
-    /// \brief Loaded bundle data copy if `available`.
-    struct kan_resource_ui_bundle_t available_bundle;
 };
 
 UNIVERSE_UI_API void kan_ui_bundle_singleton_init (struct kan_ui_bundle_singleton_t *instance);
 
-UNIVERSE_UI_API void kan_ui_bundle_singleton_shutdown (struct kan_ui_bundle_singleton_t *instance);
+/// \brief Event that is being sent when ui bundle resource is loaded or when selection is updated.
+/// \warning Does not track updates of resources referenced by bundle itself!
+struct kan_ui_bundle_updated_event_t
+{
+    kan_instance_size_t stub;
+};
 
-/// \brief Event that is being sent when `kan_ui_bundle_singleton_t` available data is updated.
-struct kan_ui_bundle_updated_t
+/// \brief Event that is being sent when ui atlas is loaded or changed due to bundle change or due to hot reload.
+/// \details Helper event for user systems that need to update image indices in draw commands for ui elements.
+struct kan_ui_atlas_updated_event_t
 {
     kan_instance_size_t stub;
 };

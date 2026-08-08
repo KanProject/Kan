@@ -21,8 +21,20 @@ RESOURCE_UI_API struct kan_resource_reference_meta_t kan_resource_ui_bundle_refe
     .flags = 0u,
 };
 
-KAN_REFLECTION_STRUCT_FIELD_META (kan_resource_ui_bundle_t, material_instances_array)
-RESOURCE_UI_API struct kan_resource_reference_meta_t kan_resource_ui_bundle_reference_material_instances_array = {
+KAN_REFLECTION_STRUCT_FIELD_META (kan_resource_ui_bundle_t, image_material)
+RESOURCE_UI_API struct kan_resource_reference_meta_t kan_resource_ui_bundle_reference_image_material = {
+    .type_name = "kan_resource_material_instance_t",
+    .flags = 0u,
+};
+
+KAN_REFLECTION_STRUCT_FIELD_META (kan_resource_ui_bundle_t, text_sdf_material)
+RESOURCE_UI_API struct kan_resource_reference_meta_t kan_resource_ui_bundle_reference_text_sdf_material = {
+    .type_name = "kan_resource_material_instance_t",
+    .flags = 0u,
+};
+
+KAN_REFLECTION_STRUCT_FIELD_META (kan_resource_ui_bundle_t, text_icon_material)
+RESOURCE_UI_API struct kan_resource_reference_meta_t kan_resource_ui_bundle_reference_text_icon_material = {
     .type_name = "kan_resource_material_instance_t",
     .flags = 0u,
 };
@@ -41,7 +53,9 @@ void kan_resource_ui_bundle_init (struct kan_resource_ui_bundle_t *instance)
 {
     instance->pass = NULL;
     instance->image_atlas = NULL;
-    KAN_FILL_STATIC_ARRAY (instance->material_instances_array, NULL)
+    instance->image_material = NULL;
+    instance->text_sdf_material = NULL;
+    instance->text_icon_material = NULL;
 
     kan_dynamic_array_init (
         &instance->hit_box_interaction_styles, 0u, sizeof (struct kan_resource_ui_hit_box_interaction_style_t),

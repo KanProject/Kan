@@ -256,7 +256,8 @@ int main (int argc, char **argv)
 
     const char *name_begin =
         kan_file_system_path_walk_to_name_begin (plugin_directory_path.path, plugin_directory_path.length);
-    kan_file_system_path_container_reset_length (&plugin_directory_path, name_begin - plugin_directory_path.path);
+    kan_file_system_path_container_reset_length (&plugin_directory_path,
+                                                 (kan_instance_size_t) (name_begin - plugin_directory_path.path));
 
     kan_file_system_path_container_add_suffix (&plugin_directory_path, project.plugin_directory_name);
     plugin_system_config.plugin_directory_path = kan_string_intern (plugin_directory_path.path);

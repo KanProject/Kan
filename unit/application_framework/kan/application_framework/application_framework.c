@@ -343,7 +343,8 @@ static void start_logging_to_file (const char *executable_path_argument, const c
 
     kan_file_system_path_container_copy_string (&path_container, executable_path_argument);
     const char *name_begin = kan_file_system_path_walk_to_name_begin (path_container.path, path_container.length);
-    kan_file_system_path_container_reset_length (&path_container, name_begin - path_container.path);
+    kan_file_system_path_container_reset_length (&path_container,
+                                                 (kan_instance_size_t) (name_begin - path_container.path));
     kan_file_system_path_container_add_suffix (&path_container, "logs");
 
     if (!kan_file_system_check_existence (path_container.path))

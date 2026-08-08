@@ -197,7 +197,7 @@ static void load_texture (struct render_foundation_texture_management_state_t *s
     loaded->streaming_frame_id = 0u;
 
     bool format_selected = false;
-    kan_instance_size_t selected_format_item_index;
+    kan_instance_size_t selected_format_item_index = 0u;
 
     for (kan_memory_size_t index = 0u; index < resource->formats.size; ++index)
     {
@@ -248,7 +248,7 @@ static void load_texture (struct render_foundation_texture_management_state_t *s
         .height = KAN_MAX (1u, resource->height >> inlined_first_mip),
         .depth = KAN_MAX (1u, resource->depth >> inlined_first_mip),
         .layers = 1u,
-        .mips = loaded->inlined_mips_count,
+        .mips = (uint8_t) loaded->inlined_mips_count,
 
         .render_target = false,
         .supports_sampling = true,
@@ -299,7 +299,7 @@ static void unload_excessive_mips (struct render_foundation_texture_management_s
         .height = KAN_MAX (1u, loaded->height >> loaded->requested_best_mip),
         .depth = KAN_MAX (1u, loaded->depth >> loaded->requested_best_mip),
         .layers = 1u,
-        .mips = total_mips - loaded->requested_best_mip,
+        .mips = (uint8_t) (total_mips - loaded->requested_best_mip),
 
         .render_target = false,
         .supports_sampling = true,
@@ -405,7 +405,7 @@ static void update_texture_streaming (struct render_foundation_texture_managemen
         .height = KAN_MAX (1u, loaded->height >> loaded->requested_best_mip),
         .depth = KAN_MAX (1u, loaded->depth >> loaded->requested_best_mip),
         .layers = 1u,
-        .mips = total_mips - loaded->requested_best_mip,
+        .mips = (uint8_t) (total_mips - loaded->requested_best_mip),
 
         .render_target = false,
         .supports_sampling = true,

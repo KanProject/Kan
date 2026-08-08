@@ -1200,7 +1200,8 @@ static kan_interned_string_t extract_changed_file_package_name (struct resource_
             break;
         }
 
-        kan_file_system_path_container_reset_length (&container, name_begin - container.path - 1u);
+        kan_file_system_path_container_reset_length (&container,
+                                                     (kan_instance_size_t) (name_begin - container.path - 1u));
         const kan_instance_size_t base_length = container.length;
         kan_file_system_path_container_append (&container, KAN_RESOURCE_PACKAGE_FILE_NAME);
         const bool is_package = kan_virtual_file_system_check_existence (volume, container.path);
@@ -1805,7 +1806,7 @@ static inline enum resource_provider_serve_operation_status_t execute_shared_pro
     KAN_ASSERT (!loaded->loading_data || operation->third_party.read > 0u)
     if (!loaded->loading_data)
     {
-        loaded->loading_data_size = operation->third_party.size;
+        loaded->loading_data_size = (kan_instance_size_t) operation->third_party.size;
         loaded->loading_data =
             kan_allocate_general (loaded->my_allocation_group,
                                   (kan_instance_size_t) kan_apply_alignment (

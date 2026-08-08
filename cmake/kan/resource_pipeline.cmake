@@ -12,7 +12,7 @@ define_property (TARGET PROPERTY UNIT_RESOURCE_PACKAGE_DIRECTORIES
 
 # Register all resource packages found inside subdirectory with given name to the current unit.
 # Subdirectory must have root package! Name of the root package will always be equal to current unit name,
-# not directory name. Other package names will be equal to their directories.
+# not directory name. Other package names will be equal to their directory names.
 # Arguments:
 # - 1st: Name of the subdirectory to start the scanning from it.
 function (register_unit_resource_packages ROOT_DIRECTORY_NAME)

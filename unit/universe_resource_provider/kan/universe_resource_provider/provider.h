@@ -65,8 +65,9 @@
 /// \par Loading transaction
 /// \parblock
 /// All the non-streamed resources from packages are loaded in transactions. First transaction is essential package
-/// loading transaction, second transaction is required package loading transaction and then transactions occur whenever
-/// optional packages will be loaded or unloaded due to trigger tag changes.
+/// loading transaction, second transaction is required package loading transaction with optional packages if any were
+/// enabled before required transaction started and then transactions occur whenever  optional packages will be loaded
+/// or unloaded due to trigger tag changes.
 ///
 /// Overall transaction state machine looks like that:
 /// - Resource provider updates `loaded` flag on `kan_resource_package_state_t` records and schedules loading
@@ -98,7 +99,7 @@
 ///
 /// Keep in mind that streamed resource loading and unloading is only done when there is no active package loading
 /// transaction, which means that streaming will not happen right away if it was requested from some post-loading logic.
-/// Furthermore, it is advised to properly separated resources that use streaming into required-parts and optional-parts
+/// Furthermore, it is advised to properly separate resources that use streaming into required-parts and optional-parts
 /// during resource build: for example keeping always-loaded mips in main texture resource and only separating optional
 /// best quality mips into the separate streamed resources.
 /// \endparblock
@@ -286,7 +287,7 @@ struct kan_resource_provider_singleton_t
     KAN_REFLECTION_DYNAMIC_ARRAY_TYPE (kan_interned_string_t)
     struct kan_dynamic_array_t tags;
 
-    /// \brief Atomic lock for safely updating ::commit_locks from several threads.
+    /// \brief Atomic flag for `kan_resource_provider_singleton_extend_commit`.
     struct kan_atomic_int_t commit_locked;
 };
 
@@ -377,7 +378,7 @@ UNIVERSE_RESOURCE_PROVIDER_API void kan_resource_registered_entry_shutdown (
     struct kan_resource_registered_entry_t *instance);
 
 /// \brief Describes information that is stored in special typed entry for loaded native resources.
-/// \details Making loaded entries typed also makes it easy to search for the by resource name.
+/// \details Making loaded entries typed also makes it easy to search for them by resource name.
 KAN_REFLECTION_IGNORE
 struct kan_resource_loaded_entry_view_t
 {

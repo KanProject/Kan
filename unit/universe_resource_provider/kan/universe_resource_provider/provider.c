@@ -934,7 +934,7 @@ static void plan_transactional_unload (struct resource_provider_state_t *state,
         KAN_ASSERT (interface)
         KAN_ASSERT (!interface->source_node->streamed)
 
-        if (interface->source_node->transitively_loaded)
+        if (!interface->source_node->transitively_loaded)
         {
             // Transitively loaded entries must put that flag themselves to avoid concurrent access issues.
             struct kan_repository_indexed_value_update_access_t access =
@@ -2355,11 +2355,12 @@ UNIVERSE_RESOURCE_PROVIDER_API KAN_UM_MUTATOR_EXECUTE_SIGNATURE (mutator_templat
     }
 
     // Management phase. Run operations if any.
+    kan_stack_group_allocator_reset (&state->temporary_allocator);
+
     switch (public->transaction_state)
     {
     case KAN_RESOURCE_TRANSACTION_STATE_NONE:
     {
-        kan_stack_group_allocator_reset (&state->temporary_allocator);
         const kan_instance_size_t cpu_count = kan_platform_get_cpu_logical_core_count ();
         struct kan_cpu_task_list_node_t *task_list_node = NULL;
 
@@ -2389,7 +2390,6 @@ UNIVERSE_RESOURCE_PROVIDER_API KAN_UM_MUTATOR_EXECUTE_SIGNATURE (mutator_templat
 
     case KAN_RESOURCE_TRANSACTION_STATE_LOADING:
     {
-        kan_stack_group_allocator_reset (&state->temporary_allocator);
         const kan_instance_size_t cpu_count = kan_platform_get_cpu_logical_core_count ();
         struct kan_cpu_task_list_node_t *task_list_node = NULL;
 

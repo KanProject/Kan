@@ -103,17 +103,16 @@ CONTAINER_API void kan_dynamic_array_shutdown (struct kan_dynamic_array_t *array
 /// \brief Syntax sugar macro for a little bit more convenient for-each iteration on dynamic arrays.
 
 #if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
-#    define KAN_DYNAMIC_ARRAY_FOR_EACH(ARRAY, TYPE, INDEX_NAME_PREFIX)                                                 \
+#    define KAN_DYNAMIC_ARRAY_FOR_EACH(ARRAY, TYPE, NAME)                                                              \
         KAN_HIGHLIGHT_SIZEOF_POSSIBLE (TYPE);                                                                          \
-        kan_memory_size_t INDEX_NAME_PREFIX##_index = 0u;                                                              \
-        TYPE *value = NULL;                                                                                            \
-        kan_dynamic_array_shutdown (&(ARRAY));
+        kan_memory_size_t index__##NAME = 0u;                                                                          \
+        TYPE *NAME = NULL;                                                                                             \
+        for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
-#    define KAN_DYNAMIC_ARRAY_FOR_EACH(ARRAY, TYPE, INDEX_NAME_PREFIX)                                                 \
-        for (kan_memory_size_t INDEX_NAME_PREFIX##_index = 0u; INDEX_NAME_PREFIX##_index < (ARRAY).size;               \
-             ++INDEX_NAME_PREFIX##_index)                                                                              \
+#    define KAN_DYNAMIC_ARRAY_FOR_EACH(ARRAY, TYPE, NAME)                                                              \
+        for (kan_memory_size_t index__##NAME = 0u; index__##NAME < (ARRAY).size; ++index__##NAME)                      \
         {                                                                                                              \
-            TYPE *value = &((TYPE *) (ARRAY).data)[array_item_index];                                                  \
+            TYPE *NAME = &((TYPE *) (ARRAY).data)[index__##NAME];                                                      \
             __CUSHION_WRAPPED__                                                                                        \
         }
 #endif
@@ -128,8 +127,7 @@ CONTAINER_API void kan_dynamic_array_shutdown (struct kan_dynamic_array_t *array
         kan_dynamic_array_shutdown (&(ARRAY));
 #else
 #    define KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS(ARRAY, TYPE)                                                         \
-        KAN_DYNAMIC_ARRAY_FOR_EACH (ARRAY, TYPE,                                                                       \
-                                    array_item) {__CUSHION_WRAPPED__} kan_dynamic_array_shutdown (&(ARRAY));
+        KAN_DYNAMIC_ARRAY_FOR_EACH (ARRAY, TYPE, value) {__CUSHION_WRAPPED__} kan_dynamic_array_shutdown (&(ARRAY));
 #endif
 
 /// \def KAN_DYNAMIC_ARRAY_SHUTDOWN_WITH_ITEMS_AUTO
@@ -146,7 +144,7 @@ CONTAINER_API void kan_dynamic_array_shutdown (struct kan_dynamic_array_t *array
         KAN_DYNAMIC_ARRAY_FOR_EACH (ARRAY, struct __CUSHION_EVALUATED_ARGUMENT__ (TYPE_NAME_NO_SUFFIX)##_t,            \
                                     array_item)                                                                        \
         {                                                                                                              \
-            __CUSHION_EVALUATED_ARGUMENT__ (TYPE_NAME_NO_SUFFIX)##_shutdown (value);                                   \
+            __CUSHION_EVALUATED_ARGUMENT__ (TYPE_NAME_NO_SUFFIX)##_shutdown (array_item);                              \
         }                                                                                                              \
         kan_dynamic_array_shutdown (&(ARRAY));
 #endif

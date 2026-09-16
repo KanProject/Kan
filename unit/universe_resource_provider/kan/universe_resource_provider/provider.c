@@ -269,7 +269,7 @@ struct resource_provider_execution_shared_state_t
     struct kan_repository_indexed_interval_descending_write_cursor_t streaming_cursor;
     kan_stable_size_t end_time_ns;
 
-    /// \brief Private and private write access are shared between everyone exclusively for id counter usage.
+    /// \brief Private write access is shared between everyone exclusively for id counter usage.
     struct kan_repository_singleton_write_access_t private_access;
 
     struct resource_provider_private_singleton_t *private;

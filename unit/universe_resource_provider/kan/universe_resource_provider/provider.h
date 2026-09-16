@@ -604,6 +604,28 @@ struct kan_resource_third_party_unregistered_event_t
         }
 #endif
 
+#if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
+#    define KAN_UMI_RESOURCE_ITERATE_LOADED(NAME, RESOURCE_TYPE)                                                       \
+        /* Highlight-autocomplete replacement. */                                                                      \
+        const struct kan_resource_loaded_entry_view_t *NAME##_entry_view = NULL;                                       \
+        KAN_UML_SEQUENCE_READ (NAME, RESOURCE_TYPE)
+#else
+#    define KAN_UMI_RESOURCE_ITERATE_LOADED(NAME, RESOURCE_TYPE)                                                       \
+        KAN_UML_SEQUENCE_READ (NAME##_entry_view_internal,                                                             \
+                               KAN_RESOURCE_PROVIDER_MAKE_LOADED_ENTRY_TYPE (RESOURCE_TYPE))                           \
+        {                                                                                                              \
+            const struct RESOURCE_TYPE *NAME =                                                                         \
+                KAN_RESOURCE_PROVIDER_LOADED_ENTRY_GET (RESOURCE_TYPE, NAME##_entry_view_internal);                    \
+                                                                                                                       \
+            if (NAME)                                                                                                  \
+            {                                                                                                          \
+                const struct kan_resource_loaded_entry_view_t *NAME##_entry_view =                                     \
+                    (const struct kan_resource_loaded_entry_view_t *) NAME##_entry_view_internal;                      \
+                __CUSHION_WRAPPED__                                                                                    \
+            }                                                                                                          \
+        }
+#endif
+
 #define KAN_UMI_RESOURCE_RETRIEVE_LOADED_THIRD_PARTY(NAME, RESOURCE_NAME_POINTER)                                      \
     KAN_UMI_VALUE_READ_OPTIONAL (NAME##_entry_view, kan_resource_loaded_third_party_entry_t, name,                     \
                                  RESOURCE_NAME_POINTER)                                                                \

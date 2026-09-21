@@ -2669,6 +2669,9 @@ static void execute_draw_text_command (struct ui_render_state_t *state,
 
                     kan_render_pass_instance_attributes (pass_instance, UI_INSTANCED_BINDING, 1u, &slice.buffer,
                                                          &slice.slice_offset);
+
+                    kan_render_pass_instance_draw (
+                        pass_instance, 0u, sizeof (ui_rect_indices) / sizeof (ui_rect_indices[0u]), 0u, 0u, to_render);
                     glyphs_rendered += to_render;
                 }
             }
@@ -2738,6 +2741,9 @@ static void execute_draw_text_command (struct ui_render_state_t *state,
 
                     kan_render_pass_instance_attributes (pass_instance, UI_INSTANCED_BINDING, 1u, &slice.buffer,
                                                          &slice.slice_offset);
+
+                    kan_render_pass_instance_draw (
+                        pass_instance, 0u, sizeof (ui_rect_indices) / sizeof (ui_rect_indices[0u]), 0u, 0u, to_render);
                     icons_rendered += to_render;
                 }
             }

@@ -1387,7 +1387,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
                             .image_layer = 0u,
                         },
                     },
-            };
+        };
 
         frame_buffer_requests[DEFERRED_RENDER_SCENE_FRAME_BUFFER_LIGHTING] =
             (struct kan_render_graph_resource_frame_buffer_request_t) {
@@ -1404,7 +1404,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
                             .image_layer = 0u,
                         },
                     },
-            };
+        };
 
         scene_responses[index] =
             kan_render_graph_resource_management_singleton_request (render_resource_management, &scene_request);
@@ -1477,7 +1477,7 @@ static void try_render_frame (struct deferred_render_state_t *state,
                         .image_layer = 0u,
                     },
                 },
-        };
+    };
 
     struct kan_render_graph_resource_request_t shadow_request = {
         .context = render_context->render_context,

@@ -542,7 +542,7 @@ static void try_render_frame (struct text_effects_render_state_t *state,
                         .image_layer = 0u,
                     },
                 },
-        };
+    };
 
     struct kan_render_graph_resource_request_t scene_request = {
         .context = render_context->render_context,

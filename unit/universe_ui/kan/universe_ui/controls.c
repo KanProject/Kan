@@ -1240,51 +1240,51 @@ static void line_edit_process_horizontal_arrow (struct kan_ui_node_line_edit_beh
         continue;
 
     go_to_the_next_cluster_in_sequences_after:
-    {
-        ++sequence_index;
-        while (sequence_index < shaping_unit->shaped_edition_sequences.size)
         {
-            sequence = &((struct kan_text_shaped_edition_sequence_data_t *)
-                             shaping_unit->shaped_edition_sequences.data)[sequence_index];
-
-            if (sequence->clusters.size > 0u)
+            ++sequence_index;
+            while (sequence_index < shaping_unit->shaped_edition_sequences.size)
             {
-                behavior->cursor_content_location =
-                    ((struct kan_text_shaped_edition_cluster_data_t *) sequence->clusters.data)[0u].start_at_index;
-                return;
+                sequence = &((struct kan_text_shaped_edition_sequence_data_t *)
+                                 shaping_unit->shaped_edition_sequences.data)[sequence_index];
+
+                if (sequence->clusters.size > 0u)
+                {
+                    behavior->cursor_content_location =
+                        ((struct kan_text_shaped_edition_cluster_data_t *) sequence->clusters.data)[0u].start_at_index;
+                    return;
+                }
+
+                ++sequence_index;
             }
 
-            ++sequence_index;
+            // Failsafe.
+            behavior->cursor_content_location = behavior->content_utf8.size - 1u;
+            return;
         }
-
-        // Failsafe.
-        behavior->cursor_content_location = behavior->content_utf8.size - 1u;
-        return;
-    }
 
     go_to_the_previous_cluster_in_sequences_before:
-    {
-        --sequence_index;
-        while (sequence_index != KAN_INT_MAX (kan_memory_size_t))
         {
-            sequence = &((struct kan_text_shaped_edition_sequence_data_t *)
-                             shaping_unit->shaped_edition_sequences.data)[sequence_index];
-
-            if (sequence->clusters.size > 0u)
+            --sequence_index;
+            while (sequence_index != KAN_INT_MAX (kan_memory_size_t))
             {
-                behavior->cursor_content_location = ((struct kan_text_shaped_edition_cluster_data_t *)
-                                                         sequence->clusters.data)[sequence->clusters.size - 1u]
-                                                        .start_at_index;
-                return;
+                sequence = &((struct kan_text_shaped_edition_sequence_data_t *)
+                                 shaping_unit->shaped_edition_sequences.data)[sequence_index];
+
+                if (sequence->clusters.size > 0u)
+                {
+                    behavior->cursor_content_location = ((struct kan_text_shaped_edition_cluster_data_t *)
+                                                             sequence->clusters.data)[sequence->clusters.size - 1u]
+                                                            .start_at_index;
+                    return;
+                }
+
+                --sequence_index;
             }
 
-            --sequence_index;
+            // Failsafe.
+            behavior->cursor_content_location = 0u;
+            return;
         }
-
-        // Failsafe.
-        behavior->cursor_content_location = 0u;
-        return;
-    }
     }
 
     // Failsafe.

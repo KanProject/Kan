@@ -334,7 +334,7 @@ static bool scan_potential_referencer_struct (struct kan_resource_reflected_data
                         .field = field,
                         .referenced_type = NULL,
                         .flags = 0u,
-                    };
+                };
             }
 
             continue;
@@ -383,7 +383,7 @@ static bool scan_potential_referencer_struct (struct kan_resource_reflected_data
                 .field = field,
                 .referenced_type = kan_string_intern (resource_reference->type_name),
                 .flags = resource_reference->flags,
-            };
+        };
     }
 
     kan_dynamic_array_set_capacity (&data->fields_to_check, data->fields_to_check.size);

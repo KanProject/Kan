@@ -651,7 +651,7 @@ void kan_platform_application_get_fullscreen_display_modes (kan_platform_display
                     .height = (kan_instance_size_t) modes[index]->h,
                     .pixel_density = modes[index]->pixel_density,
                     .refresh_rate = modes[index]->refresh_rate,
-                };
+            };
         }
 
         SDL_free (modes);

@@ -412,62 +412,63 @@ static enum kan_resource_build_rule_result_t sum_resource_raw_build_from_multili
             reading = false;
 
         output_line:
-        {
-            if (line_output != line)
             {
-                struct kan_file_system_path_container_t output_path;
-                kan_file_system_path_container_copy_string (&output_path, context->temporary_workspace);
-                kan_file_system_path_container_append (&output_path, context->primary_name);
-
-                char buffer[32u];
-                snprintf (buffer, sizeof (buffer), "%u", (unsigned int) line_index);
-                kan_file_system_path_container_add_suffix (&output_path, buffer);
-                kan_file_system_path_container_add_suffix (&output_path, ".txt");
-
-                struct kan_stream_t *save_stream = kan_direct_file_stream_open_for_write (output_path.path, false);
-                if (!save_stream)
+                if (line_output != line)
                 {
-                    KAN_LOG_WITH_BUFFER (KAN_FILE_SYSTEM_MAX_PATH_LENGTH * 2u, test_resource_pipeline_build,
-                                         KAN_LOG_ERROR, "Failed to open file to save line from multiline at \"%s\".",
-                                         output_path.path)
-                    return KAN_RESOURCE_BUILD_RULE_FAILURE;
+                    struct kan_file_system_path_container_t output_path;
+                    kan_file_system_path_container_copy_string (&output_path, context->temporary_workspace);
+                    kan_file_system_path_container_append (&output_path, context->primary_name);
+
+                    char buffer[32u];
+                    snprintf (buffer, sizeof (buffer), "%u", (unsigned int) line_index);
+                    kan_file_system_path_container_add_suffix (&output_path, buffer);
+                    kan_file_system_path_container_add_suffix (&output_path, ".txt");
+
+                    struct kan_stream_t *save_stream = kan_direct_file_stream_open_for_write (output_path.path, false);
+                    if (!save_stream)
+                    {
+                        KAN_LOG_WITH_BUFFER (
+                            KAN_FILE_SYSTEM_MAX_PATH_LENGTH * 2u, test_resource_pipeline_build, KAN_LOG_ERROR,
+                            "Failed to open file to save line from multiline at \"%s\".", output_path.path)
+                        return KAN_RESOURCE_BUILD_RULE_FAILURE;
+                    }
+
+                    save_stream = kan_random_access_stream_buffer_open_for_write (save_stream, 4096u);
+                    CUSHION_DEFER { stream->operations->close (save_stream); }
+
+                    const kan_instance_size_t size = (kan_instance_size_t) (line_output - line);
+                    if (save_stream->operations->write (save_stream, size, line) != size)
+                    {
+                        KAN_LOG_WITH_BUFFER (
+                            KAN_FILE_SYSTEM_MAX_PATH_LENGTH * 2u, test_resource_pipeline_build, KAN_LOG_ERROR,
+                            "Failed to write data to file to save line from multiline at \"%s\".", output_path.path)
+                        return KAN_RESOURCE_BUILD_RULE_FAILURE;
+                    }
+
+                    kan_interned_string_t *name_output = kan_dynamic_array_add_last (&output->sources);
+                    if (!name_output)
+                    {
+                        kan_dynamic_array_set_capacity (&output->sources, KAN_MAX (1u, output->sources.size * 2u));
+                        name_output = kan_dynamic_array_add_last (&output->sources);
+                    }
+
+                    if (!context->produce_third_party_secondary_output (context->interface, output_path.path,
+                                                                        name_output))
+                    {
+                        KAN_LOG_WITH_BUFFER (KAN_FILE_SYSTEM_MAX_PATH_LENGTH * 2u, test_resource_pipeline_build,
+                                             KAN_LOG_ERROR,
+                                             "Failed to produce secondary third party resource while saving line from "
+                                             "multiline at \"%s\".",
+                                             output_path.path)
+                        return KAN_RESOURCE_BUILD_RULE_FAILURE;
+                    }
+
+                    ++line_index;
                 }
 
-                save_stream = kan_random_access_stream_buffer_open_for_write (save_stream, 4096u);
-                CUSHION_DEFER { stream->operations->close (save_stream); }
-
-                const kan_instance_size_t size = (kan_instance_size_t) (line_output - line);
-                if (save_stream->operations->write (save_stream, size, line) != size)
-                {
-                    KAN_LOG_WITH_BUFFER (
-                        KAN_FILE_SYSTEM_MAX_PATH_LENGTH * 2u, test_resource_pipeline_build, KAN_LOG_ERROR,
-                        "Failed to write data to file to save line from multiline at \"%s\".", output_path.path)
-                    return KAN_RESOURCE_BUILD_RULE_FAILURE;
-                }
-
-                kan_interned_string_t *name_output = kan_dynamic_array_add_last (&output->sources);
-                if (!name_output)
-                {
-                    kan_dynamic_array_set_capacity (&output->sources, KAN_MAX (1u, output->sources.size * 2u));
-                    name_output = kan_dynamic_array_add_last (&output->sources);
-                }
-
-                if (!context->produce_third_party_secondary_output (context->interface, output_path.path, name_output))
-                {
-                    KAN_LOG_WITH_BUFFER (KAN_FILE_SYSTEM_MAX_PATH_LENGTH * 2u, test_resource_pipeline_build,
-                                         KAN_LOG_ERROR,
-                                         "Failed to produce secondary third party resource while saving line from "
-                                         "multiline at \"%s\".",
-                                         output_path.path)
-                    return KAN_RESOURCE_BUILD_RULE_FAILURE;
-                }
-
-                ++line_index;
+                line_output = line;
+                break;
             }
-
-            line_output = line;
-            break;
-        }
 
         default:
             KAN_LOG (test_resource_pipeline_build, KAN_LOG_ERROR,

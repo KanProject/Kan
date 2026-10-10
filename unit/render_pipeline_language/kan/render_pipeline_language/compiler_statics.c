@@ -67,7 +67,7 @@ void kan_rpl_compiler_ensure_statics_initialized (void)
                 .item = INBUILT_TYPE_ITEM_UNSIGNED,
                 .items_count = 1u,
                 .meta_type = KAN_RPL_META_VARIABLE_TYPE_U1,
-            };
+        };
 
         STATICS.vector_types[INBUILT_VECTOR_TYPE_INDEX (INBUILT_TYPE_ITEM_UNSIGNED, 2u)] =
             (struct inbuilt_vector_type_t) {
@@ -75,7 +75,7 @@ void kan_rpl_compiler_ensure_statics_initialized (void)
                 .item = INBUILT_TYPE_ITEM_UNSIGNED,
                 .items_count = 2u,
                 .meta_type = KAN_RPL_META_VARIABLE_TYPE_U2,
-            };
+        };
 
         STATICS.vector_types[INBUILT_VECTOR_TYPE_INDEX (INBUILT_TYPE_ITEM_UNSIGNED, 3u)] =
             (struct inbuilt_vector_type_t) {
@@ -83,7 +83,7 @@ void kan_rpl_compiler_ensure_statics_initialized (void)
                 .item = INBUILT_TYPE_ITEM_UNSIGNED,
                 .items_count = 3u,
                 .meta_type = KAN_RPL_META_VARIABLE_TYPE_U3,
-            };
+        };
 
         STATICS.vector_types[INBUILT_VECTOR_TYPE_INDEX (INBUILT_TYPE_ITEM_UNSIGNED, 4u)] =
             (struct inbuilt_vector_type_t) {
@@ -91,7 +91,7 @@ void kan_rpl_compiler_ensure_statics_initialized (void)
                 .item = INBUILT_TYPE_ITEM_UNSIGNED,
                 .items_count = 4u,
                 .meta_type = KAN_RPL_META_VARIABLE_TYPE_U4,
-            };
+        };
 
         STATICS.vector_types[INBUILT_VECTOR_TYPE_INDEX (INBUILT_TYPE_ITEM_SIGNED, 1u)] =
             (struct inbuilt_vector_type_t) {
@@ -99,7 +99,7 @@ void kan_rpl_compiler_ensure_statics_initialized (void)
                 .item = INBUILT_TYPE_ITEM_SIGNED,
                 .items_count = 1u,
                 .meta_type = KAN_RPL_META_VARIABLE_TYPE_S1,
-            };
+        };
 
         STATICS.vector_types[INBUILT_VECTOR_TYPE_INDEX (INBUILT_TYPE_ITEM_SIGNED, 2u)] =
             (struct inbuilt_vector_type_t) {
@@ -107,7 +107,7 @@ void kan_rpl_compiler_ensure_statics_initialized (void)
                 .item = INBUILT_TYPE_ITEM_SIGNED,
                 .items_count = 2u,
                 .meta_type = KAN_RPL_META_VARIABLE_TYPE_S2,
-            };
+        };
 
         STATICS.vector_types[INBUILT_VECTOR_TYPE_INDEX (INBUILT_TYPE_ITEM_SIGNED, 3u)] =
             (struct inbuilt_vector_type_t) {
@@ -115,7 +115,7 @@ void kan_rpl_compiler_ensure_statics_initialized (void)
                 .item = INBUILT_TYPE_ITEM_SIGNED,
                 .items_count = 3u,
                 .meta_type = KAN_RPL_META_VARIABLE_TYPE_S3,
-            };
+        };
 
         STATICS.vector_types[INBUILT_VECTOR_TYPE_INDEX (INBUILT_TYPE_ITEM_SIGNED, 4u)] =
             (struct inbuilt_vector_type_t) {
@@ -123,7 +123,7 @@ void kan_rpl_compiler_ensure_statics_initialized (void)
                 .item = INBUILT_TYPE_ITEM_SIGNED,
                 .items_count = 4u,
                 .meta_type = KAN_RPL_META_VARIABLE_TYPE_S4,
-            };
+        };
 
         struct inbuilt_matrix_type_t *type_pointer_f3x3 = &STATICS.matrix_types[0u];
         STATICS.matrix_types[0u] = (struct inbuilt_matrix_type_t) {

@@ -652,7 +652,7 @@ static void load_material (struct render_foundation_program_core_management_stat
                     .binding = resource->instanced_attribute_source.binding,
                     .stride = resource->instanced_attribute_source.block_size,
                     .rate = KAN_RENDER_ATTRIBUTE_RATE_PER_INSTANCE,
-                };
+            };
         }
     }
 

@@ -3750,7 +3750,7 @@ static inline bool writer_step_patch (struct writer_state_t *writer_state, struc
                 .source_offset = node.section_info.source_offset_in_parent,
                 .support_blocks_opened = support_blocks,
                 .array_set_current_index = KAN_INT_MAX (kan_instance_size_t),
-            };
+        };
 
         ++top_state->patch_state.section_stack_size;
         top_state->patch_state.current_iterator =

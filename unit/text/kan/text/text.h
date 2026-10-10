@@ -192,10 +192,11 @@ struct kan_text_item_t
 #define KAN_INIT_TEXT_ITEM_STYLE(STYLE, MARK)                                                                          \
     (struct kan_text_item_t)                                                                                           \
     {                                                                                                                  \
-        .type = KAN_TEXT_ITEM_STYLE, .style = {                                                                        \
+        .type = KAN_TEXT_ITEM_STYLE,                                                                                   \
+        .style = {                                                                                                     \
             .style = (STYLE),                                                                                          \
             .mark = (MARK),                                                                                            \
-        }                                                                                                              \
+        },                                                                                                             \
     }
 
 /// \brief Describes how to construct text object.

@@ -105,14 +105,14 @@ CONTAINER_API void kan_dynamic_array_shutdown (struct kan_dynamic_array_t *array
 #if defined(CMAKE_UNIT_FRAMEWORK_HIGHLIGHT)
 #    define KAN_DYNAMIC_ARRAY_FOR_EACH(ARRAY, TYPE, NAME)                                                              \
         KAN_HIGHLIGHT_SIZEOF_POSSIBLE (TYPE);                                                                          \
-        kan_memory_size_t NAME##_index = 0u;                                                                          \
+        kan_memory_size_t NAME##_index = 0u;                                                                           \
         TYPE *NAME = NULL;                                                                                             \
         for (kan_memory_size_t fake_index_##NAME = 0u; fake_index_##NAME < 1u; ++fake_index_##NAME)
 #else
 #    define KAN_DYNAMIC_ARRAY_FOR_EACH(ARRAY, TYPE, NAME)                                                              \
-        for (kan_memory_size_t NAME##_index = 0u; NAME##_index < (ARRAY).size; ++NAME##_index)                      \
+        for (kan_memory_size_t NAME##_index = 0u; NAME##_index < (ARRAY).size; ++NAME##_index)                         \
         {                                                                                                              \
-            TYPE *NAME = &((TYPE *) (ARRAY).data)[NAME##_index];                                                      \
+            TYPE *NAME = &((TYPE *) (ARRAY).data)[NAME##_index];                                                       \
             __CUSHION_WRAPPED__                                                                                        \
         }
 #endif

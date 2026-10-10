@@ -986,6 +986,9 @@ static void start_unconditional_loading_transaction (struct resource_provider_st
                                                      enum kan_resource_package_level_t level)
 {
     KAN_CPU_SCOPED_STATIC_SECTION (start_unconditional_loading_transaction)
+    KAN_ASSERT (public->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_NONE)
+    public->current_transaction_includes_essential = level == KAN_RESOURCE_PACKAGE_LEVEL_ESSENTIAL;
+    public->current_transaction_includes_required = level == KAN_RESOURCE_PACKAGE_LEVEL_REQUIRED;
     public->transaction_state = KAN_RESOURCE_TRANSACTION_STATE_LOADING;
 
     KAN_UML_SEQUENCE_UPDATE (package, kan_resource_package_state_t)
@@ -1005,7 +1008,16 @@ static bool start_optional_loading_transaction (struct resource_provider_state_t
                                                 struct resource_provider_private_singleton_t *private)
 {
     KAN_CPU_SCOPED_STATIC_SECTION (start_optional_loading_transaction)
-    bool transaction_triggered = false;
+    if (public->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_NONE)
+    {
+        public->current_transaction_includes_essential = false;
+        public->current_transaction_includes_required = false;
+    }
+    else
+    {
+        // Optional transaction can be appended to required transaction.
+        KAN_ASSERT (public->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_LOADING)
+    }
 
     KAN_UML_SEQUENCE_UPDATE (package, kan_resource_package_state_t)
     {
@@ -1042,7 +1054,10 @@ static bool start_optional_loading_transaction (struct resource_provider_state_t
         }
 
         package->loaded = should_be_loaded;
-        transaction_triggered = true;
+        public->transaction_state = KAN_RESOURCE_TRANSACTION_STATE_LOADING;
+        public->current_transaction_includes_essential |=
+            package->manifest.level == KAN_RESOURCE_PACKAGE_LEVEL_ESSENTIAL;
+        public->current_transaction_includes_required |= package->manifest.level == KAN_RESOURCE_PACKAGE_LEVEL_REQUIRED;
 
         if (should_be_loaded)
         {
@@ -1054,12 +1069,7 @@ static bool start_optional_loading_transaction (struct resource_provider_state_t
         }
     }
 
-    if (transaction_triggered)
-    {
-        public->transaction_state = KAN_RESOURCE_TRANSACTION_STATE_LOADING;
-    }
-
-    return transaction_triggered;
+    return public->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_LOADING;
 }
 
 static kan_instance_size_t calculate_streaming_priority (struct resource_provider_state_t *state,
@@ -1292,7 +1302,7 @@ static bool is_loading_operation_for_entry_exists (struct resource_provider_stat
     return existent_operation != NULL;
 }
 
-static bool process_file_added (struct resource_provider_state_t *state,
+static void process_file_added (struct resource_provider_state_t *state,
                                 struct kan_resource_provider_singleton_t *public,
                                 struct resource_provider_private_singleton_t *private,
                                 const char *path,
@@ -1304,7 +1314,7 @@ static bool process_file_added (struct resource_provider_state_t *state,
                  "File added at virtual path \"%s\" has resource package file name and adding new packages during hot "
                  "reload is not supported.",
                  path)
-        return false;
+        return;
     }
 
     kan_interned_string_t package_name = extract_changed_file_package_name (state, path, path_length);
@@ -1312,7 +1322,7 @@ static bool process_file_added (struct resource_provider_state_t *state,
     {
         KAN_LOG (universe_resource_provider, KAN_LOG_ERROR,
                  "File added at virtual path \"%s\" does not belong to any package judging by its path!", path)
-        return false;
+        return;
     }
 
     KAN_UMI_VALUE_READ_OPTIONAL (package, kan_resource_package_state_t, name, &package_name)
@@ -1320,7 +1330,7 @@ static bool process_file_added (struct resource_provider_state_t *state,
     {
         KAN_LOG (universe_resource_provider, KAN_LOG_ERROR,
                  "File added at virtual path \"%s\" does belong to unknown package \"%s\"!", path, package_name)
-        return false;
+        return;
     }
 
     kan_virtual_file_system_volume_t volume =
@@ -1332,7 +1342,7 @@ static bool process_file_added (struct resource_provider_state_t *state,
     {
         KAN_LOG (universe_resource_provider, KAN_LOG_ERROR,
                  "Failed to process addition at virtual path \"%s\" due to scan failure.", path)
-        return false;
+        return;
     }
 
     struct resource_provider_resource_type_interface_t *interface = NULL;
@@ -1344,7 +1354,7 @@ static bool process_file_added (struct resource_provider_state_t *state,
             KAN_LOG (universe_resource_provider, KAN_LOG_ERROR,
                      "Failed to process addition at virtual path \"%s\": resource type \"%s\" is unknown.", path,
                      scan_result.type)
-            return false;
+            return;
         }
     }
 
@@ -1356,7 +1366,7 @@ static bool process_file_added (struct resource_provider_state_t *state,
                      "Failed to process addition at virtual path \"%s\" as entry \"%s\" of type \"%s\" already exists "
                      "at \"%s\".",
                      path, existent_registered->name, existent_registered->type, existent_registered->path)
-            return false;
+            return;
         }
     }
 
@@ -1385,14 +1395,14 @@ static bool process_file_added (struct resource_provider_state_t *state,
     else if (package->loaded && !is_loading_operation_for_entry_exists (state, entry_id))
     {
         schedule_transactional_loading (state, registered);
-        return true;
+        public->transaction_state = KAN_RESOURCE_TRANSACTION_STATE_LOADING;
+        public->current_transaction_includes_essential |=
+            package->manifest.level == KAN_RESOURCE_PACKAGE_LEVEL_ESSENTIAL;
+        public->current_transaction_includes_required |= package->manifest.level == KAN_RESOURCE_PACKAGE_LEVEL_REQUIRED;
     }
-
-    // Returning false as transaction was not triggered, just entry was updated.
-    return false;
 }
 
-static bool process_file_modified (struct resource_provider_state_t *state,
+static void process_file_modified (struct resource_provider_state_t *state,
                                    struct kan_resource_provider_singleton_t *public,
                                    const char *path,
                                    kan_instance_size_t path_length)
@@ -1403,7 +1413,7 @@ static bool process_file_modified (struct resource_provider_state_t *state,
                  "File modified at virtual path \"%s\" has resource package file name and modifying package manifests "
                  "during hot reload is not supported.",
                  path)
-        return false;
+        return;
     }
 
     const kan_hash_t path_hash = kan_string_hash (path);
@@ -1488,18 +1498,21 @@ static bool process_file_modified (struct resource_provider_state_t *state,
             else if (package->loaded && !is_loading_operation_for_entry_exists (state, registered->entry_id))
             {
                 schedule_transactional_loading (state, registered);
-                return true;
+                public->transaction_state = KAN_RESOURCE_TRANSACTION_STATE_LOADING;
+                public->current_transaction_includes_essential |=
+                    package->manifest.level == KAN_RESOURCE_PACKAGE_LEVEL_ESSENTIAL;
+                public->current_transaction_includes_required |=
+                    package->manifest.level == KAN_RESOURCE_PACKAGE_LEVEL_REQUIRED;
             }
 
-            // Returning false as transaction was not triggered, just entry was updated.
-            return false;
+            return;
         }
     }
-
-    return false;
 }
 
-static bool process_file_removed (struct resource_provider_state_t *state, const char *path)
+static void process_file_removed (struct resource_provider_state_t *state,
+                                  struct kan_resource_provider_singleton_t *public,
+                                  const char *path)
 {
     const kan_hash_t path_hash = kan_string_hash (path);
     KAN_UML_VALUE_WRITE (registered, kan_resource_registered_entry_t, path_hash, &path_hash)
@@ -1546,18 +1559,23 @@ static bool process_file_removed (struct resource_provider_state_t *state, const
                 KAN_UM_ACCESS_DELETE (registered);
 
                 // Unloading streamed entry does not require transaction.
-                return false;
+                return;
             }
 
             // For non-streamed entries -- just start new transaction with unload planned.
             send_unload_planned_events (state, registered, interface);
             plan_transactional_unload (state, registered);
+            public->transaction_state = KAN_RESOURCE_TRANSACTION_STATE_LOADING;
+
+            KAN_UMI_VALUE_READ_REQUIRED (package, kan_resource_package_state_t, name, &registered->package)
+            public->current_transaction_includes_essential |=
+                package->manifest.level == KAN_RESOURCE_PACKAGE_LEVEL_ESSENTIAL;
+            public->current_transaction_includes_required |=
+                package->manifest.level == KAN_RESOURCE_PACKAGE_LEVEL_REQUIRED;
             KAN_UM_ACCESS_DELETE (registered);
-            return true;
+            return;
         }
     }
-
-    return false;
 }
 
 static bool check_file_systems_changes_and_reload (struct resource_provider_state_t *state,
@@ -1565,7 +1583,9 @@ static bool check_file_systems_changes_and_reload (struct resource_provider_stat
                                                    struct resource_provider_private_singleton_t *private)
 {
     KAN_CPU_SCOPED_STATIC_SECTION (resource_file_events)
-    bool transaction_triggered = false;
+    KAN_ASSERT (public->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_NONE)
+    public->current_transaction_includes_essential = false;
+    public->current_transaction_includes_required = false;
     kan_virtual_file_system_get_context_volume_for_read (state->virtual_file_system);
     const struct kan_virtual_file_system_watcher_event_t *event;
 
@@ -1586,15 +1606,15 @@ static bool check_file_systems_changes_and_reload (struct resource_provider_stat
             switch (event->event_type)
             {
             case KAN_VIRTUAL_FILE_SYSTEM_EVENT_TYPE_ADDED:
-                transaction_triggered |= process_file_added (state, public, private, path, length);
+                process_file_added (state, public, private, path, length);
                 break;
 
             case KAN_VIRTUAL_FILE_SYSTEM_EVENT_TYPE_MODIFIED:
-                transaction_triggered |= process_file_modified (state, public, path, length);
+                process_file_modified (state, public, path, length);
                 break;
 
             case KAN_VIRTUAL_FILE_SYSTEM_EVENT_TYPE_REMOVED:
-                transaction_triggered |= process_file_removed (state, path);
+                process_file_removed (state, public, path);
                 break;
             }
         }
@@ -1603,12 +1623,7 @@ static bool check_file_systems_changes_and_reload (struct resource_provider_stat
     }
 
     kan_virtual_file_system_close_context_read_access (state->virtual_file_system);
-    if (transaction_triggered)
-    {
-        public->transaction_state = KAN_RESOURCE_TRANSACTION_STATE_LOADING;
-    }
-
-    return transaction_triggered;
+    return public->transaction_state == KAN_RESOURCE_TRANSACTION_STATE_LOADING;
 }
 
 static void flip_native_resource_loaded_entry (struct resource_provider_resource_type_interface_t *interface,
@@ -2292,8 +2307,14 @@ UNIVERSE_RESOURCE_PROVIDER_API KAN_UM_MUTATOR_EXECUTE_SIGNATURE (mutator_templat
         perform_flip_on_transaction_finish (state);
         perform_unload_on_transaction_finish (state);
 
-        KAN_UMO_EVENT_INSERT_INIT (kan_resource_transaction_commit_finished_event_t) {.stub = 0u};
+        KAN_UMO_EVENT_INSERT_INIT (kan_resource_transaction_commit_finished_event_t) {
+            .included_essential = public->current_transaction_includes_essential,
+            .included_required = public->current_transaction_includes_required,
+        };
+
         public->transaction_state = KAN_RESOURCE_TRANSACTION_STATE_NONE;
+        public->current_transaction_includes_essential = false;
+        public->current_transaction_includes_required = false;
 
         if (!public->essential_loading_done)
         {
@@ -2972,6 +2993,8 @@ void kan_resource_provider_singleton_init (struct kan_resource_provider_singleto
     instance->initial_scan_done = false;
     instance->essential_loading_done = false;
     instance->required_loading_done = false;
+    instance->current_transaction_includes_essential = false;
+    instance->current_transaction_includes_required = false;
     instance->transaction_state = KAN_RESOURCE_TRANSACTION_STATE_NONE;
     instance->logic_deduplication_frame_id = 0u;
     instance->tags_dirty = true;

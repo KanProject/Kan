@@ -261,6 +261,14 @@ struct kan_resource_provider_singleton_t
     /// \brief Whether required package loading was finished.
     bool required_loading_done;
 
+    /// \brief Whether current ongoing transaction includes resources from essential packages.
+    /// \details Always `false` outside of transaction.
+    bool current_transaction_includes_essential;
+
+    /// \brief Whether current ongoing transaction includes resources from required packages.
+    /// \details Always `false` outside of transaction.
+    bool current_transaction_includes_required;
+
     /// \brief Current package loading transaction state.
     enum kan_resource_transaction_state_t transaction_state;
 
@@ -332,7 +340,13 @@ struct kan_resource_transaction_commit_started_event_t
 /// \brief Event that is sent when resource provider transaction commit is done and transaction is finished.
 struct kan_resource_transaction_commit_finished_event_t
 {
-    kan_instance_size_t stub;
+    /// \brief Whether transaction included resources from essential packages.
+    /// \details Important for hot reload support as hot reload means that essential resources can be changed mid game.
+    bool included_essential;
+
+    /// \brief Whether transaction included resources from required packages.
+    /// \details Important for hot reload support as hot reload means that required resources can be changed mid game.
+    bool included_required;
 };
 
 /// \brief Event that is sent essential packages loading transaction is finished.

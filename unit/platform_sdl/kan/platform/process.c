@@ -23,8 +23,8 @@ static void ensure_statics_initialized (void)
     {
         platform_process_allocation_group =
             kan_allocation_group_get_child (kan_allocation_group_root (), "platform_process");
-        arguments_allocation_group = kan_allocation_group_get_child (kan_allocation_group_root (), "arguments");
-        temporary_allocation_group = kan_allocation_group_get_child (kan_allocation_group_root (), "temporary");
+        arguments_allocation_group = kan_allocation_group_get_child (platform_process_allocation_group, "arguments");
+        temporary_allocation_group = kan_allocation_group_get_child (platform_process_allocation_group, "temporary");
         statics_initialized = true;
     }
 }

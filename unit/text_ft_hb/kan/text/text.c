@@ -35,8 +35,10 @@ static bool statics_initialized = false;
 
 static kan_allocation_group_t main_allocation_group;
 static kan_allocation_group_t text_allocation_group;
+#if defined(KAN_TEXT_FT_HB_PROFILE_MEMORY)
 static kan_allocation_group_t freetype_allocation_group;
 static kan_allocation_group_t harfbuzz_allocation_group;
+#endif
 static kan_allocation_group_t font_library_allocation_group;
 static kan_allocation_group_t shaping_temporary_allocation_group;
 
@@ -109,8 +111,10 @@ static void ensure_statics_initialized (void)
         kan_cpu_static_sections_ensure_initialized ();
         main_allocation_group = kan_allocation_group_get_child (kan_allocation_group_root (), "text");
         text_allocation_group = kan_allocation_group_get_child (main_allocation_group, "text");
+#if defined(KAN_TEXT_FT_HB_PROFILE_MEMORY)
         freetype_allocation_group = kan_allocation_group_get_child (main_allocation_group, "freetype");
         harfbuzz_allocation_group = kan_allocation_group_get_child (main_allocation_group, "harfbuzz");
+#endif
         font_library_allocation_group = kan_allocation_group_get_child (main_allocation_group, "font_library");
         shaping_temporary_allocation_group =
             kan_allocation_group_get_child (main_allocation_group, "shaping_temporary");

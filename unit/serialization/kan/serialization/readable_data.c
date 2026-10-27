@@ -638,24 +638,45 @@ static inline bool read_to_floating (struct reader_state_t *reader_state,
                                      kan_instance_size_t integer_size,
                                      void *address)
 {
-    if (parsed_event->type != KAN_READABLE_DATA_EVENT_ELEMENTAL_FLOATING_SETTER)
+    kan_floating_t value_to_set = 0.0f;
+    switch (parsed_event->type)
     {
+    case KAN_READABLE_DATA_EVENT_ELEMENTAL_IDENTIFIER_SETTER:
+    case KAN_READABLE_DATA_EVENT_ELEMENTAL_STRING_SETTER:
+    case KAN_READABLE_DATA_EVENT_STRUCTURAL_SETTER_BEGIN:
+    case KAN_READABLE_DATA_EVENT_ARRAY_APPENDER_BEGIN:
+    case KAN_READABLE_DATA_EVENT_BLOCK_END:
         KAN_LOG (serialization_readable_data, KAN_LOG_ERROR,
                  "Elemental setter attempts to set value at path \"%s\" (index -- %llu), but it is a floating number "
-                 "and  therefore only floating setters are allowed.",
+                 "and therefore only floating setters are allowed.",
                  parsed_event->output_target.identifier, (unsigned long long) parsed_event->output_target.array_index)
+        return false;
+
+    case KAN_READABLE_DATA_EVENT_ELEMENTAL_UNSIGNED_INTEGER_SETTER:
+        value_to_set = (kan_floating_t) source_node->unsigned_integer;
+        break;
+
+    case KAN_READABLE_DATA_EVENT_ELEMENTAL_SIGNED_INTEGER_SETTER:
+        value_to_set = (kan_floating_t) source_node->signed_integer;
+        break;
+
+    case KAN_READABLE_DATA_EVENT_ELEMENTAL_FLOATING_SETTER:
+        value_to_set = source_node->floating;
+        break;
+
+    default:
+        KAN_ASSERT (false)
         return false;
     }
 
-    const kan_floating_t value = source_node->floating;
     switch (integer_size)
     {
     case 4u:
-        *((float *) address) = (float) value;
+        *((float *) address) = (float) value_to_set;
         return true;
 
     case 8u:
-        *((double *) address) = value;
+        *((double *) address) = (double) value_to_set;
         return true;
     }
 
